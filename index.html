@@ -109,38 +109,144 @@
        ============================================================ -->
   <aside id="sidebar">
     <div class="sidebar-section">
-      <div class="sidebar-section-title" data-i18n="sidebar.gettingStarted">Getting Started</div>
-      <a class="sidebar-link" data-doc="getting-started" data-i18n="sidebar.gettingStarted">Getting Started</a>
+      <div class="sidebar-section-title">Getting Started</div>
+      <a class="sidebar-link" data-doc="what-is-goclaw">What is GoClaw?</a>
+      <a class="sidebar-link" data-doc="installation">Installation</a>
+      <a class="sidebar-link" data-doc="quick-start">Quick Start</a>
+      <a class="sidebar-link" data-doc="configuration">Configuration</a>
+      <a class="sidebar-link" data-doc="dashboard-tour">Dashboard Tour</a>
+      <a class="sidebar-link" data-doc="migrating-from-openclaw">Migrating from OpenClaw</a>
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title" data-i18n="sidebar.architecture">Architecture</div>
-      <a class="sidebar-link" data-doc="architecture" data-i18n="sidebar.architectureOverview">Architecture Overview</a>
-      <a class="sidebar-link" data-doc="agent-loop" data-i18n="sidebar.agentLoop">Agent Loop</a>
-      <a class="sidebar-link" data-doc="providers" data-i18n="sidebar.providers">LLM Providers</a>
-      <a class="sidebar-link" data-doc="tools" data-i18n="sidebar.tools">Tools System</a>
-      <a class="sidebar-link" data-doc="store" data-i18n="sidebar.store">Store & Data Model</a>
+      <div class="sidebar-section-title">Core Concepts</div>
+      <a class="sidebar-link" data-doc="how-goclaw-works">How GoClaw Works</a>
+      <a class="sidebar-link" data-doc="agents-explained">Agents Explained</a>
+      <a class="sidebar-link" data-doc="sessions-and-history">Sessions & History</a>
+      <a class="sidebar-link" data-doc="tools-overview">Tools Overview</a>
+      <a class="sidebar-link" data-doc="memory-system">Memory System</a>
+      <a class="sidebar-link" data-doc="multi-tenancy">Multi-Tenancy</a>
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title" data-i18n="sidebar.communication">Communication</div>
-      <a class="sidebar-link" data-doc="gateway" data-i18n="sidebar.gateway">Gateway & Protocol</a>
-      <a class="sidebar-link" data-doc="channels" data-i18n="sidebar.channels">Channels & Messaging</a>
-      <a class="sidebar-link" data-doc="websocket" data-i18n="sidebar.websocket">WebSocket Protocol</a>
+      <div class="sidebar-section-title">Agents</div>
+      <a class="sidebar-link" data-doc="creating-agents">Creating Agents</a>
+      <a class="sidebar-link" data-doc="open-vs-predefined">Open vs Predefined</a>
+      <a class="sidebar-link" data-doc="context-files">Context Files</a>
+      <a class="sidebar-link" data-doc="summoning-bootstrap">Summoning & Bootstrap</a>
+      <a class="sidebar-link" data-doc="editing-personality">Editing Personality</a>
+      <a class="sidebar-link" data-doc="sharing-and-access">Sharing & Access</a>
+      <a class="sidebar-link" data-doc="user-overrides">User Overrides</a>
+      <a class="sidebar-link" data-doc="system-prompt-anatomy">System Prompt Anatomy</a>
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title" data-i18n="sidebar.features">Features</div>
-      <a class="sidebar-link" data-doc="bootstrap" data-i18n="sidebar.bootstrap">Bootstrap, Skills & Memory</a>
-      <a class="sidebar-link" data-doc="scheduling" data-i18n="sidebar.scheduling">Scheduling & Cron</a>
-      <a class="sidebar-link" data-doc="security" data-i18n="sidebar.security">Security</a>
-      <a class="sidebar-link" data-doc="tracing" data-i18n="sidebar.tracing">Tracing & Observability</a>
-      <a class="sidebar-link" data-doc="dashboard" data-i18n="sidebar.dashboard">Web Dashboard</a>
+      <div class="sidebar-section-title">Providers</div>
+      <a class="sidebar-link" data-doc="providers-overview">Overview</a>
+      <a class="sidebar-link" data-doc="provider-anthropic">Anthropic</a>
+      <a class="sidebar-link" data-doc="provider-openai">OpenAI / Azure</a>
+      <a class="sidebar-link" data-doc="provider-openrouter">OpenRouter</a>
+      <a class="sidebar-link" data-doc="provider-gemini">Google Gemini</a>
+      <a class="sidebar-link" data-doc="provider-deepseek">DeepSeek</a>
+      <a class="sidebar-link" data-doc="provider-groq">Groq</a>
+      <a class="sidebar-link" data-doc="provider-mistral">Mistral</a>
+      <a class="sidebar-link" data-doc="provider-xai">xAI (Grok)</a>
+      <a class="sidebar-link" data-doc="provider-minimax">MiniMax</a>
+      <a class="sidebar-link" data-doc="provider-cohere">Cohere</a>
+      <a class="sidebar-link" data-doc="provider-perplexity">Perplexity</a>
+      <a class="sidebar-link" data-doc="provider-dashscope">DashScope (Qwen)</a>
+      <a class="sidebar-link" data-doc="provider-claude-cli">Claude CLI</a>
+      <a class="sidebar-link" data-doc="provider-codex">Codex / ChatGPT</a>
+      <a class="sidebar-link" data-doc="provider-custom">Custom</a>
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title" data-i18n="sidebar.reference">Reference</div>
-      <a class="sidebar-link" data-doc="api-reference" data-i18n="sidebar.apiReference">API Reference</a>
+      <div class="sidebar-section-title">Channels</div>
+      <a class="sidebar-link" data-doc="channels-overview">Overview</a>
+      <a class="sidebar-link" data-doc="channel-telegram">Telegram</a>
+      <a class="sidebar-link" data-doc="channel-discord">Discord</a>
+      <a class="sidebar-link" data-doc="channel-feishu">Feishu / Lark</a>
+      <a class="sidebar-link" data-doc="channel-zalo-oa">Zalo OA</a>
+      <a class="sidebar-link" data-doc="channel-zalo-personal">Zalo Personal</a>
+      <a class="sidebar-link" data-doc="channel-whatsapp">WhatsApp</a>
+      <a class="sidebar-link" data-doc="channel-websocket">WebSocket</a>
+      <a class="sidebar-link" data-doc="channel-browser-pairing">Browser Pairing</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Agent Teams</div>
+      <a class="sidebar-link" data-doc="teams-what-are-teams">What Are Teams?</a>
+      <a class="sidebar-link" data-doc="teams-creating">Creating & Managing</a>
+      <a class="sidebar-link" data-doc="teams-task-board">Task Board</a>
+      <a class="sidebar-link" data-doc="teams-messaging">Team Messaging</a>
+      <a class="sidebar-link" data-doc="teams-delegation">Delegation & Handoff</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Advanced</div>
+      <a class="sidebar-link" data-doc="custom-tools">Custom Tools</a>
+      <a class="sidebar-link" data-doc="mcp-integration">MCP Integration</a>
+      <a class="sidebar-link" data-doc="skills">Skills</a>
+      <a class="sidebar-link" data-doc="scheduling-cron">Scheduling & Cron</a>
+      <a class="sidebar-link" data-doc="sandbox">Sandbox</a>
+      <a class="sidebar-link" data-doc="tts-voice">TTS & Voice</a>
+      <a class="sidebar-link" data-doc="browser-automation">Browser Automation</a>
+      <a class="sidebar-link" data-doc="extended-thinking">Extended Thinking</a>
+      <a class="sidebar-link" data-doc="hooks-quality-gates">Hooks & Quality Gates</a>
+      <a class="sidebar-link" data-doc="authentication">Authentication & OAuth</a>
+      <a class="sidebar-link" data-doc="exec-approval">Exec Approval</a>
+      <a class="sidebar-link" data-doc="usage-quota">Usage & Quota</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Deployment</div>
+      <a class="sidebar-link" data-doc="deploy-docker-compose">Docker Compose</a>
+      <a class="sidebar-link" data-doc="deploy-database">Database Setup</a>
+      <a class="sidebar-link" data-doc="deploy-security">Security Hardening</a>
+      <a class="sidebar-link" data-doc="deploy-observability">Observability</a>
+      <a class="sidebar-link" data-doc="deploy-tailscale">Tailscale</a>
+      <a class="sidebar-link" data-doc="deploy-checklist">Prod Checklist</a>
+      <a class="sidebar-link" data-doc="deploy-upgrading">Upgrading</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Recipes</div>
+      <a class="sidebar-link" data-doc="recipe-personal-assistant">Personal Assistant</a>
+      <a class="sidebar-link" data-doc="recipe-team-chatbot">Team Chatbot</a>
+      <a class="sidebar-link" data-doc="recipe-customer-support">Customer Support</a>
+      <a class="sidebar-link" data-doc="recipe-code-review">Code Review Agent</a>
+      <a class="sidebar-link" data-doc="recipe-multi-channel">Multi-Channel Setup</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Showcases</div>
+      <a class="sidebar-link" data-doc="gallery">Gallery</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Reference</div>
+      <a class="sidebar-link" data-doc="cli-commands">CLI Commands</a>
+      <a class="sidebar-link" data-doc="websocket-protocol">WebSocket Protocol</a>
+      <a class="sidebar-link" data-doc="rest-api">REST API</a>
+      <a class="sidebar-link" data-doc="config-reference">Config Reference</a>
+      <a class="sidebar-link" data-doc="env-vars">Environment Variables</a>
+      <a class="sidebar-link" data-doc="database-schema">Database Schema</a>
+      <a class="sidebar-link" data-doc="glossary">Glossary</a>
+      <div class="sidebar-subsection-title">Templates</div>
+      <a class="sidebar-link sidebar-link-nested" data-doc="template-agents">AGENTS.md</a>
+      <a class="sidebar-link sidebar-link-nested" data-doc="template-soul">SOUL.md</a>
+      <a class="sidebar-link sidebar-link-nested" data-doc="template-identity">IDENTITY.md</a>
+      <a class="sidebar-link sidebar-link-nested" data-doc="template-tools">TOOLS.md</a>
+      <a class="sidebar-link sidebar-link-nested" data-doc="template-user">USER.md</a>
+      <a class="sidebar-link sidebar-link-nested" data-doc="template-bootstrap">BOOTSTRAP.md</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Troubleshooting</div>
+      <a class="sidebar-link" data-doc="troubleshoot-common">Common Issues</a>
+      <a class="sidebar-link" data-doc="troubleshoot-channels">Channels</a>
+      <a class="sidebar-link" data-doc="troubleshoot-providers">Providers</a>
+      <a class="sidebar-link" data-doc="troubleshoot-database">Database</a>
     </div>
 
     <div style="padding: 20px; margin-top: 12px; border-top: 1px solid var(--color-border);">
@@ -149,8 +255,6 @@
         <a href="llms.txt" target="_blank" style="color:var(--color-primary); text-decoration:none;">llms.txt</a>
         &middot;
         <a href="llms-full.txt" target="_blank" style="color:var(--color-primary); text-decoration:none;">llms-full.txt</a>
-        &middot;
-        <a href="docs/" style="color:var(--color-primary); text-decoration:none;">raw .md</a>
       </div>
     </div>
   </aside>

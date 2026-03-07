@@ -1,0 +1,3 @@
+# Extended Thinking
+
+> Coming soon.

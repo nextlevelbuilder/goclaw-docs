@@ -8,26 +8,6 @@
    ============================================================ */
 const UI_STRINGS = {
   en: {
-    'sidebar.gettingStarted': 'Getting Started',
-    'sidebar.introduction': 'Introduction',
-    'sidebar.architecture': 'Architecture',
-    'sidebar.architectureOverview': 'Architecture Overview',
-    'sidebar.agentLoop': 'Agent Loop',
-    'sidebar.providers': 'LLM Providers',
-    'sidebar.tools': 'Tools System',
-    'sidebar.store': 'Store & Data Model',
-    'sidebar.communication': 'Communication',
-    'sidebar.gateway': 'Gateway & Protocol',
-    'sidebar.channels': 'Channels & Messaging',
-    'sidebar.websocket': 'WebSocket Protocol',
-    'sidebar.features': 'Features',
-    'sidebar.bootstrap': 'Bootstrap, Skills & Memory',
-    'sidebar.scheduling': 'Scheduling & Cron',
-    'sidebar.security': 'Security',
-    'sidebar.tracing': 'Tracing & Observability',
-    'sidebar.dashboard': 'Web Dashboard',
-    'sidebar.reference': 'Reference',
-    'sidebar.apiReference': 'API Reference',
     'search.placeholder': 'Search docs...',
     'toc.title': 'On this page',
     'loading': 'Loading...',
@@ -36,26 +16,6 @@ const UI_STRINGS = {
     'loadfailed': 'Failed to load document',
   },
   vi: {
-    'sidebar.gettingStarted': 'Bắt Đầu',
-    'sidebar.introduction': 'Giới Thiệu',
-    'sidebar.architecture': 'Kiến Trúc',
-    'sidebar.architectureOverview': 'Tổng Quan Kiến Trúc',
-    'sidebar.agentLoop': 'Vòng Lặp Agent',
-    'sidebar.providers': 'Nhà Cung Cấp LLM',
-    'sidebar.tools': 'Hệ Thống Công Cụ',
-    'sidebar.store': 'Lưu Trữ & Mô Hình Dữ Liệu',
-    'sidebar.communication': 'Giao Tiếp',
-    'sidebar.gateway': 'Gateway & Giao Thức',
-    'sidebar.channels': 'Kênh & Nhắn Tin',
-    'sidebar.websocket': 'Giao Thức WebSocket',
-    'sidebar.features': 'Tính Năng',
-    'sidebar.bootstrap': 'Bootstrap, Kỹ Năng & Bộ Nhớ',
-    'sidebar.scheduling': 'Lập Lịch & Cron',
-    'sidebar.security': 'Bảo Mật',
-    'sidebar.tracing': 'Tracing & Quan Sát',
-    'sidebar.dashboard': 'Bảng Điều Khiển Web',
-    'sidebar.reference': 'Tham Khảo',
-    'sidebar.apiReference': 'Tham Khảo API',
     'search.placeholder': 'Tìm kiếm tài liệu...',
     'toc.title': 'Trên trang này',
     'loading': 'Đang tải...',
@@ -77,25 +37,133 @@ function t(key) {
 /* ============================================================
    DOCUMENT MAP — hash -> file paths per language
    ============================================================ */
+/* Helper: generate EN/VI file paths from section + filename */
+function docEntry(section, file, titleEn, titleVi) {
+  return {
+    file: { en: `${section}/${file}.md`, vi: `vi/${section}/${file}.md` },
+    title: { en: titleEn, vi: titleVi || titleEn },
+  };
+}
+
 const DOC_MAP = {
-  'getting-started': { file: { en: 'docs/getting-started.md', vi: 'docs/vi/getting-started.md' }, title: { en: 'Getting Started', vi: 'Bắt Đầu' } },
-  'architecture': { file: { en: 'docs/00-architecture-overview.md', vi: 'docs/vi/00-architecture-overview.md' }, title: { en: 'Architecture Overview', vi: 'Tổng Quan Kiến Trúc' } },
-  'agent-loop': { file: { en: 'docs/01-agent-loop.md', vi: 'docs/vi/01-agent-loop.md' }, title: { en: 'Agent Loop', vi: 'Vòng Lặp Agent' } },
-  'providers': { file: { en: 'docs/02-providers.md', vi: 'docs/vi/02-providers.md' }, title: { en: 'LLM Providers', vi: 'Nhà Cung Cấp LLM' } },
-  'tools': { file: { en: 'docs/03-tools-system.md', vi: 'docs/vi/03-tools-system.md' }, title: { en: 'Tools System', vi: 'Hệ Thống Công Cụ' } },
-  'gateway': { file: { en: 'docs/04-gateway-protocol.md', vi: 'docs/vi/04-gateway-protocol.md' }, title: { en: 'Gateway & Protocol', vi: 'Gateway & Giao Thức' } },
-  'channels': { file: { en: 'docs/05-channels-messaging.md', vi: 'docs/vi/05-channels-messaging.md' }, title: { en: 'Channels & Messaging', vi: 'Kênh & Nhắn Tin' } },
-  'store': { file: { en: 'docs/06-store-data-model.md', vi: 'docs/vi/06-store-data-model.md' }, title: { en: 'Store & Data Model', vi: 'Lưu Trữ & Mô Hình Dữ Liệu' } },
-  'bootstrap': { file: { en: 'docs/07-bootstrap-skills-memory.md', vi: 'docs/vi/07-bootstrap-skills-memory.md' }, title: { en: 'Bootstrap, Skills & Memory', vi: 'Bootstrap, Kỹ Năng & Bộ Nhớ' } },
-  'scheduling': { file: { en: 'docs/08-scheduling-cron-heartbeat.md', vi: 'docs/vi/08-scheduling-cron-heartbeat.md' }, title: { en: 'Scheduling & Cron', vi: 'Lập Lịch & Cron' } },
-  'security': { file: { en: 'docs/09-security.md', vi: 'docs/vi/09-security.md' }, title: { en: 'Security', vi: 'Bảo Mật' } },
-  'tracing': { file: { en: 'docs/10-tracing-observability.md', vi: 'docs/vi/10-tracing-observability.md' }, title: { en: 'Tracing & Observability', vi: 'Tracing & Quan Sát' } },
-  'dashboard': { file: { en: 'docs/11-web-dashboard.md', vi: 'docs/vi/11-web-dashboard.md' }, title: { en: 'Web Dashboard', vi: 'Bảng Điều Khiển Web' } },
-  'api-reference': { file: { en: 'docs/api-reference.md', vi: 'docs/vi/api-reference.md' }, title: { en: 'API Reference', vi: 'Tham Khảo API' } },
-  'websocket': { file: { en: 'docs/websocket-protocol.md', vi: 'docs/vi/websocket-protocol.md' }, title: { en: 'WebSocket Protocol', vi: 'Giao Thức WebSocket' } },
+  // Getting Started
+  'what-is-goclaw': docEntry('getting-started', 'what-is-goclaw', 'What is GoClaw?', 'GoClaw là gì?'),
+  'installation': docEntry('getting-started', 'installation', 'Installation', 'Cài đặt'),
+  'quick-start': docEntry('getting-started', 'quick-start', 'Quick Start', 'Bắt đầu nhanh'),
+  'configuration': docEntry('getting-started', 'configuration', 'Configuration', 'Cấu hình'),
+  'dashboard-tour': docEntry('getting-started', 'web-dashboard-tour', 'Dashboard Tour', 'Tham quan Dashboard'),
+  'migrating-from-openclaw': docEntry('getting-started', 'migrating-from-openclaw', 'Migrating from OpenClaw', 'Chuyển từ OpenClaw'),
+
+  // Core Concepts
+  'how-goclaw-works': docEntry('core-concepts', 'how-goclaw-works', 'How GoClaw Works', 'GoClaw hoạt động thế nào'),
+  'agents-explained': docEntry('core-concepts', 'agents-explained', 'Agents Explained', 'Giải thích Agent'),
+  'sessions-and-history': docEntry('core-concepts', 'sessions-and-history', 'Sessions & History', 'Phiên & Lịch sử'),
+  'tools-overview': docEntry('core-concepts', 'tools-overview', 'Tools Overview', 'Tổng quan công cụ'),
+  'memory-system': docEntry('core-concepts', 'memory-system', 'Memory System', 'Hệ thống bộ nhớ'),
+  'multi-tenancy': docEntry('core-concepts', 'multi-tenancy', 'Multi-Tenancy', 'Đa thuê bao'),
+
+  // Agents
+  'creating-agents': docEntry('agents', 'creating-agents', 'Creating Agents', 'Tạo Agent'),
+  'open-vs-predefined': docEntry('agents', 'open-vs-predefined', 'Open vs Predefined', 'Open vs Predefined'),
+  'context-files': docEntry('agents', 'context-files', 'Context Files', 'File ngữ cảnh'),
+  'summoning-bootstrap': docEntry('agents', 'summoning-bootstrap', 'Summoning & Bootstrap', 'Triệu hồi & Bootstrap'),
+  'editing-personality': docEntry('agents', 'editing-personality', 'Editing Personality', 'Chỉnh sửa tính cách'),
+  'sharing-and-access': docEntry('agents', 'sharing-and-access', 'Sharing & Access Control', 'Chia sẻ & Kiểm soát truy cập'),
+  'user-overrides': docEntry('agents', 'user-overrides', 'User Overrides', 'Ghi đè người dùng'),
+  'system-prompt-anatomy': docEntry('agents', 'system-prompt-anatomy', 'System Prompt Anatomy', 'Cấu trúc System Prompt'),
+
+  // Providers
+  'providers-overview': docEntry('providers', 'overview', 'Provider Overview', 'Tổng quan Provider'),
+  'provider-anthropic': docEntry('providers', 'anthropic', 'Anthropic (Claude)'),
+  'provider-openai': docEntry('providers', 'openai', 'OpenAI / Azure OpenAI'),
+  'provider-openrouter': docEntry('providers', 'openrouter', 'OpenRouter'),
+  'provider-gemini': docEntry('providers', 'gemini', 'Google Gemini'),
+  'provider-deepseek': docEntry('providers', 'deepseek', 'DeepSeek'),
+  'provider-groq': docEntry('providers', 'groq', 'Groq'),
+  'provider-mistral': docEntry('providers', 'mistral', 'Mistral'),
+  'provider-xai': docEntry('providers', 'xai', 'xAI (Grok)'),
+  'provider-minimax': docEntry('providers', 'minimax', 'MiniMax'),
+  'provider-cohere': docEntry('providers', 'cohere', 'Cohere'),
+  'provider-perplexity': docEntry('providers', 'perplexity', 'Perplexity'),
+  'provider-dashscope': docEntry('providers', 'dashscope', 'DashScope (Qwen)'),
+  'provider-claude-cli': docEntry('providers', 'claude-cli', 'Claude CLI'),
+  'provider-codex': docEntry('providers', 'codex-chatgpt', 'Codex / ChatGPT'),
+  'provider-custom': docEntry('providers', 'custom-provider', 'Custom / OpenAI-Compatible', 'Tùy chỉnh / OpenAI-Compatible'),
+
+  // Channels
+  'channels-overview': docEntry('channels', 'overview', 'Channel Overview', 'Tổng quan kênh'),
+  'channel-telegram': docEntry('channels', 'telegram', 'Telegram'),
+  'channel-discord': docEntry('channels', 'discord', 'Discord'),
+  'channel-feishu': docEntry('channels', 'feishu', 'Feishu / Lark'),
+  'channel-zalo-oa': docEntry('channels', 'zalo-oa', 'Zalo OA'),
+  'channel-zalo-personal': docEntry('channels', 'zalo-personal', 'Zalo Personal', 'Zalo Cá nhân'),
+  'channel-whatsapp': docEntry('channels', 'whatsapp', 'WhatsApp'),
+  'channel-websocket': docEntry('channels', 'websocket', 'WebSocket'),
+  'channel-browser-pairing': docEntry('channels', 'browser-pairing', 'Browser Pairing', 'Ghép nối trình duyệt'),
+
+  // Agent Teams
+  'teams-what-are-teams': docEntry('agent-teams', 'what-are-teams', 'What Are Teams?', 'Team là gì?'),
+  'teams-creating': docEntry('agent-teams', 'creating-managing-teams', 'Creating & Managing Teams', 'Tạo & Quản lý Team'),
+  'teams-task-board': docEntry('agent-teams', 'task-board', 'Task Board', 'Bảng công việc'),
+  'teams-messaging': docEntry('agent-teams', 'team-messaging', 'Team Messaging', 'Nhắn tin Team'),
+  'teams-delegation': docEntry('agent-teams', 'delegation-and-handoff', 'Delegation & Handoff', 'Ủy quyền & Chuyển giao'),
+
+  // Advanced
+  'custom-tools': docEntry('advanced', 'custom-tools', 'Custom Tools', 'Công cụ tùy chỉnh'),
+  'mcp-integration': docEntry('advanced', 'mcp-integration', 'MCP Integration', 'Tích hợp MCP'),
+  'skills': docEntry('advanced', 'skills', 'Skills', 'Kỹ năng'),
+  'scheduling-cron': docEntry('advanced', 'scheduling-cron', 'Scheduling & Cron', 'Lập lịch & Cron'),
+  'sandbox': docEntry('advanced', 'sandbox', 'Sandbox', 'Hộp cát'),
+  'tts-voice': docEntry('advanced', 'tts-voice', 'TTS & Voice', 'Chuyển văn bản thành giọng nói'),
+  'browser-automation': docEntry('advanced', 'browser-automation', 'Browser Automation', 'Tự động hóa trình duyệt'),
+  'extended-thinking': docEntry('advanced', 'extended-thinking', 'Extended Thinking', 'Suy nghĩ mở rộng'),
+  'hooks-quality-gates': docEntry('advanced', 'hooks-quality-gates', 'Hooks & Quality Gates', 'Hook & Cổng chất lượng'),
+  'authentication': docEntry('advanced', 'authentication', 'Authentication & OAuth', 'Xác thực & OAuth'),
+  'exec-approval': docEntry('advanced', 'exec-approval', 'Exec Approval', 'Phê duyệt thực thi'),
+  'usage-quota': docEntry('advanced', 'usage-quota', 'Usage & Quota', 'Sử dụng & Hạn mức'),
+
+  // Deployment
+  'deploy-docker-compose': docEntry('deployment', 'docker-compose', 'Docker Compose', 'Docker Compose'),
+  'deploy-database': docEntry('deployment', 'database-setup', 'Database Setup', 'Thiết lập cơ sở dữ liệu'),
+  'deploy-security': docEntry('deployment', 'security-hardening', 'Security Hardening', 'Tăng cường bảo mật'),
+  'deploy-observability': docEntry('deployment', 'observability', 'Observability', 'Quan sát hệ thống'),
+  'deploy-tailscale': docEntry('deployment', 'tailscale', 'Tailscale'),
+  'deploy-checklist': docEntry('deployment', 'production-checklist', 'Production Checklist', 'Danh sách production'),
+  'deploy-upgrading': docEntry('deployment', 'upgrading', 'Upgrading', 'Nâng cấp'),
+
+  // Recipes
+  'recipe-personal-assistant': docEntry('recipes', 'personal-assistant', 'Personal Assistant', 'Trợ lý cá nhân'),
+  'recipe-team-chatbot': docEntry('recipes', 'team-chatbot', 'Team Chatbot', 'Chatbot nhóm'),
+  'recipe-customer-support': docEntry('recipes', 'customer-support', 'Customer Support', 'Hỗ trợ khách hàng'),
+  'recipe-code-review': docEntry('recipes', 'code-review-agent', 'Code Review Agent', 'Agent Review Code'),
+  'recipe-multi-channel': docEntry('recipes', 'multi-channel-setup', 'Multi-Channel Setup', 'Thiết lập đa kênh'),
+
+  // Showcases
+  'gallery': docEntry('showcases', 'gallery', 'Gallery', 'Bộ sưu tập'),
+
+  // Reference
+  'cli-commands': docEntry('reference', 'cli-commands', 'CLI Commands', 'Lệnh CLI'),
+  'websocket-protocol': docEntry('reference', 'websocket-protocol', 'WebSocket Protocol', 'Giao thức WebSocket'),
+  'rest-api': docEntry('reference', 'rest-api', 'REST API', 'REST API'),
+  'config-reference': docEntry('reference', 'config-reference', 'Configuration Reference', 'Tham khảo cấu hình'),
+  'env-vars': docEntry('reference', 'environment-variables', 'Environment Variables', 'Biến môi trường'),
+  'database-schema': docEntry('reference', 'database-schema', 'Database Schema', 'Lược đồ cơ sở dữ liệu'),
+  'glossary': docEntry('reference', 'glossary', 'Glossary', 'Thuật ngữ'),
+  'template-agents': docEntry('reference/templates', 'agents', 'AGENTS.md Template'),
+  'template-soul': docEntry('reference/templates', 'soul', 'SOUL.md Template'),
+  'template-identity': docEntry('reference/templates', 'identity', 'IDENTITY.md Template'),
+  'template-tools': docEntry('reference/templates', 'tools', 'TOOLS.md Template'),
+  'template-user': docEntry('reference/templates', 'user', 'USER.md Template'),
+  'template-bootstrap': docEntry('reference/templates', 'bootstrap', 'BOOTSTRAP.md Template'),
+
+  // Troubleshooting
+  'troubleshoot-common': docEntry('troubleshooting', 'common-issues', 'Common Issues', 'Vấn đề thường gặp'),
+  'troubleshoot-channels': docEntry('troubleshooting', 'channels', 'Channels', 'Kênh'),
+  'troubleshoot-providers': docEntry('troubleshooting', 'providers', 'Providers', 'Provider'),
+  'troubleshoot-database': docEntry('troubleshooting', 'database', 'Database', 'Cơ sở dữ liệu'),
 };
 
-const DEFAULT_DOC = 'getting-started';
+const DEFAULT_DOC = 'what-is-goclaw';
 
 /* Cached markdown content: key = `${lang}:${docKey}` */
 const docCache = {};
@@ -112,7 +180,7 @@ function initMarked() {
 
   renderer.link = function ({ href, title, text }) {
     if (href && href.endsWith('.md') && !href.startsWith('http')) {
-      const name = href.replace(/^\.?\/?docs\/(vi\/)?/, '').replace(/\.md$/, '');
+      const name = href.replace(/^\.?\/?(?:docs\/)?(vi\/)?/, '').replace(/\.md$/, '');
       const hashKey = Object.keys(DOC_MAP).find(
         k => DOC_MAP[k].file.en.includes(name)
       );

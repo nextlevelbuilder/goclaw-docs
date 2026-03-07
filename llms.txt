@@ -4,42 +4,58 @@
 
 ## Documentation
 
-- [Getting Started](https://docs.goclaw.sh/#getting-started): Quick start guide, installation, configuration, supported providers
-- [Architecture Overview](https://docs.goclaw.sh/#architecture): Component diagram, module map, two operating modes, multi-tenant identity model, startup sequence
-- [Agent Loop](https://docs.goclaw.sh/#agent-loop): Think-Act-Observe cycle, system prompt (15+ sections), output sanitization, input guard, history pipeline, context pruning, auto-summarization
-- [LLM Providers](https://docs.goclaw.sh/#providers): Anthropic (native HTTP+SSE) and OpenAI-compatible, retry logic, schema cleaning, managed mode DB providers
-- [Tools System](https://docs.goclaw.sh/#tools): 30+ built-in tools, filesystem, shell execution, web, memory, subagents, delegation, teams, MCP bridge, custom tools, policy engine, credential scrubbing
-- [Gateway & Protocol](https://docs.goclaw.sh/#gateway): WebSocket Protocol v3, HTTP REST API, RBAC (admin/operator/viewer), RPC methods, rate limiting
-- [Channels & Messaging](https://docs.goclaw.sh/#channels): Telegram, Discord, Feishu/Lark, Zalo, WhatsApp adapters, pairing system, channel policies
-- [Store & Data Model](https://docs.goclaw.sh/#store): Store interfaces, PostgreSQL schema, file-based implementations, session caching
-- [Bootstrap, Skills & Memory](https://docs.goclaw.sh/#bootstrap): Bootstrap files (SOUL.md, IDENTITY.md), skills system (BM25 + embeddings), memory (SQLite FTS5 / pgvector)
-- [Scheduling & Cron](https://docs.goclaw.sh/#scheduling): Lane-based concurrency (main/subagent/cron/delegate), cron lifecycle, heartbeat service
-- [Security](https://docs.goclaw.sh/#security): 5-layer defense-in-depth, AES-256-GCM encryption, RBAC, shell deny patterns, sandbox
-- [Tracing & Observability](https://docs.goclaw.sh/#tracing): Tracing collector, span hierarchy, OpenTelemetry OTLP export, trace API
-- [Web Dashboard](https://docs.goclaw.sh/#dashboard): React 19 SPA admin dashboard, agent management, chat, traces, providers, config, 17 pages across Core/Management/Monitoring/System
-- [API Reference](https://docs.goclaw.sh/#api-reference): HTTP endpoints, custom tools API, MCP server management API
-- [WebSocket Protocol](https://docs.goclaw.sh/#websocket): Frame types, authentication, methods, events
+### Getting Started
+- [What is GoClaw?](https://docs.goclaw.sh/#what-is-goclaw): Overview, key features, operating modes
+- [Installation](https://docs.goclaw.sh/#installation): Binary, Docker, build from source
+- [Quick Start](https://docs.goclaw.sh/#quick-start): First agent in 5 minutes
+- [Configuration](https://docs.goclaw.sh/#configuration): config.json, env vars, hot-reload
+- [Dashboard Tour](https://docs.goclaw.sh/#dashboard-tour): Visual walkthrough of web UI
+- [Migrating from OpenClaw](https://docs.goclaw.sh/#migrating-from-openclaw): Config mapping, feature comparison
+
+### Core Concepts
+- [How GoClaw Works](https://docs.goclaw.sh/#how-goclaw-works): Architecture, message flow, Think-Act-Observe cycle
+- [Agents Explained](https://docs.goclaw.sh/#agents-explained): Open vs Predefined, lifecycle, context
+- [Sessions & History](https://docs.goclaw.sh/#sessions-and-history): Session keys, history pipeline, auto-compaction
+- [Tools Overview](https://docs.goclaw.sh/#tools-overview): 60+ tools, 12 categories, execution flow
+- [Memory System](https://docs.goclaw.sh/#memory-system): Hybrid search, embeddings, memory flush
+- [Multi-Tenancy](https://docs.goclaw.sh/#multi-tenancy): Identity propagation, per-user scoping, agent sharing
+
+### Agents
+- [Creating Agents](https://docs.goclaw.sh/#creating-agents): Step-by-step agent creation
+- [Open vs Predefined](https://docs.goclaw.sh/#open-vs-predefined): Comparison and when to use each
+- [Context Files](https://docs.goclaw.sh/#context-files): 7 context file types
+- [System Prompts](https://docs.goclaw.sh/#system-prompts): 15+ system prompt sections
+- [Agent Overrides](https://docs.goclaw.sh/#agent-overrides): Per-user customization
+- [Summoning Agents](https://docs.goclaw.sh/#summoning-agents): @mention, slash commands, pairing
+
+### Providers
+- [Provider Overview](https://docs.goclaw.sh/#providers-overview): All 13+ supported LLM providers
+- [OpenAI / Azure](https://docs.goclaw.sh/#provider-openai), [Anthropic](https://docs.goclaw.sh/#provider-anthropic), [Google](https://docs.goclaw.sh/#provider-google), [Groq](https://docs.goclaw.sh/#provider-groq), [Ollama](https://docs.goclaw.sh/#provider-ollama), [OpenRouter](https://docs.goclaw.sh/#provider-openrouter), [Cerebras](https://docs.goclaw.sh/#provider-cerebras), [DeepSeek](https://docs.goclaw.sh/#provider-deepseek), [XAI](https://docs.goclaw.sh/#provider-xai), [Requesty](https://docs.goclaw.sh/#provider-requesty), [Cloudflare](https://docs.goclaw.sh/#provider-cloudflare), [Custom](https://docs.goclaw.sh/#provider-custom)
+- [Fallback & Routing](https://docs.goclaw.sh/#provider-fallback): Multi-provider resilience
+
+### Channels
+- [Channel Overview](https://docs.goclaw.sh/#channels-overview): All 6 supported channels
+- [Telegram](https://docs.goclaw.sh/#channel-telegram), [Discord](https://docs.goclaw.sh/#channel-discord), [Slack](https://docs.goclaw.sh/#channel-slack), [WhatsApp](https://docs.goclaw.sh/#channel-whatsapp), [WebSocket](https://docs.goclaw.sh/#channel-websocket), [REST API](https://docs.goclaw.sh/#channel-rest)
+
+### Agent Teams
+- [Teams Overview](https://docs.goclaw.sh/#teams-overview): Multi-agent collaboration
+- [Creating Teams](https://docs.goclaw.sh/#creating-teams), [Delegation Protocol](https://docs.goclaw.sh/#delegation-protocol), [Team Strategies](https://docs.goclaw.sh/#team-strategies), [WS Team Events](https://docs.goclaw.sh/#ws-team-events)
+
+### Advanced
+- [Custom Tools](https://docs.goclaw.sh/#custom-tools), [MCP Integration](https://docs.goclaw.sh/#mcp-integration), [Skills & Bootstrap](https://docs.goclaw.sh/#skills-bootstrap), [Scheduling & Cron](https://docs.goclaw.sh/#scheduling-cron), [Extended Thinking](https://docs.goclaw.sh/#extended-thinking), [Security & Encryption](https://docs.goclaw.sh/#security-encryption), [Tracing & Observability](https://docs.goclaw.sh/#tracing-observability), [Store & Data Model](https://docs.goclaw.sh/#store-data-model)
+
+### Deployment
+- [Docker](https://docs.goclaw.sh/#deploy-docker), [Standalone](https://docs.goclaw.sh/#deploy-standalone), [Managed Mode](https://docs.goclaw.sh/#deploy-managed), [Cloudflare Pages](https://docs.goclaw.sh/#deploy-cloudflare), [Env Variables](https://docs.goclaw.sh/#deploy-env-vars), [Production Checklist](https://docs.goclaw.sh/#deploy-checklist)
+
+### Recipes
+- [Telegram Bot](https://docs.goclaw.sh/#recipe-telegram-bot), [Multi-Channel Agent](https://docs.goclaw.sh/#recipe-multi-channel), [Code Review Bot](https://docs.goclaw.sh/#recipe-code-review), [RAG with Memory](https://docs.goclaw.sh/#recipe-rag-memory), [Scheduled Reports](https://docs.goclaw.sh/#recipe-scheduled)
+
+### Reference
+- [API Reference](https://docs.goclaw.sh/#api-reference), [WebSocket Protocol](https://docs.goclaw.sh/#websocket-protocol), [Configuration Reference](https://docs.goclaw.sh/#config-reference), [Tool Reference](https://docs.goclaw.sh/#tool-reference)
+
+### Troubleshooting
+- [Common Issues](https://docs.goclaw.sh/#common-issues), [FAQ](https://docs.goclaw.sh/#faq), [Debug Guide](https://docs.goclaw.sh/#debug-guide)
 
 ## Full Documentation
 
 - [llms-full.txt](https://docs.goclaw.sh/llms-full.txt): Complete documentation in a single file for LLM consumption
-
-## Raw Markdown
-
-All documentation is available as raw markdown files:
-
-- [Getting Started](https://docs.goclaw.sh/docs/getting-started.md)
-- [Architecture Overview](https://docs.goclaw.sh/docs/00-architecture-overview.md)
-- [Agent Loop](https://docs.goclaw.sh/docs/01-agent-loop.md)
-- [LLM Providers](https://docs.goclaw.sh/docs/02-providers.md)
-- [Tools System](https://docs.goclaw.sh/docs/03-tools-system.md)
-- [Gateway & Protocol](https://docs.goclaw.sh/docs/04-gateway-protocol.md)
-- [Channels & Messaging](https://docs.goclaw.sh/docs/05-channels-messaging.md)
-- [Store & Data Model](https://docs.goclaw.sh/docs/06-store-data-model.md)
-- [Bootstrap, Skills & Memory](https://docs.goclaw.sh/docs/07-bootstrap-skills-memory.md)
-- [Scheduling & Cron](https://docs.goclaw.sh/docs/08-scheduling-cron-heartbeat.md)
-- [Security](https://docs.goclaw.sh/docs/09-security.md)
-- [Tracing & Observability](https://docs.goclaw.sh/docs/10-tracing-observability.md)
-- [Web Dashboard](https://docs.goclaw.sh/docs/11-web-dashboard.md)
-- [API Reference](https://docs.goclaw.sh/docs/api-reference.md)
-- [WebSocket Protocol](https://docs.goclaw.sh/docs/websocket-protocol.md)

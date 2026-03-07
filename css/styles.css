@@ -426,6 +426,21 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(230, 57, 70, 0.06);
 }
 
+.sidebar-subsection-title {
+  padding: 4px 20px 2px 28px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  margin-top: 4px;
+}
+
+.sidebar-link-nested {
+  padding-left: 36px;
+  font-size: 0.8rem;
+}
+
 /* ============================================================
    MAIN CONTENT
    ============================================================ */

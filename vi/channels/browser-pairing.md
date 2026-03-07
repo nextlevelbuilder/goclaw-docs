@@ -1,0 +1,3 @@
+# Browser Pairing
+
+> Coming soon.
