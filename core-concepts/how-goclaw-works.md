@@ -1,3 +1,100 @@
-# How Goclaw Works
+# How GoClaw Works
 
-> Coming soon.
+> The architecture behind GoClaw's AI agent gateway.
+
+## Overview
+
+GoClaw is a gateway that sits between your users and LLM providers. It manages the full lifecycle of AI conversations: receiving messages, routing them to agents, calling LLMs, executing tools, and delivering responses back through messaging channels.
+
+## Architecture Diagram
+
+```mermaid
+graph TD
+    U[Users] --> CH[Channels<br/>Telegram / Discord / WS]
+    CH --> GW[Gateway<br/>HTTP + WebSocket]
+    GW --> SC[Scheduler<br/>4 lanes]
+    SC --> AL[Agent Loop<br/>Think → Act → Observe]
+    AL --> PR[Provider Registry<br/>13+ LLM providers]
+    AL --> TR[Tool Registry<br/>60+ tools]
+    AL --> SS[Session Store<br/>PostgreSQL]
+    AL --> MM[Memory Store<br/>Vector + FTS]
+    PR --> LLM[LLM APIs<br/>OpenAI / Anthropic / ...]
+```
+
+## The Agent Loop
+
+Every conversation turn goes through the **Think → Act → Observe** cycle:
+
+### 1. Think
+
+The agent assembles a system prompt (17+ sections including identity, tools, memory, context files) and sends the conversation to an LLM provider. The LLM decides what to do next.
+
+### 2. Act
+
+If the LLM wants to use a tool (search the web, read a file, run code), GoClaw executes it. Multiple tool calls run in parallel when possible.
+
+### 3. Observe
+
+The tool results go back to the LLM. It can call more tools or generate a final response. This loop repeats up to 20 iterations per turn.
+
+```mermaid
+graph LR
+    T[Think<br/>Call LLM] --> A{Tools needed?}
+    A -->|Yes| B[Act<br/>Execute tools]
+    B --> O[Observe<br/>Return results]
+    O --> T
+    A -->|No| R[Respond<br/>Send to user]
+```
+
+## Message Flow
+
+Here's what happens when a user sends a message:
+
+1. **Receive** — Message arrives via channel (Telegram, WebSocket, etc.)
+2. **Validate** — Input guard checks for injection patterns; message truncated at 32KB
+3. **Route** — Scheduler assigns the message to an agent based on channel bindings
+4. **Queue** — Per-session queue manages concurrency (1 for DMs, 3 for groups)
+5. **Build Context** — System prompt assembled: identity + tools + memory + history
+6. **LLM Loop** — Think → Act → Observe cycle (max 20 iterations)
+7. **Sanitize** — Response cleaned (remove thinking tags, garbled XML, duplicates)
+8. **Deliver** — Response sent back through the originating channel
+
+## Scheduler Lanes
+
+GoClaw uses a lane-based scheduler to manage concurrency:
+
+| Lane | Concurrency | Purpose |
+|------|:-----------:|---------|
+| `main` | 2 | Channel messages and WebSocket requests |
+| `subagent` | 4 | Spawned subagent tasks |
+| `delegate` | 100 | Agent-to-agent delegation |
+| `cron` | 1 | Scheduled cron jobs |
+
+Each lane has its own semaphore. This prevents cron jobs from starving user messages, and keeps delegation from overwhelming the system.
+
+## Components
+
+| Component | What It Does |
+|-----------|-------------|
+| **Gateway** | HTTP + WebSocket server on port 18790 |
+| **Provider Registry** | Manages LLM provider connections and credentials |
+| **Tool Registry** | 60+ tools with policy-based access control |
+| **Session Store** | Write-behind cache + PostgreSQL persistence |
+| **Memory Store** | Hybrid search with pgvector + tsvector |
+| **Channel Managers** | Telegram, Discord, WhatsApp, Zalo, Feishu adapters |
+| **Scheduler** | 4-lane concurrency with per-session queues |
+| **Bootstrap** | Template system for context files (SOUL, IDENTITY, TOOLS, etc.) |
+
+## Common Issues
+
+| Problem | Solution |
+|---------|----------|
+| Agent not responding | Check scheduler lane concurrency; verify provider API key |
+| Slow responses | Large context window + many tools = slower LLM calls; reduce tool count or context |
+| Tool calls failing | Check `tools.exec_approval` level; review deny patterns for shell commands |
+
+## What's Next
+
+- [Agents Explained](agents-explained.md) — Deep dive into agent types and context files
+- [Tools Overview](tools-overview.md) — The full tool catalog
+- [Sessions and History](sessions-and-history.md) — How conversations persist

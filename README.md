@@ -56,7 +56,7 @@
 - [Channel Overview](channels/overview.md)
 - [Telegram](channels/telegram.md)
 - [Discord](channels/discord.md)
-- [Feishu / Lark](channels/feishu.md)
+- [Larksuite](channels/larksuite.md)
 - [Zalo OA](channels/zalo-oa.md)
 - [Zalo Personal](channels/zalo-personal.md)
 - [WhatsApp](channels/whatsapp.md)

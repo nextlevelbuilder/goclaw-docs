@@ -1,3 +1,180 @@
-# Open Vs Predefined
+# Open vs. Predefined Agents
 
-> Coming soon.
+> Two agent architectures: per-user isolation (open) vs. shared context (predefined).
+
+## Overview
+
+GoClaw supports two agent types with different context isolation models. Choose **open** when each user needs their own complete personality and memory. Choose **predefined** when you want a shared agent configuration with per-user profiles.
+
+## Decision Tree
+
+```
+Do you want each user to have:
+- Their own SOUL.md, IDENTITY.md, personality?
+- Separate memory per user?
+- Isolated tool configuration?
+          |
+          YES → Open Agent (per-user everything)
+          |
+          NO  → Predefined Agent (shared context + per-user USER.md only)
+```
+
+## Side-by-Side Comparison
+
+| Aspect | Open | Predefined |
+|--------|------|-----------|
+| **Context isolation** | Per-user: 5 seeded files + MEMORY.md (separate) | Agent-level: 4 shared files + per-user USER.md + BOOTSTRAP.md |
+| **SOUL.md** | Per-user (seeded from template on first chat) | Agent-level (shared by all users) |
+| **IDENTITY.md** | Per-user (seeded from template on first chat) | Agent-level (shared by all users) |
+| **USER.md** | Per-user (seeded from template on first chat) | Per-user (seeded from agent-level fallback or template) |
+| **AGENTS.md** | Per-user (seeded from template) | Agent-level (shared) |
+| **TOOLS.md** | Not seeded (loaded at runtime from workspace if present) | Not seeded (skipped in `SeedToStore`) |
+| **BOOTSTRAP.md** | Per-user (first-run ritual, seeded from template) | Per-user (user-focused variant `BOOTSTRAP_PREDEFINED.md`) |
+| **USER_PREDEFINED.md** | N/A | Agent-level (baseline user-handling rules) |
+| **Use case** | Personal assistants, per-user agents | Shared services: FAQ bots, support agents, shared tools |
+| **Scaling** | N users × 5 seeded files | 4 agent files + N users × 2 files |
+| **Customization** | User can customize everything | User can only customize USER.md |
+| **Personality consistency** | Each user gets their own personality | All users see the same personality |
+
+## Open Agents
+
+Best for: personal assistants, per-user workspaces, experimental agents.
+
+When a new user starts a chat with an open agent:
+
+1. **AGENTS.md, SOUL.md, IDENTITY.md, USER.md, BOOTSTRAP.md** are seeded to `user_context_files` from embedded templates (TOOLS.md is not seeded — loaded from workspace at runtime if present)
+2. **BOOTSTRAP.md** runs as a first-run ritual (usually asks "who am I?" and "who are you?")
+3. User writes **IDENTITY.md, SOUL.md, USER.md** with their preferences
+4. User marks **BOOTSTRAP.md** empty to signal completion
+5. **MEMORY.md** (if exists) is preserved across sessions
+
+Context isolation:
+- Full personality isolation per user
+- Users can't see each other's files
+- Each user shape-shifts the agent to their needs
+
+## Predefined Agents
+
+Best for: shared services, FAQ bots, company support agents, multi-tenant systems.
+
+When you create a predefined agent:
+
+1. **AGENTS.md, SOUL.md, IDENTITY.md** seeded to `agent_context_files` (USER.md and TOOLS.md are skipped — USER.md is per-user only, TOOLS.md is runtime-loaded)
+2. **USER_PREDEFINED.md** seeded separately (baseline user-handling rules)
+3. Optionally: LLM-powered "summoning" generates SOUL.md, IDENTITY.md, AGENTS.md, TOOLS.md from your description
+3. All users see the same personality and instructions
+
+When a new user starts a chat:
+
+1. **USER.md, BOOTSTRAP.md** (user-focused variant) seeded to `user_context_files`
+2. User fills in **USER.md** with their profile (optional)
+3. Agent keeps consistent personality across all users
+
+Context isolation:
+- Agent personality is locked (shared)
+- Only USER.md is per-user
+- USER_PREDEFINED.md (agent-level) can define common user-handling rules
+
+## Example: Personal vs. Shared
+
+### Open: Personal Researcher
+
+```
+User: Alice
+├── SOUL.md: "I like sarcasm, bold opinions, fast answers"
+├── IDENTITY.md: "I'm Alice's research partner, irreverent and brilliant"
+├── USER.md: "Alice is a startup founder in biotech"
+└── MEMORY.md: "Alice's key research projects, key contacts, funding status..."
+
+User: Bob
+├── SOUL.md: "I'm formal, thorough, conservative"
+├── IDENTITY.md: "I'm Bob's trusted researcher, careful and methodical"
+├── USER.md: "Bob is an academic in philosophy"
+└── MEMORY.md: "Bob's papers, collaborators, dissertation status..."
+```
+
+Same agent (`researcher`), two completely different personalities. Each user shapes the agent to their needs.
+
+### Predefined: FAQ Bot (Shared)
+
+```
+Agent: faq-bot (predefined)
+├── SOUL.md: "Helpful, patient, empathetic support agent" (SHARED)
+├── IDENTITY.md: "FAQ Assistant — always friendly" (SHARED)
+├── AGENTS.md: "Answer questions from our knowledge base" (SHARED)
+
+User: Alice → USER.md: "Alice is a premium customer, escalate complex issues"
+User: Bob → USER.md: "Bob is a free-tier user, point to self-service docs"
+User: Carol → USER.md: "Carol is a beta tester, gather feedback on new features"
+```
+
+Same agent personality, different per-user context. The agent tailors its responses based on who the user is, but maintains consistent tone and instructions.
+
+## When to Choose Each
+
+### Choose Open if:
+- You're building a personal assistant (one user, one agent)
+- Each user wants to shape the agent's personality
+- You want per-user memory isolation
+- Tool access differs significantly by user
+- You want users to customize SOUL.md and IDENTITY.md
+
+### Choose Predefined if:
+- You're building a shared service (FAQ bot, support agent, help desk)
+- You want a consistent personality across all users
+- Each user just has a profile (name, tier, preferences)
+- The agent's core behavior doesn't change per user
+- You want LLM to auto-generate personality from a description
+
+## Technical Details
+
+### Open: Per-User Files
+
+Seeded to `user_context_files` (`userSeedFilesOpen`):
+```
+AGENTS.md          — how to operate
+SOUL.md            — personality (seeded from template on first chat)
+IDENTITY.md        — who you are (seeded from template on first chat)
+USER.md            — about the user (seeded from template on first chat)
+BOOTSTRAP.md       — first-run ritual (deleted when empty)
+```
+
+**Not seeded:** TOOLS.md (loaded from workspace at runtime), MEMORY.md (separate memory system)
+
+### Predefined: Agent + User Files
+
+Agent-level via `SeedToStore()` — iterates `templateFiles` but **skips USER.md and TOOLS.md**:
+```
+AGENTS.md          — how to operate
+SOUL.md            — personality (optionally generated via summoning)
+IDENTITY.md        — who you are (optionally generated via summoning)
+USER_PREDEFINED.md — baseline user handling rules (seeded separately)
+```
+
+Per-user via `SeedUserFiles()` (`userSeedFilesPredefined`):
+```
+USER.md            — about this user (prefers agent-level USER.md as seed if exists)
+BOOTSTRAP.md       — user-focused onboarding (uses BOOTSTRAP_PREDEFINED.md template)
+```
+
+## Migration
+
+Can't decide? Start with **open**. You can always:
+- Lock down SOUL.md and IDENTITY.md to move toward predefined behavior
+- Use AGENTS.md to define rigid instructions
+
+Or switch to **predefined** later if the agent outgrows single-user use.
+
+## Common Issues
+
+| Problem | Solution |
+|---------|----------|
+| User edits disappear after restart | You're using predefined mode — user changes to SOUL.md are overwritten. Switch to open mode or use USER.md for per-user customization |
+| Agent behaves differently per user | Expected in open mode — each user has their own context files. Use predefined if you want consistent behavior |
+| Can't find context files on disk | In managed mode, context files live in the database (`agent_context_files` / `user_context_files`), not on the filesystem |
+
+## What's Next
+
+- [Context Files](./context-files.md) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
+- [Summoning & Bootstrap](./summoning-bootstrap.md) — how personality is generated for predefined agents
+- [Creating Agents](./creating-agents.md) — agent creation walkthrough

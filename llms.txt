@@ -45,7 +45,7 @@
 - [Custom Tools](https://docs.goclaw.sh/#custom-tools), [MCP Integration](https://docs.goclaw.sh/#mcp-integration), [Skills & Bootstrap](https://docs.goclaw.sh/#skills-bootstrap), [Scheduling & Cron](https://docs.goclaw.sh/#scheduling-cron), [Extended Thinking](https://docs.goclaw.sh/#extended-thinking), [Security & Encryption](https://docs.goclaw.sh/#security-encryption), [Tracing & Observability](https://docs.goclaw.sh/#tracing-observability), [Store & Data Model](https://docs.goclaw.sh/#store-data-model)
 
 ### Deployment
-- [Docker](https://docs.goclaw.sh/#deploy-docker), [Standalone](https://docs.goclaw.sh/#deploy-standalone), [Managed Mode](https://docs.goclaw.sh/#deploy-managed), [Cloudflare Pages](https://docs.goclaw.sh/#deploy-cloudflare), [Env Variables](https://docs.goclaw.sh/#deploy-env-vars), [Production Checklist](https://docs.goclaw.sh/#deploy-checklist)
+- [Docker](https://docs.goclaw.sh/#deploy-docker), [Cloudflare Pages](https://docs.goclaw.sh/#deploy-cloudflare), [Env Variables](https://docs.goclaw.sh/#deploy-env-vars), [Production Checklist](https://docs.goclaw.sh/#deploy-checklist)
 
 ### Recipes
 - [Telegram Bot](https://docs.goclaw.sh/#recipe-telegram-bot), [Multi-Channel Agent](https://docs.goclaw.sh/#recipe-multi-channel), [Code Review Bot](https://docs.goclaw.sh/#recipe-code-review), [RAG with Memory](https://docs.goclaw.sh/#recipe-rag-memory), [Scheduled Reports](https://docs.goclaw.sh/#recipe-scheduled)

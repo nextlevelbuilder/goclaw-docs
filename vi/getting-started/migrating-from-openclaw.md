@@ -1,3 +1,114 @@
-# Migrating From Openclaw
+> Bản dịch từ [English version](../../getting-started/migrating-from-openclaw.md)
 
-> Coming soon.
+# Chuyển từ OpenClaw sang GoClaw
+
+> Những gì thay đổi trong GoClaw và cách chuyển cài đặt của bạn.
+
+## Tổng quan
+
+GoClaw là phiên bản đa tenant được phát triển từ OpenClaw. Nếu bạn đang chạy OpenClaw như một personal assistant, GoClaw mang đến cho bạn team, delegation, thông tin xác thực mã hóa, tracing, và cách ly per-user — trong khi vẫn giữ nguyên các khái niệm agent bạn đã quen.
+
+## Tại sao nên chuyển?
+
+| Tính năng | OpenClaw | GoClaw |
+|-----------|----------|--------|
+| Đa tenant | Không (single user) | Có (cách ly per-user) |
+| Agent team | Không | Có (task board chung, delegation) |
+| Lưu trữ thông tin xác thực | Plain text trong config | Mã hóa AES-256-GCM trong DB |
+| Memory | Dựa trên file | PostgreSQL với hybrid search |
+| Tracing | Không | Đầy đủ LLM call trace với theo dõi chi phí |
+| Hỗ trợ MCP | Không | Có |
+| Custom tool | Không | Có (định nghĩa qua dashboard hoặc API) |
+| Code sandbox | Không | Có (môi trường thực thi cách ly) |
+| Database | SQLite tùy chọn | PostgreSQL (managed mode) |
+| Channel | 37+ | 6 core (Telegram, Discord, WhatsApp, Zalo, Feishu, WebSocket) |
+| Dashboard | Web UI cơ bản | Management dashboard đầy đủ |
+
+## Bảng so sánh Config
+
+### Cấu hình Agent
+
+| OpenClaw | GoClaw | Ghi chú |
+|----------|--------|---------|
+| `ai.provider` | `agents.defaults.provider` | Tên provider giống nhau |
+| `ai.model` | `agents.defaults.model` | Model identifier giống nhau |
+| `ai.maxTokens` | `agents.defaults.max_tokens` | Snake case trong GoClaw |
+| `ai.temperature` | `agents.defaults.temperature` | Khoảng giá trị giống nhau (0-2) |
+| `commands.*` | `tools.*` | Tool thay thế command |
+
+### Cài đặt Channel
+
+Channel hoạt động tương tự về mặt khái niệm nhưng dùng định dạng config khác:
+
+**OpenClaw:**
+```json
+{
+  "telegram": {
+    "botToken": "123:ABC"
+  }
+}
+```
+
+**GoClaw:**
+```jsonc
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "env:TELEGRAM_BOT_TOKEN"
+    }
+  }
+}
+```
+
+Lưu ý: GoClaw giữ token trong biến môi trường, không đặt trong file config.
+
+### Context File
+
+GoClaw dùng 6 context file (khái niệm tương tự OpenClaw):
+
+| File | Mục đích |
+|------|---------|
+| `AGENTS.md` | Hướng dẫn vận hành, quy tắc memory, hướng dẫn an toàn |
+| `SOUL.md` | Tính cách và giọng điệu của agent |
+| `IDENTITY.md` | Tên, avatar, lời chào |
+| `TOOLS.md` | Hướng dẫn sử dụng tool |
+| `USER.md` | Hồ sơ người dùng, timezone, tùy chọn |
+| `BOOTSTRAP.md` | Nghi thức chạy lần đầu (tự động xóa sau khi hoàn tất) |
+
+**Điểm khác biệt quan trọng:** OpenClaw lưu các file này trên filesystem. GoClaw lưu trong PostgreSQL với phạm vi per-user — mỗi người dùng có thể có phiên bản context file riêng cho cùng một agent.
+
+## Các bước chuyển đổi
+
+1. **Cài đặt GoClaw** — Làm theo hướng dẫn [Cài đặt](installation.md) và [Quick Start](quick-start.md)
+2. **Ánh xạ config** — Dịch OpenClaw config bằng bảng so sánh ở trên
+3. **Chuyển context file** — Copy các file `.md` context; upload qua dashboard hoặc API
+4. **Cập nhật channel token** — Chuyển token từ config sang biến môi trường
+5. **Kiểm tra** — Xác minh agent phản hồi đúng qua từng channel
+
+## Tính năng mới trong GoClaw
+
+Các tính năng bạn có thêm sau khi chuyển:
+
+- **Agent Team** — Nhiều agent cộng tác trên tác vụ với task board chung
+- **Delegation** — Agent A gọi Agent B cho các subtask chuyên biệt
+- **Multi-Tenancy** — Mỗi người dùng có session, memory, và context cách ly
+- **Traces** — Xem mọi LLM call, tool sử dụng, và chi phí token
+- **Custom Tool** — Định nghĩa tool của riêng bạn mà không cần chạm vào code Go
+- **MCP Integration** — Kết nối external tool server
+- **Cron Job** — Lên lịch tác vụ agent định kỳ
+- **Thông tin xác thực mã hóa** — API key lưu với mã hóa AES-256-GCM
+
+## Các vấn đề thường gặp
+
+| Vấn đề | Giải pháp |
+|--------|-----------|
+| Context file không load | Upload qua dashboard hoặc API; đường dẫn filesystem khác với OpenClaw |
+| Hành vi phản hồi khác | Kiểm tra `max_tool_iterations` — mặc định GoClaw (20) có thể khác cài đặt OpenClaw của bạn |
+| Thiếu channel | GoClaw tập trung vào 6 channel core; một số channel niche của OpenClaw chưa được port |
+
+## Tiếp theo
+
+- [GoClaw hoạt động như thế nào](../core-concepts/how-goclaw-works.md) — Hiểu về kiến trúc mới
+- [Multi-Tenancy](../core-concepts/multi-tenancy.md) — Tìm hiểu về cách ly per-user
+- [Configuration](configuration.md) — Tham chiếu config đầy đủ

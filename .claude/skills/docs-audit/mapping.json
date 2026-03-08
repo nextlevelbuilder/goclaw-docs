@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {"pattern": "internal/agent/*", "docs": ["agents/*", "core-concepts/agents-explained.md"], "priority": "high"},
+    {"pattern": "internal/providers/*", "docs": ["providers/*.md"], "priority": "medium"},
+    {"pattern": "internal/channels/telegram/*", "docs": ["channels/telegram.md"], "priority": "medium"},
+    {"pattern": "internal/channels/discord/*", "docs": ["channels/discord.md"], "priority": "medium"},
+    {"pattern": "internal/channels/feishu/*", "docs": ["channels/larksuite.md"], "priority": "medium"},
+    {"pattern": "internal/channels/zalo/*", "docs": ["channels/zalo-oa.md", "channels/zalo-personal.md"], "priority": "medium"},
+    {"pattern": "internal/channels/whatsapp/*", "docs": ["channels/whatsapp.md"], "priority": "medium"},
+    {"pattern": "internal/tools/*", "docs": ["core-concepts/tools-overview.md", "advanced/custom-tools.md"], "priority": "high"},
+    {"pattern": "internal/gateway/*", "docs": ["reference/websocket-protocol.md", "reference/rest-api.md"], "priority": "high"},
+    {"pattern": "internal/store/pg/*", "docs": ["reference/database-schema.md"], "priority": "medium"},
+    {"pattern": "migrations/*", "docs": ["deployment/database-setup.md", "reference/database-schema.md"], "priority": "high"},
+    {"pattern": "internal/mcp/*", "docs": ["advanced/mcp-integration.md"], "priority": "medium"},
+    {"pattern": "internal/scheduler/*", "docs": ["advanced/scheduling-cron.md"], "priority": "low"},
+    {"pattern": "internal/bootstrap/*", "docs": ["agents/context-files.md", "agents/system-prompt-anatomy.md"], "priority": "medium"},
+    {"pattern": "internal/hooks/*", "docs": ["advanced/hooks-quality-gates.md"], "priority": "medium"},
+    {"pattern": "internal/memory/*", "docs": ["core-concepts/memory-system.md"], "priority": "high"},
+    {"pattern": "internal/skills/*", "docs": ["advanced/skills.md"], "priority": "low"},
+    {"pattern": "internal/cron/*", "docs": ["advanced/scheduling-cron.md"], "priority": "low"},
+    {"pattern": "internal/sandbox/*", "docs": ["advanced/sandbox.md"], "priority": "low"},
+    {"pattern": "internal/tts/*", "docs": ["advanced/tts-voice.md"], "priority": "low"},
+    {"pattern": "internal/permissions/*", "docs": ["agents/sharing-and-access.md"], "priority": "medium"},
+    {"pattern": "internal/config/*", "docs": ["reference/config-reference.md"], "priority": "medium"},
+    {"pattern": "cmd/*", "docs": ["reference/cli-commands.md"], "priority": "medium"},
+    {"pattern": "ui/web/*", "docs": ["getting-started/web-dashboard-tour.md"], "priority": "low"}
+  ]
+}
