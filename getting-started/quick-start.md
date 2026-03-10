@@ -1,72 +1,58 @@
 # Quick Start
 
-> Your first AI agent running in 5 minutes.
+> Your first AI agent conversation in 5 minutes.
 
-## Overview
+## Prerequisites
 
-This guide walks you through building GoClaw, running the onboard wizard, starting the gateway, and chatting with your first agent.
+You've completed [Installation](#installation) and the gateway is running on `http://localhost:18790`.
 
-## Step 1: Build
+## Step 1: Open the Dashboard & Complete Setup
 
-```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git
-cd goclaw
-go build -o goclaw .
-```
+Open `http://localhost:3000` (Docker) or `http://localhost:5173` (bare metal dev server) and log in:
 
-## Step 2: Set Up PostgreSQL
+- **User ID:** `system`
+- **Gateway Token:** found in `.env.local` (or `.env` for Docker) — look for `GOCLAW_GATEWAY_TOKEN`
 
-GoClaw needs PostgreSQL for managed mode:
+On first login, the dashboard automatically navigates to the **Setup Wizard**. The wizard walks you through:
 
-```bash
-# Using Docker (quickest)
-docker run -d --name goclaw-db \
-  -e POSTGRES_USER=goclaw \
-  -e POSTGRES_PASSWORD=goclaw \
-  -e POSTGRES_DB=goclaw \
-  -p 5432:5432 \
-  pgvector/pgvector:pg17
+1. **Add an LLM provider** — choose from OpenRouter, Anthropic, OpenAI, Groq, DeepSeek, Gemini, Mistral, xAI, MiniMax, DashScope (Alibaba Cloud Model Studio — Qwen API), Bailian (Alibaba Cloud Model Studio — Coding Plan), GLM (Zhipu), and more. Enter your API key and select a model.
+2. **Create your first agent** — give it a name, system prompt, and select the provider/model from above.
+3. **Connect a channel** (optional) — link Telegram, Discord, WhatsApp, Zalo, Larksuite, or Slack.
 
-# Set the connection string
-export GOCLAW_POSTGRES_DSN="postgres://goclaw:goclaw@localhost:5432/goclaw?sslmode=disable"
-```
+After completing the wizard, you're ready to chat.
 
-## Step 3: Run the Onboard Wizard
+## Step 2: Add More Providers (Optional)
 
-```bash
-./goclaw onboard
-```
+To add additional providers later:
 
-The wizard guides you through:
+1. Go to **Providers** (under **SYSTEM** in the sidebar)
+2. Click **Add Provider**
+3. Choose a provider, enter API key, and select a model
 
-1. **Choose an LLM provider** — OpenRouter (recommended for beginners), Anthropic, OpenAI, Groq, DeepSeek, Gemini, Mistral, xAI, and more
-2. **Enter your API key** — The key is stored encrypted, never in plain text
-3. **Pick a model** — Pre-filled based on your provider (e.g., `anthropic/claude-sonnet-4-5-20250929` for OpenRouter)
-4. **Set up channels** (optional) — Telegram, Discord, WhatsApp, Zalo, Feishu/Lark
-5. **Enable features** (optional) — Memory, browser automation, text-to-speech
+## Step 3: Chat
 
-The wizard creates two files:
-- `config.json` — Your agent and gateway configuration
-- `.env.local` — Secrets (gateway token, encryption key)
+### Using the Dashboard
 
-## Step 4: Start the Gateway
+Go to **Chat** (under **CORE** in the sidebar) and select the agent you created during setup.
+
+To create additional agents, go to **Agents** (also under **CORE**) and click **Create Agent**. See [Creating Agents](#creating-agents) for details.
+
+### Using the HTTP API
+
+The HTTP API is OpenAI-compatible. Use the `goclaw:<agent-key>` format in the `model` field to specify the target agent:
 
 ```bash
-source .env.local
-./goclaw
+curl -X POST http://localhost:18790/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN" \
+  -H "X-GoClaw-User-Id: system" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "goclaw:your-agent-key",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
 ```
 
-You should see:
-
-```
-GoClaw gateway listening on :18790
-```
-
-## Step 5: Chat with Your Agent
-
-### Using the Web Dashboard
-
-If you enabled the dashboard during setup, open `http://localhost:3000` in your browser.
+Replace `YOUR_GATEWAY_TOKEN` with the value from `.env.local` (bare metal) or `.env` (Docker) and `your-agent-key` with the agent key shown in the Agents page (e.g., `goclaw:my-assistant`).
 
 ### Using WebSocket
 
@@ -74,60 +60,31 @@ Connect with any WebSocket client:
 
 ```bash
 # Using websocat (install: cargo install websocat)
-websocat ws://localhost:18790/ws \
-  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN"
+websocat ws://localhost:18790/ws
 ```
 
-Send a JSON message:
+**First**, send a `connect` frame to authenticate:
 
 ```json
-{
-  "type": "chat",
-  "agent_id": "default",
-  "content": "Hello! What can you do?"
-}
+{"type":"req","id":"1","method":"connect","params":{"token":"YOUR_GATEWAY_TOKEN","user_id":"system"}}
 ```
 
-### Using the HTTP API
+**Then**, send a chat message:
 
-```bash
-curl -X POST http://localhost:18790/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "default",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
-```
-
-## Docker Compose (Alternative)
-
-Skip steps 1-4 with Docker Compose:
-
-```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git
-cd goclaw
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your API key
-
-# Start everything
-docker compose -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml up -d --build
+```json
+{"type":"req","id":"2","method":"chat.send","params":{"agentId":"your-agent-key","message":"Hello! What can you do?"}}
 ```
 
 ## Common Issues
 
 | Problem | Solution |
 |---------|----------|
-| `no provider API key found` | Set at least one `GOCLAW_*_API_KEY` env var |
-| `connection refused on :5432` | Ensure PostgreSQL is running and DSN is correct |
-| `unauthorized` on WebSocket | Check `GOCLAW_GATEWAY_TOKEN` matches your auth header |
+| `no provider API key found` | Add a provider & API key in the Dashboard |
+| `unauthorized` on WebSocket | Check the `token` in your `connect` frame matches `GOCLAW_GATEWAY_TOKEN` |
+| Dashboard shows blank page | Ensure the web UI service is running |
 
 ## What's Next
 
-- [Configuration](configuration.md) — Fine-tune your setup
-- [Web Dashboard Tour](web-dashboard-tour.md) — Explore the visual interface
-- [Agents Explained](../core-concepts/agents-explained.md) — Understand agent types and context
+- [Configuration](#configuration) — Fine-tune your setup
+- [Dashboard Tour](#dashboard-tour) — Explore the visual interface
+- [Agents Explained](#agents-explained) — Understand agent types and context

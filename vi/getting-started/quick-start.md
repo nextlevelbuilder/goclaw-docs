@@ -2,73 +2,59 @@
 
 # Quick Start
 
-> AI agent đầu tiên của bạn chạy trong 5 phút.
+> Cuộc trò chuyện AI agent đầu tiên của bạn trong 5 phút.
 
-## Tổng quan
+## Điều kiện tiên quyết
 
-Hướng dẫn này đưa bạn qua các bước: build GoClaw, chạy wizard onboard, khởi động gateway, và chat với agent đầu tiên.
+Bạn đã hoàn thành [Cài đặt](#installation) và gateway đang chạy tại `http://localhost:18790`.
 
-## Bước 1: Build
+## Bước 1: Mở Dashboard & Hoàn tất Setup
 
-```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git
-cd goclaw
-go build -o goclaw .
-```
+Mở `http://localhost:3000` (Docker) hoặc `http://localhost:5173` (cài trực tiếp, chạy dev server) và đăng nhập:
 
-## Bước 2: Cài đặt PostgreSQL
+- **User ID:** `system`
+- **Gateway Token:** tìm trong `.env.local` (hoặc `.env` với Docker) — tìm dòng `GOCLAW_GATEWAY_TOKEN`
 
-GoClaw cần PostgreSQL cho managed mode:
+Lần đăng nhập đầu tiên, dashboard tự động chuyển đến **Setup Wizard**. Wizard hướng dẫn bạn qua:
 
-```bash
-# Dùng Docker (nhanh nhất)
-docker run -d --name goclaw-db \
-  -e POSTGRES_USER=goclaw \
-  -e POSTGRES_PASSWORD=goclaw \
-  -e POSTGRES_DB=goclaw \
-  -p 5432:5432 \
-  pgvector/pgvector:pg17
+1. **Thêm LLM provider** — chọn từ OpenRouter, Anthropic, OpenAI, Groq, DeepSeek, Gemini, Mistral, xAI, MiniMax, DashScope (Alibaba Cloud Model Studio — Qwen API), Bailian (Alibaba Cloud Model Studio — Coding Plan), GLM (Zhipu), và nhiều hơn. Nhập API key và chọn model.
+2. **Tạo agent đầu tiên** — đặt tên, system prompt, và chọn provider/model ở trên.
+3. **Kết nối channel** (tuỳ chọn) — liên kết Telegram, Discord, WhatsApp, Zalo, Larksuite, hoặc Slack.
 
-# Đặt connection string
-export GOCLAW_POSTGRES_DSN="postgres://goclaw:goclaw@localhost:5432/goclaw?sslmode=disable"
-```
+Sau khi hoàn tất wizard, bạn đã sẵn sàng chat.
 
-## Bước 3: Chạy Onboard Wizard
+## Bước 2: Thêm Provider Khác (Tuỳ chọn)
 
-```bash
-./goclaw onboard
-```
+Để thêm provider sau này:
 
-Wizard sẽ hướng dẫn bạn qua:
+1. Vào **Providers** (mục **SYSTEM** trên sidebar)
+2. Nhấn **Add Provider**
+3. Chọn provider, nhập API key, và chọn model
 
-1. **Chọn LLM provider** — OpenRouter (khuyến nghị cho người mới), Anthropic, OpenAI, Groq, DeepSeek, Gemini, Mistral, xAI, và nhiều hơn
-2. **Nhập API key** — Key được lưu mã hóa, không bao giờ ở dạng plain text
-3. **Chọn model** — Đã điền sẵn theo provider (ví dụ: `anthropic/claude-sonnet-4-5-20250929` cho OpenRouter)
-4. **Cài đặt channel** (tùy chọn) — Telegram, Discord, WhatsApp, Zalo, Feishu/Lark
-5. **Bật tính năng** (tùy chọn) — Memory, browser automation, text-to-speech
+## Bước 3: Chat
 
-Wizard tạo ra hai file:
-- `config.json` — Cấu hình agent và gateway
-- `.env.local` — Secrets (gateway token, encryption key)
+### Dùng Dashboard
 
-## Bước 4: Khởi động Gateway
+Vào **Chat** (mục **CORE** trên sidebar) và chọn agent bạn đã tạo trong bước setup.
+
+Để tạo thêm agent, vào **Agents** (cũng trong mục **CORE**) và nhấn **Create Agent**. Xem [Creating Agents](#creating-agents) để biết chi tiết.
+
+### Dùng HTTP API
+
+HTTP API tương thích với OpenAI. Dùng format `goclaw:<agent-key>` trong trường `model` để chỉ định agent:
 
 ```bash
-source .env.local
-./goclaw
+curl -X POST http://localhost:18790/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN" \
+  -H "X-GoClaw-User-Id: system" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "goclaw:your-agent-key",
+    "messages": [{"role": "user", "content": "Xin chào!"}]
+  }'
 ```
 
-Bạn sẽ thấy:
-
-```
-GoClaw gateway listening on :18790
-```
-
-## Bước 5: Chat với Agent
-
-### Dùng Web Dashboard
-
-Nếu bạn đã bật dashboard trong quá trình cài đặt, mở `http://localhost:3000` trên trình duyệt.
+Thay `YOUR_GATEWAY_TOKEN` bằng giá trị từ `.env.local` (cài trực tiếp) hoặc `.env` (Docker) và `your-agent-key` bằng agent key hiển thị trên trang Agents (ví dụ: `goclaw:my-assistant`).
 
 ### Dùng WebSocket
 
@@ -76,60 +62,31 @@ Kết nối bằng bất kỳ WebSocket client nào:
 
 ```bash
 # Dùng websocat (cài: cargo install websocat)
-websocat ws://localhost:18790/ws \
-  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN"
+websocat ws://localhost:18790/ws
 ```
 
-Gửi JSON message:
+**Đầu tiên**, gửi frame `connect` để xác thực:
 
 ```json
-{
-  "type": "chat",
-  "agent_id": "default",
-  "content": "Xin chào! Bạn có thể làm gì?"
-}
+{"type":"req","id":"1","method":"connect","params":{"token":"YOUR_GATEWAY_TOKEN","user_id":"system"}}
 ```
 
-### Dùng HTTP API
+**Sau đó**, gửi tin nhắn chat:
 
-```bash
-curl -X POST http://localhost:18790/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "default",
-    "messages": [{"role": "user", "content": "Xin chào!"}]
-  }'
-```
-
-## Docker Compose (Cách thay thế)
-
-Bỏ qua bước 1-4 với Docker Compose:
-
-```bash
-git clone https://github.com/nextlevelbuilder/goclaw.git
-cd goclaw
-
-# Cài đặt environment
-cp .env.example .env
-# Sửa .env với API key của bạn
-
-# Khởi động tất cả
-docker compose -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml up -d --build
+```json
+{"type":"req","id":"2","method":"chat.send","params":{"agentId":"your-agent-key","message":"Xin chào! Bạn có thể làm gì?"}}
 ```
 
 ## Các vấn đề thường gặp
 
 | Vấn đề | Giải pháp |
 |--------|-----------|
-| `no provider API key found` | Đặt ít nhất một biến môi trường `GOCLAW_*_API_KEY` |
-| `connection refused on :5432` | Đảm bảo PostgreSQL đang chạy và DSN đúng |
-| `unauthorized` trên WebSocket | Kiểm tra `GOCLAW_GATEWAY_TOKEN` khớp với auth header |
+| `no provider API key found` | Thêm provider và API key trong Dashboard |
+| `unauthorized` trên WebSocket | Kiểm tra `token` trong frame `connect` khớp với `GOCLAW_GATEWAY_TOKEN` |
+| Dashboard hiển thị trang trắng | Đảm bảo web UI service đang chạy |
 
 ## Tiếp theo
 
-- [Configuration](configuration.md) — Tinh chỉnh cài đặt của bạn
-- [Web Dashboard Tour](web-dashboard-tour.md) — Khám phá giao diện trực quan
-- [Agents Explained](../core-concepts/agents-explained.md) — Hiểu về loại agent và context
+- [Configuration](#configuration) — Tinh chỉnh cài đặt của bạn
+- [Dashboard Tour](#dashboard-tour) — Khám phá giao diện trực quan
+- [Agents Explained](#agents-explained) — Hiểu về loại agent và context

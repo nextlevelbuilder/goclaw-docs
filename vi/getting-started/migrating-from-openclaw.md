@@ -13,15 +13,15 @@ GoClaw là phiên bản đa tenant được phát triển từ OpenClaw. Nếu b
 | Tính năng | OpenClaw | GoClaw |
 |-----------|----------|--------|
 | Đa tenant | Không (single user) | Có (cách ly per-user) |
-| Agent team | Không | Có (task board chung, delegation) |
+| Agent team | Sub-agent delegation | Cộng tác team đầy đủ (task board chung, delegation) |
 | Lưu trữ thông tin xác thực | Plain text trong config | Mã hóa AES-256-GCM trong DB |
-| Memory | Dựa trên file | PostgreSQL với hybrid search |
+| Memory | SQLite + QMD semantic search | PostgreSQL với hybrid search |
 | Tracing | Không | Đầy đủ LLM call trace với theo dõi chi phí |
-| Hỗ trợ MCP | Không | Có |
-| Custom tool | Không | Có (định nghĩa qua dashboard hoặc API) |
-| Code sandbox | Không | Có (môi trường thực thi cách ly) |
-| Database | SQLite tùy chọn | PostgreSQL (managed mode) |
-| Channel | 37+ | 6 core (Telegram, Discord, WhatsApp, Zalo, Feishu, WebSocket) |
+| Hỗ trợ MCP | Có (qua mcporter bridge) | Có (stdio, SSE, streamable-http) |
+| Custom tool | Có (52+ built-in skill) | Có (định nghĩa qua dashboard hoặc API) |
+| Code sandbox | Có (Docker-based) | Có (Docker-based với per-agent config) |
+| Database | SQLite | PostgreSQL (managed mode) |
+| Channel | 18 (9 core + 9 extension) | 7 (Telegram, Discord, Slack, WhatsApp, Zalo OA, Zalo Personal, Larksuite) |
 | Dashboard | Web UI cơ bản | Management dashboard đầy đủ |
 
 ## Bảng so sánh Config
@@ -65,7 +65,7 @@ Lưu ý: GoClaw giữ token trong biến môi trường, không đặt trong fil
 
 ### Context File
 
-GoClaw dùng 6 context file (khái niệm tương tự OpenClaw):
+GoClaw dùng context file (khái niệm tương tự OpenClaw). 6 file core được load mỗi session:
 
 | File | Mục đích |
 |------|---------|
@@ -75,6 +75,15 @@ GoClaw dùng 6 context file (khái niệm tương tự OpenClaw):
 | `TOOLS.md` | Hướng dẫn sử dụng tool |
 | `USER.md` | Hồ sơ người dùng, timezone, tùy chọn |
 | `BOOTSTRAP.md` | Nghi thức chạy lần đầu (tự động xóa sau khi hoàn tất) |
+
+Context file bổ sung cho tính năng nâng cao:
+
+| File | Mục đích |
+|------|---------|
+| `MEMORY.md` | Memory dài hạn được chọn lọc |
+| `DELEGATION.md` | Hướng dẫn delegation cho sub-agent |
+| `TEAM.md` | Quy tắc phối hợp team |
+| `AVAILABILITY.md` | Lịch hoạt động của agent |
 
 **Điểm khác biệt quan trọng:** OpenClaw lưu các file này trên filesystem. GoClaw lưu trong PostgreSQL với phạm vi per-user — mỗi người dùng có thể có phiên bản context file riêng cho cùng một agent.
 
@@ -105,10 +114,10 @@ Các tính năng bạn có thêm sau khi chuyển:
 |--------|-----------|
 | Context file không load | Upload qua dashboard hoặc API; đường dẫn filesystem khác với OpenClaw |
 | Hành vi phản hồi khác | Kiểm tra `max_tool_iterations` — mặc định GoClaw (20) có thể khác cài đặt OpenClaw của bạn |
-| Thiếu channel | GoClaw tập trung vào 6 channel core; một số channel niche của OpenClaw chưa được port |
+| Thiếu channel | GoClaw tập trung vào 7 channel core; một số channel OpenClaw (IRC, Signal, iMessage, LINE, v.v.) chưa được port |
 
 ## Tiếp theo
 
-- [GoClaw hoạt động như thế nào](../core-concepts/how-goclaw-works.md) — Hiểu về kiến trúc mới
-- [Multi-Tenancy](../core-concepts/multi-tenancy.md) — Tìm hiểu về cách ly per-user
-- [Configuration](configuration.md) — Tham chiếu config đầy đủ
+- [GoClaw hoạt động như thế nào](#how-goclaw-works) — Hiểu về kiến trúc mới
+- [Multi-Tenancy](#multi-tenancy) — Tìm hiểu về cách ly per-user
+- [Configuration](#configuration) — Tham chiếu config đầy đủ

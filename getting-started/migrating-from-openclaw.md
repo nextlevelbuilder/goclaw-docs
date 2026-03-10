@@ -11,15 +11,15 @@ GoClaw is the multi-tenant evolution of OpenClaw. If you've been running OpenCla
 | Feature | OpenClaw | GoClaw |
 |---------|----------|--------|
 | Multi-tenant | No (single user) | Yes (per-user isolation) |
-| Agent teams | No | Yes (shared task board, delegation) |
+| Agent teams | Sub-agent delegation | Full team collaboration (shared task board, delegation) |
 | Credential storage | Plain text in config | AES-256-GCM encrypted in DB |
-| Memory | File-based | PostgreSQL with hybrid search |
+| Memory | SQLite + QMD semantic search | PostgreSQL with hybrid search |
 | Tracing | No | Full LLM call traces with cost tracking |
-| MCP support | No | Yes |
-| Custom tools | No | Yes (define via dashboard or API) |
-| Code sandbox | No | Yes (isolated execution environment) |
-| Database | Optional SQLite | PostgreSQL (managed mode) |
-| Channels | 37+ | 6 core (Telegram, Discord, WhatsApp, Zalo, Feishu, WebSocket) |
+| MCP support | Yes (via mcporter bridge) | Yes (stdio, SSE, streamable-http) |
+| Custom tools | Yes (52+ built-in skills) | Yes (define via dashboard or API) |
+| Code sandbox | Yes (Docker-based) | Yes (Docker-based with per-agent config) |
+| Database | SQLite | PostgreSQL (managed mode) |
+| Channels | 18 (9 core + 9 extensions) | 7 (Telegram, Discord, Slack, WhatsApp, Zalo OA, Zalo Personal, Larksuite) |
 | Dashboard | Basic web UI | Full management dashboard |
 
 ## Config Mapping
@@ -63,7 +63,7 @@ Note: GoClaw keeps tokens in environment variables, not in the config file.
 
 ### Context Files
 
-GoClaw uses 6 context files (similar concepts to OpenClaw):
+GoClaw uses context files (similar concepts to OpenClaw). The 6 core files loaded every session:
 
 | File | Purpose |
 |------|---------|
@@ -72,7 +72,16 @@ GoClaw uses 6 context files (similar concepts to OpenClaw):
 | `IDENTITY.md` | Name, avatar, greeting |
 | `TOOLS.md` | Tool usage guidance |
 | `USER.md` | User profile and preferences |
-| `BOOTSTRAP.md` | First-run onboarding ritual |
+| `BOOTSTRAP.md` | First-run onboarding ritual (auto-deleted after completion) |
+
+Additional context files for advanced features:
+
+| File | Purpose |
+|------|---------|
+| `MEMORY.md` | Long-term curated memory |
+| `DELEGATION.md` | Delegation instructions for sub-agents |
+| `TEAM.md` | Team coordination rules |
+| `AVAILABILITY.md` | Agent availability schedule |
 
 **Key difference:** OpenClaw stores these on the filesystem. GoClaw stores them in PostgreSQL with per-user scoping — each user can have their own version of context files for the same agent.
 
@@ -103,10 +112,10 @@ Features you gain after migrating:
 |---------|----------|
 | Context files not loading | Upload via dashboard or API; filesystem path differs from OpenClaw |
 | Different response behavior | Check `max_tool_iterations` — GoClaw default (20) may differ from your OpenClaw setup |
-| Missing channels | GoClaw focuses on 6 core channels; some niche OpenClaw channels aren't ported yet |
+| Missing channels | GoClaw focuses on 7 core channels; some OpenClaw channels (IRC, Signal, iMessage, LINE, etc.) aren't ported yet |
 
 ## What's Next
 
-- [How GoClaw Works](../core-concepts/how-goclaw-works.md) — Understand the new architecture
-- [Multi-Tenancy](../core-concepts/multi-tenancy.md) — Learn about per-user isolation
-- [Configuration](configuration.md) — Full config reference
+- [How GoClaw Works](#how-goclaw-works) — Understand the new architecture
+- [Multi-Tenancy](#multi-tenancy) — Learn about per-user isolation
+- [Configuration](#configuration) — Full config reference

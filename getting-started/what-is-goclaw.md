@@ -12,12 +12,18 @@ GoClaw is an open-source AI agent gateway written in Go. It lets you run AI agen
 |----------|-------------|
 | **Multi-Tenant** | Per-user isolation for context, sessions, memory, and traces |
 | **13+ LLM Providers** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more |
-| **6 Channels** | Telegram, Discord, WhatsApp, Zalo, Feishu/Lark, WebSocket |
-| **60+ Built-in Tools** | File system, web search, browser, code execution, memory, and more |
-| **Agent Teams** | Multiple agents with shared task board and delegation |
-| **MCP Support** | Connect to Model Context Protocol servers for extended capabilities |
+| **7 Channels** | Telegram, Discord, WhatsApp, Zalo, Zalo Personal, Larksuite, Slack |
+| **30+ Built-in Tools** | File system, web search, browser, code execution, memory, and more |
+| **Agent Orchestration** | 4 patterns — delegation (sync/async), teams, handoff, evaluate loops |
+| **Knowledge Graph** | LLM-powered entity/relationship extraction with graph traversal |
+| **MCP Support** | Connect to Model Context Protocol servers (stdio/SSE/HTTP) |
+| **Skills System** | SKILL.md-based knowledge base with hybrid search (BM25 + vector) |
+| **Quality Gates** | Hook-based output validation with configurable feedback loops |
+| **Extended Thinking** | Per-provider reasoning modes (Anthropic, OpenAI, DashScope) |
+| **Prompt Caching** | Up to ~90% cost reduction on repeated prefixes |
 | **Web Dashboard** | Visual management for agents, providers, channels, and traces |
 | **Memory** | Long-term memory with hybrid search (vector + full-text) |
+| **Security** | Rate limiting, SSRF protection, credential scrubbing, RBAC |
 | **Single Binary** | ~25 MB, <1s startup, runs on a $5 VPS |
 
 ## Who Is It For?
@@ -28,7 +34,7 @@ GoClaw is an open-source AI agent gateway written in Go. It lets you run AI agen
 
 ## Operating Mode
 
-GoClaw requires a PostgreSQL backend with encrypted credentials, multi-user support, and persistent memory. This gives you full multi-tenant isolation, tracing, and hybrid search out of the box.
+GoClaw requires a PostgreSQL backend with encrypted credentials, multi-user support (each user gets their own isolated workspace), and persistent memory. This gives you full isolation between users, complete activity logs, and smart search across all conversations.
 
 ## How It Works
 
@@ -45,11 +51,12 @@ graph LR
 1. A user sends a message through a **channel** (Telegram, WebSocket, etc.)
 2. The **gateway** routes it to the right agent based on channel bindings
 3. The **agent loop** sends the conversation to an LLM provider
-4. The LLM may call **tools** (search the web, run code, query memory)
-5. The response flows back through the channel to the user
+4. The LLM may call **tools** (search the web, run code, query memory, search knowledge graph)
+5. The agent can **delegate** tasks to other agents, **hand off** conversations, or run **evaluate loops** for quality-gated output
+6. The response flows back through the channel to the user
 
 ## What's Next
 
 - [Installation](installation.md) — Get GoClaw running on your machine
 - [Quick Start](quick-start.md) — Your first agent in 5 minutes
-- [How GoClaw Works](../core-concepts/how-goclaw-works.md) — Deep dive into the architecture
+- [How GoClaw Works](how-goclaw-works.md) — Deep dive into the architecture

@@ -36,13 +36,21 @@ pnpm build
 # Serve the dist/ folder with any static file server
 ```
 
-## Dashboard Tabs
+## Dashboard Sidebar
 
-### Setup Wizard
+The dashboard organizes features into groups in the sidebar.
 
-First-time setup alternative to `./goclaw onboard`. Walks you through provider selection, API key entry, and channel configuration — all in the browser.
+### Core
 
-### Agents
+#### Overview
+
+System-wide dashboard with key metrics at a glance.
+
+#### Chat
+
+Test chat interface — interact with any agent directly from the browser.
+
+#### Agents
 
 Create, edit, and delete agents. Each agent card shows:
 - Name and model
@@ -50,34 +58,106 @@ Create, edit, and delete agents. Each agent card shows:
 - Tool access permissions
 - Active sessions count
 
-Click an agent to open a test chat window.
+Click an agent to open its detail page with these tabs:
+- **General** — Agent metadata and basic info
+- **Config** — Model, temperature, system prompt, tool permissions
+- **Files** — Context files (IDENTITY.md, USER.md, etc.)
+- **Shares** — Share agents across tenants
+- **Links** — Configure which agents this agent can delegate to (permissions, concurrency limits, handoff rules)
+- **Skills** — Agent-specific skill assignments
+- **Instances** — Predefined agent instances (only for predefined agents)
 
-### Channels
+#### Agent Teams
+
+Create agent teams for collaborative tasks. Click a team to see:
+- **Members** — Assign agents to the team and manage roles
+- **Tasks** — Shared task board for the team
+- **Delegations** — Delegation history between team members
+- **Settings** — Team configuration
+
+### Conversations
+
+#### Sessions
+
+View active and historical sessions. See conversation history per user, per agent, per channel.
+
+#### Pending Messages
+
+Queue of unprocessed user messages waiting for agent response.
+
+#### Contacts
+
+Manage user contacts across all channels.
+
+### Connectivity
+
+#### Channels
 
 Enable and configure messaging channels:
 - **Telegram** — Bot token, allowed users/groups
 - **Discord** — Bot token, guild settings
 - **WhatsApp** — Connection QR code
 - **Zalo** — App credentials
-- **Feishu/Lark** — App ID and secret
+- **Zalo Personal** — Personal Zalo account integration
+- **Larksuite** — App ID and secret
+- **Slack** — Bot token, workspace settings
 
-### Skills
+#### Nodes
+
+Gateway node pairing and management. Pair browser sessions with gateway instances using 8-character pairing codes. Shows a badge with pending pairing count.
+
+### Capabilities
+
+#### Skills
 
 Upload `SKILL.md` files that agents can discover and use. Skills are searchable with semantic matching — agents find the right skill based on what the user asks.
 
-### MCP Servers
+#### Builtin Tools
 
-Connect Model Context Protocol servers to extend agent capabilities. Add server URLs, view available tools, and test connections.
+Browse the 30+ built-in tools that come with GoClaw. Enable/disable individual tools and configure their settings.
 
-### Custom Tools
+#### MCP Servers
 
-Define custom tools beyond the 60+ built-in ones. Set input schemas, execution handlers, and rate limits.
+Connect Model Context Protocol servers to extend agent capabilities beyond built-in tools.
 
-### Cron Jobs
+**Example:** If you run a local knowledge base server, you can connect it via MCP so GoClaw agents can query your private documents automatically.
 
-Schedule recurring tasks. Each cron job runs as an agent with a specified prompt on a schedule (standard cron syntax).
+Add server URLs, view available tools, and test connections.
 
-### Traces
+#### TTS (Text-to-Speech)
+
+Configure Text-to-Speech services. Supported providers: OpenAI, ElevenLabs, Edge, MiniMax.
+
+#### Cron Jobs
+
+Schedule tasks via a form dialog. Fill in a name, select an agent, choose a schedule type, and write a message telling the agent what to do. Three schedule types:
+- **Every** — run at a fixed interval (in seconds)
+- **Cron** — run on a cron expression (e.g. `0 9 * * *`)
+- **Once** — run once after a short delay
+
+**Example:**
+- **Name:** `daily-feedback`
+- **Agent ID:** your assistant agent
+- **Schedule Type:** Cron — `0 9 * * *`
+- **Message:** "Summarize yesterday's customer feedback and email it to me."
+
+### Data
+
+#### Memory
+
+Vector memory document management powered by pgvector. Store, search, and manage documents that agents can retrieve via semantic search.
+
+#### Knowledge Graph
+
+Knowledge graph management — view and manage entity relationships that agents build over conversations.
+
+#### Storage
+
+File and storage management for agent-uploaded or user-uploaded files.
+
+### Monitoring
+
+#### Traces
 
 LLM call history with:
 - Token usage and cost tracking
@@ -85,23 +165,35 @@ LLM call history with:
 - Tool call sequences
 - Latency metrics
 
-### Sessions
+#### Events
 
-View active and historical sessions. See conversation history per user, per agent, per channel.
+Real-time event stream — watch agent activity, tool calls, and system events as they happen.
 
-### Teams
+#### Delegations
 
-Create agent teams for collaborative tasks:
-- Assign agents to teams
-- View shared task boards
-- Monitor delegation chains
+Delegation history across all agents — track which agents delegated tasks to others, with status and results.
 
-### Agent Links
+#### Usage
 
-Configure which agents can delegate to others:
-- Set delegation permissions
-- Configure concurrency limits
-- Define handoff rules
+Usage metrics and cost tracking — monitor token consumption, API calls, and costs per agent/channel.
+
+#### Logs
+
+System logs for debugging and monitoring gateway operations.
+
+### System
+
+#### Providers
+
+Manage LLM providers (API keys, model configurations). Supports Anthropic (native) and OpenAI-compatible providers.
+
+#### Config
+
+Edit gateway configuration. Same settings available in the JSON5 config file, but with a visual editor.
+
+#### Approvals
+
+Manage Exec Approval workflows — review and approve/reject tool executions that require human confirmation.
 
 ## Common Issues
 
