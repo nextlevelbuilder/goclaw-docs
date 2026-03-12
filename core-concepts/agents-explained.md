@@ -21,38 +21,42 @@ GoClaw has two agent types with different sharing models:
 
 ### Open Agents
 
-Each user gets their own complete set of context files. The agent adapts to each user individually.
+Each user gets their own complete copy of all context files. Every user can fully customize the agent's personality, instructions, and behavior — the agent adapts independently per user. Files persist across sessions.
 
-- All 7 context files are per-user
-- Users can fully customize the agent's personality
-- Best for: personal assistants, individual workflows
+- All 7 context files are per-user (including MEMORY.md)
+- Users can read and edit any file (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, etc.)
+- New users start from agent-level templates, then diverge as they customize
+- Best for: personal assistants, individual workflows, rapid prototyping and testing (each user can tweak personality without affecting others)
 
 ### Predefined Agents
 
-The agent has a shared personality, but each user gets personal profile files. Think of it as a company chatbot that knows who you are.
+The agent has a fixed, shared personality that no user can change through chat. Each user only gets personal profile files. Think of it as a company chatbot — same brand voice for everyone, but it knows who you are.
 
-- 4 context files shared across all users (AGENTS, SOUL, IDENTITY, TOOLS)
+- 4 context files shared across all users (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) — read-only from chat
 - 2 files per-user (USER.md, BOOTSTRAP.md)
-- Best for: team bots, shared assistants, customer support
+- Shared files can only be edited from the management dashboard (not through conversations)
+- Best for: team bots, branded assistants, customer support where consistent personality matters
 
 | Aspect | Open | Predefined |
 |--------|------|-----------|
-| Agent-level files | None | 4 (shared: AGENTS, SOUL, IDENTITY, TOOLS) |
-| Per-user files | All 6 | 2 (USER.md, BOOTSTRAP.md) |
-| Customization | Full per-user | Shared personality, personal profile |
+| Agent-level files | Templates (copied to each user) | 4 shared (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) |
+| Per-user files | All 7 | 2 (USER.md, BOOTSTRAP.md) |
+| User can edit via chat | All files | USER.md only |
+| Personality | Diverges per user | Fixed, same for everyone |
 | Use case | Personal assistant | Team/company bot |
 
 ## Context Files
 
-Every agent has up to 6 context files that shape its behavior:
+Every agent has up to 7 context files that shape its behavior:
 
 | File | Purpose | Example Content |
 |------|---------|----------------|
 | `AGENTS.md` | Operating instructions, memory rules, safety guidelines | "Always save important facts to memory..." |
 | `SOUL.md` | Personality and tone | "You are a friendly coding mentor..." |
 | `IDENTITY.md` | Name, avatar, greeting | "Name: CodeBot, Emoji: 🤖" |
-| `TOOLS.md` | Tool usage guidance | "Use web_search for current events..." |
+| `TOOLS.md` | Tool usage guidance *(loaded from filesystem only — not DB-routed, excluded from context file interceptor)* | "Use web_search for current events..." |
 | `USER.md` | User profile, timezone, preferences | "Timezone: Asia/Saigon, Language: Vietnamese" |
+| `USER_PREDEFINED.md` | Predefined agent user profile *(predefined agents only, replaces USER.md at agent level)* | "Team member info, shared preferences..." |
 | `BOOTSTRAP.md` | First-run ritual (auto-deleted after completion) | "Introduce yourself and learn about the user..." |
 
 Plus `MEMORY.md` — persistent notes auto-updated by the agent (routed to the memory system).
@@ -119,9 +123,28 @@ Unbound conversations go to the default agent.
 
 | Problem | Solution |
 |---------|----------|
-| Agent ignores instructions | Check SOUL.md and RULES.md content; ensure context files aren't truncated |
+| Agent ignores instructions | Check SOUL.md and AGENTS.md content; ensure context files aren't truncated |
 | "Agent not found" error | Verify agent exists in dashboard; check `agents.list` in config |
 | Context files not updating | For predefined agents, shared files update for all users; per-user files need per-user edits |
+
+## Agent Status
+
+An agent can be in one of four states:
+
+| Status | Meaning |
+|--------|---------|
+| `active` | Agent is running and accepting conversations |
+| `inactive` | Agent is disabled; conversations are rejected |
+| `summoning` | Agent is being initialized for the first time |
+| `summon_failed` | Initialization failed; check provider config and model availability |
+
+## Self-Evolution
+
+Predefined agents with `self_evolve` enabled can update their own `SOUL.md` during conversations. This allows the agent's tone and style to evolve over time based on interactions. The update is applied at the agent level and affects all users. Other shared files (IDENTITY.md, AGENTS.md) remain protected and can only be edited from the dashboard.
+
+## Identity Anchoring
+
+Predefined agents have built-in protection against social engineering. If a user tries to convince the agent to ignore its SOUL.md or act outside its defined identity, the agent is designed to resist. Shared identity files are injected into the system prompt at a level that takes precedence over user instructions.
 
 ## What's Next
 

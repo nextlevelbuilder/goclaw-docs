@@ -25,6 +25,8 @@ agent:{agentId}:{channel}:{kind}:{chatId}
 
 This key format means the same user talking to the same agent on Telegram and Discord has two separate sessions with independent history.
 
+> **Session Metadata:** Each session tracks additional fields alongside the key: `label` (display name), `channel`, `model`, `provider`, `spawned_by` (parent session ID for subagents), `spawn_depth`, `input_tokens`, `output_tokens`, `compaction_count`, and `context_window`. These fields are queryable for analytics and debugging purposes.
+
 ## Message Storage
 
 Messages are stored as JSONB in PostgreSQL with a write-behind cache:
@@ -50,10 +52,10 @@ Tool results can be large. GoClaw trims them in two passes:
 
 | Condition | Action |
 |-----------|--------|
-| Token ratio ≥ 0.3 | **Soft trim**: Tool results >4,000 chars → keep first 1,500 + last 1,500 |
+| Token ratio ≥ 0.3 | **Soft trim**: Tool results exceeding 4,000 chars → keep first 1,500 + last 1,500 |
 | Token ratio ≥ 0.5 | **Hard clear**: Replace entire tool result with `[Old tool result content cleared]` |
 
-Protected messages (never pruned): last 3 assistant messages, first user message, system messages.
+Protected messages (never pruned): last 3 assistant messages. System message(s) and the first user message form a stable prefix that is never pruned.
 
 ### 3. Sanitize
 
@@ -78,18 +80,24 @@ graph LR
 
 1. **Memory flush** (synchronous, 90s timeout) — Important facts are extracted and saved to the memory system
 2. **Summarize** (background, 120s timeout) — Old messages are condensed into a summary
-3. **Inject** — The summary replaces old messages; last 4 messages are kept verbatim
+3. **Inject** — The summary replaces old messages; at least 4 messages (or 30% of total, whichever is greater) are kept verbatim
 
 A per-session lock prevents concurrent compaction. If a second compaction triggers while one is running, it's skipped.
+
+### Mid-Loop Compaction
+
+GoClaw may also compact history **during a long agent turn** if the context exceeds the threshold mid-loop. The same 75% summarization logic applies. This is transparent to the agent — it continues running with the compacted history injected.
 
 ## Concurrency
 
 | Chat Type | Max Concurrent | Notes |
 |-----------|:-----------:|-------|
 | DM | 1 | Single-threaded — messages queue up |
-| Group | 3 | Parallel responses to different users |
+| Group | 1 (configurable) | Serial by default; can be increased via `ScheduleOpts.MaxConcurrent` |
 
 When history exceeds 60% of the context window, group concurrency drops to 1 (adaptive throttle).
+
+> **Configuring concurrency:** Both DM and Group default to serial processing (`MaxConcurrent: 1`). Higher values (e.g. 3) can be set for team members or agent links via `ScheduleOpts.MaxConcurrent`.
 
 ### Queue Modes
 
@@ -99,7 +107,7 @@ When history exceeds 60% of the context window, group concurrency drops to 1 (ad
 | `followup` | New message merges with the queued one |
 | `interrupt` | Cancel current task, process new message |
 
-Queue capacity is 10 by default. When full, the oldest message is dropped.
+Queue capacity is 10 by default. When full, the oldest message is dropped (drop policy: `old`). The default debounce window is 800ms — rapid messages within this window are merged before processing.
 
 ### User Controls
 

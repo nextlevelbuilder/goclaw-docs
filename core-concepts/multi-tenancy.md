@@ -58,7 +58,7 @@ Every piece of user data is scoped by user ID:
 | Sessions | `sessions` | Per-user per-agent per-channel |
 | Memory | `memory_documents` | Per-user per-agent |
 | Traces | `traces` | Per-user filterable |
-| Agent access | `agent_shares` | Per-user role (admin/operator/viewer) |
+| Agent access | `agent_shares` | Per-user role (user/viewer) |
 | MCP grants | `mcp_user_grants` | Per-user MCP server access |
 | Skill grants | `skill_user_grants` | Per-user skill access |
 
@@ -70,15 +70,15 @@ Each user gets their own directory in the agent workspace:
 
 ```
 workspace/
-├── user_user-123/
-│   ├── projects/
-│   └── downloads/
-├── user_user-456/
-│   ├── projects/
-│   └── downloads/
+├── user-123/          ← auto-created on first message
+│   └── (files created by the agent during conversations)
+├── user-456/
+│   └── ...
 ```
 
-File operations (read_file, write_file, etc.) are scoped to the user's workspace directory.
+The user's directory is created automatically on their first message (`MkdirAll`). It starts empty — the agent creates files and folders as needed during conversations. File operations (read_file, write_file, etc.) are scoped to the user's workspace directory.
+
+> **Path sanitization:** Special characters (/, \, :, spaces, null bytes, etc.) in user IDs are replaced with underscores when creating filesystem paths, preventing directory traversal and path injection.
 
 ## Agent Sharing
 
@@ -86,11 +86,28 @@ Agents can be shared with specific users via the `agent_shares` table:
 
 | Role | Permissions |
 |------|------------|
-| `admin` | Full control: edit agent, manage shares, delete |
-| `operator` | Use agent, edit context files |
-| `viewer` | Read-only access |
+| `user` | Can use the agent, read/write per-user context files |
+| `viewer` | Read-only access to the agent (stored in DB; enforcement may vary) |
 
-The default agent is accessible to everyone. Other agents require either ownership or an explicit share.
+The default agent is accessible to everyone with `user` role — non-owners automatically receive `user` access. Other agents require either ownership or an explicit share entry in `agent_shares`.
+
+> **Note:** The `user` and `viewer` roles in `agent_shares` control agent sharing access. The API access control layer (`permissions/policy.go`) enforces separate `admin`/`operator`/`viewer` roles for gateway API access — these are distinct from the agent sharing roles above.
+
+## Budget Enforcement
+
+GoClaw tracks spending per agent for cost analytics. Each agent can have a `budget_monthly_cents` field that sets a monthly spending cap (in cents). The budget is **per-agent** — it tracks the total spend across all users of that agent, not per individual user. The query `GetMonthlyAgentCost(agentID, year, month)` returns the total agent spend for the period. When the agent's accumulated spend exceeds the monthly budget, further requests are rejected until the budget resets.
+
+## Request Quotas
+
+GoClaw supports per-user request quotas with configurable time windows:
+
+| Window | Description |
+|--------|-------------|
+| `hour` | Max requests per hour |
+| `day` | Max requests per day |
+| `week` | Max requests per week |
+
+Quotas are set per user and can be overridden at the group or channel level via the `QuotaChecker` interface. When a user exceeds their quota, the request is rejected before reaching the agent.
 
 ## Per-User Overrides
 

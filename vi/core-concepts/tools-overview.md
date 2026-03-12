@@ -2,27 +2,31 @@
 
 # Tools Overview
 
-> 60+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
+> 34+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
 
 ## Tổng quan
 
-Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn bản. Agent có thể tìm kiếm web, đọc file, chạy code, truy vấn memory, phân công cho agent khác, và nhiều hơn. GoClaw gồm 60+ tool thuộc 11 danh mục, cộng thêm hỗ trợ custom tool và MCP server.
+Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn bản. Agent có thể tìm kiếm web, đọc file, chạy code, truy vấn memory, phân công cho agent khác, và nhiều hơn. GoClaw gồm 34+ tool tích hợp sẵn (có thể mở rộng qua MCP và custom tool per-agent) thuộc 13 danh mục.
 
 ## Danh mục Tool
 
 | Danh mục | Tool | Chức năng |
 |----------|-------|----------|
-| **Filesystem** | read_file, write_file, edit_file, list_files, search, glob | Đọc, ghi, và tìm kiếm file trong workspace của agent |
-| **Runtime** | exec, process | Chạy lệnh shell và quản lý process |
+| **Filesystem** | read_file, write_file, edit, list_files | Đọc, ghi, và chỉnh sửa file trong workspace của agent |
+| **Runtime** | exec | Chạy lệnh shell |
 | **Web** | web_search, web_fetch | Tìm kiếm web (Brave/DuckDuckGo) và fetch trang |
-| **Memory** | memory_search, memory_get | Truy vấn memory dài hạn (hybrid vector + FTS search) |
-| **Sessions** | sessions_list, sessions_history, sessions_send, spawn, session_status | Quản lý conversation session và spawn subtask |
-| **Delegation** | delegate, delegate_search, evaluate_loop, handoff | Phân công tác vụ cho agent khác |
+| **Memory** | memory_search, memory_get, knowledge_graph_search | Truy vấn memory dài hạn (hybrid vector + FTS search) và knowledge graph |
+| **Sessions** | sessions_list, sessions_history, sessions_send, session_status | Quản lý conversation session |
+| **Delegation** | handoff, delegate_search, evaluate_loop | Phân công tác vụ cho agent khác |
+| **Subagents** | spawn | Spawn subtask dưới dạng subagent |
 | **Teams** | team_tasks, team_message | Cộng tác với agent team qua task board |
-| **UI** | browser, canvas | Duyệt web và tạo nội dung trực quan |
-| **Automation** | cron, gateway | Lên lịch job và quản lý cài đặt gateway |
-| **Messaging** | message, create_forum_topic | Gửi tin nhắn và tạo forum topic |
-| **Khác** | skill_search, image, read_image, create_image, tts, nodes, eval | Skill, hình ảnh, text-to-speech, và nhiều hơn |
+| **UI** | browser | Duyệt web |
+| **Automation** | cron | Lên lịch job định kỳ |
+| **Messaging** | message | Gửi tin nhắn |
+| **Media** | read_image, create_image, read_document, read_audio, read_video, create_video, create_audio, tts | Đọc và tạo hình ảnh, tài liệu, audio, video, và text-to-speech |
+| **Skills** | use_skill, skill_search, publish_skill | Khám phá, gọi, và xuất bản skill |
+
+> Các tool bổ sung như `mcp_tool_search` và tool đặc thù theo channel được đăng ký động.
 
 ## Luồng thực thi Tool
 
@@ -93,7 +97,7 @@ Sau allow list, **deny list** xóa tool, rồi **alsoAllow** thêm lại (hợp 
     "list": {
       "safe-bot": {
         "tools_profile": "full",
-        "tools_deny": ["exec", "process", "write_file"],
+        "tools_deny": ["exec", "write_file"],
         "tools_also_allow": ["read_file"]
       }
     }
@@ -107,7 +111,7 @@ Hai interceptor đặc biệt định tuyến thao tác file đến database:
 
 ### Context File Interceptor
 
-Khi agent đọc/ghi context file (SOUL.md, IDENTITY.md, TOOLS.md, v.v.), thao tác được định tuyến đến bảng `user_context_files` thay vì filesystem. Điều này cho phép tùy chỉnh per-user và cách ly đa tenant.
+Khi agent đọc/ghi context file (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md), thao tác được định tuyến đến bảng `user_context_files` thay vì filesystem. TOOLS.md bị loại trừ khỏi routing. Điều này cho phép tùy chỉnh per-user và cách ly đa tenant.
 
 ### Memory Interceptor
 
@@ -136,7 +140,7 @@ Ngoài tool tích hợp sẵn, bạn có thể mở rộng agent bằng:
 - **Custom Tool** — Định nghĩa tool qua dashboard hoặc API với input schema và handler
 - **MCP Server** — Kết nối Model Context Protocol server để đăng ký tool động
 
-Xem [Custom Tools](../advanced/custom-tools.md) và [MCP Integration](../advanced/mcp-integration.md) để biết chi tiết.
+Xem [Custom Tools](#custom-tools) và [MCP Integration](#mcp-integration) để biết chi tiết.
 
 ## Các vấn đề thường gặp
 
@@ -150,4 +154,4 @@ Xem [Custom Tools](../advanced/custom-tools.md) và [MCP Integration](../advance
 
 - [Memory System](memory-system.md) — Memory dài hạn và tìm kiếm hoạt động như thế nào
 - [Multi-Tenancy](multi-tenancy.md) — Truy cập tool per-user và cách ly
-- [Custom Tools](../advanced/custom-tools.md) — Xây dựng tool của riêng bạn
+- [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn

@@ -60,7 +60,7 @@ Mọi dữ liệu người dùng được phân phạm vi bởi user ID:
 | Session | `sessions` | Per-user per-agent per-channel |
 | Memory | `memory_documents` | Per-user per-agent |
 | Trace | `traces` | Có thể lọc per-user |
-| Quyền truy cập agent | `agent_shares` | Role per-user (admin/operator/viewer) |
+| Quyền truy cập agent | `agent_shares` | Role per-user (user/viewer) |
 | MCP grant | `mcp_user_grants` | Quyền truy cập MCP server per-user |
 | Skill grant | `skill_user_grants` | Quyền truy cập skill per-user |
 
@@ -72,15 +72,15 @@ Mỗi user có thư mục riêng trong workspace của agent:
 
 ```
 workspace/
-├── user_user-123/
-│   ├── projects/
-│   └── downloads/
-├── user_user-456/
-│   ├── projects/
-│   └── downloads/
+├── user-123/          ← tự tạo khi nhận tin nhắn đầu tiên
+│   └── (file được agent tạo trong quá trình hội thoại)
+├── user-456/
+│   └── ...
 ```
 
-Các thao tác file (read_file, write_file, v.v.) được giới hạn trong thư mục workspace của user.
+Thư mục của user được tạo tự động khi nhận tin nhắn đầu tiên (`MkdirAll`). Ban đầu trống — agent tạo file và folder khi cần trong quá trình hội thoại. Các thao tác file (read_file, write_file, v.v.) được giới hạn trong thư mục workspace của user.
+
+> **Làm sạch đường dẫn:** Các ký tự đặc biệt (/, \, :, khoảng trắng, null byte, v.v.) trong user ID được thay bằng dấu gạch dưới khi tạo đường dẫn filesystem, ngăn chặn directory traversal và path injection.
 
 ## Chia sẻ Agent
 
@@ -88,11 +88,28 @@ Agent có thể được chia sẻ với user cụ thể qua bảng `agent_share
 
 | Role | Quyền |
 |------|-------|
-| `admin` | Toàn quyền: sửa agent, quản lý share, xóa |
-| `operator` | Dùng agent, sửa context file |
-| `viewer` | Chỉ đọc |
+| `user` | Có thể dùng agent, đọc/ghi context file per-user |
+| `viewer` | Chỉ đọc, không chỉnh sửa (lưu trong DB; mức độ enforcement có thể khác nhau) |
 
-Agent mặc định có thể truy cập bởi tất cả mọi người. Các agent khác yêu cầu quyền sở hữu hoặc share rõ ràng.
+Agent mặc định có thể truy cập bởi tất cả mọi người với role `user` — người dùng không phải chủ sở hữu tự động nhận quyền `user`. Các agent khác yêu cầu quyền sở hữu hoặc có entry rõ ràng trong bảng `agent_shares`.
+
+> **Lưu ý:** Role `user` và `viewer` trong `agent_shares` kiểm soát quyền chia sẻ agent. Lớp kiểm soát truy cập API (`permissions/policy.go`) kiểm soát các role riêng biệt `admin`/`operator`/`viewer` cho truy cập gateway API — đây là các role khác với role chia sẻ agent ở trên.
+
+## Kiểm soát ngân sách (Budget Enforcement)
+
+GoClaw theo dõi chi phí per-agent cho mục đích phân tích. Mỗi agent có thể có trường `budget_monthly_cents` để đặt hạn mức chi tiêu hàng tháng (đơn vị cent). Ngân sách là **per-agent** — theo dõi tổng chi tiêu của tất cả người dùng của agent đó, không phải từng user riêng lẻ. Truy vấn `GetMonthlyAgentCost(agentID, year, month)` trả về tổng chi tiêu của agent trong kỳ. Khi chi phí tích lũy của agent vượt ngân sách hàng tháng, các request tiếp theo sẽ bị từ chối cho đến khi ngân sách được đặt lại.
+
+## Hạn mức yêu cầu (Request Quotas)
+
+GoClaw hỗ trợ hạn mức yêu cầu per-user với các cửa sổ thời gian có thể cấu hình:
+
+| Cửa sổ | Mô tả |
+|--------|-------|
+| `hour` | Số yêu cầu tối đa mỗi giờ |
+| `day` | Số yêu cầu tối đa mỗi ngày |
+| `week` | Số yêu cầu tối đa mỗi tuần |
+
+Hạn mức được đặt per-user và có thể được ghi đè ở cấp group hoặc channel thông qua interface `QuotaChecker`. Khi người dùng vượt hạn mức, yêu cầu bị từ chối trước khi đến agent.
 
 ## Per-User Override
 

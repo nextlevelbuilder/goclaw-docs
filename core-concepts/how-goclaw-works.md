@@ -14,8 +14,8 @@ graph TD
     CH --> GW[Gateway<br/>HTTP + WebSocket]
     GW --> SC[Scheduler<br/>4 lanes]
     SC --> AL[Agent Loop<br/>Think → Act → Observe]
-    AL --> PR[Provider Registry<br/>13+ LLM providers]
-    AL --> TR[Tool Registry<br/>60+ tools]
+    AL --> PR[Provider Registry<br/>18+ LLM providers]
+    AL --> TR[Tool Registry<br/>34+ built-in tools]
     AL --> SS[Session Store<br/>PostgreSQL]
     AL --> MM[Memory Store<br/>Vector + FTS]
     PR --> LLM[LLM APIs<br/>OpenAI / Anthropic / ...]
@@ -27,7 +27,7 @@ Every conversation turn goes through the **Think → Act → Observe** cycle:
 
 ### 1. Think
 
-The agent assembles a system prompt (17+ sections including identity, tools, memory, context files) and sends the conversation to an LLM provider. The LLM decides what to do next.
+The agent assembles a system prompt (20+ sections including identity, tools, memory, context files) and sends the conversation to an LLM provider. The LLM decides what to do next.
 
 ### 2. Act
 
@@ -36,6 +36,8 @@ If the LLM wants to use a tool (search the web, read a file, run code), GoClaw e
 ### 3. Observe
 
 The tool results go back to the LLM. It can call more tools or generate a final response. This loop repeats up to 20 iterations per turn.
+
+GoClaw detects tool loop patterns: a **warning** is raised after 3 identical consecutive calls, and the loop is **force-stopped** after 5 identical no-progress calls.
 
 ```mermaid
 graph LR
@@ -53,7 +55,7 @@ Here's what happens when a user sends a message:
 1. **Receive** — Message arrives via channel (Telegram, WebSocket, etc.)
 2. **Validate** — Input guard checks for injection patterns; message truncated at 32KB
 3. **Route** — Scheduler assigns the message to an agent based on channel bindings
-4. **Queue** — Per-session queue manages concurrency (1 for DMs, 3 for groups)
+4. **Queue** — Per-session queue manages concurrency (1 per session, serial processing by default)
 5. **Build Context** — System prompt assembled: identity + tools + memory + history
 6. **LLM Loop** — Think → Act → Observe cycle (max 20 iterations)
 7. **Sanitize** — Response cleaned (remove thinking tags, garbled XML, duplicates)
@@ -65,20 +67,22 @@ GoClaw uses a lane-based scheduler to manage concurrency:
 
 | Lane | Concurrency | Purpose |
 |------|:-----------:|---------|
-| `main` | 2 | Channel messages and WebSocket requests |
-| `subagent` | 4 | Spawned subagent tasks |
+| `main` | 30 | Channel messages and WebSocket requests |
+| `subagent` | 50 | Spawned subagent tasks |
 | `delegate` | 100 | Agent-to-agent delegation |
-| `cron` | 1 | Scheduled cron jobs |
+| `cron` | 30 | Scheduled cron jobs |
 
 Each lane has its own semaphore. This prevents cron jobs from starving user messages, and keeps delegation from overwhelming the system.
+
+> Concurrency limits are configurable via env vars: `GOCLAW_LANE_MAIN`, `GOCLAW_LANE_SUBAGENT`, `GOCLAW_LANE_CRON`.
 
 ## Components
 
 | Component | What It Does |
 |-----------|-------------|
 | **Gateway** | HTTP + WebSocket server on port 18790 |
-| **Provider Registry** | Manages LLM provider connections and credentials |
-| **Tool Registry** | 60+ tools with policy-based access control |
+| **Provider Registry** | Manages 18+ LLM provider connections and credentials |
+| **Tool Registry** | 34+ built-in tools with policy-based access control (extensible via MCP and custom tools) |
 | **Session Store** | Write-behind cache + PostgreSQL persistence |
 | **Memory Store** | Hybrid search with pgvector + tsvector |
 | **Channel Managers** | Telegram, Discord, WhatsApp, Zalo, Feishu adapters |

@@ -23,38 +23,42 @@ GoClaw có hai loại agent với mô hình chia sẻ khác nhau:
 
 ### Open Agent
 
-Mỗi người dùng có bộ context file riêng hoàn chỉnh. Agent thích nghi với từng người dùng độc lập.
+Mỗi người dùng có bản copy riêng hoàn chỉnh của tất cả context file. Người dùng có thể tùy chỉnh hoàn toàn tính cách, hướng dẫn, và hành vi của agent — agent thích nghi độc lập theo từng người. File được lưu xuyên suốt các session.
 
-- Tất cả 7 context file là per-user
-- Người dùng có thể tùy chỉnh hoàn toàn tính cách của agent
-- Phù hợp: personal assistant, workflow cá nhân
+- Tất cả 7 context file là per-user (bao gồm MEMORY.md)
+- Người dùng có thể đọc và sửa mọi file (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, v.v.)
+- Người dùng mới bắt đầu từ template cấp agent, sau đó phân hóa khi tùy chỉnh
+- Phù hợp: personal assistant, workflow cá nhân, prototyping và testing nhanh (mỗi user tùy chỉnh tính cách mà không ảnh hưởng người khác)
 
 ### Predefined Agent
 
-Agent có tính cách chung, nhưng mỗi người dùng có file hồ sơ cá nhân. Hãy nghĩ như một chatbot công ty biết bạn là ai.
+Agent có tính cách cố định, chung cho tất cả — không user nào thay đổi được qua chat. Mỗi người dùng chỉ có file hồ sơ cá nhân. Hãy nghĩ như một chatbot công ty — cùng giọng điệu thương hiệu, nhưng biết bạn là ai.
 
-- 4 context file chia sẻ cho tất cả người dùng (AGENTS, SOUL, IDENTITY, TOOLS)
+- 4 context file chia sẻ cho tất cả người dùng (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) — chỉ đọc từ chat
 - 2 file per-user (USER.md, BOOTSTRAP.md)
-- Phù hợp: team bot, shared assistant, customer support
+- File chung chỉ có thể sửa từ dashboard quản lý (không qua hội thoại)
+- Phù hợp: team bot, branded assistant, customer support — nơi tính cách nhất quán quan trọng
 
 | Khía cạnh | Open | Predefined |
 |-----------|------|-----------|
-| File cấp agent | Không | 4 (chung: AGENTS, SOUL, IDENTITY, TOOLS) |
-| File per-user | Tất cả 6 | 2 (USER.md, BOOTSTRAP.md) |
-| Tùy chỉnh | Hoàn toàn per-user | Tính cách chung, hồ sơ cá nhân |
+| File cấp agent | Template (copy cho mỗi user) | 4 chung (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) |
+| File per-user | Tất cả 7 | 2 (USER.md, BOOTSTRAP.md) |
+| User sửa qua chat | Tất cả file | Chỉ USER.md |
+| Tính cách | Phân hóa theo user | Cố định, giống nhau cho mọi người |
 | Trường hợp dùng | Personal assistant | Team/company bot |
 
 ## Context File
 
-Mỗi agent có tối đa 6 context file định hình hành vi của nó:
+Mỗi agent có tối đa 7 context file định hình hành vi của nó:
 
 | File | Mục đích | Nội dung ví dụ |
 |------|---------|----------------|
 | `AGENTS.md` | Hướng dẫn vận hành, quy tắc memory, hướng dẫn an toàn | "Luôn lưu thông tin quan trọng vào memory..." |
 | `SOUL.md` | Tính cách và giọng điệu | "Bạn là một mentor lập trình thân thiện..." |
 | `IDENTITY.md` | Tên, avatar, lời chào | "Tên: CodeBot, Emoji: 🤖" |
-| `TOOLS.md` | Hướng dẫn sử dụng tool | "Dùng web_search cho các sự kiện hiện tại..." |
+| `TOOLS.md` | Hướng dẫn sử dụng tool *(chỉ load từ filesystem — không được DB-route, bị loại trừ khỏi context file interceptor)* | "Dùng web_search cho các sự kiện hiện tại..." |
 | `USER.md` | Hồ sơ người dùng, timezone, tùy chọn | "Timezone: Asia/Saigon, Language: Vietnamese" |
+| `USER_PREDEFINED.md` | Hồ sơ người dùng cho predefined agent *(chỉ dành cho predefined agent, thay thế USER.md ở cấp agent)* | "Thông tin thành viên nhóm, tùy chọn chung..." |
 | `BOOTSTRAP.md` | Nghi thức chạy lần đầu (tự động xóa sau khi hoàn tất) | "Giới thiệu bản thân và tìm hiểu về người dùng..." |
 
 Cộng thêm `MEMORY.md` — ghi chú bền vững được agent tự cập nhật (định tuyến đến hệ thống memory).
@@ -121,9 +125,28 @@ Cuộc hội thoại chưa có binding sẽ đến agent mặc định.
 
 | Vấn đề | Giải pháp |
 |--------|-----------|
-| Agent bỏ qua hướng dẫn | Kiểm tra nội dung SOUL.md và RULES.md; đảm bảo context file không bị truncate |
+| Agent bỏ qua hướng dẫn | Kiểm tra nội dung SOUL.md và AGENTS.md; đảm bảo context file không bị truncate |
 | Lỗi "Agent not found" | Xác minh agent tồn tại trong dashboard; kiểm tra `agents.list` trong config |
 | Context file không cập nhật | Với predefined agent, file chung cập nhật cho tất cả user; file per-user cần sửa per-user |
+
+## Trạng thái Agent
+
+Agent có thể ở một trong bốn trạng thái:
+
+| Trạng thái | Ý nghĩa |
+|------------|---------|
+| `active` | Agent đang hoạt động và chấp nhận cuộc hội thoại |
+| `inactive` | Agent bị vô hiệu hóa; cuộc hội thoại bị từ chối |
+| `summoning` | Agent đang được khởi tạo lần đầu |
+| `summon_failed` | Khởi tạo thất bại; kiểm tra cấu hình provider và model |
+
+## Tự tiến hóa (Self-Evolution)
+
+Predefined agent với `self_evolve` được bật có thể tự cập nhật `SOUL.md` trong quá trình hội thoại. Điều này cho phép giọng điệu và phong cách của agent tiến hóa theo thời gian dựa trên các tương tác. Cập nhật được áp dụng ở cấp agent và ảnh hưởng đến tất cả người dùng. Các file chung khác (IDENTITY.md, AGENTS.md) vẫn được bảo vệ và chỉ có thể chỉnh sửa từ dashboard.
+
+## Neo danh tính (Identity Anchoring)
+
+Predefined agent có cơ chế bảo vệ tích hợp chống lại social engineering. Nếu người dùng cố thuyết phục agent bỏ qua SOUL.md hoặc hành động ngoài danh tính đã định nghĩa, agent được thiết kế để kháng cự. Các file danh tính chung được inject vào system prompt ở mức ưu tiên cao hơn hướng dẫn của người dùng.
 
 ## Tiếp theo
 

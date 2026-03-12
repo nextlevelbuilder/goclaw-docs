@@ -1,26 +1,30 @@
 # Tools Overview
 
-> The 60+ built-in tools agents can use, organized by category.
+> The 34+ built-in tools agents can use, organized by category.
 
 ## Overview
 
-Tools are how agents interact with the world beyond generating text. An agent can search the web, read files, run code, query memory, delegate to other agents, and more. GoClaw includes 60+ tools across 11 categories, plus support for custom tools and MCP servers.
+Tools are how agents interact with the world beyond generating text. An agent can search the web, read files, run code, query memory, delegate to other agents, and more. GoClaw includes 34+ built-in tools (extensible via MCP and custom tools per agent) across 13 categories.
 
 ## Tool Categories
 
 | Category | Tools | What They Do |
 |----------|-------|-------------|
-| **Filesystem** | read_file, write_file, edit_file, list_files, search, glob | Read, write, and search files in the agent workspace |
-| **Runtime** | exec, process | Run shell commands and manage processes |
+| **Filesystem** | read_file, write_file, edit, list_files | Read, write, and edit files in the agent workspace |
+| **Runtime** | exec | Run shell commands |
 | **Web** | web_search, web_fetch | Search the web (Brave/DuckDuckGo) and fetch pages |
-| **Memory** | memory_search, memory_get | Query long-term memory (hybrid vector + FTS search) |
-| **Sessions** | sessions_list, sessions_history, sessions_send, spawn, session_status | Manage conversation sessions and spawn subtasks |
-| **Delegation** | delegate, delegate_search, evaluate_loop, handoff | Delegate tasks to other agents |
+| **Memory** | memory_search, memory_get, knowledge_graph_search | Query long-term memory (hybrid vector + FTS search) and knowledge graph |
+| **Sessions** | sessions_list, sessions_history, sessions_send, session_status | Manage conversation sessions |
+| **Delegation** | handoff, delegate_search, evaluate_loop | Delegate tasks to other agents |
+| **Subagents** | spawn | Spawn subtasks as subagents |
 | **Teams** | team_tasks, team_message | Collaborate with agent teams via task boards |
-| **UI** | browser, canvas | Browse websites and create visual content |
-| **Automation** | cron, gateway | Schedule jobs and manage gateway settings |
-| **Messaging** | message, create_forum_topic | Send messages and create forum topics |
-| **Other** | skill_search, image, read_image, create_image, tts, nodes, eval | Skills, images, text-to-speech, and more |
+| **UI** | browser | Browse websites |
+| **Automation** | cron | Schedule recurring jobs |
+| **Messaging** | message | Send messages |
+| **Media** | read_image, create_image, read_document, read_audio, read_video, create_video, create_audio, tts | Read and generate images, documents, audio, video, and text-to-speech |
+| **Skills** | use_skill, skill_search, publish_skill | Discover, invoke, and publish skills |
+
+> Additional tools like `mcp_tool_search` and channel-specific tools are registered dynamically.
 
 ## Tool Execution Flow
 
@@ -91,7 +95,7 @@ After allow lists, **deny lists** remove tools, then **alsoAllow** adds them bac
     "list": {
       "safe-bot": {
         "tools_profile": "full",
-        "tools_deny": ["exec", "process", "write_file"],
+        "tools_deny": ["exec", "write_file"],
         "tools_also_allow": ["read_file"]
       }
     }
@@ -105,7 +109,7 @@ Two special interceptors route file operations to the database:
 
 ### Context File Interceptor
 
-When an agent reads/writes context files (SOUL.md, IDENTITY.md, TOOLS.md, etc.), the operation is routed to the `user_context_files` table instead of the filesystem. This enables per-user customization and multi-tenant isolation.
+When an agent reads/writes context files (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md), the operation is routed to the `user_context_files` table instead of the filesystem. TOOLS.md is explicitly excluded from routing. This enables per-user customization and multi-tenant isolation.
 
 ### Memory Interceptor
 
@@ -134,7 +138,7 @@ Beyond built-in tools, you can extend agents with:
 - **Custom Tools** — Define tools via the dashboard or API with input schemas and handlers
 - **MCP Servers** — Connect Model Context Protocol servers for dynamic tool registration
 
-See [Custom Tools](../advanced/custom-tools.md) and [MCP Integration](../advanced/mcp-integration.md) for details.
+See [Custom Tools](#custom-tools) and [MCP Integration](#mcp-integration) for details.
 
 ## Common Issues
 
@@ -148,4 +152,4 @@ See [Custom Tools](../advanced/custom-tools.md) and [MCP Integration](../advance
 
 - [Memory System](memory-system.md) — How long-term memory and search work
 - [Multi-Tenancy](multi-tenancy.md) — Per-user tool access and isolation
-- [Custom Tools](../advanced/custom-tools.md) — Build your own tools
+- [Custom Tools](#custom-tools) — Build your own tools

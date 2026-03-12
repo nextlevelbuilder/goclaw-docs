@@ -27,6 +27,8 @@ agent:{agentId}:{channel}:{kind}:{chatId}
 
 Định dạng key này có nghĩa là cùng một người dùng chat với cùng một agent trên Telegram và Discord sẽ có hai session riêng với lịch sử độc lập.
 
+> **Session Metadata:** Mỗi session theo dõi các trường bổ sung bên cạnh key: `label` (tên hiển thị), `channel`, `model`, `provider`, `spawned_by` (ID session cha cho subagent), `spawn_depth`, `input_tokens`, `output_tokens`, `compaction_count`, và `context_window`. Các trường này có thể truy vấn cho mục đích phân tích và debugging.
+
 ## Lưu trữ tin nhắn
 
 Tin nhắn được lưu dưới dạng JSONB trong PostgreSQL với write-behind cache:
@@ -52,10 +54,10 @@ Kết quả tool có thể lớn. GoClaw cắt bớt qua hai lượt:
 
 | Điều kiện | Hành động |
 |-----------|----------|
-| Token ratio ≥ 0.3 | **Soft trim**: Kết quả tool >4.000 ký tự → giữ 1.500 đầu + 1.500 cuối |
+| Token ratio ≥ 0.3 | **Soft trim**: Kết quả tool vượt quá 4.000 ký tự → giữ 1.500 đầu + 1.500 cuối |
 | Token ratio ≥ 0.5 | **Hard clear**: Thay toàn bộ kết quả tool bằng `[Old tool result content cleared]` |
 
-Tin nhắn được bảo vệ (không bao giờ bị prune): 3 tin nhắn assistant gần nhất, tin nhắn user đầu tiên, system message.
+Tin nhắn được bảo vệ (không bao giờ bị prune): 3 tin nhắn assistant gần nhất. System message và tin nhắn user đầu tiên tạo thành tiền tố ổn định (stable prefix) không bao giờ bị prune.
 
 ### 3. Sanitize
 
@@ -80,18 +82,24 @@ graph LR
 
 1. **Memory flush** (đồng bộ, timeout 90 giây) — Thông tin quan trọng được trích xuất và lưu vào hệ thống memory
 2. **Summarize** (nền, timeout 120 giây) — Tin nhắn cũ được nén thành summary
-3. **Inject** — Summary thay thế tin nhắn cũ; 4 tin nhắn cuối được giữ nguyên
+3. **Inject** — Summary thay thế tin nhắn cũ; ít nhất 4 tin nhắn (hoặc 30% tổng số, tùy giá trị nào lớn hơn) được giữ nguyên
 
 Một per-session lock ngăn nén đồng thời. Nếu lần nén thứ hai kích hoạt trong khi một lần đang chạy, nó sẽ bị bỏ qua.
+
+### Nén giữa vòng lặp (Mid-Loop Compaction)
+
+GoClaw cũng có thể nén history **trong khi agent đang xử lý một lượt dài** nếu context vượt ngưỡng giữa vòng lặp. Logic tóm tắt 75% vẫn được áp dụng. Điều này hoàn toàn trong suốt với agent — nó tiếp tục chạy với history đã được nén.
 
 ## Concurrency
 
 | Loại chat | Tối đa đồng thời | Ghi chú |
 |-----------|:-----------:|-------|
 | DM | 1 | Single-threaded — tin nhắn xếp hàng |
-| Group | 3 | Phản hồi song song cho các user khác nhau |
+| Group | 1 (có thể cấu hình) | Mặc định tuần tự; có thể tăng qua `ScheduleOpts.MaxConcurrent` |
 
 Khi history vượt quá 60% context window, group concurrency giảm xuống 1 (adaptive throttle).
+
+> **Cấu hình concurrency:** Cả DM và Group đều mặc định xử lý tuần tự (`MaxConcurrent: 1`). Giá trị cao hơn (ví dụ: 3) có thể được đặt cho thành viên team hoặc agent link thông qua `ScheduleOpts.MaxConcurrent`.
 
 ### Queue Mode
 
@@ -101,7 +109,7 @@ Khi history vượt quá 60% context window, group concurrency giảm xuống 1 
 | `followup` | Tin nhắn mới gộp với tin nhắn đang xếp hàng |
 | `interrupt` | Hủy tác vụ hiện tại, xử lý tin nhắn mới |
 
-Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị loại bỏ.
+Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị loại bỏ (drop policy: `old`). Cửa sổ debounce mặc định là 800ms — các tin nhắn đến nhanh trong khoảng thời gian này được gộp lại trước khi xử lý.
 
 ### User Control
 
