@@ -82,9 +82,9 @@ GOCLAW_SLACK_APP_TOKEN=xapp-...
 ```
 
 **Mời Bot vào Channel:**
-- Trong bất kỳ channel nào, gõ `/add` và chọn **"Add apps to this channel"**, rồi chọn bot
-- Hoặc: Tên channel → **Integrations** → **Add an App**
-- DM: Nhắn tin trực tiếp cho bot — không cần mời
+- Public: `/invite @GoClaw Bot` trong channel
+- Private: Tên channel → **Integrations** → **Add an App**
+- DM: Nhắn tin trực tiếp cho bot
 
 ## Cấu hình
 
