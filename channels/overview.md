@@ -6,7 +6,7 @@ Channels connect messaging platforms (Telegram, Discord, Larksuite, etc.) to the
 
 ```mermaid
 flowchart LR
-    TG["Telegram<br/>Discord<br/>Larksuite<br/>Zalo<br/>WhatsApp"]
+    TG["Telegram<br/>Discord<br/>Slack<br/>Larksuite<br/>Zalo<br/>WhatsApp"]
 
     TG -->|"Platform event"| Listen["Channel.Start()<br/>Listen for updates"]
     Listen -->|"Build message"| Handle["HandleMessage()<br/>Extract content, media,<br/>sender ID, chat ID"]
@@ -77,17 +77,17 @@ Session keys identify unique conversations and threads across platforms.
 
 ## Channel Comparison
 
-| Feature | Telegram | Discord | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
-|---------|----------|---------|--------|---------|-----------|----------|
-| **Transport** | Long polling | Gateway events | WS/Webhook | Long polling | Internal proto | WS bridge |
-| **DM support** | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Group support** | Yes | Yes | Yes | No | Yes | Yes |
-| **Streaming** | Yes (typing) | Yes (edit) | Yes (card) | No | No | No |
-| **Media** | Photos, voice, files | Files, embeds | Images, files | Images (5MB) | -- | JSON |
-| **Rich format** | HTML | Markdown | Cards | Plain text | Plain text | Plain |
-| **Reactions** | Yes | -- | Yes | -- | -- | -- |
-| **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Message limit** | 4,096 | 2,000 | 4,000 | 2,000 | 2,000 | N/A |
+| Feature | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
+|---------|----------|---------|-------|--------|---------|-----------|----------|
+| **Transport** | Long polling | Gateway events | Socket Mode (WS) | WS/Webhook | Long polling | Internal proto | WS bridge |
+| **DM support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| **Group support** | Yes | Yes | Yes | Yes | No | Yes | Yes |
+| **Streaming** | Yes (typing) | Yes (edit) | Yes (edit) | Yes (card) | No | No | No |
+| **Media** | Photos, voice, files | Files, embeds | Files (20MB) | Images, files | Images (5MB) | -- | JSON |
+| **Rich format** | HTML | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
+| **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- |
+| **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| **Message limit** | 4,096 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
 
 ## Implementation Checklist
 
@@ -141,6 +141,7 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 
 - [Telegram](./telegram.md) — Full guide for Telegram integration
 - [Discord](./discord.md) — Discord bot setup
+- [Slack](./slack.md) — Slack Socket Mode integration
 - [Larksuite](./larksuite.md) — Larksuite integration with streaming cards
 - [WebSocket](./websocket.md) — Direct agent API via WS
 - [Browser Pairing](./browser-pairing.md) — 8-char code pairing flow
