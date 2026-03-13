@@ -1,62 +1,62 @@
-> Ban dich tu [English version](../../channels/slack.md)
+> Bản dịch từ [English version](../../channels/slack.md)
 
 # Channel Slack
 
-Tich hop Slack qua Socket Mode (WebSocket). Ho tro DM, @mention trong channel, tra loi theo thread, streaming, reaction, media, va message debouncing.
+Tích hợp Slack qua Socket Mode (WebSocket). Hỗ trợ DM, @mention trong channel, trả lời theo thread, streaming, reaction, media, và message debouncing.
 
-## Thiet lap
+## Thiết lập
 
-**Tao Slack App:**
-1. Vao https://api.slack.com/apps?new_app=1
-2. Chon "From scratch", dat ten app (vd: `GoClaw Bot`), chon workspace
+**Tạo Slack App:**
+1. Vào https://api.slack.com/apps?new_app=1
+2. Chọn "From scratch", đặt tên app (vd: `GoClaw Bot`), chọn workspace
 3. Click **Create App**
 
-**Bat Socket Mode:**
-1. Thanh ben trai -> **Socket Mode** -> bat ON
-2. Dat ten token (vd: `goclaw-socket`), them scope `connections:write`
-3. Sao chep **App-Level Token** (`xapp-...`)
+**Bật Socket Mode:**
+1. Thanh bên trái → **Socket Mode** → bật ON
+2. Đặt tên token (vd: `goclaw-socket`), thêm scope `connections:write`
+3. Sao chép **App-Level Token** (`xapp-...`)
 
-**Them Bot Scopes:**
-1. Thanh ben trai -> **OAuth & Permissions**
-2. Trong **Bot Token Scopes**, them:
+**Thêm Bot Scopes:**
+1. Thanh bên trái → **OAuth & Permissions**
+2. Trong **Bot Token Scopes**, thêm:
 
-| Scope | Muc dich |
+| Scope | Mục đích |
 |-------|---------|
-| `app_mentions:read` | Nhan su kien @bot mention |
-| `chat:write` | Gui va chinh sua tin nhan |
-| `im:history` | Doc tin nhan DM |
-| `im:read` | Xem danh sach DM channel |
-| `im:write` | Mo DM voi user |
-| `channels:history` | Doc tin nhan public channel |
-| `groups:history` | Doc tin nhan private channel |
-| `mpim:history` | Doc tin nhan multi-party DM |
-| `reactions:write` | Them/xoa emoji reaction (tuy chon) |
-| `reactions:read` | Doc emoji reaction (tuy chon) |
-| `files:read` | Tai file gui den bot |
-| `files:write` | Upload file tu agent |
-| `users:read` | Lay ten hien thi user |
+| `app_mentions:read` | Nhận sự kiện @bot mention |
+| `chat:write` | Gửi và chỉnh sửa tin nhắn |
+| `im:history` | Đọc tin nhắn DM |
+| `im:read` | Xem danh sách DM channel |
+| `im:write` | Mở DM với user |
+| `channels:history` | Đọc tin nhắn public channel |
+| `groups:history` | Đọc tin nhắn private channel |
+| `mpim:history` | Đọc tin nhắn multi-party DM |
+| `reactions:write` | Thêm/xóa emoji reaction (tùy chọn) |
+| `reactions:read` | Đọc emoji reaction (tùy chọn) |
+| `files:read` | Tải file gửi đến bot |
+| `files:write` | Upload file từ agent |
+| `users:read` | Lấy tên hiển thị user |
 
-**Tap toi thieu** (chi DM, khong reaction/file): `chat:write`, `im:history`, `im:read`, `im:write`, `users:read`, `app_mentions:read`
+**Tập tối thiểu** (chỉ DM, không reaction/file): `chat:write`, `im:history`, `im:read`, `im:write`, `users:read`, `app_mentions:read`
 
-**Bat Event:**
-1. Thanh ben trai -> **Event Subscriptions** -> bat ON
-2. Trong **Subscribe to bot events**, them:
+**Bật Event:**
+1. Thanh bên trái → **Event Subscriptions** → bật ON
+2. Trong **Subscribe to bot events**, thêm:
 
-| Event | Mo ta |
+| Event | Mô tả |
 |-------|-------------|
-| `message.im` | Tin nhan DM voi bot |
-| `message.channels` | Tin nhan trong public channel |
-| `message.groups` | Tin nhan trong private channel |
-| `message.mpim` | Tin nhan multi-party DM |
-| `app_mention` | Khi bot duoc @mention |
+| `message.im` | Tin nhắn DM với bot |
+| `message.channels` | Tin nhắn trong public channel |
+| `message.groups` | Tin nhắn trong private channel |
+| `message.mpim` | Tin nhắn multi-party DM |
+| `app_mention` | Khi bot được @mention |
 
-Khong can Request URL — Socket Mode xu ly event qua WebSocket.
+Không cần Request URL — Socket Mode xử lý event qua WebSocket.
 
-**Cai dat & Lay Token:**
-1. **OAuth & Permissions** -> **Install to Workspace** -> **Allow**
-2. Sao chep **Bot User OAuth Token** (`xoxb-...`)
+**Cài đặt & Lấy Token:**
+1. **OAuth & Permissions** → **Install to Workspace** → **Allow**
+2. Sao chép **Bot User OAuth Token** (`xoxb-...`)
 
-**Bat Slack trong GoClaw:**
+**Bật Slack trong GoClaw:**
 
 ```json
 {
@@ -73,114 +73,114 @@ Khong can Request URL — Socket Mode xu ly event qua WebSocket.
 }
 ```
 
-Hoac qua bien moi truong:
+Hoặc qua biến môi trường:
 
 ```bash
 GOCLAW_SLACK_BOT_TOKEN=xoxb-...
 GOCLAW_SLACK_APP_TOKEN=xapp-...
-# Tu dong bat Slack khi ca hai duoc thiet lap
+# Tự động bật Slack khi cả hai được thiết lập
 ```
 
-**Moi Bot vao Channel:**
+**Mời Bot vào Channel:**
 - Public: `/invite @GoClaw Bot` trong channel
-- Private: Ten channel -> **Integrations** -> **Add an App**
-- DM: Nhan tin truc tiep cho bot
+- Private: Tên channel → **Integrations** → **Add an App**
+- DM: Nhắn tin trực tiếp cho bot
 
-## Cau hinh
+## Cấu hình
 
-Tat ca config key nam trong `channels.slack`:
+Tất cả config key nằm trong `channels.slack`:
 
-| Key | Kieu | Mac dinh | Mo ta |
+| Key | Kiểu | Mặc định | Mô tả |
 |-----|------|---------|-------------|
-| `enabled` | bool | false | Bat/tat channel |
-| `bot_token` | string | bat buoc | Bot User OAuth Token (`xoxb-...`) |
-| `app_token` | string | bat buoc | App-Level Token cho Socket Mode (`xapp-...`) |
-| `user_token` | string | -- | User OAuth Token cho dinh danh tuy chinh (`xoxp-...`) |
-| `allow_from` | list | -- | Danh sach trang user ID hoac channel ID |
+| `enabled` | bool | false | Bật/tắt channel |
+| `bot_token` | string | bắt buộc | Bot User OAuth Token (`xoxb-...`) |
+| `app_token` | string | bắt buộc | App-Level Token cho Socket Mode (`xapp-...`) |
+| `user_token` | string | -- | User OAuth Token cho định danh tùy chỉnh (`xoxp-...`) |
+| `allow_from` | list | -- | Danh sách trắng user ID hoặc channel ID |
 | `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
 | `group_policy` | string | `"open"` | `open`, `pairing`, `allowlist`, `disabled` |
-| `require_mention` | bool | true | Yeu cau @bot mention trong channel |
-| `history_limit` | int | 50 | Tin nhan cho toi da moi channel cho context (0=tat) |
-| `dm_stream` | bool | false | Bat streaming cho DM |
-| `group_stream` | bool | false | Bat streaming cho group |
-| `native_stream` | bool | false | Dung Slack ChatStreamer API neu co |
+| `require_mention` | bool | true | Yêu cầu @bot mention trong channel |
+| `history_limit` | int | 50 | Tin nhắn chờ tối đa mỗi channel cho context (0=tắt) |
+| `dm_stream` | bool | false | Bật streaming cho DM |
+| `group_stream` | bool | false | Bật streaming cho group |
+| `native_stream` | bool | false | Dùng Slack ChatStreamer API nếu có |
 | `reaction_level` | string | `"off"` | `off`, `minimal`, `full` |
-| `block_reply` | bool | -- | Ghi de block_reply cua gateway (nil=ke thua) |
-| `debounce_delay` | int | 300 | Mili giay truoc khi gui cac tin nhan nhanh (0=tat) |
-| `thread_ttl` | int | 24 | Gio truoc khi thread participation het han (0=tat) |
-| `media_max_bytes` | int | 20MB | Kich thuoc file tai toi da |
+| `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `debounce_delay` | int | 300 | Mili giây trước khi gửi các tin nhắn nhanh (0=tắt) |
+| `thread_ttl` | int | 24 | Giờ trước khi thread participation hết hạn (0=tắt) |
+| `media_max_bytes` | int | 20MB | Kích thước file tải tối đa |
 
-## Loai Token
+## Loại Token
 
-| Token | Tien to | Bat buoc | Muc dich |
+| Token | Tiền tố | Bắt buộc | Mục đích |
 |-------|--------|----------|---------|
-| Bot Token | `xoxb-` | Co | API chinh: tin nhan, reaction, file, thong tin user |
-| App-Level Token | `xapp-` | Co | Ket noi WebSocket Socket Mode |
-| User Token | `xoxp-` | Khong | Dinh danh bot tuy chinh (ten/icon) |
+| Bot Token | `xoxb-` | Có | API chính: tin nhắn, reaction, file, thông tin user |
+| App-Level Token | `xapp-` | Có | Kết nối WebSocket Socket Mode |
+| User Token | `xoxp-` | Không | Định danh bot tùy chỉnh (tên/icon) |
 
-Tien to token duoc kiem tra khi khoi dong — token sai se bao loi ro rang.
+Tiền tố token được kiểm tra khi khởi động — token sai sẽ báo lỗi rõ ràng.
 
-## Tinh nang
+## Tính năng
 
 ### Socket Mode
 
-Dung WebSocket thay vi HTTP webhook. Khong can URL cong khai hoac ingress — ly tuong cho trien khai tu quan ly. Event duoc xac nhan trong 3 giay theo yeu cau cua Slack.
+Dùng WebSocket thay vì HTTP webhook. Không cần URL công khai hoặc ingress — lý tưởng cho triển khai tự quản lý. Event được xác nhận trong 3 giây theo yêu cầu của Slack.
 
-Phan loai dead socket phat hien loi auth khong the thu lai (`invalid_auth`, `token_revoked`, `missing_scope`) va dung channel thay vi thu lai vo han.
+Phân loại dead socket phát hiện lỗi auth không thể thử lại (`invalid_auth`, `token_revoked`, `missing_scope`) và dừng channel thay vì thử lại vô hạn.
 
 ### Mention Gating
 
-Trong channel, bot chi phan hoi khi duoc @mention (mac dinh `require_mention: true`). Tin nhan khong mention duoc luu vao bo dem lich su va duoc dua vao lam context khi bot duoc mention tiep theo.
+Trong channel, bot chỉ phản hồi khi được @mention (mặc định `require_mention: true`). Tin nhắn không mention được lưu vào bộ đệm lịch sử và được đưa vào làm context khi bot được mention tiếp theo.
 
 ```mermaid
 flowchart TD
-    MSG["User dang trong channel"] --> MENTION{"Bot duoc @mention<br/>hoac trong thread da tham gia?"}
-    MENTION -->|Khong| BUFFER["Them vao lich su cho<br/>(toi da 50 tin nhan)"]
-    MENTION -->|Co| PROCESS["Xu ly ngay<br/>Bao gom lich su lam context"]
-    BUFFER --> NEXT["Mention tiep theo:<br/>lich su duoc bao gom"]
+    MSG["User đăng trong channel"] --> MENTION{"Bot được @mention<br/>hoặc trong thread đã tham gia?"}
+    MENTION -->|Không| BUFFER["Thêm vào lịch sử chờ<br/>(tối đa 50 tin nhắn)"]
+    MENTION -->|Có| PROCESS["Xử lý ngay<br/>Bao gồm lịch sử làm context"]
+    BUFFER --> NEXT["Mention tiếp theo:<br/>lịch sử được bao gồm"]
 ```
 
 ### Thread Participation
 
-Sau khi bot tra loi trong thread, bot tu dong tra loi cac tin nhan tiep theo trong thread do ma khong can @mention. Participation het han sau `thread_ttl` gio (mac dinh 24). Dat `thread_ttl: 0` de tat (luon yeu cau @mention).
+Sau khi bot trả lời trong thread, bot tự động trả lời các tin nhắn tiếp theo trong thread đó mà không cần @mention. Participation hết hạn sau `thread_ttl` giờ (mặc định 24). Đặt `thread_ttl: 0` để tắt (luôn yêu cầu @mention).
 
 ### Message Debouncing
 
-Cac tin nhan nhanh tu cung thread duoc gom lai thanh mot lan gui. Delay mac dinh: 300ms (cau hinh qua `debounce_delay`). Cac batch dang cho duoc flush khi shutdown.
+Các tin nhắn nhanh từ cùng thread được gộp lại thành một lần gửi. Delay mặc định: 300ms (cấu hình qua `debounce_delay`). Các batch đang chờ được flush khi shutdown.
 
-### Dinh dang tin nhan
+### Định dạng tin nhắn
 
-Markdown tu LLM duoc chuyen sang Slack mrkdwn:
+Markdown từ LLM được chuyển sang Slack mrkdwn:
 
 ```
-Markdown -> Slack mrkdwn
-**bold**  -> *bold*
-_italic_  -> _italic_
-~~strike~~ -> ~strike~
-# Header  -> *Header*
-[text](url) -> <url|text>
+Markdown → Slack mrkdwn
+**bold**  → *bold*
+_italic_  → _italic_
+~~strike~~ → ~strike~
+# Header  → *Header*
+[text](url) → <url|text>
 ```
 
-Bang duoc render dang code block. Slack token (`<@U123>`, `<#C456>`, URL) duoc bao toan qua qua trinh chuyen doi. Tin nhan vuot qua 4,000 ky tu duoc tach tai ranh gioi xuong dong.
+Bảng được render dạng code block. Slack token (`<@U123>`, `<#C456>`, URL) được bảo toàn qua quá trình chuyển đổi. Tin nhắn vượt quá 4,000 ký tự được tách tại ranh giới xuống dòng.
 
 ### Streaming
 
-Bat cap nhat phan hoi truc tiep qua `chat.update` (sua tai cho):
+Bật cập nhật phản hồi trực tiếp qua `chat.update` (sửa tại chỗ):
 
-- **DM** (`dm_stream`): Sua placeholder "Thinking..." khi chunk den
-- **Group** (`group_stream`): Tuong tu, trong thread
+- **DM** (`dm_stream`): Sửa placeholder "Thinking..." khi chunk đến
+- **Group** (`group_stream`): Tương tự, trong thread
 
-Cap nhat duoc gioi han 1 lan/giay de tranh rate limit Slack. Dat `native_stream: true` de dung Slack ChatStreamer API khi co.
+Cập nhật được giới hạn 1 lần/giây để tránh rate limit Slack. Đặt `native_stream: true` để dùng Slack ChatStreamer API khi có.
 
 ### Reaction
 
-Hien thi emoji trang thai tren tin nhan user. Dat `reaction_level`:
+Hiển thị emoji trạng thái trên tin nhắn user. Đặt `reaction_level`:
 
-- `off` — Khong reaction (mac dinh)
-- `minimal` — Chi thinking va done
-- `full` — Tat ca trang thai: thinking, tool use, done, error, stall
+- `off` — Không reaction (mặc định)
+- `minimal` — Chỉ thinking và done
+- `full` — Tất cả trạng thái: thinking, tool use, done, error, stall
 
-| Trang thai | Emoji |
+| Trạng thái | Emoji |
 |--------|-------|
 | Thinking | :thinking_face: |
 | Tool use | :hammer_and_wrench: |
@@ -188,50 +188,50 @@ Hien thi emoji trang thai tren tin nhan user. Dat `reaction_level`:
 | Error | :x: |
 | Stall | :hourglass_flowing_sand: |
 
-Reaction duoc debounce 700ms de tranh spam API.
+Reaction được debounce 700ms để tránh spam API.
 
-### Xu ly Media
+### Xử lý Media
 
-**Nhan file:** File dinh kem duoc tai xuong voi bao ve SSRF (danh sach host cho phep: `*.slack.com`, `*.slack-edge.com`, `*.slack-files.com`). Auth token bi xoa khi redirect. File vuot `media_max_bytes` (mac dinh 20MB) bi bo qua.
+**Nhận file:** File đính kèm được tải xuống với bảo vệ SSRF (danh sách host cho phép: `*.slack.com`, `*.slack-edge.com`, `*.slack-files.com`). Auth token bị xóa khi redirect. File vượt `media_max_bytes` (mặc định 20MB) bị bỏ qua.
 
-**Gui file:** File tu agent duoc upload qua Slack file upload API. Upload that bai hien thi loi inline.
+**Gửi file:** File từ agent được upload qua Slack file upload API. Upload thất bại hiển thị lỗi inline.
 
-**Trich xuat tai lieu:** File tai lieu (PDF, text) duoc trich xuat noi dung va them vao tin nhan de agent xu ly.
+**Trích xuất tài liệu:** File tài liệu (PDF, text) được trích xuất nội dung và thêm vào tin nhắn để agent xử lý.
 
-### Dinh danh Bot Tuy chinh
+### Định danh Bot Tùy chỉnh
 
-Voi User Token (`xoxp-`) tuy chon, bot co the dang voi ten va icon tuy chinh:
+Với User Token (`xoxp-`) tùy chọn, bot có thể đăng với tên và icon tùy chỉnh:
 
-1. Trong **OAuth & Permissions** -> **User Token Scopes** -> them `chat:write.customize`
-2. Cai lai app
-3. Them `user_token` vao config
+1. Trong **OAuth & Permissions** → **User Token Scopes** → thêm `chat:write.customize`
+2. Cài lại app
+3. Thêm `user_token` vào config
 
 ### Group Policy: Pairing
 
-Slack ho tro pairing cap group. Khi `group_policy: "pairing"`:
-- Admin phe duyet channel qua CLI: `goclaw pairing approve <code>`
-- Hoac qua GoClaw web UI (phan Pairing)
-- Ma pairing cho group **khong** hien thi trong channel (bao mat: tat ca thanh vien deu thay)
+Slack hỗ trợ pairing cấp group. Khi `group_policy: "pairing"`:
+- Admin phê duyệt channel qua CLI: `goclaw pairing approve <code>`
+- Hoặc qua GoClaw web UI (phần Pairing)
+- Mã pairing cho group **không** hiển thị trong channel (bảo mật: tất cả thành viên đều thấy)
 
-Danh sach `allow_from` ho tro ca user ID va Slack channel ID cho allowlist cap group.
+Danh sách `allow_from` hỗ trợ cả user ID và Slack channel ID cho allowlist cấp group.
 
-## Xu ly su co
+## Xử lý sự cố
 
-| Van de | Giai phap |
+| Vấn đề | Giải pháp |
 |-------|----------|
-| `invalid_auth` khi khoi dong | Token sai hoac bi thu hoi. Tao lai token trong Slack app settings. |
-| Loi `missing_scope` | Scope can thiet chua duoc them. Them scope trong OAuth & Permissions, cai lai app. |
-| Bot khong phan hoi trong channel | Bot chua duoc moi vao channel. Chay `/invite @BotName`. |
-| Bot khong phan hoi DM | DM policy la `disabled` hoac can pairing. Kiem tra config `dm_policy`. |
-| Socket Mode khong ket noi | App-Level Token (`xapp-`) thieu hoac sai. Kiem tra trang Basic Information. |
-| Bot phan hoi khong co ten rieng | User Token chua cau hinh. Them `user_token` voi scope `chat:write.customize`. |
-| Tin nhan bi xu ly hai lan | Dedup Socket Mode co san. Neu van xay ra, kiem tra duplicate app_mention + message event — hanh vi binh thuong, dedup xu ly. |
-| Tin nhan nhanh gui rieng le | Tang `debounce_delay` (mac dinh 300ms). |
-| Thread tu dong tra loi dung | Thread participation het han (`thread_ttl`, mac dinh 24h). Mention bot lai. |
+| `invalid_auth` khi khởi động | Token sai hoặc bị thu hồi. Tạo lại token trong Slack app settings. |
+| Lỗi `missing_scope` | Scope cần thiết chưa được thêm. Thêm scope trong OAuth & Permissions, cài lại app. |
+| Bot không phản hồi trong channel | Bot chưa được mời vào channel. Chạy `/invite @BotName`. |
+| Bot không phản hồi DM | DM policy là `disabled` hoặc cần pairing. Kiểm tra config `dm_policy`. |
+| Socket Mode không kết nối | App-Level Token (`xapp-`) thiếu hoặc sai. Kiểm tra trang Basic Information. |
+| Bot phản hồi không có tên riêng | User Token chưa cấu hình. Thêm `user_token` với scope `chat:write.customize`. |
+| Tin nhắn bị xử lý hai lần | Dedup Socket Mode có sẵn. Nếu vẫn xảy ra, kiểm tra duplicate app_mention + message event — hành vi bình thường, dedup xử lý. |
+| Tin nhắn nhanh gửi riêng lẻ | Tăng `debounce_delay` (mặc định 300ms). |
+| Thread tự động trả lời dừng | Thread participation hết hạn (`thread_ttl`, mặc định 24h). Mention bot lại. |
 
-## Tiep theo
+## Tiếp theo
 
-- [Tong quan](./overview.md) — Khai niem va chinh sach channel
-- [Telegram](./telegram.md) — Thiet lap Telegram bot
-- [Discord](./discord.md) — Thiet lap Discord bot
-- [Browser Pairing](./browser-pairing.md) — Luong pairing
+- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
+- [Telegram](./telegram.md) — Thiết lập Telegram bot
+- [Discord](./discord.md) — Thiết lập Discord bot
+- [Browser Pairing](./browser-pairing.md) — Luồng pairing
