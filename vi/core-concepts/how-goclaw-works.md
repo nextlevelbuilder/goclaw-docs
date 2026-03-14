@@ -16,7 +16,7 @@ graph TD
     CH --> GW[Gateway<br/>HTTP + WebSocket]
     GW --> SC[Scheduler<br/>4 lanes]
     SC --> AL[Agent Loop<br/>Think → Act → Observe]
-    AL --> PR[Provider Registry<br/>13+ LLM providers]
+    AL --> PR[Provider Registry<br/>17+ LLM providers]
     AL --> TR[Tool Registry<br/>60+ tools]
     AL --> SS[Session Store<br/>PostgreSQL]
     AL --> MM[Memory Store<br/>Vector + FTS]
@@ -29,7 +29,7 @@ Mỗi lượt hội thoại đều đi qua chu kỳ **Think → Act → Observe*
 
 ### 1. Think (Suy nghĩ)
 
-Agent tập hợp system prompt (17+ phần bao gồm identity, tool, memory, context file) và gửi cuộc hội thoại đến LLM provider. LLM quyết định bước tiếp theo.
+Agent tập hợp system prompt (~13 phần bao gồm identity, tool, memory, context file) và gửi cuộc hội thoại đến LLM provider. LLM quyết định bước tiếp theo.
 
 ### 2. Act (Hành động)
 
@@ -55,7 +55,7 @@ graph LR
 1. **Nhận** — Tin nhắn đến qua channel (Telegram, WebSocket, v.v.)
 2. **Validate** — Input guard kiểm tra injection pattern; tin nhắn bị cắt bớt ở 32KB
 3. **Định tuyến** — Scheduler gán tin nhắn cho agent dựa trên channel binding
-4. **Queue** — Per-session queue quản lý concurrency (1 cho DM, 3 cho group)
+4. **Queue** — Per-session queue quản lý concurrency (mặc định: 1 serial mỗi session, có thể cấu hình)
 5. **Build Context** — System prompt được tập hợp: identity + tool + memory + history
 6. **LLM Loop** — Chu kỳ Think → Act → Observe (tối đa 20 lần)
 7. **Sanitize** — Phản hồi được làm sạch (loại bỏ thinking tag, XML lỗi, trùng lặp)

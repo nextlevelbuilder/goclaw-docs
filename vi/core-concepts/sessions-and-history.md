@@ -80,18 +80,20 @@ graph LR
 
 1. **Memory flush** (đồng bộ, timeout 90 giây) — Thông tin quan trọng được trích xuất và lưu vào hệ thống memory
 2. **Summarize** (nền, timeout 120 giây) — Tin nhắn cũ được nén thành summary
-3. **Inject** — Summary thay thế tin nhắn cũ; 4 tin nhắn cuối được giữ nguyên
+3. **Inject** — Summary thay thế tin nhắn cũ; 4 tin nhắn cuối được giữ nguyên (có thể cấu hình qua `keepLastMessages`)
 
 Một per-session lock ngăn nén đồng thời. Nếu lần nén thứ hai kích hoạt trong khi một lần đang chạy, nó sẽ bị bỏ qua.
+
+> **Hai hệ thống compaction:** Compaction của agent loop ở trên tóm tắt lịch sử session. Một hệ thống compaction tin nhắn pending riêng biệt nén buffer channel nhóm trước khi xử lý — hai hệ thống này độc lập và phục vụ mục đích khác nhau.
 
 ## Concurrency
 
 | Loại chat | Tối đa đồng thời | Ghi chú |
 |-----------|:-----------:|-------|
 | DM | 1 | Single-threaded — tin nhắn xếp hàng |
-| Group | 3 | Phản hồi song song cho các user khác nhau |
+| Group | 1 (có thể cấu hình lên đến 3) | Mặc định là serial; tăng qua cấu hình để phản hồi song song |
 
-Khi history vượt quá 60% context window, group concurrency giảm xuống 1 (adaptive throttle).
+Khi history đạt hoặc vượt quá 60% context window, group concurrency giảm xuống 1 (adaptive throttle).
 
 ### Queue Mode
 
@@ -101,7 +103,7 @@ Khi history vượt quá 60% context window, group concurrency giảm xuống 1 
 | `followup` | Tin nhắn mới gộp với tin nhắn đang xếp hàng |
 | `interrupt` | Hủy tác vụ hiện tại, xử lý tin nhắn mới |
 
-Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị loại bỏ.
+Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị loại bỏ (chính sách drop mặc định: `DropOld`).
 
 ### User Control
 

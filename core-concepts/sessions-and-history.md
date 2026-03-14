@@ -78,18 +78,20 @@ graph LR
 
 1. **Memory flush** (synchronous, 90s timeout) — Important facts are extracted and saved to the memory system
 2. **Summarize** (background, 120s timeout) — Old messages are condensed into a summary
-3. **Inject** — The summary replaces old messages; last 4 messages are kept verbatim
+3. **Inject** — The summary replaces old messages; last 4 messages are kept verbatim (configurable via `keepLastMessages`)
 
 A per-session lock prevents concurrent compaction. If a second compaction triggers while one is running, it's skipped.
+
+> **Two compaction systems:** The agent loop compaction above summarizes session history. A separate pending message compaction system compacts group channel buffers before they are processed — these are independent and serve different purposes.
 
 ## Concurrency
 
 | Chat Type | Max Concurrent | Notes |
 |-----------|:-----------:|-------|
 | DM | 1 | Single-threaded — messages queue up |
-| Group | 3 | Parallel responses to different users |
+| Group | 1 (configurable up to 3) | Default is serial; increase via config for parallel responses |
 
-When history exceeds 60% of the context window, group concurrency drops to 1 (adaptive throttle).
+When history reaches or exceeds 60% of the context window, group concurrency drops to 1 (adaptive throttle).
 
 ### Queue Modes
 
@@ -99,7 +101,7 @@ When history exceeds 60% of the context window, group concurrency drops to 1 (ad
 | `followup` | New message merges with the queued one |
 | `interrupt` | Cancel current task, process new message |
 
-Queue capacity is 10 by default. When full, the oldest message is dropped.
+Queue capacity is 10 by default. When full, the oldest message is dropped (default drop policy: `DropOld`).
 
 ### User Controls
 

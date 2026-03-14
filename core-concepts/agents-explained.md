@@ -23,7 +23,7 @@ GoClaw has two agent types with different sharing models:
 
 Each user gets their own complete set of context files. The agent adapts to each user individually.
 
-- All 7 context files are per-user
+- 5 context files are per-user (TOOLS.md is not seeded per-user)
 - Users can fully customize the agent's personality
 - Best for: personal assistants, individual workflows
 
@@ -32,28 +32,29 @@ Each user gets their own complete set of context files. The agent adapts to each
 The agent has a shared personality, but each user gets personal profile files. Think of it as a company chatbot that knows who you are.
 
 - 4 context files shared across all users (AGENTS, SOUL, IDENTITY, TOOLS)
-- 2 files per-user (USER.md, BOOTSTRAP.md)
+- 3 files per-user (USER.md, BOOTSTRAP.md, USER_PREDEFINED.md)
 - Best for: team bots, shared assistants, customer support
 
 | Aspect | Open | Predefined |
 |--------|------|-----------|
 | Agent-level files | None | 4 (shared: AGENTS, SOUL, IDENTITY, TOOLS) |
-| Per-user files | All 6 | 2 (USER.md, BOOTSTRAP.md) |
+| Per-user files | 5 (AGENTS, SOUL, IDENTITY, USER, BOOTSTRAP) | 3 (USER.md, BOOTSTRAP.md, USER_PREDEFINED.md) |
 | Customization | Full per-user | Shared personality, personal profile |
 | Use case | Personal assistant | Team/company bot |
 
 ## Context Files
 
-Every agent has up to 6 context files that shape its behavior:
+Every agent has up to 5 per-user context files that shape its behavior:
 
 | File | Purpose | Example Content |
 |------|---------|----------------|
 | `AGENTS.md` | Operating instructions, memory rules, safety guidelines | "Always save important facts to memory..." |
 | `SOUL.md` | Personality and tone | "You are a friendly coding mentor..." |
 | `IDENTITY.md` | Name, avatar, greeting | "Name: CodeBot, Emoji: 🤖" |
-| `TOOLS.md` | Tool usage guidance | "Use web_search for current events..." |
 | `USER.md` | User profile, timezone, preferences | "Timezone: Asia/Saigon, Language: Vietnamese" |
 | `BOOTSTRAP.md` | First-run ritual (auto-deleted after completion) | "Introduce yourself and learn about the user..." |
+
+Note: `TOOLS.md` exists but is shared at the agent level (not seeded per-user). For predefined agents, `USER_PREDEFINED.md` is also seeded per-user with role-specific instructions.
 
 Plus `MEMORY.md` — persistent notes auto-updated by the agent (routed to the memory system).
 
@@ -65,6 +66,14 @@ Large context files are automatically truncated to fit the LLM's context window:
 - Per-file limit: 20,000 characters
 - Total budget: 24,000 characters
 - Truncation keeps 70% from the start and 20% from the end
+
+## System-Managed Context Files
+
+GoClaw auto-injects additional files based on agent config — these are not editable directly:
+
+- `DELEGATION.md` — injected if the agent has delegation links to other agents
+- `TEAM.md` — injected if the agent is part of a team
+- `AVAILABILITY.md` — negative context listing capabilities not available to the agent
 
 ## Agent Lifecycle
 
@@ -82,6 +91,8 @@ graph LR
 3. **Summon** — Send the first message; bootstrap files are seeded automatically
 4. **Chat** — Ongoing conversations with memory and tool use
 5. **Edit** — Refine context files, adjust settings as needed
+
+Agent status values: `active`, `inactive`, `summoning`, `summon_failed`
 
 ## Agent Access Control
 

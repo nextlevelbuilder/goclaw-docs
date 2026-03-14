@@ -25,7 +25,7 @@ GoClaw có hai loại agent với mô hình chia sẻ khác nhau:
 
 Mỗi người dùng có bộ context file riêng hoàn chỉnh. Agent thích nghi với từng người dùng độc lập.
 
-- Tất cả 7 context file là per-user
+- 5 context file là per-user (TOOLS.md không được seed per-user)
 - Người dùng có thể tùy chỉnh hoàn toàn tính cách của agent
 - Phù hợp: personal assistant, workflow cá nhân
 
@@ -34,28 +34,29 @@ Mỗi người dùng có bộ context file riêng hoàn chỉnh. Agent thích ng
 Agent có tính cách chung, nhưng mỗi người dùng có file hồ sơ cá nhân. Hãy nghĩ như một chatbot công ty biết bạn là ai.
 
 - 4 context file chia sẻ cho tất cả người dùng (AGENTS, SOUL, IDENTITY, TOOLS)
-- 2 file per-user (USER.md, BOOTSTRAP.md)
+- 3 file per-user (USER.md, BOOTSTRAP.md, USER_PREDEFINED.md)
 - Phù hợp: team bot, shared assistant, customer support
 
 | Khía cạnh | Open | Predefined |
 |-----------|------|-----------|
 | File cấp agent | Không | 4 (chung: AGENTS, SOUL, IDENTITY, TOOLS) |
-| File per-user | Tất cả 6 | 2 (USER.md, BOOTSTRAP.md) |
+| File per-user | 5 (AGENTS, SOUL, IDENTITY, USER, BOOTSTRAP) | 3 (USER.md, BOOTSTRAP.md, USER_PREDEFINED.md) |
 | Tùy chỉnh | Hoàn toàn per-user | Tính cách chung, hồ sơ cá nhân |
 | Trường hợp dùng | Personal assistant | Team/company bot |
 
 ## Context File
 
-Mỗi agent có tối đa 6 context file định hình hành vi của nó:
+Mỗi agent có tối đa 5 context file per-user định hình hành vi của nó:
 
 | File | Mục đích | Nội dung ví dụ |
 |------|---------|----------------|
 | `AGENTS.md` | Hướng dẫn vận hành, quy tắc memory, hướng dẫn an toàn | "Luôn lưu thông tin quan trọng vào memory..." |
 | `SOUL.md` | Tính cách và giọng điệu | "Bạn là một mentor lập trình thân thiện..." |
 | `IDENTITY.md` | Tên, avatar, lời chào | "Tên: CodeBot, Emoji: 🤖" |
-| `TOOLS.md` | Hướng dẫn sử dụng tool | "Dùng web_search cho các sự kiện hiện tại..." |
 | `USER.md` | Hồ sơ người dùng, timezone, tùy chọn | "Timezone: Asia/Saigon, Language: Vietnamese" |
 | `BOOTSTRAP.md` | Nghi thức chạy lần đầu (tự động xóa sau khi hoàn tất) | "Giới thiệu bản thân và tìm hiểu về người dùng..." |
+
+Lưu ý: `TOOLS.md` tồn tại nhưng được chia sẻ ở cấp agent (không seed per-user). Với predefined agent, `USER_PREDEFINED.md` cũng được seed per-user với hướng dẫn theo vai trò.
 
 Cộng thêm `MEMORY.md` — ghi chú bền vững được agent tự cập nhật (định tuyến đến hệ thống memory).
 
@@ -67,6 +68,14 @@ Context file lớn được tự động cắt bớt để phù hợp với cont
 - Giới hạn mỗi file: 20.000 ký tự
 - Tổng ngân sách: 24.000 ký tự
 - Truncation giữ 70% từ đầu và 20% từ cuối
+
+## Context File do Hệ thống Quản lý
+
+GoClaw tự động inject thêm các file dựa trên cấu hình agent — không thể chỉnh sửa trực tiếp:
+
+- `DELEGATION.md` — inject nếu agent có delegation link đến agent khác
+- `TEAM.md` — inject nếu agent thuộc một team
+- `AVAILABILITY.md` — ngữ cảnh tiêu cực liệt kê các khả năng không có sẵn cho agent
 
 ## Vòng đời Agent
 
@@ -84,6 +93,8 @@ graph LR
 3. **Summon** — Gửi tin nhắn đầu tiên; bootstrap file được seed tự động
 4. **Chat** — Cuộc hội thoại liên tục với memory và sử dụng tool
 5. **Edit** — Tinh chỉnh context file, điều chỉnh cài đặt khi cần
+
+Giá trị trạng thái agent: `active`, `inactive`, `summoning`, `summon_failed`
 
 ## Kiểm soát truy cập Agent
 

@@ -58,7 +58,7 @@ Every piece of user data is scoped by user ID:
 | Sessions | `sessions` | Per-user per-agent per-channel |
 | Memory | `memory_documents` | Per-user per-agent |
 | Traces | `traces` | Per-user filterable |
-| Agent access | `agent_shares` | Per-user role (admin/operator/viewer) |
+| Agent access | `agent_shares` | Per-user role string (default: `"user"`) |
 | MCP grants | `mcp_user_grants` | Per-user MCP server access |
 | Skill grants | `skill_user_grants` | Per-user skill access |
 
@@ -82,15 +82,11 @@ File operations (read_file, write_file, etc.) are scoped to the user's workspace
 
 ## Agent Sharing
 
-Agents can be shared with specific users via the `agent_shares` table:
+Agents can be shared with specific users via the `agent_shares` table. The `role` field is a flexible string — the default value is `"user"`. GoClaw does not enforce a fixed role hierarchy; role strings are application-defined.
 
-| Role | Permissions |
-|------|------------|
-| `admin` | Full control: edit agent, manage shares, delete |
-| `operator` | Use agent, edit context files |
-| `viewer` | Read-only access |
+> **Note:** `admin`, `operator`, and `viewer` are roles used by the WebSocket authentication layer, not by agent sharing.
 
-The default agent is accessible to everyone. Other agents require either ownership or an explicit share.
+Agents with `is_default = true` are automatically accessible to all users — no explicit share record is needed. Other agents require either ownership or an explicit entry in `agent_shares`.
 
 ## Per-User Overrides
 
@@ -113,7 +109,12 @@ This lets users pick their preferred LLM provider while the agent owner controls
 |---------|----------|
 | Users seeing each other's data | Verify `X-GoClaw-User-Id` is set correctly per request |
 | No user isolation | Ensure you're sending the user ID header; without it, all requests share a session |
-| Agent not accessible | Check `agent_shares` table; user needs an explicit share for non-default agents |
+| Agent not accessible | Check `agent_shares` table; user needs an explicit share for non-default agents (or set `is_default = true`) |
+| 401 on HTTP requests | Both `Authorization: Bearer <token>` and `X-GoClaw-User-Id` headers are required |
+
+## Spending Limits
+
+Agents support an optional `budget_monthly_cents` field to cap monthly LLM spending per agent. Set it when creating or editing an agent to enforce cost limits across all users of that agent.
 
 ## What's Next
 

@@ -1,26 +1,28 @@
 # Tools Overview
 
-> The 60+ built-in tools agents can use, organized by category.
+> The 36 built-in tools agents can use, organized by category.
 
 ## Overview
 
-Tools are how agents interact with the world beyond generating text. An agent can search the web, read files, run code, query memory, delegate to other agents, and more. GoClaw includes 60+ tools across 11 categories, plus support for custom tools and MCP servers.
+Tools are how agents interact with the world beyond generating text. An agent can search the web, read files, run code, query memory, delegate to other agents, and more. GoClaw includes 36 tools across 13 categories, plus support for custom tools and MCP servers.
 
 ## Tool Categories
 
 | Category | Tools | What They Do |
 |----------|-------|-------------|
-| **Filesystem** | read_file, write_file, edit_file, list_files, search, glob | Read, write, and search files in the agent workspace |
-| **Runtime** | exec, process | Run shell commands and manage processes |
-| **Web** | web_search, web_fetch | Search the web (Brave/DuckDuckGo) and fetch pages |
-| **Memory** | memory_search, memory_get | Query long-term memory (hybrid vector + FTS search) |
-| **Sessions** | sessions_list, sessions_history, sessions_send, spawn, session_status | Manage conversation sessions and spawn subtasks |
-| **Delegation** | delegate, delegate_search, evaluate_loop, handoff | Delegate tasks to other agents |
-| **Teams** | team_tasks, team_message | Collaborate with agent teams via task boards |
-| **UI** | browser, canvas | Browse websites and create visual content |
-| **Automation** | cron, gateway | Schedule jobs and manage gateway settings |
-| **Messaging** | message, create_forum_topic | Send messages and create forum topics |
-| **Other** | skill_search, image, read_image, create_image, tts, nodes, eval | Skills, images, text-to-speech, and more |
+| **Filesystem** | read_file, write_file, list_files, edit | Read, write, list, and edit files |
+| **Runtime** | exec | Execute shell commands |
+| **Web** | web_search, web_fetch | Search and fetch web content |
+| **Memory** | memory_search, memory_get, knowledge_graph_search | Search and retrieve from memory/KG |
+| **Media** | read_image, read_document, read_audio, read_video, create_image, create_audio, create_video, tts | Analyze and generate media |
+| **Browser** | browser | Browser automation |
+| **Sessions** | sessions_list, session_status, sessions_history, sessions_send | Manage chat sessions |
+| **Messaging** | message | Send proactive messages |
+| **Scheduling** | cron | Schedule recurring tasks |
+| **Subagents** | spawn | Spawn subagents or delegate |
+| **Skills** | skill_search, use_skill, publish_skill | Discover and use skills |
+| **Delegation** | delegate_search, evaluate_loop, handoff | Delegate to linked agents |
+| **Teams** | team_tasks, team_message, workspace_write, workspace_read | Team collaboration |
 
 ## Tool Execution Flow
 

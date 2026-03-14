@@ -41,7 +41,7 @@ Results are combined and scored:
 1. FTS score × 0.3 + Vector score × 0.7
 2. Per-user boost: results scoped to the current user get a 1.2× multiplier
 3. Deduplication: if both user-scoped and global results match, user copy wins
-4. Normalize: divide all scores by the highest score
+4. Sort descending by final score — no normalization applied
 
 ## Memory vs Sessions
 
@@ -69,15 +69,17 @@ This means agents gradually build up knowledge about each user without explicit 
 Agents can also read/write `MEMORY.md` directly — a structured file of key facts. This file is:
 
 - Automatically included in the system prompt
-- Per-user for open agents, per-user for predefined agents
+- Per-user (applies to both open and predefined agents)
 - Routed to the database (not the filesystem)
+
+> **Note:** Only `.md` files are indexed for semantic search. Other files (JSON, YAML) in `memory/*` are stored as key-value pairs but are **not** searchable via `memory_search`.
 
 ## Requirements
 
 Memory requires:
 
 - **PostgreSQL 15+** with the `pgvector` extension
-- An **embedding provider** configured (OpenAI, Anthropic, or compatible)
+- An **embedding provider** configured (OpenAI, Anthropic, or compatible) — embeddings use 1536 dimensions (compatible with `text-embedding-3-small`)
 - `memory: true` in agent config (enabled by default)
 
 ## Common Issues
@@ -87,6 +89,13 @@ Memory requires:
 | Memory search returns nothing | Check that pgvector extension is installed; verify embedding provider is configured |
 | Agent forgets things | Ensure `memory: true` in config; check if auto-compaction is running |
 | Irrelevant memories surfacing | Memory accumulates over time; consider clearing old memories via the API |
+
+## When to Use Which Tool
+
+| Use case | Tool |
+|----------|------|
+| People, organizations, relationships, entities | `knowledge_graph_search` |
+| Facts, decisions, preferences, dates | `memory_search` |
 
 ## What's Next
 

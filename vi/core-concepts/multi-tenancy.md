@@ -60,7 +60,7 @@ Mọi dữ liệu người dùng được phân phạm vi bởi user ID:
 | Session | `sessions` | Per-user per-agent per-channel |
 | Memory | `memory_documents` | Per-user per-agent |
 | Trace | `traces` | Có thể lọc per-user |
-| Quyền truy cập agent | `agent_shares` | Role per-user (admin/operator/viewer) |
+| Quyền truy cập agent | `agent_shares` | Chuỗi role per-user (mặc định: `"user"`) |
 | MCP grant | `mcp_user_grants` | Quyền truy cập MCP server per-user |
 | Skill grant | `skill_user_grants` | Quyền truy cập skill per-user |
 
@@ -84,15 +84,11 @@ Các thao tác file (read_file, write_file, v.v.) được giới hạn trong th
 
 ## Chia sẻ Agent
 
-Agent có thể được chia sẻ với user cụ thể qua bảng `agent_shares`:
+Agent có thể được chia sẻ với user cụ thể qua bảng `agent_shares`. Trường `role` là một chuỗi linh hoạt — giá trị mặc định là `"user"`. GoClaw không áp đặt hệ thống phân cấp role cố định; chuỗi role do ứng dụng tự định nghĩa.
 
-| Role | Quyền |
-|------|-------|
-| `admin` | Toàn quyền: sửa agent, quản lý share, xóa |
-| `operator` | Dùng agent, sửa context file |
-| `viewer` | Chỉ đọc |
+> **Lưu ý:** `admin`, `operator`, và `viewer` là các role dùng trong lớp xác thực WebSocket, không phải trong agent sharing.
 
-Agent mặc định có thể truy cập bởi tất cả mọi người. Các agent khác yêu cầu quyền sở hữu hoặc share rõ ràng.
+Agent có `is_default = true` tự động có thể truy cập bởi tất cả mọi người — không cần bản ghi share rõ ràng. Các agent khác yêu cầu quyền sở hữu hoặc có entry trong `agent_shares`.
 
 ## Per-User Override
 
@@ -115,7 +111,12 @@ User có thể ghi đè cài đặt agent cho bản thân mà không ảnh hư�
 |--------|-----------|
 | User thấy dữ liệu của nhau | Xác minh `X-GoClaw-User-Id` được đặt đúng mỗi request |
 | Không có cách ly user | Đảm bảo bạn gửi user ID header; nếu không, tất cả request chia sẻ một session |
-| Không truy cập được agent | Kiểm tra bảng `agent_shares`; user cần share rõ ràng cho các agent không phải mặc định |
+| Không truy cập được agent | Kiểm tra bảng `agent_shares`; user cần share rõ ràng cho agent không mặc định (hoặc đặt `is_default = true`) |
+| 401 trên HTTP request | Cả hai header `Authorization: Bearer <token>` và `X-GoClaw-User-Id` đều bắt buộc |
+
+## Giới hạn Chi tiêu
+
+Agent hỗ trợ trường tùy chọn `budget_monthly_cents` để giới hạn chi tiêu LLM hàng tháng per-agent. Đặt giá trị này khi tạo hoặc chỉnh sửa agent để kiểm soát chi phí cho tất cả user của agent đó.
 
 ## Tiếp theo
 

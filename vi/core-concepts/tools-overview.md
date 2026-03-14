@@ -2,27 +2,29 @@
 
 # Tools Overview
 
-> 60+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
+> 36 tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
 
 ## Tổng quan
 
-Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn bản. Agent có thể tìm kiếm web, đọc file, chạy code, truy vấn memory, phân công cho agent khác, và nhiều hơn. GoClaw gồm 60+ tool thuộc 11 danh mục, cộng thêm hỗ trợ custom tool và MCP server.
+Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn bản. Agent có thể tìm kiếm web, đọc file, chạy code, truy vấn memory, phân công cho agent khác, và nhiều hơn. GoClaw gồm 36 tool thuộc 13 danh mục, cộng thêm hỗ trợ custom tool và MCP server.
 
 ## Danh mục Tool
 
 | Danh mục | Tool | Chức năng |
 |----------|-------|----------|
-| **Filesystem** | read_file, write_file, edit_file, list_files, search, glob | Đọc, ghi, và tìm kiếm file trong workspace của agent |
-| **Runtime** | exec, process | Chạy lệnh shell và quản lý process |
-| **Web** | web_search, web_fetch | Tìm kiếm web (Brave/DuckDuckGo) và fetch trang |
-| **Memory** | memory_search, memory_get | Truy vấn memory dài hạn (hybrid vector + FTS search) |
-| **Sessions** | sessions_list, sessions_history, sessions_send, spawn, session_status | Quản lý conversation session và spawn subtask |
-| **Delegation** | delegate, delegate_search, evaluate_loop, handoff | Phân công tác vụ cho agent khác |
-| **Teams** | team_tasks, team_message | Cộng tác với agent team qua task board |
-| **UI** | browser, canvas | Duyệt web và tạo nội dung trực quan |
-| **Automation** | cron, gateway | Lên lịch job và quản lý cài đặt gateway |
-| **Messaging** | message, create_forum_topic | Gửi tin nhắn và tạo forum topic |
-| **Khác** | skill_search, image, read_image, create_image, tts, nodes, eval | Skill, hình ảnh, text-to-speech, và nhiều hơn |
+| **Filesystem** | read_file, write_file, list_files, edit | Đọc, ghi, liệt kê và chỉnh sửa file |
+| **Runtime** | exec | Thực thi lệnh shell |
+| **Web** | web_search, web_fetch | Tìm kiếm và fetch nội dung web |
+| **Memory** | memory_search, memory_get, knowledge_graph_search | Tìm kiếm và truy xuất từ memory/KG |
+| **Media** | read_image, read_document, read_audio, read_video, create_image, create_audio, create_video, tts | Phân tích và tạo nội dung media |
+| **Browser** | browser | Tự động hóa trình duyệt |
+| **Sessions** | sessions_list, session_status, sessions_history, sessions_send | Quản lý chat session |
+| **Messaging** | message | Gửi tin nhắn chủ động |
+| **Scheduling** | cron | Lên lịch tác vụ định kỳ |
+| **Subagents** | spawn | Spawn subagent hoặc phân công |
+| **Skills** | skill_search, use_skill, publish_skill | Khám phá và sử dụng skill |
+| **Delegation** | delegate_search, evaluate_loop, handoff | Phân công cho agent liên kết |
+| **Teams** | team_tasks, team_message, workspace_write, workspace_read | Cộng tác nhóm |
 
 ## Luồng thực thi Tool
 

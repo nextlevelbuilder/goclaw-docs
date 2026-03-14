@@ -43,7 +43,7 @@ Kết quả được kết hợp và chấm điểm:
 1. FTS score × 0.3 + Vector score × 0.7
 2. Per-user boost: kết quả có phạm vi user hiện tại nhận hệ số 1.2×
 3. Deduplication: nếu cả kết quả user-scoped và global đều khớp, bản user thắng
-4. Normalize: chia tất cả score cho score cao nhất
+4. Sắp xếp giảm dần theo score cuối cùng — không áp dụng normalization
 
 ## Memory vs Session
 
@@ -71,15 +71,17 @@ Trong quá trình [auto-compaction](sessions-and-history.md), GoClaw trích xu�
 Agent cũng có thể đọc/ghi `MEMORY.md` trực tiếp — một file có cấu trúc chứa các thông tin chính. File này:
 
 - Tự động được đưa vào system prompt
-- Per-user với open agent, per-user với predefined agent
+- Per-user (áp dụng cho cả open agent lẫn predefined agent)
 - Được định tuyến đến database (không phải filesystem)
+
+> **Lưu ý:** Chỉ file `.md` được đánh chỉ mục cho semantic search. Các file khác (JSON, YAML) trong `memory/*` được lưu dạng key-value nhưng **không** tìm kiếm được qua `memory_search`.
 
 ## Yêu cầu
 
 Memory cần:
 
 - **PostgreSQL 15+** với extension `pgvector`
-- Một **embedding provider** được cấu hình (OpenAI, Anthropic, hoặc tương thích)
+- Một **embedding provider** được cấu hình (OpenAI, Anthropic, hoặc tương thích) — embedding dùng 1536 chiều (tương thích với `text-embedding-3-small`)
 - `memory: true` trong agent config (bật mặc định)
 
 ## Các vấn đề thường gặp
@@ -89,6 +91,13 @@ Memory cần:
 | Memory search không trả kết quả | Kiểm tra extension pgvector đã cài; xác minh embedding provider đã cấu hình |
 | Agent quên mọi thứ | Đảm bảo `memory: true` trong config; kiểm tra auto-compaction có chạy không |
 | Memory không liên quan xuất hiện | Memory tích lũy theo thời gian; cân nhắc xóa memory cũ qua API |
+
+## Khi nào dùng công cụ nào
+
+| Trường hợp | Công cụ |
+|------------|---------|
+| Con người, tổ chức, mối quan hệ, thực thể | `knowledge_graph_search` |
+| Thông tin, quyết định, tùy chọn, ngày tháng | `memory_search` |
 
 ## Tiếp theo
 

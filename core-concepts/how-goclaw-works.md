@@ -14,7 +14,7 @@ graph TD
     CH --> GW[Gateway<br/>HTTP + WebSocket]
     GW --> SC[Scheduler<br/>4 lanes]
     SC --> AL[Agent Loop<br/>Think → Act → Observe]
-    AL --> PR[Provider Registry<br/>13+ LLM providers]
+    AL --> PR[Provider Registry<br/>17+ LLM providers]
     AL --> TR[Tool Registry<br/>60+ tools]
     AL --> SS[Session Store<br/>PostgreSQL]
     AL --> MM[Memory Store<br/>Vector + FTS]
@@ -27,7 +27,7 @@ Every conversation turn goes through the **Think → Act → Observe** cycle:
 
 ### 1. Think
 
-The agent assembles a system prompt (17+ sections including identity, tools, memory, context files) and sends the conversation to an LLM provider. The LLM decides what to do next.
+The agent assembles a system prompt (~13 sections including identity, tools, memory, context files) and sends the conversation to an LLM provider. The LLM decides what to do next.
 
 ### 2. Act
 
@@ -53,7 +53,7 @@ Here's what happens when a user sends a message:
 1. **Receive** — Message arrives via channel (Telegram, WebSocket, etc.)
 2. **Validate** — Input guard checks for injection patterns; message truncated at 32KB
 3. **Route** — Scheduler assigns the message to an agent based on channel bindings
-4. **Queue** — Per-session queue manages concurrency (1 for DMs, 3 for groups)
+4. **Queue** — Per-session queue manages concurrency (default: 1 serial per session, configurable)
 5. **Build Context** — System prompt assembled: identity + tools + memory + history
 6. **LLM Loop** — Think → Act → Observe cycle (max 20 iterations)
 7. **Sanitize** — Response cleaned (remove thinking tags, garbled XML, duplicates)
