@@ -69,17 +69,17 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 
 ### Command templates
 
-Use `{{.paramName}}` placeholders. GoClaw replaces them with shell-escaped values (single-quoted, embedded single-quotes escaped). This means even a malicious LLM cannot break out of the argument.
+Use `{{.paramName}}` placeholders. GoClaw replaces them with shell-escaped values using simple string replacement — not Go's `text/template` engine, so template functions and pipelines are not supported. Every substituted value is single-quoted with embedded single-quotes escaped, so even a malicious LLM cannot break out of the argument.
 
 ```bash
-# These placeholders are always treated as literal strings
+# These placeholders are always treated as literal strings — no template logic
 kubectl rollout restart deployment/{{.deployment}} --namespace={{.namespace}}
 git -C {{.repo_path}} pull origin {{.branch}}
 ```
 
 ### Adding environment variables (secrets)
 
-Secrets are encrypted with AES-256-GCM before storage and are **never returned by the API**.
+Secrets must be set via a separate `PUT` after creation — they cannot be included in the initial `POST`. They are encrypted with AES-256-GCM before storage and are **never returned by the API**.
 
 ```bash
 curl -X PUT http://localhost:8080/v1/tools/custom/{id} \
@@ -98,13 +98,13 @@ The variables are injected only into the child process — they are not visible 
 ## Managing Tools
 
 ```bash
-# List (paginated)
+# List (paginated) — returns only enabled tools
 GET /v1/tools/custom?limit=50&offset=0
 
-# Filter by agent
+# Filter by agent — returns only enabled tools for that agent
 GET /v1/tools/custom?agent_id=<uuid>
 
-# Search by name
+# Search by name or description (case-insensitive)
 GET /v1/tools/custom?search=deploy
 
 # Get single tool
@@ -121,12 +121,20 @@ DELETE /v1/tools/custom/{id}
 
 Every custom tool command is checked against the same **deny pattern list** as the built-in `exec` tool. Blocked categories include:
 
-- Destructive file ops (`rm -rf`, `dd if=`, `mkfs`)
-- Data exfiltration (`curl | sh`, `wget --post-data`, DNS tools)
-- Reverse shells (`nc -e`, `socat`, `openssl s_client`)
-- Privilege escalation (`sudo`, `nsenter`, `mount`)
-- Environment dumping (`printenv`, bare `env`, `/proc/PID/environ`)
-- Container escape (`/var/run/docker.sock`, `/proc/sys/kernel/`)
+- Destructive file ops (`rm -rf`, `rm --recursive`, `dd if=`, `mkfs`, `shutdown`, `reboot`, fork bombs)
+- Data exfiltration (`curl | sh`, `curl` with POST/PUT flags, `wget --post-data`, DNS tools: `nslookup`, `dig`, `host`, `/dev/tcp/` redirects)
+- Reverse shells (`nc -e`, `ncat`, `socat`, `openssl s_client`, `telnet`, `mkfifo`, scripting language socket imports)
+- Dangerous eval / code injection (`eval $`, `base64 -d | sh`)
+- Privilege escalation (`sudo`, `su -`, `nsenter`, `unshare`, `mount`, `capsh`, `setcap`)
+- Dangerous path operations (`chmod` on `/` paths, `chmod +x` in `/tmp`, `/var/tmp`, `/dev/shm`)
+- Environment variable injection (`LD_PRELOAD=`, `DYLD_INSERT_LIBRARIES=`, `LD_LIBRARY_PATH=`, `BASH_ENV=`)
+- Environment dumping (`printenv`, bare `env`, `env | ...`, `env > file`, `set`/`export -p`/`declare -x` dumps, `/proc/PID/environ`, `/proc/self/environ`)
+- Container escape (`/var/run/docker.sock`, `/proc/sys/`, `/sys/kernel/`)
+- Crypto mining (`xmrig`, `cpuminer`, stratum protocol)
+- Filter bypass patterns (`sed /e`, `sort --compress-program`, `git --upload-pack=`, `grep --pre=`)
+- Network reconnaissance (`nmap`, `masscan`, outbound `ssh`/`scp` with `@`)
+- Persistence (`crontab`, writing to shell RC files like `.bashrc`, `.zshrc`)
+- Process manipulation (`kill -9`, `killall`, `pkill`)
 
 The check runs on the **fully rendered command** after all `{{.param}}` substitutions.
 

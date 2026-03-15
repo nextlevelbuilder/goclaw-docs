@@ -77,15 +77,18 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
 
 ## Upload qua Dashboard
 
-Vào **Skills → Upload** và kéo thả file ZIP. ZIP phải chứa một skill mỗi thư mục cấp cao nhất:
+Vào **Skills → Upload** và kéo thả file ZIP. ZIP phải chứa một skill duy nhất với `SKILL.md` nằm ở root hoặc bên trong một thư mục cấp cao nhất:
 
 ```
-my-skills.zip
-├── code-reviewer/
-│   └── SKILL.md
-└── sql-expert/
+# SKILL.md ở root
+my-skill.zip
+└── SKILL.md
+
+# hoặc nằm trong một thư mục
+my-skill.zip
+└── code-reviewer/
     ├── SKILL.md
-    └── query-patterns.md
+    └── review-checklist.md
 ```
 
 Skills được upload lưu trong cấu trúc thư mục có version dưới thư mục skills được quản lý (`~/.goclaw/skills-store/` theo mặc định):
@@ -96,22 +99,48 @@ Skills được upload lưu trong cấu trúc thư mục có version dưới th�
 
 Metadata (tên, mô tả, visibility, grants) lưu trong PostgreSQL; nội dung file lưu trên đĩa. GoClaw luôn phục vụ version có số cao nhất. Các version cũ được giữ để rollback.
 
-## Tool skill_search
+Skills được upload qua Dashboard mặc định có visibility **internal** — có thể truy cập ngay khi bạn cấp quyền cho agent hoặc user.
 
-Agent có thể tìm kiếm skill lúc runtime bằng tool tích hợp `skill_search`. Tìm kiếm sử dụng **chỉ mục BM25** được xây dựng từ tên và mô tả của mỗi skill. Tham số `k1=1.2` và `b=0.75` là các giá trị mặc định BM25 tiêu chuẩn.
+## Các tool skill tích hợp
+
+GoClaw cung cấp ba tool tích hợp mà agent dùng để khám phá và kích hoạt skill lúc runtime.
+
+### skill_search
+
+Agent tìm kiếm skill bằng `skill_search`. Tìm kiếm sử dụng **chỉ mục BM25** được xây dựng từ tên và mô tả của mỗi skill, với tùy chọn hybrid search (BM25 + vector embeddings) khi có embedding provider được cấu hình.
 
 ```
 # Agent gọi tool này nội bộ — bạn không gọi trực tiếp
 skill_search(query="how to review a pull request", max_results=5)
 ```
 
-Tool trả về kết quả được xếp hạng với tên, mô tả, đường dẫn vị trí, và điểm BM25. Agent sau đó đọc nội dung `SKILL.md` từ đường dẫn được trả về.
+Tool trả về kết quả được xếp hạng với tên, mô tả, đường dẫn vị trí, và điểm số. Sau khi nhận kết quả, agent gọi `use_skill` rồi `read_file` để tải nội dung skill.
 
 Chỉ mục được rebuild bất cứ khi nào bộ đếm version của loader tăng (tức là sau bất kỳ sự kiện hot-reload hoặc khởi động nào).
 
-## Cấp quyền Skill cho Agent
+### use_skill
 
-Skill được upload mặc định có visibility **private** — chỉ người upload mới thấy. Để agent có thể sử dụng skill, bạn phải **grant** (cấp quyền) cho agent đó. Việc grant tự động chuyển visibility từ `private` sang `internal`.
+Tool đánh dấu observability nhẹ. Agent gọi `use_skill` trước khi đọc file skill, để việc kích hoạt skill hiển thị trong traces và real-time events. Tool này không tải nội dung nào.
+
+```
+use_skill(name="code-reviewer")
+# sau đó:
+read_file(path="/path/to/code-reviewer/SKILL.md")
+```
+
+### publish_skill
+
+Agent có thể đăng ký thư mục skill cục bộ vào cơ sở dữ liệu hệ thống bằng `publish_skill`. Thư mục phải chứa `SKILL.md` với trường `name` trong frontmatter. Skill tự động được cấp quyền cho agent gọi sau khi publish.
+
+```
+publish_skill(path="./skills/my-skill")
+```
+
+Skill được lưu với visibility `private` và tự động cấp quyền cho agent gọi. Admin có thể cấp quyền cho agent khác hoặc nâng visibility qua Dashboard hoặc API.
+
+## Cấp quyền Skill cho Agent (Managed Mode)
+
+Skill được publish qua `publish_skill` mặc định có visibility **private**. Skill được upload qua Dashboard mặc định có visibility **internal**. Dù cách nào, bạn phải **grant** (cấp quyền) skill cho agent trước khi nó được inject vào context của agent đó.
 
 ### Qua Dashboard
 
@@ -120,7 +149,7 @@ Skill được upload mặc định có visibility **private** — chỉ ngườ
 3. Trong phần **Agent Grants**, chọn agent và click **Grant**
 4. Skill sẽ được inject vào context của agent đó từ request tiếp theo
 
-Để thu hồi quyền, tắt toggle của agent trong danh sách grants. Khi tất cả grants bị xóa, visibility tự động quay về `private`.
+Để thu hồi quyền, tắt toggle của agent trong danh sách grants.
 
 ### Qua API
 
@@ -133,7 +162,7 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
-Thu hồi quyền:
+Thu hồi quyền agent:
 
 ```bash
 curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/agent/{agent_id} \
@@ -149,6 +178,13 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
   -d '{"user_id": "user@example.com"}'
 ```
 
+Thu hồi quyền user:
+
+```bash
+curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/user/{user_id} \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### Các mức Visibility
 
 | Mức | Ai có thể truy cập |
@@ -156,8 +192,6 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
 | `private` | Chỉ chủ sở hữu skill (người upload) |
 | `internal` | Agent và user được cấp quyền truy cập |
 | `public` | Tất cả agent và user |
-
-> **Lưu ý:** Grant tự động chuyển `private` → `internal`. Thu hồi tất cả grants tự động chuyển `internal` → `private`.
 
 ## Ví dụ
 
@@ -212,7 +246,7 @@ Always:
 | Thay đổi không được nhận | Watcher chưa khởi động (các thiết lập không dùng Docker) | Khởi động lại GoClaw; xác minh `skills watcher started` trong log |
 | Skill ưu tiên thấp hơn được dùng thay cho skill của bạn | Xung đột tên — slug tồn tại ở tầng ưu tiên cao hơn | Dùng slug duy nhất, hoặc đặt skill của bạn ở vị trí ưu tiên cao hơn |
 | `skill_search` không trả về kết quả | Chỉ mục chưa được xây dựng (request đầu tiên) hoặc không có description trong frontmatter | Thêm `description` vào frontmatter; chỉ mục rebuild trên hot-reload tiếp theo |
-| Upload ZIP thất bại | Các entry cấp cao nhất là file, không phải thư mục | Đảm bảo ZIP có cấu trúc `<slug>/SKILL.md` |
+| Upload ZIP thất bại | Không tìm thấy `SKILL.md` trong ZIP | Đặt `SKILL.md` ở root ZIP hoặc bên trong một thư mục cấp cao nhất |
 
 ## Tiếp theo
 

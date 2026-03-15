@@ -12,7 +12,7 @@ Four providers are available:
 |----------|-----|---------|
 | OpenAI | `openai` | API key |
 | ElevenLabs | `elevenlabs` | API key |
-| Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) |
+| Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) + `enabled: true` |
 | MiniMax | `minimax` | API key + Group ID |
 
 ---
@@ -46,14 +46,12 @@ Text shorter than 10 characters or containing a `MEDIA:` path is always skipped.
 ```json
 {
   "tts": {
-    "primary": "openai",
+    "provider": "openai",
     "auto": "inbound",
-    "providers": {
-      "openai": {
-        "api_key": "sk-...",
-        "model": "gpt-4o-mini-tts",
-        "voice": "alloy"
-      }
+    "openai": {
+      "api_key": "sk-...",
+      "model": "gpt-4o-mini-tts",
+      "voice": "alloy"
     }
   }
 }
@@ -68,14 +66,12 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`. Default m
 ```json
 {
   "tts": {
-    "primary": "elevenlabs",
+    "provider": "elevenlabs",
     "auto": "always",
-    "providers": {
-      "elevenlabs": {
-        "api_key": "xi-...",
-        "voice_id": "pMsXgVXv3BLzUgSXRplE",
-        "model_id": "eleven_multilingual_v2"
-      }
+    "elevenlabs": {
+      "api_key": "xi-...",
+      "voice_id": "pMsXgVXv3BLzUgSXRplE",
+      "model_id": "eleven_multilingual_v2"
     }
   }
 }
@@ -96,17 +92,18 @@ pip install edge-tts
 ```json
 {
   "tts": {
-    "primary": "edge",
+    "provider": "edge",
     "auto": "tagged",
-    "providers": {
-      "edge": {
-        "voice": "en-US-MichelleNeural",
-        "rate": "+0%"
-      }
+    "edge": {
+      "enabled": true,
+      "voice": "en-US-MichelleNeural",
+      "rate": "+0%"
     }
   }
 }
 ```
+
+The `enabled` field must be `true` to activate the Edge provider — it has no API key to detect automatically.
 
 Browse available voices:
 
@@ -125,15 +122,13 @@ MiniMax's T2A API supports 300+ system voices and 40+ languages.
 ```json
 {
   "tts": {
-    "primary": "minimax",
+    "provider": "minimax",
     "auto": "always",
-    "providers": {
-      "minimax": {
-        "api_key": "...",
-        "group_id": "your-group-id",
-        "model": "speech-02-hd",
-        "voice_id": "Wise_Woman"
-      }
+    "minimax": {
+      "api_key": "...",
+      "group_id": "your-group-id",
+      "model": "speech-02-hd",
+      "voice_id": "Wise_Woman"
     }
   }
 }
@@ -148,20 +143,18 @@ Models: `speech-02-hd` (high quality), `speech-02-turbo` (faster). Supported out
 ```json
 {
   "tts": {
-    "primary": "openai",
+    "provider": "openai",
     "auto": "inbound",
     "mode": "final",
     "max_length": 1500,
     "timeout_ms": 30000,
-    "providers": {
-      "openai": { "api_key": "sk-...", "voice": "nova" },
-      "edge":   { "voice": "en-US-MichelleNeural" }
-    }
+    "openai": { "api_key": "sk-...", "voice": "nova" },
+    "edge":   { "enabled": true, "voice": "en-US-MichelleNeural" }
   }
 }
 ```
 
-When the primary provider fails, GoClaw automatically falls back to other registered providers in registration order.
+When the primary provider fails, GoClaw automatically tries the other registered providers.
 
 ---
 
@@ -205,11 +198,9 @@ pip install edge-tts
 ```json
 {
   "tts": {
-    "primary": "edge",
+    "provider": "edge",
     "auto": "inbound",
-    "providers": {
-      "edge": { "voice": "en-US-JennyNeural" }
-    }
+    "edge": { "enabled": true, "voice": "en-US-JennyNeural" }
   }
 }
 ```
@@ -219,12 +210,10 @@ pip install edge-tts
 ```json
 {
   "tts": {
-    "primary": "openai",
+    "provider": "openai",
     "auto": "always",
-    "providers": {
-      "openai":      { "api_key": "sk-...", "voice": "alloy" },
-      "elevenlabs":  { "api_key": "xi-...", "voice_id": "pMsXgVXv3BLzUgSXRplE" }
-    }
+    "openai":     { "api_key": "sk-...", "voice": "alloy" },
+    "elevenlabs": { "api_key": "xi-...", "voice_id": "pMsXgVXv3BLzUgSXRplE" }
   }
 }
 ```
@@ -235,7 +224,7 @@ pip install edge-tts
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `tts provider not found: edge` | Provider not in config | Add `providers.edge` section |
+| `tts provider not found: edge` | `enabled` not set | Add `"enabled": true` to `edge` section |
 | `edge-tts failed` | CLI not installed | `pip install edge-tts` |
 | `all tts providers failed` | All providers errored | Check API keys; inspect gateway logs |
 | No voice in Telegram | `auto` is `off` | Set `auto: "inbound"` or `"always"` |

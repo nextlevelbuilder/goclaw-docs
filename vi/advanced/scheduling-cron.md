@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-Dịch vụ cron của GoClaw cho phép bạn lên lịch cho bất kỳ agent nào chạy một tin nhắn theo lịch cố định. Các job được lưu vào file JSON trên đĩa nên tồn tại qua các lần khởi động lại. Scheduler kiểm tra các job đến hạn mỗi giây và thực thi chúng trong các goroutine song song.
+Dịch vụ cron của GoClaw cho phép bạn lên lịch cho bất kỳ agent nào chạy một tin nhắn theo lịch cố định. Các job được lưu vào PostgreSQL nên tồn tại qua các lần khởi động lại. Scheduler kiểm tra các job đến hạn mỗi giây và thực thi chúng trong các goroutine song song.
 
 Có ba loại lịch:
 
@@ -34,57 +34,81 @@ stateDiagram-v2
 
 Vào **Cron → New Job**, điền lịch, tin nhắn agent cần xử lý, và (tùy chọn) channel giao hàng.
 
-### Qua HTTP API
+### Qua Gateway WebSocket API
 
-```bash
-curl -X POST http://localhost:8080/v1/cron/jobs \
-  -H "Authorization: Bearer $GOCLAW_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
+GoClaw sử dụng WebSocket RPC. Gửi method call `cron.create`:
+
+```json
+{
+  "method": "cron.create",
+  "params": {
     "name": "daily-standup-summary",
     "schedule": {
       "kind": "cron",
       "expr": "0 9 * * 1-5",
       "tz": "Asia/Ho_Chi_Minh"
     },
-    "message": "Summarize yesterday'\''s GitHub activity and post a standup update.",
+    "message": "Summarize yesterday's GitHub activity and post a standup update.",
     "deliver": true,
     "channel": "telegram",
     "to": "123456789",
     "agentId": "3f2a1b4c-0000-0000-0000-000000000000"
-  }'
+  }
+}
 ```
 
 ### Qua tool `cron` tích hợp sẵn (job do agent tạo)
 
-Agent có thể tự lên lịch các task theo dõi trong quá trình hội thoại:
+Agent có thể tự lên lịch các task theo dõi trong quá trình hội thoại bằng tool `cron` với `action: "add"`:
 
+```json
+{
+  "action": "add",
+  "job": {
+    "name": "check-server-health",
+    "schedule": { "kind": "every", "everyMs": 300000 },
+    "message": "Check if the API server is responding and alert me if it's down."
+  }
+}
 ```
-# Agent gọi tool này nội bộ
-cron_add(
-  name="check-server-health",
-  schedule={"kind": "every", "everyMs": 300000},
-  message="Check if the API server is responding and alert me if it's down."
-)
+
+### Qua CLI
+
+```bash
+# Liệt kê job (chỉ hiện active)
+goclaw cron list
+
+# Liệt kê tất cả kể cả disabled
+goclaw cron list --all
+
+# Liệt kê dạng JSON
+goclaw cron list --json
+
+# Bật hoặc tắt job
+goclaw cron toggle <jobId> true
+goclaw cron toggle <jobId> false
+
+# Xóa job
+goclaw cron delete <jobId>
 ```
 
 ## Các trường Job
 
 | Trường | Kiểu | Mô tả |
 |---|---|---|
-| `name` | string | Nhãn dễ đọc |
-| `agentId` | string | Agent chạy job (bỏ trống để dùng agent mặc định) |
+| `name` | string | Slug nhận diện — chỉ dùng chữ thường, số, dấu gạch ngang (ví dụ: `daily-report`) |
+| `agentId` | string | UUID agent chạy job (bỏ trống để dùng agent mặc định) |
 | `enabled` | bool | `true` = đang hoạt động, `false` = tạm dừng |
 | `schedule.kind` | string | `at`, `every`, hoặc `cron` |
 | `schedule.atMs` | int64 | Unix timestamp tính bằng ms (cho `at`) |
 | `schedule.everyMs` | int64 | Khoảng thời gian tính bằng ms (cho `every`) |
 | `schedule.expr` | string | Biểu thức cron 5 trường (cho `cron`) |
-| `schedule.tz` | string | Múi giờ IANA cho cron, ví dụ `America/New_York` |
+| `schedule.tz` | string | Múi giờ IANA cho biểu thức cron; bỏ trống để dùng múi giờ mặc định của gateway |
 | `message` | string | Văn bản agent nhận làm đầu vào |
-| `deliver` | bool | `true` = giao trực tiếp đến channel; `false` = agent xử lý âm thầm |
-| `channel` | string | Channel đích: `telegram`, `discord`, v.v. |
-| `to` | string | Chat ID hoặc định danh người nhận |
-| `deleteAfterRun` | bool | Tự động đặt `true` cho job `at`; có thể đặt thủ công |
+| `deliver` | bool | `true` = giao kết quả đến channel; `false` = agent xử lý âm thầm. Tự động thành `true` khi job được tạo từ channel thực (Telegram, v.v.) |
+| `channel` | string | Channel đích: `telegram`, `discord`, v.v. Tự động điền từ context khi `deliver` là `true` |
+| `to` | string | Chat ID hoặc định danh người nhận. Tự động điền từ context khi `deliver` là `true` |
+| `deleteAfterRun` | bool | Tự động đặt `true` cho job `at`; có thể đặt thủ công cho bất kỳ job nào |
 
 ## Biểu thức lịch
 
@@ -134,31 +158,33 @@ Biểu thức được validate khi tạo bằng [gronx](https://github.com/adho
 
 ## Quản lý Job
 
-```bash
-# Liệt kê tất cả job
-GET /v1/cron/jobs
+GoClaw quản lý cron qua các WebSocket RPC method:
 
-# Lấy một job
-GET /v1/cron/jobs/{id}
+| Method | Mô tả |
+|---|---|
+| `cron.list` | Liệt kê job (`includeDisabled: true` để gồm cả disabled) |
+| `cron.create` | Tạo job mới |
+| `cron.update` | Cập nhật job (`jobId` + object `patch`) |
+| `cron.delete` | Xóa job (`jobId`) |
+| `cron.toggle` | Bật hoặc tắt job (`jobId` + `enabled: bool`) |
+| `cron.run` | Kích hoạt thủ công (`jobId` + `mode: "force"` hoặc `"due"`) |
+| `cron.runs` | Xem lịch sử chạy (`jobId`, `limit`, `offset`) |
+| `cron.status` | Trạng thái scheduler (số job active, cờ running) |
 
-# Cập nhật (patch từng phần)
-PATCH /v1/cron/jobs/{id}
-{
-  "schedule": { "kind": "cron", "expr": "0 10 * * *" }
-}
+**Ví dụ:**
 
-# Tạm dừng
-PATCH /v1/cron/jobs/{id}
-{ "enabled": false }
+```json
+// Tạm dừng job
+{ "method": "cron.toggle", "params": { "jobId": "<id>", "enabled": false } }
 
-# Xóa
-DELETE /v1/cron/jobs/{id}
+// Cập nhật lịch
+{ "method": "cron.update", "params": { "jobId": "<id>", "patch": { "schedule": { "kind": "cron", "expr": "0 10 * * *" } } } }
 
-# Kích hoạt thủ công (force = chạy bất kể lịch)
-POST /v1/cron/jobs/{id}/run?force=true
+// Kích hoạt thủ công (bất kể lịch)
+{ "method": "cron.run", "params": { "jobId": "<id>", "mode": "force" } }
 
-# Xem lịch sử chạy (mặc định 20 lần gần nhất)
-GET /v1/cron/jobs/{id}/log
+// Xem lịch sử chạy (mặc định 20 gần nhất)
+{ "method": "cron.runs", "params": { "jobId": "<id>", "limit": 20, "offset": 0 } }
 ```
 
 ## Vòng đời Job
@@ -168,7 +194,7 @@ GET /v1/cron/jobs/{id}/log
 - **Running** — đang thực thi agent turn; `nextRunAtMs` bị xóa cho đến khi thực thi xong để tránh chạy trùng.
 - **Completed (one-time)** — job `at` bị xóa khỏi store sau khi kích hoạt.
 
-Scheduler kiểm tra job mỗi 1 giây. Job đến hạn được dispatch trong các goroutine song song. 200 mục log chạy gần nhất được giữ trong bộ nhớ và truy cập được qua endpoint run-log.
+Scheduler kiểm tra job mỗi 1 giây. Job đến hạn được dispatch trong các goroutine song song. Run log được lưu vào bảng `cron_run_logs` trên PostgreSQL và truy cập được qua method `cron.runs`.
 
 Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job vẫn ở trạng thái enabled và sẽ thử lại vào lần tick tiếp theo (trừ khi là job một lần `at`).
 
@@ -219,8 +245,9 @@ Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job
 | `invalid cron expression` khi tạo | Biểu thức sai định dạng (ví dụ: cú pháp Quartz 6 trường) | Dùng cron 5 trường tiêu chuẩn |
 | `invalid timezone` | Chuỗi múi giờ IANA không hợp lệ | Dùng múi giờ hợp lệ từ database IANA tz, ví dụ `America/New_York` |
 | Job chạy nhưng agent không nhận tin nhắn | Trường `message` rỗng | Đặt `message` khác rỗng |
-| Thực thi trùng lặp | Clock skew giữa các lần khởi động lại (trường hợp hiếm gặp) | Kiểm tra `lastRunAtMs`; scheduler xóa `nextRunAtMs` trước khi dispatch để tránh việc này |
-| Run log trống | Job chưa kích hoạt lần nào | Kích hoạt thủ công bằng `POST /v1/cron/jobs/{id}/run?force=true` |
+| Lỗi validation `name` | Tên không phải slug hợp lệ | Dùng chữ thường, số, dấu gạch ngang (ví dụ: `daily-report`) |
+| Thực thi trùng lặp | Clock skew giữa các lần khởi động lại (trường hợp hiếm gặp) | Scheduler xóa `next_run_at` trong DB trước khi dispatch; khi khởi động lại, job stale được tự động recompute |
+| Run log trống | Job chưa kích hoạt lần nào | Kích hoạt thủ công qua method `cron.run` với `mode: "force"` |
 
 ## Tiếp theo
 

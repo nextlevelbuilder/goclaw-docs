@@ -39,7 +39,7 @@ flowchart TD
 
     MAP -->|Anthropic| ANTH["budget_tokens: 10,000\nHeader: anthropic-beta\nStrip temperature"]
     MAP -->|OpenAI-compat| OAI["reasoning_effort: medium"]
-    MAP -->|DashScope| DASH["enable_thinking: true\nbudget: 16,384\n⚠ No streaming with tools"]
+    MAP -->|DashScope| DASH["enable_thinking: true\nbudget: 16,384\n⚠ No streaming when tools present"]
 
     ANTH --> SEND["Send to LLM"]
     OAI --> SEND
@@ -81,7 +81,7 @@ Nội dung suy luận đến trong `reasoning_content` trong quá trình streami
 
 Thinking được bật qua `enable_thinking: true` cộng với tham số `thinking_budget`.
 
-**Giới hạn quan trọng**: DashScope không thể stream phản hồi khi có tool. Khi agent có tool được bật và thinking đang hoạt động, GoClaw tự động fallback sang chế độ non-streaming (một lần gọi `Chat()`) và tổng hợp các stream chunk callback để luồng sự kiện vẫn nhất quán cho client.
+**Giới hạn quan trọng**: DashScope không thể stream phản hồi khi có tool — đây là giới hạn ở cấp provider, không liên quan đến thinking. Bất cứ khi nào agent có tool được định nghĩa, GoClaw tự động fallback sang chế độ non-streaming (một lần gọi `Chat()`) và tổng hợp các stream chunk callback để luồng sự kiện vẫn nhất quán cho client.
 
 ---
 
@@ -133,7 +133,7 @@ flowchart TD
 
 | Provider | Giới hạn |
 |----------|-----------|
-| DashScope | Không thể stream khi có tool — fallback sang non-streaming |
+| DashScope | Không thể stream khi có tool (giới hạn provider, không phải thinking) — fallback sang non-streaming |
 | Anthropic | `temperature` bị xóa khi thinking được bật |
 | Tất cả | Token thinking được tính vào budget context window |
 | Tất cả | Thinking tăng độ trễ và chi phí tỉ lệ với mức budget |
@@ -191,7 +191,7 @@ Cài đặt này đặt `budget_tokens: 32,000`. Dùng cho các tác vụ yêu c
 | Vấn đề | Nguyên nhân | Giải pháp |
 |-------|-------|-----|
 | `temperature` bị xóa bất ngờ | Anthropic thinking được bật | Hành vi bình thường — Anthropic yêu cầu không có temperature khi thinking |
-| Agent DashScope chậm với tools | Streaming bị tắt khi có thinking + tools | Bình thường — giới hạn DashScope; giảm số tool hoặc tắt thinking |
+| Agent DashScope chậm với tools | Streaming luôn bị tắt khi có tools | Bình thường — giới hạn provider DashScope; giảm số tool nếu cần giảm độ trễ |
 | Sử dụng context cao | Token thinking lấp đầy cửa sổ | Dùng mức `low` hoặc `medium`; theo dõi % context trong log |
 | Không thấy đầu ra thinking | Thinking là nội bộ theo mặc định | Reasoning chunk được stream riêng; kiểm tra sự kiện WebSocket phía client |
 | Thinking không có tác dụng | Provider không hỗ trợ thinking | Kiểm tra loại provider — chỉ Anthropic, OpenAI-compat, và DashScope được hỗ trợ |

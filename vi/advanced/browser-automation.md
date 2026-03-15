@@ -44,11 +44,17 @@ services:
     ports:
       - "${CHROME_CDP_PORT:-9222}:9222"
     shm_size: 2gb
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9222/json/version >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     deploy:
       resources:
         limits:
           memory: 2G
           cpus: '2.0'
+    restart: unless-stopped
 
   goclaw:
     environment:
@@ -100,26 +106,26 @@ Quy trình chuẩn là:
 |--------|-------------|----------------|
 | `status` | Trạng thái chạy và số tab của trình duyệt | — |
 | `start` | Khởi chạy hoặc kết nối trình duyệt | — |
-| `stop` | Đóng trình duyệt | — |
+| `stop` | Đóng trình duyệt local hoặc ngắt kết nối remote sidecar (container sidecar vẫn chạy) | — |
 | `tabs` | Liệt kê các tab đang mở với URL | — |
 | `open` | Mở URL trong tab mới | `targetUrl` |
 | `close` | Đóng một tab | `targetId` |
 | `snapshot` | Lấy accessibility tree với ref phần tử | `targetId` (tùy chọn) |
 | `screenshot` | Chụp ảnh PNG | `targetId`, `fullPage` |
 | `navigate` | Điều hướng tab hiện tại đến URL | `targetId`, `targetUrl` |
-| `console` | Lấy tin nhắn console của trình duyệt | `targetId` |
+| `console` | Lấy tin nhắn console của trình duyệt (buffer bị xóa sau mỗi lần gọi) | `targetId` |
 | `act` | Tương tác với một phần tử | đối tượng `request` |
 
 ### Các loại Act Request
 
-| Kind | Chức năng | Trường bắt buộc |
-|------|-------------|----------------|
-| `click` | Click vào phần tử | `ref` |
-| `type` | Gõ văn bản vào phần tử | `ref`, `text` |
-| `press` | Nhấn phím bàn phím | `key` (ví dụ: `"Enter"`) |
-| `hover` | Hover qua phần tử | `ref` |
-| `wait` | Chờ điều kiện | `timeMs`, `text`, `url`, hoặc `fn` |
-| `evaluate` | Chạy JavaScript và trả về kết quả | `fn` |
+| Kind | Chức năng | Trường bắt buộc | Trường tùy chọn |
+|------|-------------|----------------|----------------|
+| `click` | Click vào phần tử | `ref` | `doubleClick` (bool), `button` (`"left"`, `"right"`, `"middle"`) |
+| `type` | Gõ văn bản vào phần tử | `ref`, `text` | `submit` (bool — nhấn Enter sau khi gõ), `slowly` (bool — gõ từng ký tự) |
+| `press` | Nhấn phím bàn phím | `key` (ví dụ: `"Enter"`, `"Tab"`, `"Escape"`) | — |
+| `hover` | Hover qua phần tử | `ref` | — |
+| `wait` | Chờ điều kiện | một trong: `timeMs`, `text`, `textGone`, `url`, hoặc `fn` | — |
+| `evaluate` | Chạy JavaScript và trả về kết quả | `fn` | — |
 
 ---
 

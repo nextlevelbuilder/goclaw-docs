@@ -80,6 +80,39 @@ Response:
 
 Sessions with zero tokens are excluded from both responses.
 
+### HTTP REST API — analytics from snapshots
+
+GoClaw also exposes a REST API for historical usage analytics, backed by the `usage_snapshots` table (pre-aggregated hourly). All endpoints require a Bearer token if `gateway.token` is set.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /v1/usage/timeseries` | Token and request counts over time, bucketed by hour (default) |
+| `GET /v1/usage/breakdown` | Aggregated breakdown grouped by `provider`, `model`, or `channel` |
+| `GET /v1/usage/summary` | Current vs previous period summary with delta stats |
+
+**Common query parameters:**
+
+| Parameter | Example | Notes |
+|-----------|---------|-------|
+| `from` | `2026-03-01T00:00:00Z` | RFC 3339, required for timeseries/breakdown |
+| `to` | `2026-03-15T23:59:59Z` | RFC 3339, required for timeseries/breakdown |
+| `group_by` | `hour`, `provider`, `model`, `channel` | Defaults vary per endpoint |
+| `agent_id` | UUID | Filter by agent |
+| `provider` | `anthropic` | Filter by provider |
+| `model` | `claude-sonnet-4-5` | Filter by model |
+| `channel` | `telegram` | Filter by channel |
+
+**`GET /v1/usage/summary`** additionally accepts `period`:
+
+| `period` value | Description |
+|----------------|-------------|
+| `24h` (default) | Last 24 hours vs preceding 24 hours |
+| `today` | Calendar day vs previous calendar day |
+| `7d` | Last 7 days vs preceding 7 days |
+| `30d` | Last 30 days vs preceding 30 days |
+
+The timeseries endpoint gap-fills the current incomplete hour by querying live traces directly, so the latest data point is always up to date.
+
 ---
 
 ## Quota Enforcement
@@ -143,6 +176,7 @@ Response when quota is enabled:
   "requestsToday": 284,
   "inputTokensToday": 1240000,
   "outputTokensToday": 310000,
+  "costToday": 1.84,
   "uniqueUsersToday": 12,
   "entries": [
     {
@@ -155,13 +189,15 @@ Response when quota is enabled:
 }
 ```
 
-When quota is disabled (`"enabled": false`), the response still includes today's aggregate stats (`requestsToday`, `inputTokensToday`, etc.) — the `entries` array is empty and `"enabled": false`.
+`entries` is capped at 50 users (the top 50 by weekly request count).
+
+When quota is disabled (`"enabled": false`), the response still includes today's aggregate stats (`requestsToday`, `inputTokensToday`, `costToday`, etc.) — the `entries` array is empty and `"enabled": false`.
 
 ---
 
 ## Webhook Rate Limiting (Channel Layer)
 
-Separate from per-user quota, there is a webhook-level rate limiter that protects against incoming webhook floods. It uses a sliding 60-second window with a hard cap of **30 requests per key** per window. Up to **4096 unique keys** are tracked simultaneously; beyond that, oldest entries are evicted.
+Separate from per-user quota, there is a webhook-level rate limiter that protects against incoming webhook floods. It uses a fixed 60-second window with a hard cap of **30 requests per key** per window. Up to **4096 unique keys** are tracked simultaneously; beyond that, oldest entries are evicted.
 
 This rate limiter operates at the HTTP webhook receiver layer, before messages reach the agent. It is not configurable — it is a fixed DoS protection measure.
 

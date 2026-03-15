@@ -4,24 +4,24 @@
 
 ## Overview
 
-When sandbox mode is enabled, every `exec` or shell tool call is routed into a Docker container instead of running directly on the host. The container is ephemeral, network-isolated, and heavily restricted by default — dropped capabilities, read-only root filesystem, tmpfs for `/tmp`, and a 512 MB memory cap.
+When sandbox mode is enabled, every tool call that touches the filesystem or runs a command (`exec`, `read_file`, `write_file`, `list_files`, `edit`) is routed into a Docker container instead of running directly on the host. The container is ephemeral, network-isolated, and heavily restricted by default — dropped capabilities, read-only root filesystem, tmpfs for `/tmp`, and a 512 MB memory cap.
 
 If Docker is unavailable at runtime, GoClaw falls back to host execution and logs a warning.
 
 ```mermaid
 graph LR
-    Agent -->|exec tool call| ExecTool
-    ExecTool -->|sandbox enabled| DockerManager
+    Agent -->|exec / read_file / write_file\nlist_files / edit| Tools
+    Tools -->|sandbox enabled| DockerManager
     DockerManager -->|Get or Create| Container["Docker Container\ngoclaw-sbx-*"]
     Container -->|docker exec| Command
-    Command -->|stdout/stderr| ExecTool
-    ExecTool -->|result| Agent
-    ExecTool -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
+    Command -->|stdout/stderr| Tools
+    Tools -->|result| Agent
+    Tools -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
 ```
 
 ## Sandbox Modes
 
-Set `GOCLAW_SANDBOX_MODE` (or `sandbox.mode` in config) to one of:
+Set `GOCLAW_SANDBOX_MODE` (or `agents.defaults.sandbox.mode` in config) to one of:
 
 | Mode | Which agents are sandboxed |
 |---|---|
@@ -61,7 +61,7 @@ If a command produces more than 1 MB of output, the output is truncated and `...
 
 ## Configuration
 
-All settings can be provided as environment variables or in `config.json` under a `sandbox` key.
+All settings can be provided as environment variables or in `config.json` under `agents.defaults.sandbox`.
 
 ### Environment variables
 
@@ -80,22 +80,24 @@ GOCLAW_SANDBOX_NETWORK=false
 
 ```json
 {
-  "sandbox": {
-    "mode": "all",
-    "image": "goclaw-sandbox:bookworm-slim",
-    "workspace_access": "rw",
-    "scope": "session",
-    "memory_mb": 512,
-    "cpus": 1.0,
-    "timeout_sec": 300,
-    "network_enabled": false,
-    "read_only_root": true,
-    "cap_drop": ["ALL"],
-    "tmpfs": ["/tmp", "/var/tmp", "/run"],
-    "max_output_bytes": 1048576,
-    "idle_hours": 24,
-    "max_age_days": 7,
-    "prune_interval_min": 5
+  "agents": {
+    "defaults": {
+      "sandbox": {
+        "mode": "all",
+        "image": "goclaw-sandbox:bookworm-slim",
+        "workspace_access": "rw",
+        "scope": "session",
+        "memory_mb": 512,
+        "cpus": 1.0,
+        "timeout_sec": 300,
+        "network_enabled": false,
+        "read_only_root": true,
+        "max_output_bytes": 1048576,
+        "idle_hours": 24,
+        "max_age_days": 7,
+        "prune_interval_min": 5
+      }
+    }
   }
 }
 ```
@@ -112,20 +114,17 @@ GOCLAW_SANDBOX_NETWORK=false
 | `cpus` | float | 1.0 | CPU quota |
 | `timeout_sec` | int | 300 | Per-command timeout in seconds |
 | `network_enabled` | bool | false | Enable container networking |
-| `restricted_domains` | string[] | — | Allowed domains when network is enabled |
 | `read_only_root` | bool | true | Mount root filesystem read-only |
-| `cap_drop` | string[] | `["ALL"]` | Linux capabilities to drop |
-| `tmpfs` | string[] | `/tmp`, `/var/tmp`, `/run` | Writable tmpfs mounts |
 | `tmpfs_size_mb` | int | 0 | Default size for tmpfs mounts (0 = Docker default) |
-| `pids_limit` | int | 0 | Max PIDs in container (0 = unlimited) |
 | `user` | string | — | Container user, e.g. `1000:1000` or `nobody` |
 | `max_output_bytes` | int | 1048576 | Max stdout+stderr capture per exec (1 MB) |
 | `setup_command` | string | — | Shell command run once after container creation |
-| `container_prefix` | string | `goclaw-sbx-` | Prefix for container names |
-| `workdir` | string | `/workspace` | Container working directory |
+| `env` | object | — | Extra environment variables injected into the container |
 | `idle_hours` | int | 24 | Prune containers idle longer than N hours |
 | `max_age_days` | int | 7 | Prune containers older than N days |
 | `prune_interval_min` | int | 5 | Background prune check interval (minutes) |
+
+Security hardening defaults (`--cap-drop ALL`, `--tmpfs /tmp:/var/tmp:/run`, `--security-opt no-new-privileges`) are applied automatically and are not overridable via config.
 
 ## Workspace Access
 
@@ -178,8 +177,14 @@ services:
       - GOCLAW_SANDBOX_WORKSPACE_ACCESS=rw
       - GOCLAW_SANDBOX_SCOPE=session
       - GOCLAW_SANDBOX_MEMORY_MB=512
+      - GOCLAW_SANDBOX_CPUS=1.0
       - GOCLAW_SANDBOX_TIMEOUT_SEC=300
       - GOCLAW_SANDBOX_NETWORK=false
+    # Allow Docker socket access from the goclaw container
+    cap_drop: []
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt: []
     group_add:
       - ${DOCKER_GID:-999}
 ```
@@ -200,12 +205,16 @@ The `main` and `default` agents run commands on the host. All other agents (sub-
 
 ```json
 {
-  "sandbox": {
-    "mode": "all",
-    "workspace_access": "ro",
-    "setup_command": "pip install -q pandas numpy",
-    "memory_mb": 1024,
-    "timeout_sec": 120
+  "agents": {
+    "defaults": {
+      "sandbox": {
+        "mode": "all",
+        "workspace_access": "ro",
+        "setup_command": "pip install -q pandas numpy",
+        "memory_mb": 1024,
+        "timeout_sec": 120
+      }
+    }
   }
 }
 ```
@@ -214,20 +223,10 @@ The `setup_command` runs once after the container is created. Use it to pre-inst
 
 ### Check active sandbox containers
 
-```bash
-GET /v1/sandbox/stats
-```
+GoClaw does not expose a public HTTP endpoint for sandbox stats. You can inspect running containers directly with Docker:
 
-```json
-{
-  "mode": "all",
-  "image": "goclaw-sandbox:bookworm-slim",
-  "active": 3,
-  "containers": {
-    "agent:session-abc123": "a1b2c3d4e5f6",
-    "agent:session-def456": "b2c3d4e5f6a1"
-  }
-}
+```bash
+docker ps --filter "label=goclaw.sandbox=true"
 ```
 
 ## Common Issues

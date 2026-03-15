@@ -76,10 +76,10 @@ flowchart TD
     G -->|allow-once| C
     G -->|allow-always| H["Add binary to dynamic allow list"] --> C
     G -->|deny| D
-    E -->|timeout 5 min| D
+    E -->|timeout 2 min| D
 ```
 
-Goroutine của agent bị chặn cho đến khi bạn phản hồi. Nếu không có phản hồi trong 5 phút, yêu cầu tự động bị từ chối.
+Goroutine của agent bị chặn cho đến khi bạn phản hồi. Nếu không có phản hồi trong 2 phút, yêu cầu tự động bị từ chối.
 
 ---
 
@@ -90,7 +90,7 @@ Kết nối vào gateway WebSocket. Các phương thức này yêu cầu quyền
 ### Liệt kê các approval đang chờ
 
 ```json
-{ "type": "req", "id": "1", "method": "exec.approvals.list" }
+{ "type": "req", "id": "1", "method": "exec.approval.list" }
 ```
 
 Phản hồi:
@@ -114,7 +114,7 @@ Phản hồi:
 {
   "type": "req",
   "id": "2",
-  "method": "exec.approvals.approve",
+  "method": "exec.approval.approve",
   "params": {
     "id": "exec-1",
     "always": false
@@ -122,7 +122,7 @@ Phản hồi:
 }
 ```
 
-Đặt `"always": true` để luôn cho phép binary này trong suốt thời gian sống của session (thêm vào dynamic allow list).
+Đặt `"always": true` để luôn cho phép binary này trong suốt vòng đời của process (thêm vào dynamic allow list).
 
 ### Từ chối lệnh
 
@@ -130,7 +130,7 @@ Phản hồi:
 {
   "type": "req",
   "id": "3",
-  "method": "exec.approvals.deny",
+  "method": "exec.approval.deny",
   "params": { "id": "exec-1" }
 }
 ```
@@ -188,7 +188,7 @@ Phản hồi:
 |---------|-------|-----|
 | Không có prompt phê duyệt xuất hiện | `ask` là `"off"` (mặc định) | Đặt `ask` thành `"on-miss"` hoặc `"always"` |
 | Lệnh bị từ chối mà không có prompt | `security = "allowlist"`, lệnh không trong allowlist, `ask = "off"` | Thêm vào `allowlist` hoặc đổi `ask` thành `"on-miss"` |
-| Yêu cầu phê duyệt hết hạn | Operator không phản hồi trong 5 phút | Lệnh tự động bị từ chối; agent có thể thử lại hoặc nhờ bạn chạy lại |
+| Yêu cầu phê duyệt hết hạn | Operator không phản hồi trong 2 phút | Lệnh tự động bị từ chối; agent có thể thử lại hoặc nhờ bạn chạy lại |
 | `exec approval is not enabled` | Không có block `execApproval` trong config, method vẫn được gọi | Thêm phần `tools.execApproval` vào config |
 | Lỗi `id is required` | Gọi approve/deny mà không truyền `id` phê duyệt | Thêm `"id": "exec-N"` trong params (từ phản hồi list) |
 

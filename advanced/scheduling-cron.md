@@ -4,7 +4,7 @@
 
 ## Overview
 
-GoClaw's cron service lets you schedule any agent to run a message on a fixed schedule. Jobs are persisted to a JSON file on disk, so they survive restarts. The scheduler checks for due jobs every second and executes them in parallel goroutines.
+GoClaw's cron service lets you schedule any agent to run a message on a fixed schedule. Jobs are persisted to PostgreSQL, so they survive restarts. The scheduler checks for due jobs every second and executes them in parallel goroutines.
 
 Three schedule types are available:
 
@@ -32,57 +32,81 @@ stateDiagram-v2
 
 Go to **Cron → New Job**, fill in the schedule, the message the agent should process, and (optionally) a delivery channel.
 
-### Via the HTTP API
+### Via the Gateway WebSocket API
 
-```bash
-curl -X POST http://localhost:8080/v1/cron/jobs \
-  -H "Authorization: Bearer $GOCLAW_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
+GoClaw uses WebSocket RPC. Send a `cron.create` method call:
+
+```json
+{
+  "method": "cron.create",
+  "params": {
     "name": "daily-standup-summary",
     "schedule": {
       "kind": "cron",
       "expr": "0 9 * * 1-5",
       "tz": "Asia/Ho_Chi_Minh"
     },
-    "message": "Summarize yesterday'\''s GitHub activity and post a standup update.",
+    "message": "Summarize yesterday's GitHub activity and post a standup update.",
     "deliver": true,
     "channel": "telegram",
     "to": "123456789",
     "agentId": "3f2a1b4c-0000-0000-0000-000000000000"
-  }'
+  }
+}
 ```
 
 ### Via the `cron` built-in tool (agent-created jobs)
 
-Agents can schedule their own follow-up tasks during a conversation:
+Agents can schedule their own follow-up tasks during a conversation using the `cron` tool with `action: "add"`:
 
+```json
+{
+  "action": "add",
+  "job": {
+    "name": "check-server-health",
+    "schedule": { "kind": "every", "everyMs": 300000 },
+    "message": "Check if the API server is responding and alert me if it's down."
+  }
+}
 ```
-# Agent calls this tool internally
-cron_add(
-  name="check-server-health",
-  schedule={"kind": "every", "everyMs": 300000},
-  message="Check if the API server is responding and alert me if it's down."
-)
+
+### Via the CLI
+
+```bash
+# List jobs (active only)
+goclaw cron list
+
+# List all jobs including disabled
+goclaw cron list --all
+
+# List as JSON
+goclaw cron list --json
+
+# Enable or disable a job
+goclaw cron toggle <jobId> true
+goclaw cron toggle <jobId> false
+
+# Delete a job
+goclaw cron delete <jobId>
 ```
 
 ## Job Fields
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Human-readable label |
-| `agentId` | string | Agent to run the job (omit for default agent) |
+| `name` | string | Slug label — lowercase letters, numbers, hyphens only (e.g. `daily-report`) |
+| `agentId` | string | Agent UUID to run the job (omit for default agent) |
 | `enabled` | bool | `true` = active, `false` = paused |
 | `schedule.kind` | string | `at`, `every`, or `cron` |
 | `schedule.atMs` | int64 | Unix timestamp in ms (for `at`) |
 | `schedule.everyMs` | int64 | Interval in ms (for `every`) |
 | `schedule.expr` | string | 5-field cron expression (for `cron`) |
-| `schedule.tz` | string | IANA timezone for cron, e.g. `America/New_York` |
+| `schedule.tz` | string | IANA timezone for cron expressions; omit to use the gateway default timezone |
 | `message` | string | Text the agent receives as its input |
-| `deliver` | bool | `true` = deliver directly to a channel; `false` = agent processes silently |
-| `channel` | string | Target channel: `telegram`, `discord`, etc. |
-| `to` | string | Chat ID or recipient identifier |
-| `deleteAfterRun` | bool | Auto-set to `true` for `at` jobs; can be set manually |
+| `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.) |
+| `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
+| `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
+| `deleteAfterRun` | bool | Auto-set to `true` for `at` jobs; can be set manually on any job |
 
 ## Schedule Expressions
 
@@ -132,31 +156,33 @@ Expressions are validated at creation time using [gronx](https://github.com/adho
 
 ## Managing Jobs
 
-```bash
-# List all jobs
-GET /v1/cron/jobs
+GoClaw exposes cron management via WebSocket RPC methods. The available methods are:
 
-# Get a single job
-GET /v1/cron/jobs/{id}
+| Method | Description |
+|---|---|
+| `cron.list` | List jobs (`includeDisabled: true` to include disabled) |
+| `cron.create` | Create a new job |
+| `cron.update` | Update a job (`jobId` + `patch` object) |
+| `cron.delete` | Delete a job (`jobId`) |
+| `cron.toggle` | Enable or disable a job (`jobId` + `enabled: bool`) |
+| `cron.run` | Trigger a job manually (`jobId` + `mode: "force"` or `"due"`) |
+| `cron.runs` | View run history (`jobId`, `limit`, `offset`) |
+| `cron.status` | Scheduler status (active job count, running flag) |
 
-# Update (partial patch)
-PATCH /v1/cron/jobs/{id}
-{
-  "schedule": { "kind": "cron", "expr": "0 10 * * *" }
-}
+**Examples:**
 
-# Pause
-PATCH /v1/cron/jobs/{id}
-{ "enabled": false }
+```json
+// Pause a job
+{ "method": "cron.toggle", "params": { "jobId": "<id>", "enabled": false } }
 
-# Delete
-DELETE /v1/cron/jobs/{id}
+// Update schedule
+{ "method": "cron.update", "params": { "jobId": "<id>", "patch": { "schedule": { "kind": "cron", "expr": "0 10 * * *" } } } }
 
-# Manual trigger (force = run regardless of schedule)
-POST /v1/cron/jobs/{id}/run?force=true
+// Manual trigger (run regardless of schedule)
+{ "method": "cron.run", "params": { "jobId": "<id>", "mode": "force" } }
 
-# View run history (last 20 by default)
-GET /v1/cron/jobs/{id}/log
+// View run history (last 20 entries by default)
+{ "method": "cron.runs", "params": { "jobId": "<id>", "limit": 20, "offset": 0 } }
 ```
 
 ## Job Lifecycle
@@ -166,7 +192,7 @@ GET /v1/cron/jobs/{id}/log
 - **Running** — executing the agent turn; `nextRunAtMs` is cleared until execution completes to prevent duplicate runs.
 - **Completed (one-time)** — `at` jobs are deleted from the store after firing.
 
-The scheduler checks jobs every 1 second. Due jobs are dispatched in parallel goroutines. The last 200 run log entries are kept in memory and accessible via the run-log endpoint.
+The scheduler checks jobs every 1 second. Due jobs are dispatched in parallel goroutines. Run logs are persisted to the `cron_run_logs` PostgreSQL table and accessible via the `cron.runs` method.
 
 Failed jobs record `lastStatus: "error"` and `lastError` with the message. The job stays enabled and will retry on its next scheduled tick (unless it was a one-time `at` job).
 
@@ -217,8 +243,9 @@ Failed jobs record `lastStatus: "error"` and `lastError` with the message. The j
 | `invalid cron expression` on create | Malformed expr (e.g. 6-field Quartz syntax) | Use standard 5-field cron |
 | `invalid timezone` | Unknown IANA zone string | Use a valid zone from the IANA tz database, e.g. `America/New_York` |
 | Job runs but agent gets no message | `message` field is empty | Set a non-empty `message` |
-| Duplicate executions | Clock skew between restarts (edge case) | Check `lastRunAtMs`; the scheduler clears `nextRunAtMs` before dispatch to prevent this |
-| Run log is empty | Job hasn't fired yet | Trigger manually with `POST /v1/cron/jobs/{id}/run?force=true` |
+| `name` validation error | Name not a valid slug | Use lowercase letters, numbers, and hyphens only (e.g. `daily-report`) |
+| Duplicate executions | Clock skew between restarts (edge case) | The scheduler clears `next_run_at` in the DB before dispatch; on restart, stale jobs are recomputed automatically |
+| Run log is empty | Job hasn't fired yet | Trigger manually via `cron.run` method with `mode: "force"` |
 
 ## What's Next
 

@@ -4,7 +4,9 @@
 
 ## Overview
 
-GoClaw's hook system lets you attach quality gates to agent lifecycle events. A hook is a check that runs at a specific event (e.g. after a subagent completes a delegation). If the check fails, GoClaw can block the result and optionally retry with feedback.
+GoClaw's hook system lets you attach quality gates to agent lifecycle events. A hook is a check that runs at a specific event. Currently the only supported event is `delegation.completed`, which fires after a subagent finishes a delegated task. If the check fails, GoClaw can block the result and optionally retry with feedback.
+
+Quality gates are configured in the **source agent's** `other_config` JSON under the `quality_gates` key. The source agent is the one that initiates the delegation (the orchestrator), not the target.
 
 Two evaluator types are available:
 
@@ -17,25 +19,31 @@ Two evaluator types are available:
 
 ## Hook Config Fields
 
+Quality gates are placed inside the source agent's `other_config` under the `quality_gates` array:
+
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "./scripts/check-output.sh",
-  "block_on_failure": true,
-  "max_retries": 2,
-  "timeout_seconds": 60
+  "quality_gates": [
+    {
+      "event": "delegation.completed",
+      "type": "command",
+      "command": "./scripts/check-output.sh",
+      "block_on_failure": true,
+      "max_retries": 2,
+      "timeout_seconds": 60
+    }
+  ]
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `event` | string | Lifecycle event that triggers this hook (e.g. `"delegation.completed"`) |
+| `event` | string | Lifecycle event that triggers this hook — only `"delegation.completed"` is currently supported |
 | `type` | string | `"command"` or `"agent"` |
 | `command` | string | Shell command to run (type=command only) |
 | `agent` | string | Reviewer agent key (type=agent only) |
-| `block_on_failure` | bool | If `true`, a failing hook stops execution; if `false`, failure is logged but continues |
-| `max_retries` | int | How many times to retry after a blocking failure (0 = no retry) |
+| `block_on_failure` | bool | If `true`, a failing hook triggers retries; if `false`, failure is logged but execution continues |
+| `max_retries` | int | How many times to retry the target agent after a blocking failure (0 = no retry) |
 | `timeout_seconds` | int | Per-hook timeout (default 60s) |
 
 ---
@@ -53,7 +61,7 @@ flowchart TD
     EVAL2 -->|pass| NEXT
 ```
 
-The engine evaluates hooks in order. The first **blocking** failure stops evaluation and returns the failure result. Non-blocking failures are logged but do not interrupt the flow. If all hooks pass (or none match the event), execution continues normally.
+The engine evaluates quality gates in order. A **blocking** failure triggers the retry loop for that gate (up to `max_retries`). If all retries are exhausted, GoClaw logs a warning and accepts the last result — it does not hard-fail the delegation. Non-blocking failures are logged but do not interrupt the flow. If all hooks pass (or none match the event), execution continues normally.
 
 ---
 
@@ -158,11 +166,11 @@ Respond with EXACTLY one of:
 
 ## Examples
 
-**Two-hook setup: format check then agent review:**
+**Two-gate setup: format check then agent review** (source agent's `other_config`):
 
 ```json
 {
-  "hooks": [
+  "quality_gates": [
     {
       "event": "delegation.completed",
       "type": "command",
@@ -183,15 +191,19 @@ Respond with EXACTLY one of:
 }
 ```
 
-**Non-blocking audit logger:**
+**Non-blocking audit logger** (source agent's `other_config`):
 
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "curl -s -X POST https://audit.internal/log -d @-",
-  "block_on_failure": false,
-  "timeout_seconds": 5
+  "quality_gates": [
+    {
+      "event": "delegation.completed",
+      "type": "command",
+      "command": "curl -s -X POST https://audit.internal/log -d @-",
+      "block_on_failure": false,
+      "timeout_seconds": 5
+    }
+  ]
 }
 ```
 
@@ -204,7 +216,7 @@ Respond with EXACTLY one of:
 | `hooks: unknown hook type, skipping` | Typo in `type` field | Use `"command"` or `"agent"` exactly |
 | Command always passes even with exit 1 | Wrapper script swallows exit code | Ensure script doesn't have `|| true` masking failures |
 | Agent evaluator hangs | Reviewer agent slow or stuck | Set `timeout_seconds` to a reasonable value |
-| Infinite retry loop | `max_retries` too high + agent can't fix it | Cap `max_retries` at 2–3; add escape conditions |
+| Retries exhaust but flow continues | Expected behavior — GoClaw accepts the last result after max retries and logs a warning | Lower `max_retries` or fix the quality gate condition |
 | Hooks fire on reviewer agent itself | Recursion | GoClaw injects `WithSkipHooks` for agent evaluator calls automatically |
 | Non-blocking hook blocks anyway | `block_on_failure: true` set accidentally | Check config; set to `false` for observe-only hooks |
 

@@ -42,11 +42,17 @@ services:
     ports:
       - "${CHROME_CDP_PORT:-9222}:9222"
     shm_size: 2gb
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9222/json/version >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     deploy:
       resources:
         limits:
           memory: 2G
           cpus: '2.0'
+    restart: unless-stopped
 
   goclaw:
     environment:
@@ -98,26 +104,26 @@ The standard workflow is:
 |--------|-------------|----------------|
 | `status` | Browser running state and tab count | — |
 | `start` | Launch or connect browser | — |
-| `stop` | Close browser | — |
+| `stop` | Close local browser or disconnect from remote sidecar (sidecar container keeps running) | — |
 | `tabs` | List open tabs with URLs | — |
 | `open` | Open URL in new tab | `targetUrl` |
 | `close` | Close a tab | `targetId` |
 | `snapshot` | Get accessibility tree with element refs | `targetId` (optional) |
 | `screenshot` | Capture PNG screenshot | `targetId`, `fullPage` |
 | `navigate` | Navigate existing tab to URL | `targetId`, `targetUrl` |
-| `console` | Get browser console messages | `targetId` |
+| `console` | Get browser console messages (buffer is cleared after each call) | `targetId` |
 | `act` | Interact with an element | `request` object |
 
 ### Act Request Kinds
 
-| Kind | What it does | Required fields |
-|------|-------------|----------------|
-| `click` | Click an element | `ref` |
-| `type` | Type text into an element | `ref`, `text` |
-| `press` | Press a keyboard key | `key` (e.g. `"Enter"`) |
-| `hover` | Hover over an element | `ref` |
-| `wait` | Wait for condition | `timeMs`, `text`, `url`, or `fn` |
-| `evaluate` | Run JavaScript and return result | `fn` |
+| Kind | What it does | Required fields | Optional fields |
+|------|-------------|----------------|----------------|
+| `click` | Click an element | `ref` | `doubleClick` (bool), `button` (`"left"`, `"right"`, `"middle"`) |
+| `type` | Type text into an element | `ref`, `text` | `submit` (bool — press Enter after), `slowly` (bool — character-by-character) |
+| `press` | Press a keyboard key | `key` (e.g. `"Enter"`, `"Tab"`, `"Escape"`) | — |
+| `hover` | Hover over an element | `ref` | — |
+| `wait` | Wait for condition | one of: `timeMs`, `text`, `textGone`, `url`, or `fn` | — |
+| `evaluate` | Run JavaScript and return result | `fn` | — |
 
 ---
 

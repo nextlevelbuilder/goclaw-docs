@@ -74,10 +74,10 @@ flowchart TD
     G -->|allow-once| C
     G -->|allow-always| H["Add binary to dynamic allow list"] --> C
     G -->|deny| D
-    E -->|timeout 5 min| D
+    E -->|timeout 2 min| D
 ```
 
-The agent goroutine blocks until you respond. If no response comes within 5 minutes, the request auto-denies.
+The agent goroutine blocks until you respond. If no response comes within 2 minutes, the request auto-denies.
 
 ---
 
@@ -88,7 +88,7 @@ Connect to the gateway WebSocket. These methods require **Operator** or **Admin*
 ### List pending approvals
 
 ```json
-{ "type": "req", "id": "1", "method": "exec.approvals.list" }
+{ "type": "req", "id": "1", "method": "exec.approval.list" }
 ```
 
 Response:
@@ -112,7 +112,7 @@ Response:
 {
   "type": "req",
   "id": "2",
-  "method": "exec.approvals.approve",
+  "method": "exec.approval.approve",
   "params": {
     "id": "exec-1",
     "always": false
@@ -120,7 +120,7 @@ Response:
 }
 ```
 
-Set `"always": true` to permanently allow this binary for the lifetime of the session (adds it to the dynamic allow list).
+Set `"always": true` to permanently allow this binary for the lifetime of the process (adds it to the dynamic allow list).
 
 ### Deny a command
 
@@ -128,7 +128,7 @@ Set `"always": true` to permanently allow this binary for the lifetime of the se
 {
   "type": "req",
   "id": "3",
-  "method": "exec.approvals.deny",
+  "method": "exec.approval.deny",
   "params": { "id": "exec-1" }
 }
 ```
@@ -186,7 +186,7 @@ Set `"always": true` to permanently allow this binary for the lifetime of the se
 |---------|-------|-----|
 | No approval prompt appears | `ask` is `"off"` (default) | Set `ask` to `"on-miss"` or `"always"` |
 | Command denied with no prompt | `security = "allowlist"`, command not in allowlist, `ask = "off"` | Add to `allowlist` or change `ask` to `"on-miss"` |
-| Approval request timed out | Operator didn't respond within 5 minutes | Command is auto-denied; agent may retry or ask you to re-run |
+| Approval request timed out | Operator didn't respond within 2 minutes | Command is auto-denied; agent may retry or ask you to re-run |
 | `exec approval is not enabled` | No `execApproval` block in config, method called anyway | Add `tools.execApproval` section to config |
 | `id is required` error | Calling approve/deny without passing the approval `id` | Include `"id": "exec-N"` in params (from the list response) |
 

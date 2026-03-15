@@ -97,7 +97,7 @@ Set `GOCLAW_TOKEN` to authenticate the CLI request if the gateway requires a tok
 
 This calls `POST /v1/auth/openai/logout`, which:
 
-1. Deletes the access token from `llm_providers`
+1. Deletes the `openai-codex` provider row from `llm_providers`
 2. Deletes the refresh token from `config_secrets`
 3. Unregisters the `openai-codex` provider from the in-memory registry
 
@@ -109,10 +109,10 @@ All endpoints require `Authorization: Bearer <GOCLAW_TOKEN>`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/auth/openai/status` | Check if OAuth is active and token is valid |
-| `POST` | `/v1/auth/openai/start` | Start OAuth flow — returns `{ auth_url }` |
-| `POST` | `/v1/auth/openai/callback` | Submit redirect URL for manual exchange — returns `{ authenticated, provider_name, provider_id }` |
-| `POST` | `/v1/auth/openai/logout` | Remove stored tokens and unregister provider |
+| `GET` | `/v1/auth/openai/status` | Check if OAuth is active and token is valid — returns `{ authenticated, provider_name? }` |
+| `POST` | `/v1/auth/openai/start` | Start OAuth flow — returns `{ auth_url }` or `{ status: "already_authenticated" }` |
+| `POST` | `/v1/auth/openai/callback` | Submit redirect URL for manual exchange — body: `{ redirect_url }` — returns `{ authenticated, provider_name, provider_id }` |
+| `POST` | `/v1/auth/openai/logout` | Remove stored tokens and unregister provider — returns `{ status: "logged out" }` |
 
 ---
 

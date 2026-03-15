@@ -82,6 +82,39 @@ Phản hồi:
 
 Session với số token bằng không được loại khỏi cả hai phản hồi.
 
+### HTTP REST API — phân tích từ snapshot
+
+GoClaw cũng cung cấp REST API cho phân tích usage lịch sử, được backed bởi bảng `usage_snapshots` (tổng hợp trước theo giờ). Tất cả endpoint yêu cầu Bearer token nếu `gateway.token` được đặt.
+
+| Endpoint | Mô tả |
+|----------|-------|
+| `GET /v1/usage/timeseries` | Số token và request theo thời gian, chia nhóm theo giờ (mặc định) |
+| `GET /v1/usage/breakdown` | Phân tích tổng hợp nhóm theo `provider`, `model`, hoặc `channel` |
+| `GET /v1/usage/summary` | Tóm tắt kỳ hiện tại so với kỳ trước với thống kê delta |
+
+**Tham số truy vấn phổ biến:**
+
+| Tham số | Ví dụ | Ghi chú |
+|---------|-------|---------|
+| `from` | `2026-03-01T00:00:00Z` | RFC 3339, bắt buộc cho timeseries/breakdown |
+| `to` | `2026-03-15T23:59:59Z` | RFC 3339, bắt buộc cho timeseries/breakdown |
+| `group_by` | `hour`, `provider`, `model`, `channel` | Mặc định khác nhau theo endpoint |
+| `agent_id` | UUID | Lọc theo agent |
+| `provider` | `anthropic` | Lọc theo provider |
+| `model` | `claude-sonnet-4-5` | Lọc theo model |
+| `channel` | `telegram` | Lọc theo channel |
+
+**`GET /v1/usage/summary`** nhận thêm tham số `period`:
+
+| Giá trị `period` | Mô tả |
+|------------------|-------|
+| `24h` (mặc định) | 24 giờ qua so với 24 giờ trước đó |
+| `today` | Ngày theo lịch so với ngày trước |
+| `7d` | 7 ngày qua so với 7 ngày trước đó |
+| `30d` | 30 ngày qua so với 30 ngày trước đó |
+
+Endpoint timeseries gap-fill giờ hiện tại chưa hoàn chỉnh bằng cách truy vấn trực tiếp live traces, nên điểm dữ liệu mới nhất luôn cập nhật.
+
 ---
 
 ## Quota Enforcement
@@ -145,6 +178,7 @@ Phản hồi khi quota được bật:
   "requestsToday": 284,
   "inputTokensToday": 1240000,
   "outputTokensToday": 310000,
+  "costToday": 1.84,
   "uniqueUsersToday": 12,
   "entries": [
     {
@@ -157,13 +191,15 @@ Phản hồi khi quota được bật:
 }
 ```
 
-Khi quota bị tắt (`"enabled": false`), phản hồi vẫn bao gồm thống kê tổng hợp hôm nay (`requestsToday`, `inputTokensToday`, v.v.) — mảng `entries` rỗng và `"enabled": false`.
+`entries` được giới hạn tối đa 50 người dùng (top 50 theo số request trong tuần).
+
+Khi quota bị tắt (`"enabled": false`), phản hồi vẫn bao gồm thống kê tổng hợp hôm nay (`requestsToday`, `inputTokensToday`, `costToday`, v.v.) — mảng `entries` rỗng và `"enabled": false`.
 
 ---
 
 ## Giới hạn tốc độ Webhook (Tầng Channel)
 
-Tách biệt với quota theo người dùng, có một rate limiter ở tầng webhook bảo vệ khỏi lũ webhook đến. Nó sử dụng cửa sổ trượt 60 giây với giới hạn cứng **30 request mỗi key** mỗi cửa sổ. Tối đa **4096 key duy nhất** được theo dõi đồng thời; ngoài đó, các entry cũ nhất bị xóa.
+Tách biệt với quota theo người dùng, có một rate limiter ở tầng webhook bảo vệ khỏi lũ webhook đến. Nó sử dụng cửa sổ cố định 60 giây với giới hạn cứng **30 request mỗi key** mỗi cửa sổ. Tối đa **4096 key duy nhất** được theo dõi đồng thời; ngoài đó, các entry cũ nhất bị xóa.
 
 Rate limiter này hoạt động ở tầng HTTP webhook receiver, trước khi tin nhắn đến agent. Không thể cấu hình — đây là biện pháp bảo vệ DoS cố định.
 

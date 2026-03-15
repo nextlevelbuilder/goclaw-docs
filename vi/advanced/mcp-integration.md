@@ -26,31 +26,31 @@ graph LR
     Registry --> Agent
 ```
 
-GoClaw chạy vòng lặp health-check mỗi 30 giây và tự động kết nối lại với exponential backoff (tối đa 10 lần thử, tối đa 60s giữa các lần thử) nếu server bị down.
+GoClaw chạy vòng lặp health-check mỗi 30 giây và tự động kết nối lại với exponential backoff (delay ban đầu 2s, tối đa 10 lần thử, tối đa 60s giữa các lần thử) nếu server bị down.
 
 ## Đăng ký MCP Server
 
 ### Tùy chọn 1 — file config (dùng chung cho tất cả agent)
 
-Thêm block `mcp_servers` vào `config.json`:
+Thêm block `mcp_servers` vào phần `tools` trong `config.json`:
 
 ```json
 {
-  "mcp_servers": {
-    "vnstock": {
-      "transport": "streamable-http",
-      "url": "http://vnstock-mcp:8000/mcp",
-      "tool_prefix": "vnstock_",
-      "timeout_sec": 30,
-      "enabled": true
-    },
-    "filesystem": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-      "tool_prefix": "fs_",
-      "timeout_sec": 60,
-      "enabled": true
+  "tools": {
+    "mcp_servers": {
+      "vnstock": {
+        "transport": "streamable-http",
+        "url": "http://vnstock-mcp:8000/mcp",
+        "tool_prefix": "vnstock_",
+        "timeout_sec": 30
+      },
+      "filesystem": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+        "tool_prefix": "fs_",
+        "timeout_sec": 60
+      }
     }
   }
 }
@@ -101,7 +101,13 @@ vnstock_   → vnstock_search, vnstock_get_price, vnstock_get_financials
 filesystem_ → filesystem_read_file, filesystem_write_file
 ```
 
-Nếu không đặt prefix và phát hiện xung đột tên, GoClaw ghi log cảnh báo và bỏ qua tool bị trùng. Luôn đặt prefix khi kết nối các server từ các provider khác nhau.
+Nếu không đặt prefix và phát hiện xung đột tên, GoClaw ghi log cảnh báo (`mcp.tool.name_collision`) và bỏ qua tool bị trùng. Luôn đặt prefix khi kết nối các server từ các provider khác nhau.
+
+## Chế độ tìm kiếm (search mode — nhiều tool)
+
+Khi tổng số MCP tool từ tất cả server vượt quá **40**, GoClaw tự động chuyển sang **search mode**: các tool không còn được đăng ký trực tiếp vào registry. Thay vào đó, chỉ có built-in tool `mcp_tool_search` được cung cấp. Agent dùng `mcp_tool_search` để tìm và kích hoạt từng MCP tool theo yêu cầu.
+
+Điều này giúp giữ danh sách tool ở mức hợp lý khi kết nối nhiều MCP server. Không cần cấu hình — chuyển đổi xảy ra tự động.
 
 ## Phân quyền truy cập theo Agent
 
@@ -140,11 +146,12 @@ Phản hồi:
     "name": "vnstock",
     "transport": "streamable-http",
     "connected": true,
-    "tool_count": 12,
-    "error": ""
+    "tool_count": 12
   }
 ]
 ```
+
+Trường `error` bị bỏ qua khi rỗng.
 
 ## Ví dụ
 
@@ -169,13 +176,14 @@ Sau đó đăng ký trong `config.json`:
 
 ```json
 {
-  "mcp_servers": {
-    "vnstock": {
-      "transport": "streamable-http",
-      "url": "http://vnstock-mcp:8000/mcp",
-      "tool_prefix": "vnstock_",
-      "timeout_sec": 30,
-      "enabled": true
+  "tools": {
+    "mcp_servers": {
+      "vnstock": {
+        "transport": "streamable-http",
+        "url": "http://vnstock-mcp:8000/mcp",
+        "tool_prefix": "vnstock_",
+        "timeout_sec": 30
+      }
     }
   }
 }
@@ -193,14 +201,15 @@ Agent của bạn có thể gọi `vnstock_get_price`, `vnstock_get_financials`,
 
 ```json
 {
-  "mcp_servers": {
-    "my-tools": {
-      "transport": "stdio",
-      "command": "python3",
-      "args": ["/opt/mcp/my_tools_server.py"],
-      "env": { "MY_API_KEY": "secret" },
-      "tool_prefix": "mytools_",
-      "enabled": true
+  "tools": {
+    "mcp_servers": {
+      "my-tools": {
+        "transport": "stdio",
+        "command": "python3",
+        "args": ["/opt/mcp/my_tools_server.py"],
+        "env": { "MY_API_KEY": "secret" },
+        "tool_prefix": "mytools_"
+      }
     }
   }
 }

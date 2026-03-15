@@ -17,18 +17,31 @@ Hệ thống Knowledge Graph của GoClaw có hai phần:
 
 ## Cách trích xuất hoạt động
 
-Sau cuộc hội thoại, GoClaw gửi văn bản (tối đa 6.000 ký tự) đến LLM với prompt trích xuất có cấu trúc. LLM trả về:
+Sau cuộc hội thoại, GoClaw gửi văn bản đến LLM với prompt trích xuất có cấu trúc. Với văn bản dài (trên 12.000 ký tự), GoClaw chia thành các đoạn, trích xuất từ từng đoạn rồi hợp nhất kết quả bằng cách loại bỏ trùng lặp giữa các thực thể và mối quan hệ. LLM trả về:
 
 - **Thực thể** — Người, dự án, nhiệm vụ, sự kiện, khái niệm, địa điểm, tổ chức
-- **Mối quan hệ** — Kết nối có kiểu giữa các thực thể (ví dụ: "works_on", "reports_to")
+- **Mối quan hệ** — Kết nối có kiểu giữa các thực thể (ví dụ: `works_on`, `reports_to`)
 
-Mỗi thực thể và mối quan hệ có **điểm tin cậy** (0.0–1.0). Chỉ các mục trên ngưỡng (mặc định **0.75**) mới được lưu.
+Mỗi thực thể và mối quan hệ có **điểm tin cậy** (0.0–1.0). Chỉ các mục đạt ngưỡng trở lên (mặc định **0.75**) mới được lưu.
 
 **Ràng buộc:**
-- Tối đa 15 thực thể mỗi lần trích xuất
-- ID thực thể viết thường với dấu gạch ngang
-- Mô tả tối đa 50 ký tự
+- 3–15 thực thể mỗi lần trích xuất, tùy theo mật độ văn bản
+- ID thực thể viết thường với dấu gạch ngang (ví dụ: `john-doe`, `project-alpha`)
+- Mô tả tối đa một câu
 - Temperature 0.0 cho kết quả xác định
+
+### Các loại mối quan hệ
+
+Bộ trích xuất sử dụng một tập cố định các loại mối quan hệ:
+
+| Nhóm | Loại |
+|------|------|
+| Người ↔ Công việc | `works_on`, `manages`, `reports_to`, `collaborates_with` |
+| Cấu trúc | `belongs_to`, `part_of`, `depends_on`, `blocks` |
+| Hành động | `created`, `completed`, `assigned_to`, `scheduled_for` |
+| Địa điểm | `located_in`, `based_at` |
+| Công nghệ | `uses`, `implements`, `integrates_with` |
+| Dự phòng | `related_to` |
 
 ---
 
@@ -38,7 +51,7 @@ Mỗi thực thể và mối quan hệ có **điểm tin cậy** (0.0–1.0). Ch
 
 | Tham số | Kiểu | Mô tả |
 |---------|------|-------|
-| `query` | string | Tên thực thể, từ khóa, hoặc `*` để liệt kê tất cả |
+| `query` | string | Tên thực thể, từ khóa, hoặc `*` để liệt kê tất cả (bắt buộc) |
 | `entity_type` | string | Lọc: `person`, `project`, `task`, `event`, `concept`, `location`, `organization` |
 | `entity_id` | string | Điểm bắt đầu để duyệt mối quan hệ |
 | `max_depth` | int | Độ sâu duyệt (mặc định 2, tối đa 3) |
@@ -55,13 +68,14 @@ query: "John"
 query: "*"
 ```
 
-**Duyệt mối quan hệ** — Bắt đầu từ một thực thể và theo các kết nối:
+**Duyệt mối quan hệ** — Bắt đầu từ một thực thể và theo các kết nối đi ra:
 ```
+query: "*"
 entity_id: "project-alpha"
 max_depth: 2
 ```
 
-Kết quả bao gồm tên thực thể, kiểu, mô tả và mối quan hệ với tên đã phân giải.
+Kết quả bao gồm tên thực thể, kiểu, mô tả, độ sâu, đường dẫn duyệt và loại mối quan hệ dùng để đến mỗi thực thể.
 
 ---
 
@@ -91,7 +105,7 @@ Thực thể:
   [concept] GraphQL — Công nghệ lớp API
 
 Mối quan hệ:
-  Alice --leads--> Project Alpha
+  Alice --manages--> Project Alpha
   Bob --works_on--> Project Alpha
   Project Alpha --uses--> GraphQL
 ```

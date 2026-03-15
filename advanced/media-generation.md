@@ -25,11 +25,11 @@ Generated files are saved to `workspace/generated/{YYYY-MM-DD}/` and returned as
 
 ### Provider notes
 
-- **OpenRouter** — Routes to models like DALL-E, Flux, Stable Diffusion
-- **Gemini** — Google's image generation
-- **OpenAI** — DALL-E 3 / gpt-image-1
-- **MiniMax** — Synchronous, returns base64 directly
-- **DashScope** — Alibaba Cloud (Qwen), async with polling
+- **OpenRouter** — Default model: `google/gemini-2.5-flash-image` (via chat completions with image modalities)
+- **Gemini** — Default model: `gemini-2.5-flash-image` (native `generateContent` API)
+- **OpenAI** — Default model: `dall-e-3` (via `/images/generations` endpoint)
+- **MiniMax** — Default model: `image-01`, returns base64 directly
+- **DashScope** — Alibaba Cloud (Wanx), default model: `wan2.6-image`, async with polling
 
 ---
 
@@ -37,7 +37,9 @@ Generated files are saved to `workspace/generated/{YYYY-MM-DD}/` and returned as
 
 **Tool:** `create_video`
 
-**Default provider chain:** Gemini (Veo 3) → MiniMax (Hailuo 2.3) → OpenRouter
+**Default provider chain:** Gemini → MiniMax → OpenRouter
+
+**Default models:** Gemini `veo-3.0-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.0-generate-preview`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -45,7 +47,7 @@ Generated files are saved to `workspace/generated/{YYYY-MM-DD}/` and returned as
 | `duration` | int | `8` | Duration in seconds: `4`, `6`, or `8` |
 | `aspect_ratio` | string | `16:9` | `16:9` or `9:16` |
 
-Video generation is slow — MiniMax polls up to ~6 minutes. The timeout per provider defaults to 120 seconds but can be increased via chain settings.
+Video generation is slow — both Gemini and MiniMax poll up to ~6 minutes. The timeout per provider defaults to 120 seconds but can be increased via chain settings.
 
 ---
 
@@ -53,19 +55,19 @@ Video generation is slow — MiniMax polls up to ~6 minutes. The timeout per pro
 
 **Tool:** `create_audio`
 
-**Default provider:** MiniMax (music), ElevenLabs (sound effects)
+**Default provider:** MiniMax (music, model `music-2.5+`), ElevenLabs (sound effects)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prompt` | string | required | Description or lyrics |
 | `type` | string | `music` | `music` or `sound_effect` |
-| `duration` | int | — | Duration hint in seconds |
-| `lyrics` | string | — | Lyrics for music generation |
+| `duration` | int | — | Duration in seconds — applies to sound effects only; music length is determined by lyrics length |
+| `lyrics` | string | — | Lyrics for music generation. Use `[Verse]`, `[Chorus]` tags |
 | `instrumental` | bool | `false` | Instrumental only (no vocals) |
-| `provider` | string | — | Force a specific provider |
+| `provider` | string | — | Force a specific provider (e.g. `minimax`) |
 
 - **Sound effects** route directly to ElevenLabs (max 30 seconds)
-- **Music** uses the provider chain with a 300-second timeout
+- **Music** uses MiniMax as the default provider with a 300-second timeout. Duration is controlled by lyrics length, not the `duration` parameter
 
 ---
 

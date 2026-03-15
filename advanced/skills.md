@@ -75,15 +75,18 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
 
 ## Uploading via Dashboard
 
-Go to **Skills → Upload** and drop a ZIP file. The ZIP must contain one skill per top-level directory:
+Go to **Skills → Upload** and drop a ZIP file. The ZIP must contain a single skill with `SKILL.md` either at root or inside one top-level directory:
 
 ```
-my-skills.zip
-├── code-reviewer/
-│   └── SKILL.md
-└── sql-expert/
+# SKILL.md at root
+my-skill.zip
+└── SKILL.md
+
+# or wrapped in a single directory
+my-skill.zip
+└── code-reviewer/
     ├── SKILL.md
-    └── query-patterns.md
+    └── review-checklist.md
 ```
 
 Uploaded skills are stored in a versioned subdirectory structure under the managed skills directory (`~/.goclaw/skills-store/` by default):
@@ -94,22 +97,48 @@ Uploaded skills are stored in a versioned subdirectory structure under the manag
 
 Metadata (name, description, visibility, grants) lives in PostgreSQL; file content lives on disk. GoClaw always serves the highest-numbered version. Old versions are kept for rollback.
 
-## skill_search Tool
+Skills uploaded via the Dashboard start with **internal** visibility — immediately accessible to any agent or user you grant access to.
 
-Agents can search skills at runtime using the `skill_search` built-in tool. The search uses a **BM25 index** built from each skill's name and description. Parameters `k1=1.2` and `b=0.75` are standard BM25 defaults.
+## Built-in Skill Tools
+
+GoClaw provides three built-in tools that agents use to discover and activate skills at runtime.
+
+### skill_search
+
+Agents search skills using `skill_search`. The search uses a **BM25 index** built from each skill's name and description, with optional hybrid search (BM25 + vector embeddings) when an embedding provider is configured.
 
 ```
 # The agent calls this tool internally — you don't call it directly
 skill_search(query="how to review a pull request", max_results=5)
 ```
 
-The tool returns ranked results with name, description, location path, and BM25 score. The agent then reads the `SKILL.md` content from the returned path.
+The tool returns ranked results with name, description, location path, and score. After receiving results, the agent calls `use_skill` then `read_file` to load the skill content.
 
 The index is rebuilt whenever the loader's version counter is bumped (i.e., after any hot-reload event or startup).
 
-## Granting Skills to Agents
+### use_skill
 
-Uploaded skills start with **private** visibility — only the uploader can see them. To make a skill available to an agent, you must **grant** it. Granting auto-promotes visibility from `private` to `internal`.
+A lightweight observability marker tool. The agent calls `use_skill` before reading a skill's file, so skill activation is visible in traces and real-time events. It does not load any content itself.
+
+```
+use_skill(name="code-reviewer")
+# then:
+read_file(path="/path/to/code-reviewer/SKILL.md")
+```
+
+### publish_skill
+
+Agents can register a local skill directory into the system database using `publish_skill`. The directory must contain a `SKILL.md` with a `name` in its frontmatter. The skill is automatically granted to the calling agent after publishing.
+
+```
+publish_skill(path="./skills/my-skill")
+```
+
+The skill is stored with `private` visibility and auto-granted to the calling agent. Admins can later grant it to other agents or promote visibility via the Dashboard or API.
+
+## Granting Skills to Agents (Managed Mode)
+
+Skills published via `publish_skill` start with **private** visibility. Skills uploaded via the Dashboard start with **internal** visibility. Either way, you must **grant** a skill to an agent before it is injected into that agent's context.
 
 ### Via Dashboard
 
@@ -118,7 +147,7 @@ Uploaded skills start with **private** visibility — only the uploader can see 
 3. Under **Agent Grants**, select the agent and click **Grant**
 4. The skill is now injected into that agent's context on the next request
 
-To revoke, toggle off the agent in the grants list. When all grants are removed, visibility auto-demotes back to `private`.
+To revoke, toggle off the agent in the grants list.
 
 ### Via API
 
@@ -131,7 +160,7 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
-Revoke a grant:
+Revoke an agent grant:
 
 ```bash
 curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/agent/{agent_id} \
@@ -147,6 +176,13 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
   -d '{"user_id": "user@example.com"}'
 ```
 
+Revoke a user grant:
+
+```bash
+curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/user/{user_id} \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### Visibility Levels
 
 | Level | Who can access |
@@ -154,8 +190,6 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
 | `private` | Only the skill owner (uploader) |
 | `internal` | Agents and users explicitly granted access |
 | `public` | All agents and users |
-
-> **Note:** Granting auto-promotes `private` → `internal`. Revoking all grants auto-demotes `internal` → `private`.
 
 ## Examples
 
@@ -210,7 +244,7 @@ Always:
 | Changes not picked up | Watcher not started (non-Docker setups) | Restart GoClaw; verify `skills watcher started` in logs |
 | Lower-priority skill used instead of yours | Name collision — slug exists at a higher tier | Use a unique slug, or place your skill at a higher-priority location |
 | `skill_search` returns no results | Index not built yet (first request) or no description in frontmatter | Add a `description` to frontmatter; index rebuilds on next hot-reload |
-| ZIP upload fails | Top-level entries are files, not directories | Ensure ZIP has `<slug>/SKILL.md` structure |
+| ZIP upload fails | No `SKILL.md` found in ZIP | Place `SKILL.md` at ZIP root or inside one top-level directory |
 
 ## What's Next
 

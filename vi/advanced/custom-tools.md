@@ -71,17 +71,17 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 
 ### Command template
 
-Dùng placeholder `{{.paramName}}`. GoClaw thay thế chúng bằng giá trị đã được shell-escape (single-quoted, các single-quote nhúng trong cũng được escape). Điều này đảm bảo ngay cả LLM độc hại cũng không thể thoát ra ngoài argument.
+Dùng placeholder `{{.paramName}}`. GoClaw thay thế chúng bằng giá trị đã được shell-escape qua cơ chế thay thế chuỗi đơn giản — không dùng engine `text/template` của Go, vì vậy các hàm template và pipeline không được hỗ trợ. Mỗi giá trị được thay thế đều được bọc trong single-quote với các single-quote nhúng trong cũng được escape, đảm bảo ngay cả LLM độc hại cũng không thể thoát ra ngoài argument.
 
 ```bash
-# Các placeholder này luôn được xử lý như chuỗi ký tự thông thường
+# Các placeholder luôn được xử lý như chuỗi ký tự thông thường — không có logic template
 kubectl rollout restart deployment/{{.deployment}} --namespace={{.namespace}}
 git -C {{.repo_path}} pull origin {{.branch}}
 ```
 
 ### Thêm biến môi trường (secrets)
 
-Secrets được mã hóa bằng AES-256-GCM trước khi lưu và **không bao giờ được trả về qua API**.
+Secrets phải được đặt qua `PUT` riêng sau khi tạo — không thể đưa vào trong yêu cầu `POST` ban đầu. Chúng được mã hóa bằng AES-256-GCM trước khi lưu và **không bao giờ được trả về qua API**.
 
 ```bash
 curl -X PUT http://localhost:8080/v1/tools/custom/{id} \
@@ -100,13 +100,13 @@ Các biến này chỉ được inject vào tiến trình con — không hiển 
 ## Quản lý Tool
 
 ```bash
-# Liệt kê (phân trang)
+# Liệt kê (phân trang) — chỉ trả về các tool đang bật
 GET /v1/tools/custom?limit=50&offset=0
 
-# Lọc theo agent
+# Lọc theo agent — chỉ trả về các tool đang bật của agent đó
 GET /v1/tools/custom?agent_id=<uuid>
 
-# Tìm kiếm theo tên
+# Tìm kiếm theo tên hoặc mô tả (không phân biệt hoa thường)
 GET /v1/tools/custom?search=deploy
 
 # Lấy một tool
@@ -123,12 +123,20 @@ DELETE /v1/tools/custom/{id}
 
 Mọi lệnh của custom tool đều được kiểm tra qua cùng **danh sách mẫu bị chặn** như tool `exec` tích hợp sẵn. Các loại bị chặn bao gồm:
 
-- Thao tác file nguy hiểm (`rm -rf`, `dd if=`, `mkfs`)
-- Rò rỉ dữ liệu (`curl | sh`, `wget --post-data`, các DNS tool)
-- Reverse shell (`nc -e`, `socat`, `openssl s_client`)
-- Leo thang đặc quyền (`sudo`, `nsenter`, `mount`)
-- Dump biến môi trường (`printenv`, `env` thuần, `/proc/PID/environ`)
-- Thoát khỏi container (`/var/run/docker.sock`, `/proc/sys/kernel/`)
+- Thao tác file nguy hiểm (`rm -rf`, `rm --recursive`, `dd if=`, `mkfs`, `shutdown`, `reboot`, fork bomb)
+- Rò rỉ dữ liệu (`curl | sh`, `curl` với cờ POST/PUT, `wget --post-data`, DNS tool: `nslookup`, `dig`, `host`, redirect `/dev/tcp/`)
+- Reverse shell (`nc -e`, `ncat`, `socat`, `openssl s_client`, `telnet`, `mkfifo`, import socket qua scripting)
+- Eval/code injection nguy hiểm (`eval $`, `base64 -d | sh`)
+- Leo thang đặc quyền (`sudo`, `su -`, `nsenter`, `unshare`, `mount`, `capsh`, `setcap`)
+- Thao tác path nguy hiểm (`chmod` trên đường dẫn `/`, `chmod +x` trong `/tmp`, `/var/tmp`, `/dev/shm`)
+- Inject biến môi trường (`LD_PRELOAD=`, `DYLD_INSERT_LIBRARIES=`, `LD_LIBRARY_PATH=`, `BASH_ENV=`)
+- Dump biến môi trường (`printenv`, `env` thuần, `env | ...`, `env > file`, dump `set`/`export -p`/`declare -x`, `/proc/PID/environ`, `/proc/self/environ`)
+- Thoát khỏi container (`/var/run/docker.sock`, `/proc/sys/`, `/sys/kernel/`)
+- Đào coin (`xmrig`, `cpuminer`, giao thức stratum)
+- Bypass filter (`sed /e`, `sort --compress-program`, `git --upload-pack=`, `grep --pre=`)
+- Dò quét mạng (`nmap`, `masscan`, outbound `ssh`/`scp` có `@`)
+- Persistence (`crontab`, ghi vào shell RC như `.bashrc`, `.zshrc`)
+- Thao tác tiến trình (`kill -9`, `killall`, `pkill`)
 
 Kiểm tra được thực hiện trên **lệnh đã render đầy đủ** sau khi thay thế tất cả `{{.param}}`.
 

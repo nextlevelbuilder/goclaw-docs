@@ -6,7 +6,9 @@
 
 ## Tổng quan
 
-Hệ thống hook của GoClaw cho phép bạn gắn quality gate vào các sự kiện vòng đời của agent. Một hook là một kiểm tra chạy tại một sự kiện cụ thể (ví dụ: sau khi subagent hoàn thành một ủy quyền). Nếu kiểm tra thất bại, GoClaw có thể chặn kết quả và tùy chọn thử lại với phản hồi.
+Hệ thống hook của GoClaw cho phép bạn gắn quality gate vào các sự kiện vòng đời của agent. Một hook là một kiểm tra chạy tại một sự kiện cụ thể. Hiện tại sự kiện duy nhất được hỗ trợ là `delegation.completed`, kích hoạt sau khi subagent hoàn thành một task được ủy quyền. Nếu kiểm tra thất bại, GoClaw có thể chặn kết quả và tùy chọn thử lại với phản hồi.
+
+Quality gate được cấu hình trong `other_config` JSON của **agent nguồn** (source agent) dưới key `quality_gates`. Agent nguồn là agent khởi tạo việc ủy quyền (orchestrator), không phải agent đích.
 
 Có hai loại evaluator:
 
@@ -19,25 +21,31 @@ Có hai loại evaluator:
 
 ## Các trường cấu hình Hook
 
+Quality gate được đặt trong `other_config` của agent nguồn, dưới mảng `quality_gates`:
+
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "./scripts/check-output.sh",
-  "block_on_failure": true,
-  "max_retries": 2,
-  "timeout_seconds": 60
+  "quality_gates": [
+    {
+      "event": "delegation.completed",
+      "type": "command",
+      "command": "./scripts/check-output.sh",
+      "block_on_failure": true,
+      "max_retries": 2,
+      "timeout_seconds": 60
+    }
+  ]
 }
 ```
 
 | Trường | Kiểu | Mô tả |
 |-------|------|-------------|
-| `event` | string | Sự kiện vòng đời kích hoạt hook này (ví dụ: `"delegation.completed"`) |
+| `event` | string | Sự kiện vòng đời kích hoạt hook này — hiện chỉ hỗ trợ `"delegation.completed"` |
 | `type` | string | `"command"` hoặc `"agent"` |
 | `command` | string | Lệnh shell để chạy (chỉ cho type=command) |
 | `agent` | string | Key của agent reviewer (chỉ cho type=agent) |
-| `block_on_failure` | bool | Nếu `true`, hook thất bại sẽ dừng thực thi; nếu `false`, thất bại được ghi log nhưng tiếp tục |
-| `max_retries` | int | Số lần thử lại sau khi thất bại có chặn (0 = không thử lại) |
+| `block_on_failure` | bool | Nếu `true`, hook thất bại sẽ kích hoạt retry; nếu `false`, thất bại được ghi log nhưng tiếp tục |
+| `max_retries` | int | Số lần thử lại agent đích sau khi thất bại có chặn (0 = không thử lại) |
 | `timeout_seconds` | int | Timeout mỗi hook (mặc định 60s) |
 
 ---
@@ -55,7 +63,7 @@ flowchart TD
     EVAL2 -->|pass| NEXT
 ```
 
-Engine đánh giá hook theo thứ tự. Thất bại **có chặn** đầu tiên sẽ dừng quá trình đánh giá và trả về kết quả thất bại. Thất bại không chặn được ghi log nhưng không làm gián đoạn luồng. Nếu tất cả hook đều pass (hoặc không có hook nào khớp sự kiện), thực thi tiếp tục bình thường.
+Engine đánh giá quality gate theo thứ tự. Thất bại **có chặn** sẽ kích hoạt vòng lặp retry cho gate đó (tối đa `max_retries` lần). Nếu hết số lần retry, GoClaw ghi log cảnh báo và chấp nhận kết quả cuối cùng — không hard-fail delegation. Thất bại không chặn được ghi log nhưng không làm gián đoạn luồng. Nếu tất cả hook đều pass (hoặc không có hook nào khớp sự kiện), thực thi tiếp tục bình thường.
 
 ---
 
@@ -160,11 +168,11 @@ Respond with EXACTLY one of:
 
 ## Ví dụ
 
-**Cài đặt hai hook: kiểm tra định dạng rồi đến agent review:**
+**Cài đặt hai gate: kiểm tra định dạng rồi đến agent review** (`other_config` của agent nguồn):
 
 ```json
 {
-  "hooks": [
+  "quality_gates": [
     {
       "event": "delegation.completed",
       "type": "command",
@@ -185,15 +193,19 @@ Respond with EXACTLY one of:
 }
 ```
 
-**Audit logger không chặn:**
+**Audit logger không chặn** (`other_config` của agent nguồn):
 
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "curl -s -X POST https://audit.internal/log -d @-",
-  "block_on_failure": false,
-  "timeout_seconds": 5
+  "quality_gates": [
+    {
+      "event": "delegation.completed",
+      "type": "command",
+      "command": "curl -s -X POST https://audit.internal/log -d @-",
+      "block_on_failure": false,
+      "timeout_seconds": 5
+    }
+  ]
 }
 ```
 
@@ -206,7 +218,7 @@ Respond with EXACTLY one of:
 | `hooks: unknown hook type, skipping` | Gõ sai trường `type` | Dùng chính xác `"command"` hoặc `"agent"` |
 | Command luôn pass dù exit 1 | Script wrapper nuốt exit code | Đảm bảo script không có `|| true` che giấu thất bại |
 | Agent evaluator bị treo | Agent reviewer chậm hoặc bị kẹt | Đặt `timeout_seconds` ở giá trị hợp lý |
-| Vòng lặp retry vô hạn | `max_retries` quá cao và agent không thể sửa | Giới hạn `max_retries` ở 2–3; thêm điều kiện thoát |
+| Hết retry nhưng luồng vẫn tiếp tục | Hành vi mặc định — GoClaw chấp nhận kết quả cuối và ghi log cảnh báo | Giảm `max_retries` hoặc sửa điều kiện quality gate |
 | Hook kích hoạt cả agent reviewer | Đệ quy | GoClaw tự động inject `WithSkipHooks` cho lần gọi agent evaluator |
 | Hook không chặn lại vẫn chặn | `block_on_failure: true` vô tình được đặt | Kiểm tra config; đặt `false` cho hook chỉ quan sát |
 

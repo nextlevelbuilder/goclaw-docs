@@ -37,7 +37,7 @@ flowchart TD
 
     MAP -->|Anthropic| ANTH["budget_tokens: 10,000\nHeader: anthropic-beta\nStrip temperature"]
     MAP -->|OpenAI-compat| OAI["reasoning_effort: medium"]
-    MAP -->|DashScope| DASH["enable_thinking: true\nbudget: 16,384\n⚠ No streaming with tools"]
+    MAP -->|DashScope| DASH["enable_thinking: true\nbudget: 16,384\n⚠ No streaming when tools present"]
 
     ANTH --> SEND["Send to LLM"]
     OAI --> SEND
@@ -79,7 +79,7 @@ Reasoning content arrives in `reasoning_content` during streaming and does not r
 
 Thinking is enabled via `enable_thinking: true` plus a `thinking_budget` parameter.
 
-**Important limitation**: DashScope cannot stream responses when tools are present. When an agent has tools enabled and thinking is active, GoClaw automatically falls back to non-streaming mode (single `Chat()` call) and synthesizes chunk callbacks so the event flow remains consistent for clients.
+**Important limitation**: DashScope cannot stream responses when tools are present — this is a provider-level constraint independent of thinking. Whenever an agent has tools defined, GoClaw automatically falls back to non-streaming mode (single `Chat()` call) and synthesizes chunk callbacks so the event flow remains consistent for clients.
 
 ---
 
@@ -131,7 +131,7 @@ flowchart TD
 
 | Provider | Limitation |
 |----------|-----------|
-| DashScope | Cannot stream when tools are present — falls back to non-streaming mode |
+| DashScope | Cannot stream when tools are present (provider-level, not thinking-specific) — falls back to non-streaming |
 | Anthropic | `temperature` is stripped when thinking is enabled |
 | All | Thinking tokens count against the context window budget |
 | All | Thinking increases latency and cost proportional to the budget level |
@@ -189,7 +189,7 @@ Maps to `reasoning_effort: "low"` on the OpenAI API.
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | `temperature` stripped unexpectedly | Anthropic thinking enabled | Expected behavior — Anthropic requires no temperature with thinking |
-| DashScope agent slow with tools | Streaming disabled with thinking + tools | Expected — DashScope limitation; reduce tool count or disable thinking |
+| DashScope agent slow with tools | Streaming always disabled when tools present | Expected — DashScope provider limitation; reduce tool count if latency matters |
 | High context usage | Thinking tokens fill the window | Use `low` or `medium` level; monitor context % in logs |
 | No visible thinking output | Thinking is internal by default | Reasoning chunks stream separately; check client WebSocket events |
 | Thinking has no effect | Provider doesn't support thinking | Check provider type — only Anthropic, OpenAI-compat, and DashScope are supported |

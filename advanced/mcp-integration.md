@@ -24,31 +24,31 @@ graph LR
     Registry --> Agent
 ```
 
-GoClaw runs a health-check loop every 30 seconds and reconnects with exponential backoff (up to 10 attempts, capped at 60 s between retries) if a server goes down.
+GoClaw runs a health-check loop every 30 seconds and reconnects with exponential backoff (initial delay 2 s, up to 10 attempts, capped at 60 s between retries) if a server goes down.
 
 ## Registering an MCP Server
 
 ### Option 1 — config file (shared across all agents)
 
-Add an `mcp_servers` block to your `config.json`:
+Add an `mcp_servers` block under the `tools` key in your `config.json`:
 
 ```json
 {
-  "mcp_servers": {
-    "vnstock": {
-      "transport": "streamable-http",
-      "url": "http://vnstock-mcp:8000/mcp",
-      "tool_prefix": "vnstock_",
-      "timeout_sec": 30,
-      "enabled": true
-    },
-    "filesystem": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-      "tool_prefix": "fs_",
-      "timeout_sec": 60,
-      "enabled": true
+  "tools": {
+    "mcp_servers": {
+      "vnstock": {
+        "transport": "streamable-http",
+        "url": "http://vnstock-mcp:8000/mcp",
+        "tool_prefix": "vnstock_",
+        "timeout_sec": 30
+      },
+      "filesystem": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+        "tool_prefix": "fs_",
+        "timeout_sec": 60
+      }
     }
   }
 }
@@ -99,7 +99,13 @@ vnstock_   → vnstock_search, vnstock_get_price, vnstock_get_financials
 filesystem_ → filesystem_read_file, filesystem_write_file
 ```
 
-If no prefix is set and a name collision is detected, GoClaw logs a warning and skips the duplicate tool. Always set a prefix when connecting servers from different providers.
+If no prefix is set and a name collision is detected, GoClaw logs a warning (`mcp.tool.name_collision`) and skips the duplicate tool. Always set a prefix when connecting servers from different providers.
+
+## Search Mode (large tool sets)
+
+When the total number of MCP tools across all servers exceeds **40**, GoClaw automatically enters **search mode**: tools are no longer registered inline in the tool registry. Instead, only the built-in `mcp_tool_search` tool is exposed. The agent uses `mcp_tool_search` to find and activate specific MCP tools on demand.
+
+This keeps the tool list manageable when connecting many MCP servers. There is no configuration required — the switch is automatic.
 
 ## Per-Agent Access Grants
 
@@ -138,11 +144,12 @@ Response:
     "name": "vnstock",
     "transport": "streamable-http",
     "connected": true,
-    "tool_count": 12,
-    "error": ""
+    "tool_count": 12
   }
 ]
 ```
+
+The `error` field is omitted when empty.
 
 ## Examples
 
@@ -167,13 +174,14 @@ Then register it in `config.json`:
 
 ```json
 {
-  "mcp_servers": {
-    "vnstock": {
-      "transport": "streamable-http",
-      "url": "http://vnstock-mcp:8000/mcp",
-      "tool_prefix": "vnstock_",
-      "timeout_sec": 30,
-      "enabled": true
+  "tools": {
+    "mcp_servers": {
+      "vnstock": {
+        "transport": "streamable-http",
+        "url": "http://vnstock-mcp:8000/mcp",
+        "tool_prefix": "vnstock_",
+        "timeout_sec": 30
+      }
     }
   }
 }
@@ -191,14 +199,15 @@ Your agents can now call `vnstock_get_price`, `vnstock_get_financials`, etc.
 
 ```json
 {
-  "mcp_servers": {
-    "my-tools": {
-      "transport": "stdio",
-      "command": "python3",
-      "args": ["/opt/mcp/my_tools_server.py"],
-      "env": { "MY_API_KEY": "secret" },
-      "tool_prefix": "mytools_",
-      "enabled": true
+  "tools": {
+    "mcp_servers": {
+      "my-tools": {
+        "transport": "stdio",
+        "command": "python3",
+        "args": ["/opt/mcp/my_tools_server.py"],
+        "env": { "MY_API_KEY": "secret" },
+        "tool_prefix": "mytools_"
+      }
     }
   }
 }

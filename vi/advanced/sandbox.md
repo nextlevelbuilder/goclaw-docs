@@ -6,24 +6,24 @@
 
 ## Tổng quan
 
-Khi bật chế độ sandbox, mọi lệnh gọi tool `exec` hoặc shell đều được chuyển vào container Docker thay vì chạy trực tiếp trên host. Container là tạm thời, cô lập mạng, và bị giới hạn nghiêm ngặt theo mặc định — dropped capabilities, filesystem root chỉ đọc, tmpfs cho `/tmp`, và giới hạn bộ nhớ 512 MB.
+Khi bật chế độ sandbox, mọi lệnh gọi tool chạm vào filesystem hoặc thực thi lệnh (`exec`, `read_file`, `write_file`, `list_files`, `edit`) đều được chuyển vào container Docker thay vì chạy trực tiếp trên host. Container là tạm thời, cô lập mạng, và bị giới hạn nghiêm ngặt theo mặc định — dropped capabilities, filesystem root chỉ đọc, tmpfs cho `/tmp`, và giới hạn bộ nhớ 512 MB.
 
 Nếu Docker không khả dụng lúc runtime, GoClaw fallback sang thực thi trên host và ghi log cảnh báo.
 
 ```mermaid
 graph LR
-    Agent -->|exec tool call| ExecTool
-    ExecTool -->|sandbox enabled| DockerManager
+    Agent -->|exec / read_file / write_file\nlist_files / edit| Tools
+    Tools -->|sandbox enabled| DockerManager
     DockerManager -->|Get or Create| Container["Docker Container\ngoclaw-sbx-*"]
     Container -->|docker exec| Command
-    Command -->|stdout/stderr| ExecTool
-    ExecTool -->|result| Agent
-    ExecTool -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
+    Command -->|stdout/stderr| Tools
+    Tools -->|result| Agent
+    Tools -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
 ```
 
 ## Chế độ Sandbox
 
-Đặt `GOCLAW_SANDBOX_MODE` (hoặc `sandbox.mode` trong config) thành một trong các giá trị:
+Đặt `GOCLAW_SANDBOX_MODE` (hoặc `agents.defaults.sandbox.mode` trong config) thành một trong các giá trị:
 
 | Chế độ | Các agent được sandbox |
 |---|---|
@@ -63,7 +63,7 @@ Nếu lệnh tạo ra hơn 1 MB đầu ra, đầu ra bị cắt ngắn và thêm
 
 ## Cấu hình
 
-Tất cả cài đặt có thể cung cấp dưới dạng biến môi trường hoặc trong `config.json` dưới key `sandbox`.
+Tất cả cài đặt có thể cung cấp dưới dạng biến môi trường hoặc trong `config.json` dưới `agents.defaults.sandbox`.
 
 ### Biến môi trường
 
@@ -82,22 +82,24 @@ GOCLAW_SANDBOX_NETWORK=false
 
 ```json
 {
-  "sandbox": {
-    "mode": "all",
-    "image": "goclaw-sandbox:bookworm-slim",
-    "workspace_access": "rw",
-    "scope": "session",
-    "memory_mb": 512,
-    "cpus": 1.0,
-    "timeout_sec": 300,
-    "network_enabled": false,
-    "read_only_root": true,
-    "cap_drop": ["ALL"],
-    "tmpfs": ["/tmp", "/var/tmp", "/run"],
-    "max_output_bytes": 1048576,
-    "idle_hours": 24,
-    "max_age_days": 7,
-    "prune_interval_min": 5
+  "agents": {
+    "defaults": {
+      "sandbox": {
+        "mode": "all",
+        "image": "goclaw-sandbox:bookworm-slim",
+        "workspace_access": "rw",
+        "scope": "session",
+        "memory_mb": 512,
+        "cpus": 1.0,
+        "timeout_sec": 300,
+        "network_enabled": false,
+        "read_only_root": true,
+        "max_output_bytes": 1048576,
+        "idle_hours": 24,
+        "max_age_days": 7,
+        "prune_interval_min": 5
+      }
+    }
   }
 }
 ```
@@ -114,20 +116,17 @@ GOCLAW_SANDBOX_NETWORK=false
 | `cpus` | float | 1.0 | Hạn mức CPU |
 | `timeout_sec` | int | 300 | Timeout mỗi lệnh tính bằng giây |
 | `network_enabled` | bool | false | Bật mạng container |
-| `restricted_domains` | string[] | — | Các domain được phép khi mạng bật |
 | `read_only_root` | bool | true | Mount filesystem root chỉ đọc |
-| `cap_drop` | string[] | `["ALL"]` | Linux capabilities bị drop |
-| `tmpfs` | string[] | `/tmp`, `/var/tmp`, `/run` | Các mount tmpfs có thể ghi |
 | `tmpfs_size_mb` | int | 0 | Kích thước mặc định cho tmpfs mounts (0 = mặc định Docker) |
-| `pids_limit` | int | 0 | Số PID tối đa trong container (0 = không giới hạn) |
 | `user` | string | — | User container, ví dụ `1000:1000` hoặc `nobody` |
 | `max_output_bytes` | int | 1048576 | Đầu ra stdout+stderr tối đa mỗi lần exec (1 MB) |
 | `setup_command` | string | — | Lệnh shell chạy một lần sau khi tạo container |
-| `container_prefix` | string | `goclaw-sbx-` | Prefix cho tên container |
-| `workdir` | string | `/workspace` | Thư mục làm việc trong container |
+| `env` | object | — | Biến môi trường thêm vào trong container |
 | `idle_hours` | int | 24 | Dọn dẹp container idle quá N giờ |
 | `max_age_days` | int | 7 | Dọn dẹp container tồn tại quá N ngày |
 | `prune_interval_min` | int | 5 | Khoảng thời gian kiểm tra dọn dẹp nền (phút) |
+
+Các bảo vệ bảo mật mặc định (`--cap-drop ALL`, `--tmpfs /tmp:/var/tmp:/run`, `--security-opt no-new-privileges`) được áp dụng tự động và không thể ghi đè qua config.
 
 ## Truy cập Workspace
 
@@ -180,8 +179,14 @@ services:
       - GOCLAW_SANDBOX_WORKSPACE_ACCESS=rw
       - GOCLAW_SANDBOX_SCOPE=session
       - GOCLAW_SANDBOX_MEMORY_MB=512
+      - GOCLAW_SANDBOX_CPUS=1.0
       - GOCLAW_SANDBOX_TIMEOUT_SEC=300
       - GOCLAW_SANDBOX_NETWORK=false
+    # Cho phép truy cập Docker socket từ container goclaw
+    cap_drop: []
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt: []
     group_add:
       - ${DOCKER_GID:-999}
 ```
@@ -202,12 +207,16 @@ Agent `main` và `default` chạy lệnh trên host. Tất cả agent khác (sub
 
 ```json
 {
-  "sandbox": {
-    "mode": "all",
-    "workspace_access": "ro",
-    "setup_command": "pip install -q pandas numpy",
-    "memory_mb": 1024,
-    "timeout_sec": 120
+  "agents": {
+    "defaults": {
+      "sandbox": {
+        "mode": "all",
+        "workspace_access": "ro",
+        "setup_command": "pip install -q pandas numpy",
+        "memory_mb": 1024,
+        "timeout_sec": 120
+      }
+    }
   }
 }
 ```
@@ -216,20 +225,10 @@ Agent `main` và `default` chạy lệnh trên host. Tất cả agent khác (sub
 
 ### Kiểm tra các container sandbox đang hoạt động
 
-```bash
-GET /v1/sandbox/stats
-```
+GoClaw không expose HTTP endpoint công khai cho sandbox stats. Bạn có thể kiểm tra các container đang chạy trực tiếp qua Docker:
 
-```json
-{
-  "mode": "all",
-  "image": "goclaw-sandbox:bookworm-slim",
-  "active": 3,
-  "containers": {
-    "agent:session-abc123": "a1b2c3d4e5f6",
-    "agent:session-def456": "b2c3d4e5f6a1"
-  }
-}
+```bash
+docker ps --filter "label=goclaw.sandbox=true"
 ```
 
 ## Các vấn đề thường gặp

@@ -15,18 +15,31 @@ The graph is scoped per agent and per user — each agent builds its own graph f
 
 ## How Extraction Works
 
-After a conversation, GoClaw sends the text (up to 6,000 characters) to an LLM with a structured extraction prompt. The LLM returns:
+After a conversation, GoClaw sends the text to an LLM with a structured extraction prompt. For long texts (over 12,000 characters), GoClaw splits the input into chunks, extracts from each, and merges results by deduplicating entities and relations. The LLM returns:
 
 - **Entities** — People, projects, tasks, events, concepts, locations, organizations
-- **Relations** — Typed connections between entities (e.g., "works_on", "reports_to")
+- **Relations** — Typed connections between entities (e.g., `works_on`, `reports_to`)
 
-Each entity and relation has a **confidence score** (0.0–1.0). Only items above the threshold (default **0.75**) are stored.
+Each entity and relation has a **confidence score** (0.0–1.0). Only items at or above the threshold (default **0.75**) are stored.
 
 **Constraints:**
-- Max 15 entities per extraction
-- Entity IDs are lowercase with hyphens
-- Descriptions max 50 characters
+- 3–15 entities per extraction, depending on text density
+- Entity IDs are lowercase with hyphens (e.g., `john-doe`, `project-alpha`)
+- Descriptions are one sentence maximum
 - Temperature 0.0 for deterministic results
+
+### Relation types
+
+The extractor uses a fixed set of relation types:
+
+| Category | Types |
+|----------|-------|
+| People ↔ Work | `works_on`, `manages`, `reports_to`, `collaborates_with` |
+| Structure | `belongs_to`, `part_of`, `depends_on`, `blocks` |
+| Actions | `created`, `completed`, `assigned_to`, `scheduled_for` |
+| Location | `located_in`, `based_at` |
+| Technology | `uses`, `implements`, `integrates_with` |
+| Fallback | `related_to` |
 
 ---
 
@@ -36,7 +49,7 @@ Each entity and relation has a **confidence score** (0.0–1.0). Only items abov
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `query` | string | Entity name, keyword, or `*` to list all |
+| `query` | string | Entity name, keyword, or `*` to list all (required) |
 | `entity_type` | string | Filter: `person`, `project`, `task`, `event`, `concept`, `location`, `organization` |
 | `entity_id` | string | Start point for relationship traversal |
 | `max_depth` | int | Traversal depth (default 2, max 3) |
@@ -53,13 +66,14 @@ query: "John"
 query: "*"
 ```
 
-**Traverse relationships** — Start from an entity and follow connections:
+**Traverse relationships** — Start from an entity and follow outgoing connections:
 ```
+query: "*"
 entity_id: "project-alpha"
 max_depth: 2
 ```
 
-Results include entity names, types, descriptions, and relationships with resolved names.
+Results include entity names, types, descriptions, depth, traversal path, and the relation type used to reach each entity.
 
 ---
 
@@ -89,7 +103,7 @@ Entities:
   [concept] GraphQL — API layer technology
 
 Relations:
-  Alice --leads--> Project Alpha
+  Alice --manages--> Project Alpha
   Bob --works_on--> Project Alpha
   Project Alpha --uses--> GraphQL
 ```

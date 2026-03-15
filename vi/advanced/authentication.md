@@ -99,7 +99,7 @@ Lệnh này gọi `GET /v1/auth/openai/status` trên gateway đang chạy. URL g
 
 Lệnh này gọi `POST /v1/auth/openai/logout`, sẽ:
 
-1. Xóa access token khỏi `llm_providers`
+1. Xóa toàn bộ dòng provider `openai-codex` khỏi `llm_providers`
 2. Xóa refresh token khỏi `config_secrets`
 3. Hủy đăng ký provider `openai-codex` khỏi registry trong bộ nhớ
 
@@ -111,10 +111,10 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <GOCLAW_TOKEN>`.
 
 | Method | Path | Mô tả |
 |--------|------|-------------|
-| `GET` | `/v1/auth/openai/status` | Kiểm tra OAuth có đang hoạt động và token hợp lệ không |
-| `POST` | `/v1/auth/openai/start` | Bắt đầu luồng OAuth — trả về `{ auth_url }` |
-| `POST` | `/v1/auth/openai/callback` | Submit redirect URL để trao đổi thủ công — trả về `{ authenticated, provider_name, provider_id }` |
-| `POST` | `/v1/auth/openai/logout` | Xóa token đã lưu và hủy đăng ký provider |
+| `GET` | `/v1/auth/openai/status` | Kiểm tra OAuth có đang hoạt động và token hợp lệ không — trả về `{ authenticated, provider_name? }` |
+| `POST` | `/v1/auth/openai/start` | Bắt đầu luồng OAuth — trả về `{ auth_url }` hoặc `{ status: "already_authenticated" }` |
+| `POST` | `/v1/auth/openai/callback` | Submit redirect URL để trao đổi thủ công — body: `{ redirect_url }` — trả về `{ authenticated, provider_name, provider_id }` |
+| `POST` | `/v1/auth/openai/logout` | Xóa token đã lưu và hủy đăng ký provider — trả về `{ status: "logged out" }` |
 
 ---
 
