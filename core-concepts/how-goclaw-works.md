@@ -15,7 +15,7 @@ graph TD
     GW --> SC[Scheduler<br/>4 lanes]
     SC --> AL[Agent Loop<br/>Think → Act → Observe]
     AL --> PR[Provider Registry<br/>18+ LLM providers]
-    AL --> TR[Tool Registry<br/>34+ built-in tools]
+    AL --> TR[Tool Registry<br/>33+ built-in tools]
     AL --> SS[Session Store<br/>PostgreSQL]
     AL --> MM[Memory Store<br/>Vector + FTS]
     PR --> LLM[LLM APIs<br/>OpenAI / Anthropic / ...]
@@ -82,7 +82,7 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 |-----------|-------------|
 | **Gateway** | HTTP + WebSocket server on port 18790 |
 | **Provider Registry** | Manages 18+ LLM provider connections and credentials |
-| **Tool Registry** | 34+ built-in tools with policy-based access control (extensible via MCP and custom tools) |
+| **Tool Registry** | 33+ built-in tools with policy-based access control (extensible via MCP and custom tools) |
 | **Session Store** | Write-behind cache + PostgreSQL persistence |
 | **Memory Store** | Hybrid search with pgvector + tsvector |
 | **Channel Managers** | Telegram, Discord, WhatsApp, Zalo, Feishu adapters |

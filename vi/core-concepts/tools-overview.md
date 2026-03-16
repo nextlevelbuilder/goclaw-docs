@@ -2,11 +2,11 @@
 
 # Tools Overview
 
-> 34+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
+> 33+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
 
 ## Tổng quan
 
-Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn bản. Agent có thể tìm kiếm web, đọc file, chạy code, truy vấn memory, phân công cho agent khác, và nhiều hơn. GoClaw gồm 34+ tool tích hợp sẵn (có thể mở rộng qua MCP và custom tool per-agent) thuộc 13 danh mục.
+Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn bản. Agent có thể tìm kiếm web, đọc file, chạy code, truy vấn memory, phân công cho agent khác, và nhiều hơn. GoClaw gồm 33+ tool tích hợp sẵn (có thể mở rộng qua MCP và custom tool per-agent) thuộc 13 danh mục.
 
 ## Danh mục Tool
 

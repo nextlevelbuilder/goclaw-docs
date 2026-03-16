@@ -1,10 +1,10 @@
 # Tools Overview
 
-> The 34+ built-in tools agents can use, organized by category.
+> The 33+ built-in tools agents can use, organized by category.
 
 ## Overview
 
-Tools are how agents interact with the world beyond generating text. An agent can search the web, read files, run code, query memory, delegate to other agents, and more. GoClaw includes 34+ built-in tools (extensible via MCP and custom tools per agent) across 13 categories.
+Tools are how agents interact with the world beyond generating text. An agent can search the web, read files, run code, query memory, delegate to other agents, and more. GoClaw includes 33+ built-in tools (extensible via MCP and custom tools per agent) across 13 categories.
 
 ## Tool Categories
 

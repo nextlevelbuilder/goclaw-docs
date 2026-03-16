@@ -32,15 +32,15 @@ Each user gets their own complete copy of all context files. Every user can full
 
 The agent has a fixed, shared personality that no user can change through chat. Each user only gets personal profile files. Think of it as a company chatbot — same brand voice for everyone, but it knows who you are.
 
-- 4 context files shared across all users (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) — read-only from chat
-- 2 files per-user (USER.md, BOOTSTRAP.md)
+- 4 context files shared across all users (SOUL, IDENTITY, AGENTS, TOOLS) — read-only from chat
+- 3 files per-user (USER.md, USER_PREDEFINED.md, BOOTSTRAP.md)
 - Shared files can only be edited from the management dashboard (not through conversations)
 - Best for: team bots, branded assistants, customer support where consistent personality matters
 
 | Aspect | Open | Predefined |
 |--------|------|-----------|
-| Agent-level files | Templates (copied to each user) | 4 shared (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) |
-| Per-user files | All 7 | 2 (USER.md, BOOTSTRAP.md) |
+| Agent-level files | Templates (copied to each user) | 4 shared (SOUL, IDENTITY, AGENTS, TOOLS) |
+| Per-user files | All 7 | 3 (USER.md, USER_PREDEFINED.md, BOOTSTRAP.md) |
 | User can edit via chat | All files | USER.md only |
 | Personality | Diverges per user | Fixed, same for everyone |
 | Use case | Personal assistant | Team/company bot |

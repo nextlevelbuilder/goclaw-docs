@@ -95,7 +95,7 @@ GoClaw may also compact history **during a long agent turn** if the context exce
 | DM | 1 | Single-threaded — messages queue up |
 | Group | 1 (configurable) | Serial by default; can be increased via `ScheduleOpts.MaxConcurrent` |
 
-When history exceeds 60% of the context window, group concurrency drops to 1 (adaptive throttle).
+Group sessions may reduce concurrency when context usage is high.
 
 > **Configuring concurrency:** Both DM and Group default to serial processing (`MaxConcurrent: 1`). Higher values (e.g. 3) can be set for team members or agent links via `ScheduleOpts.MaxConcurrent`.
 

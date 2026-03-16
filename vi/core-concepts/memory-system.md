@@ -42,7 +42,7 @@ Khi agent gọi `memory_search`, GoClaw chạy hybrid search:
 
 Kết quả được kết hợp và chấm điểm:
 
-1. FTS score × 0.3 + Vector score × 0.7
+1. FTS score × 0.3 + Vector score × 0.7 *(khi cả hai nguồn đều có kết quả; nếu một nguồn trống, toàn bộ trọng số dồn vào nguồn còn lại)*
 2. Per-user boost: kết quả có phạm vi user hiện tại nhận hệ số 1.2×
 3. Deduplication: nếu cả kết quả user-scoped và global đều khớp, bản user thắng
 4. Normalize: chia tất cả score cho score cao nhất

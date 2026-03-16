@@ -156,7 +156,7 @@ Skill được publish qua `publish_skill` mặc định có visibility **privat
 Cấp quyền skill cho agent:
 
 ```bash
-curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/agent \
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
@@ -165,14 +165,14 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/agent \
 Thu hồi quyền agent:
 
 ```bash
-curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/agent/{agent_id} \
+curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/agent/{agent_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 Cấp quyền skill cho user cụ thể (để skill xuất hiện trong session của user đó):
 
 ```bash
-curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/user \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"user_id": "user@example.com"}'
@@ -181,7 +181,7 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
 Thu hồi quyền user:
 
 ```bash
-curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/user/{user_id} \
+curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
 

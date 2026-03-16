@@ -34,15 +34,15 @@ Mỗi người dùng có bản copy riêng hoàn chỉnh của tất cả contex
 
 Agent có tính cách cố định, chung cho tất cả — không user nào thay đổi được qua chat. Mỗi người dùng chỉ có file hồ sơ cá nhân. Hãy nghĩ như một chatbot công ty — cùng giọng điệu thương hiệu, nhưng biết bạn là ai.
 
-- 4 context file chia sẻ cho tất cả người dùng (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) — chỉ đọc từ chat
-- 2 file per-user (USER.md, BOOTSTRAP.md)
+- 4 context file chia sẻ cho tất cả người dùng (SOUL, IDENTITY, AGENTS, TOOLS) — chỉ đọc từ chat
+- 3 file per-user (USER.md, USER_PREDEFINED.md, BOOTSTRAP.md)
 - File chung chỉ có thể sửa từ dashboard quản lý (không qua hội thoại)
 - Phù hợp: team bot, branded assistant, customer support — nơi tính cách nhất quán quan trọng
 
 | Khía cạnh | Open | Predefined |
 |-----------|------|-----------|
-| File cấp agent | Template (copy cho mỗi user) | 4 chung (AGENTS, SOUL, IDENTITY, USER_PREDEFINED) |
-| File per-user | Tất cả 7 | 2 (USER.md, BOOTSTRAP.md) |
+| File cấp agent | Template (copy cho mỗi user) | 4 chung (SOUL, IDENTITY, AGENTS, TOOLS) |
+| File per-user | Tất cả 7 | 3 (USER.md, USER_PREDEFINED.md, BOOTSTRAP.md) |
 | User sửa qua chat | Tất cả file | Chỉ USER.md |
 | Tính cách | Phân hóa theo user | Cố định, giống nhau cho mọi người |
 | Trường hợp dùng | Personal assistant | Team/company bot |

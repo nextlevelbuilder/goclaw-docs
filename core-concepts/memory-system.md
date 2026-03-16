@@ -40,7 +40,7 @@ When an agent calls `memory_search`, GoClaw runs a hybrid search:
 
 Results are combined and scored:
 
-1. FTS score × 0.3 + Vector score × 0.7
+1. FTS score × 0.3 + Vector score × 0.7 *(when both sources return results; if one source is empty, all weight goes to the available source)*
 2. Per-user boost: results scoped to the current user get a 1.2× multiplier
 3. Deduplication: if both user-scoped and global results match, user copy wins
 4. Normalize: divide all scores by the highest score

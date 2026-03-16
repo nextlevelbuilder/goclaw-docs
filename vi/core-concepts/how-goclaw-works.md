@@ -17,7 +17,7 @@ graph TD
     GW --> SC[Scheduler<br/>4 lanes]
     SC --> AL[Agent Loop<br/>Think → Act → Observe]
     AL --> PR[Provider Registry<br/>18+ LLM providers]
-    AL --> TR[Tool Registry<br/>34+ built-in tools]
+    AL --> TR[Tool Registry<br/>33+ built-in tools]
     AL --> SS[Session Store<br/>PostgreSQL]
     AL --> MM[Memory Store<br/>Vector + FTS]
     PR --> LLM[LLM APIs<br/>OpenAI / Anthropic / ...]

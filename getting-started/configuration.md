@@ -195,7 +195,7 @@ Settings in `agents.defaults` apply to all agents unless overridden.
   "list": {
     "code-helper": {
       "displayName": "Code Helper",
-      "model": "anthropic/claude-opus-4-20250514",
+      "model": "anthropic/claude-opus-4-6",
       "temperature": 0.3,
       "max_tool_iterations": 50,
       "max_tool_calls": 40,
@@ -318,7 +318,7 @@ Controls how agents can spawn child agents.
   "maxSpawnDepth": 1,
   "maxChildrenPerAgent": 5,
   "archiveAfterMinutes": 60,
-  "model": "anthropic/claude-haiku-4-20250514"
+  "model": "anthropic/claude-haiku-4-5-20251001"
 }
 ```
 
@@ -660,7 +660,7 @@ Auto-compacts long channel histories.
     "keep_recent": 15,
     "max_tokens": 4096,
     "provider": "openrouter",
-    "model": "anthropic/claude-haiku-4-20250514"
+    "model": "anthropic/claude-haiku-4-5-20251001"
   }
 }
 ```

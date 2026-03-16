@@ -197,7 +197,7 @@ Các cài đặt trong `agents.defaults` áp dụng cho tất cả agent trừ k
   "list": {
     "code-helper": {
       "displayName": "Code Helper",
-      "model": "anthropic/claude-opus-4-20250514",
+      "model": "anthropic/claude-opus-4-6",
       "temperature": 0.3,
       "max_tool_iterations": 50,
       "max_tool_calls": 40,
@@ -320,7 +320,7 @@ Kiểm soát cách các agent có thể tạo agent con.
   "maxSpawnDepth": 1,
   "maxChildrenPerAgent": 5,
   "archiveAfterMinutes": 60,
-  "model": "anthropic/claude-haiku-4-20250514"
+  "model": "anthropic/claude-haiku-4-5-20251001"
 }
 ```
 
@@ -662,7 +662,7 @@ Tự động nén lịch sử kênh dài.
     "keep_recent": 15,
     "max_tokens": 4096,
     "provider": "openrouter",
-    "model": "anthropic/claude-haiku-4-20250514"
+    "model": "anthropic/claude-haiku-4-5-20251001"
   }
 }
 ```

@@ -154,7 +154,7 @@ To revoke, toggle off the agent in the grants list.
 Grant a skill to an agent:
 
 ```bash
-curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/agent \
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
@@ -163,14 +163,14 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/agent \
 Revoke an agent grant:
 
 ```bash
-curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/agent/{agent_id} \
+curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/agent/{agent_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 Grant a skill to a specific user (so it appears in their agent sessions):
 
 ```bash
-curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/user \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"user_id": "user@example.com"}'
@@ -179,7 +179,7 @@ curl -X POST http://localhost:9090/v1/skills/{skill_id}/grants/user \
 Revoke a user grant:
 
 ```bash
-curl -X DELETE http://localhost:9090/v1/skills/{skill_id}/grants/user/{user_id} \
+curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
 
