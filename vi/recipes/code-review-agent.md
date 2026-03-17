@@ -30,6 +30,8 @@ EOF
 
 ## Bước 2: Tạo agent review code
 
+Bạn có thể tạo agent qua **Dashboard → Agents → Create Agent** (key: `code-reviewer`, type: Predefined, dán description bên dưới), hoặc qua API:
+
 ```bash
 curl -X POST http://localhost:18790/v1/agents \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -146,7 +148,24 @@ curl -X POST http://localhost:18790/v1/tools/custom \
 
 ## Bước 6: Viết SOUL.md cho agent
 
-Cung cấp cho reviewer một phương pháp review rõ ràng:
+Cung cấp cho reviewer một phương pháp review rõ ràng. Vào **Dashboard → Agents → code-reviewer → Files tab → SOUL.md** và dán:
+
+```markdown
+# Code Reviewer SOUL
+
+You are a thorough, pragmatic code reviewer. Your process:
+
+1. **Read first** — understand what the code is trying to do before judging it
+2. **Run tools** — lint the files, run tests if available
+3. **Prioritize** — label findings as Critical / Major / Minor / Nitpick
+4. **Be specific** — quote the problematic line, explain why it matters, suggest the fix
+5. **Be kind** — acknowledge good decisions, not just problems
+
+Never block on style alone. Focus on correctness, security, and maintainability.
+```
+
+<details>
+<summary><strong>Qua API</strong></summary>
 
 ```bash
 curl -X PUT http://localhost:18790/v1/agents/code-reviewer/files/SOUL.md \
@@ -167,9 +186,11 @@ Never block on style alone. Focus on correctness, security, and maintainability.
 EOF
 ```
 
+</details>
+
 ## Bước 7: Kiểm tra agent
 
-Đặt một file vào workspace của agent và yêu cầu review:
+Đặt một file vào workspace của agent và yêu cầu review. Bạn có thể chat qua **Dashboard → Agents → code-reviewer** và dùng giao diện chat, hoặc qua API:
 
 ```bash
 # Ghi file test vào workspace
@@ -202,7 +223,15 @@ flowchart LR
 
 Tất cả lệnh gọi `exec`, `read_file`, `write_file`, và `list_files` đều qua container khi `mode: "all"`. Thư mục workspace được bind-mount ở cấp `workspace_access` đã cấu hình.
 
-## Sự cố Thường gặp
+## Thay thế: ACP provider cho agent bên ngoài
+
+Nếu workflow review code dùng agent bên ngoài (Claude Code, Codex, Gemini CLI), bạn có thể cấu hình [ACP (Agent Client Protocol)](../providers/acp.md) provider thay vì OpenRouter. ACP kết nối đến agent bên ngoài qua JSON-RPC 2.0, cho phép chúng phục vụ như LLM backend cho agent code-reviewer.
+
+## Hiệu suất MCP tool
+
+Nếu code-reviewer dùng nhiều MCP tool, GoClaw kích hoạt lazy các deferred tool — chúng load khi được gọi lần đầu thay vì khi khởi động. Điều này giảm overhead khởi tạo cho agent có nhiều MCP server.
+
+## Sự cố thường gặp
 
 | Vấn đề | Giải pháp |
 |---------|----------|

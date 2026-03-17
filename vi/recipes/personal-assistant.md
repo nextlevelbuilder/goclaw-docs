@@ -78,17 +78,26 @@ Sau khi onboard, `config.json` trông đại khái như thế này:
 
 ## Bước 3: Ghép nối tài khoản Telegram
 
-Mở web dashboard tại `http://localhost:18790` và hoàn tất quy trình ghép nối với tài khoản Telegram của bạn, hoặc dùng `./goclaw agent chat` để chat trực tiếp trên terminal mà không cần ghép nối.
+Mở web dashboard tại `http://localhost:18790`. Vào trang pairing và làm theo hướng dẫn — bạn sẽ gửi mã đến Telegram bot, và dashboard xác nhận kết nối. Sau khi ghép nối, bot sẽ phản hồi tin nhắn của bạn.
+
+Hoặc dùng `./goclaw agent chat` để chat trực tiếp trên terminal mà không cần ghép nối.
 
 ## Bước 4: Tùy chỉnh tính cách (SOUL.md)
 
-Ở lần chat đầu tiên, agent tạo file `SOUL.md` trong context người dùng của bạn. Chỉnh sửa nó:
+Ở lần chat đầu tiên, agent tạo file `SOUL.md` trong context người dùng của bạn. Chỉnh sửa trong dashboard:
 
-```bash
-# Trong web dashboard → Agents → agent của bạn → Context Files → SOUL.md
+Vào **Agents → agent của bạn → Files tab → SOUL.md** và chỉnh sửa trực tiếp. Ví dụ:
+
+```markdown
+You are a sharp, direct research partner. You prefer short answers over long explanations
+unless the user explicitly asks to dig deeper. You have a dry sense of humor.
+You never hedge with "I think" or "I believe" — just state your answer.
 ```
 
-Hoặc qua API:
+Click **Save** khi hoàn tất.
+
+<details>
+<summary><strong>Qua API</strong></summary>
 
 ```bash
 curl -X PUT http://localhost:18790/v1/agents/default/files/SOUL.md \
@@ -102,6 +111,8 @@ You never hedge with "I think" or "I believe" — just state your answer.
 EOF
 ```
 
+</details>
+
 Xem [Editing Personality](../agents/editing-personality.md) để biết tài liệu tham khảo đầy đủ về SOUL.md.
 
 ## Bước 5: Bật bộ nhớ
@@ -110,7 +121,16 @@ Bộ nhớ đã bật nếu bạn chọn nó trong wizard. Agent dùng SQLite + 
 
 Để xác minh bộ nhớ đang hoạt động, nhắn bot: "Nhớ rằng tôi thích Python hơn JavaScript." Sau đó ở session sau: "Tôi thích ngôn ngữ lập trình nào?" — agent sẽ nhớ lại từ bộ nhớ.
 
-## Sự cố Thường gặp
+Bạn cũng có thể kiểm tra trạng thái bộ nhớ trong dashboard: vào **Agents → agent của bạn** và xác minh memory config hiển thị đã bật.
+
+## Tùy chọn: Cá nhân hóa agent
+
+Một vài điều chỉnh thêm bạn có thể cấu hình trong dashboard tại **Agents → agent của bạn**:
+
+- **Emoji:** Đặt emoji icon qua bộ chọn emoji trong trang chi tiết agent — hiển thị trong danh sách agent và giao diện chat
+- **Skill learning:** (Chỉ agent predefined) Bật **Skill Learning** để agent ghi lại workflow tái sử dụng dưới dạng skill sau các task phức tạp. Đặt nudge interval để kiểm soát tần suất agent đề xuất tạo skill.
+
+## Sự cố thường gặp
 
 | Vấn đề | Giải pháp |
 |---------|----------|

@@ -28,6 +28,8 @@ EOF
 
 ## Step 2: Create the code review agent
 
+You can create the agent via **Dashboard → Agents → Create Agent** (key: `code-reviewer`, type: Predefined, paste the description below), or via the API:
+
 ```bash
 curl -X POST http://localhost:18790/v1/agents \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -144,7 +146,24 @@ curl -X POST http://localhost:18790/v1/tools/custom \
 
 ## Step 6: Write the agent's SOUL.md
 
-Give the reviewer a clear review methodology:
+Give the reviewer a clear review methodology. Go to **Dashboard → Agents → code-reviewer → Files tab → SOUL.md** and paste:
+
+```markdown
+# Code Reviewer SOUL
+
+You are a thorough, pragmatic code reviewer. Your process:
+
+1. **Read first** — understand what the code is trying to do before judging it
+2. **Run tools** — lint the files, run tests if available
+3. **Prioritize** — label findings as Critical / Major / Minor / Nitpick
+4. **Be specific** — quote the problematic line, explain why it matters, suggest the fix
+5. **Be kind** — acknowledge good decisions, not just problems
+
+Never block on style alone. Focus on correctness, security, and maintainability.
+```
+
+<details>
+<summary><strong>Via API</strong></summary>
 
 ```bash
 curl -X PUT http://localhost:18790/v1/agents/code-reviewer/files/SOUL.md \
@@ -165,9 +184,11 @@ Never block on style alone. Focus on correctness, security, and maintainability.
 EOF
 ```
 
+</details>
+
 ## Step 7: Test the agent
 
-Drop a file into the agent's workspace and ask for a review:
+Drop a file into the agent's workspace and ask for a review. You can chat via **Dashboard → Agents → code-reviewer** and use the chat interface, or via the API:
 
 ```bash
 # Write a test file to the workspace
@@ -199,6 +220,14 @@ flowchart LR
 ```
 
 All `exec`, `read_file`, `write_file`, and `list_files` calls go through the container when `mode: "all"`. The workspace directory is bind-mounted at the configured `workspace_access` level.
+
+## Alternative: ACP provider for external agents
+
+If your code review workflow uses an external coding agent (Claude Code, Codex, Gemini CLI), you can configure an [ACP (Agent Client Protocol)](../providers/acp.md) provider instead of OpenRouter. ACP connects to external agents via JSON-RPC 2.0, letting them serve as the LLM backend for your code-reviewer agent.
+
+## MCP tool performance
+
+If your code-reviewer uses many MCP tools, GoClaw lazily activates deferred tools — they load on first call rather than at startup. This reduces initial overhead for agents with large MCP server configurations.
 
 ## Common Issues
 

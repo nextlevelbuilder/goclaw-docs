@@ -1,28 +1,62 @@
 > Bản dịch từ [English version](../../recipes/multi-channel-setup.md)
 
-# Thiết lập Đa Channel
+# Multi-Channel Setup
 
 > Đặt cùng một agent trên Telegram, Discord, và WebSocket cùng lúc.
 
 ## Tổng quan
 
-GoClaw chạy nhiều channel từ một tiến trình gateway duy nhất. Một agent có thể nhận tin nhắn từ Telegram, Discord, và client WebSocket trực tiếp cùng một lúc — mỗi channel có phạm vi session riêng, nên các hội thoại được cách ly theo từng channel và người dùng.
+GoClaw chạy nhiều channel từ một gateway process. Một agent duy nhất có thể nhận tin nhắn từ Telegram, Discord, và WebSocket client trực tiếp cùng lúc — mỗi channel có session scope riêng, nên các cuộc hội thoại được cách ly theo channel và người dùng.
 
-**Điều kiện tiên quyết:** Một gateway đang hoạt động với ít nhất một agent đã tạo.
+**Bạn cần:**
+- Một gateway đang hoạt động với ít nhất một agent đã tạo
+- Truy cập web dashboard tại `http://localhost:18790`
+- Bot token cho mỗi nền tảng nhắn tin
 
 ## Bước 1: Thu thập token
 
-Bạn cần bot token cho mỗi nền tảng nhắn tin:
+Bạn cần bot token cho mỗi nền tảng:
 
 **Telegram:** Nhắn [@BotFather](https://t.me/BotFather) → `/newbot` → copy token
-
 **Discord:** [discord.com/developers](https://discord.com/developers/applications) → New Application → Bot → Add Bot → copy token. Bật **Message Content Intent** trong Privileged Gateway Intents.
 
-WebSocket không cần token bên ngoài — client xác thực bằng gateway token của bạn.
+WebSocket không cần token bên ngoài — client xác thực bằng gateway token.
 
-## Bước 2: Cấu hình cả ba channel
+## Bước 2: Tạo channel instance
 
-Thêm tất cả cấu hình channel vào `config.json`. Bí mật (token) để trong `.env.local` — không trong file config.
+Mở web dashboard và vào **Channels → Create Instance**. Tạo một instance cho mỗi nền tảng:
+
+**Telegram:**
+- **Channel type:** Telegram
+- **Name:** `main-telegram`
+- **Agent:** Chọn agent của bạn
+- **Credentials:** Dán bot token từ @BotFather
+- **Config:** Đặt `dm_policy` thành `pairing` (khuyến nghị) hoặc `open`
+
+Click **Save**.
+
+**Discord:**
+- **Channel type:** Discord
+- **Name:** `main-discord`
+- **Agent:** Chọn cùng agent
+- **Credentials:** Dán Discord bot token
+- **Config:** Đặt `dm_policy` thành `open`, `require_mention` thành `true`
+
+Click **Save**.
+
+Cả hai channel hoạt động ngay lập tức — không cần khởi động lại gateway. WebSocket được tích hợp trong gateway và không cần tạo instance.
+
+Khi khởi động bạn sẽ thấy log như:
+```
+channel=telegram status=connected bot=@YourBotName
+channel=discord  status=connected guild_count=2
+gateway          status=listening addr=0.0.0.0:18790
+```
+
+<details>
+<summary><strong>Qua config.json</strong></summary>
+
+Thêm tất cả config channel vào `config.json`. Secret (token) để trong `.env.local` — không trong file config.
 
 `config.json`:
 ```json
@@ -53,7 +87,7 @@ Thêm tất cả cấu hình channel vào `config.json`. Bí mật (token) để
 }
 ```
 
-`.env.local` (chỉ bí mật — đừng bao giờ commit file này):
+`.env.local` (chỉ secret — không commit file này):
 ```bash
 export GOCLAW_TELEGRAM_TOKEN="123456:ABCDEFGHIJKLMNOPQRSTUVWxyz"
 export GOCLAW_DISCORD_TOKEN="your-discord-bot-token"
@@ -63,9 +97,7 @@ export GOCLAW_POSTGRES_DSN="postgres://user:pass@localhost:5432/goclaw"
 
 GoClaw đọc token channel từ biến môi trường khi trường `token` trong config để trống.
 
-## Bước 3: Gắn agent vào tất cả channel
-
-Mặc định, gateway định tuyến tất cả tin nhắn đến agent `default`. Để gắn rõ ràng agent của bạn vào tất cả channel, thêm binding vào `config.json`:
+Thêm binding để định tuyến tin nhắn đến agent:
 
 ```json
 {
@@ -82,24 +114,17 @@ Mặc định, gateway định tuyến tất cả tin nhắn đến agent `defau
 }
 ```
 
-Client WebSocket chỉ định agent trực tiếp trong chat request (xem Bước 5).
-
-## Bước 4: Khởi động gateway
+Khởi động gateway:
 
 ```bash
 source .env.local && ./goclaw
 ```
 
-Khi khởi động bạn sẽ thấy các dòng log như:
-```
-channel=telegram status=connected bot=@YourBotName
-channel=discord  status=connected guild_count=2
-gateway          status=listening addr=0.0.0.0:18790
-```
+</details>
 
-## Bước 5: Kết nối WebSocket client
+## Bước 3: Kết nối WebSocket client
 
-WebSocket được tích hợp sẵn trong gateway — không cần thiết lập thêm. Kết nối và xác thực:
+WebSocket được tích hợp trong gateway — không cần setup thêm. Kết nối và xác thực:
 
 ```javascript
 const ws = new WebSocket('ws://localhost:18790/ws');
@@ -130,7 +155,7 @@ function chat(message) {
   }));
 }
 
-// Lắng nghe phản hồi và các chunk streaming
+// Lắng nghe phản hồi và streaming chunk
 ws.onmessage = (e) => {
   const frame = JSON.parse(e.data);
   if (frame.type === 'event' && frame.event === 'chunk') {
@@ -142,15 +167,17 @@ ws.onmessage = (e) => {
 };
 ```
 
-Xem [WebSocket Channel](../channels/websocket.md) để biết tài liệu tham khảo giao thức đầy đủ.
+Xem [WebSocket Channel](../channels/websocket.md) để biết tham khảo protocol đầy đủ.
 
-## Bước 6: Xác minh cách ly xuyên channel
+## Bước 4: Xác minh cách ly cross-channel
 
-Session được cách ly theo channel và người dùng theo mặc định (`dm_scope: "per-channel-peer"`). Nghĩa là:
-- Alice trên Telegram và Alice trên Discord có **lịch sử hội thoại riêng biệt**
-- Agent xem họ là người dùng khác nhau
+Session được cách ly theo channel và người dùng mặc định (`dm_scope: "per-channel-peer"`). Nghĩa là:
+- Alice trên Telegram và Alice trên Discord có lịch sử hội thoại **riêng biệt**
+- Agent xử lý họ như hai người dùng khác nhau
 
-Nếu bạn muốn một session chung qua các channel cho cùng người dùng, đặt `dm_scope: "per-peer"` trong `config.json`:
+Xác minh cách ly trong dashboard: vào **Sessions** và lọc theo agent — bạn sẽ thấy session riêng cho mỗi channel.
+
+Nếu bạn muốn một session duy nhất xuyên channel cho cùng người dùng, đặt `dm_scope: "per-peer"` trong `config.json`:
 
 ```json
 {
@@ -162,20 +189,32 @@ Nếu bạn muốn một session chung qua các channel cho cùng người dùng
 
 Điều này chia sẻ lịch sử hội thoại khi cùng `user_id` kết nối từ bất kỳ channel nào.
 
-## So sánh Channel
+## Xử lý tin nhắn Telegram
+
+Telegram có giới hạn 4096 ký tự mỗi tin nhắn. GoClaw tự động xử lý phản hồi dài:
+
+- Tin nhắn dài được chia thành nhiều phần tại ranh giới tự nhiên (đoạn văn, code block)
+- Định dạng HTML được thử trước cho output phong phú
+- Nếu parse HTML thất bại, tin nhắn fallback sang plain text
+- Không cần cấu hình — hoàn toàn tự động
+
+## So sánh channel
 
 | Tính năng | Telegram | Discord | WebSocket |
-|---------|----------|---------|-----------|
-| Thiết lập | Token @BotFather | Token Developer Portal | Không có (dùng gateway token) |
+|-----------|----------|---------|-----------|
+| Setup | @BotFather token | Developer Portal token | Không (dùng gateway token) |
 | DM policy mặc định | `pairing` | `open` | Xác thực qua gateway token |
-| Hỗ trợ group/server | Có | Có | Không áp dụng |
-| Streaming | Tùy chọn (`dm_stream`) | Qua chỉnh sửa tin nhắn | Native (sự kiện chunk) |
-| Yêu cầu mention trong group | Có (mặc định) | Có (mặc định) | Không áp dụng |
-| Client tùy chỉnh | Không | Không | Có |
+| Hỗ trợ group/server | Có | Có | N/A |
+| Streaming | Tùy chọn (`dm_stream`) | Qua chỉnh sửa tin nhắn | Native (chunk event) |
+| Cần mention trong group | Có (mặc định) | Có (mặc định) | N/A |
+| Custom client | Không | Không | Có |
 
-## Giới hạn Tool theo Channel
+## Giới hạn tool theo channel
 
-Bạn có thể cho phép bộ tool khác nhau theo channel. Trong `config.json`:
+Bạn có thể cho phép bộ tool khác nhau cho mỗi channel. Vào **Agents → agent của bạn → Config tab** và cấu hình policy tool theo channel.
+
+<details>
+<summary><strong>Qua config.json</strong></summary>
 
 ```json
 {
@@ -194,21 +233,27 @@ Bạn có thể cho phép bộ tool khác nhau theo channel. Trong `config.json`
 }
 ```
 
-Client WebSocket (thường là developer hoặc tool nội bộ) có thể giữ quyền truy cập tool đầy đủ.
+</details>
 
-## Sự cố Thường gặp
+WebSocket client (thường là developer hoặc tool nội bộ) có thể giữ toàn bộ quyền truy cập tool.
+
+## File đính kèm
+
+Khi agent dùng `write_file` để tạo file, nó tự động được gửi dưới dạng attachment trong channel. Tính năng này hoạt động trên Telegram, Discord, và các channel được hỗ trợ khác — không cần cấu hình thêm.
+
+## Sự cố thường gặp
 
 | Vấn đề | Giải pháp |
 |---------|----------|
-| Telegram bot không phản hồi | Kiểm tra `dm_policy`. Mặc định là `"pairing"` — hoàn tất ghép nối trên browser trước, hoặc đặt `"open"` để test. |
-| Discord bot offline trong server | Xác minh bot đã được thêm vào server qua URL Generator OAuth2 với scope `bot` và quyền `Send Messages`. |
-| WebSocket connect bị từ chối | Đảm bảo `token` trong connect frame của bạn khớp với `GOCLAW_GATEWAY_TOKEN`. Token rỗng cho vai trò viewer-only. |
-| Tin nhắn định tuyến sai agent | Kiểm tra thứ tự `bindings` trong config — binding khớp đầu tiên thắng. Binding cụ thể hơn (với `peer`) nên đặt trước binding theo toàn channel. |
-| Cùng người dùng có session khác nhau trên Telegram và Discord | Đây là hành vi mặc định với `dm_scope: "per-channel-peer"`. Đặt `"per-peer"` để chia sẻ session qua các channel. |
+| Telegram bot không phản hồi | Kiểm tra `dm_policy`. Mặc định là `"pairing"` — hoàn tất browser pairing trước, hoặc đặt `"open"` để test. |
+| Discord bot offline trong server | Xác minh bot đã được thêm vào server qua OAuth2 URL Generator với scope `bot` và quyền `Send Messages`. |
+| WebSocket connect bị từ chối | Đảm bảo `token` trong connect frame khớp với `GOCLAW_GATEWAY_TOKEN`. Token trống cho role viewer-only. |
+| Tin nhắn định tuyến sai agent | Kiểm tra agent assignment của channel instance trong Dashboard → Channels. Binding khớp đầu tiên thắng khi dùng config.json. |
+| Cùng user có session khác nhau trên Telegram vs Discord | Đúng như mong đợi với `dm_scope: "per-channel-peer"` mặc định. Đặt `"per-peer"` để chia sẻ session xuyên channel. |
 
 ## Tiếp theo
 
-- [Telegram Channel](../channels/telegram.md) — tài liệu tham khảo cấu hình Telegram đầy đủ bao gồm group, topic và STT
-- [Discord Channel](../channels/discord.md) — Discord gateway intent và thiết lập streaming
-- [WebSocket Channel](../channels/websocket.md) — tài liệu tham khảo giao thức RPC đầy đủ
-- [Personal Assistant](./personal-assistant.md) — điểm bắt đầu một channel
+- [Telegram Channel](../channels/telegram.md) — tham khảo đầy đủ config Telegram bao gồm group, topic, và STT
+- [Discord Channel](../channels/discord.md) — Discord gateway intent và setup streaming
+- [WebSocket Channel](../channels/websocket.md) — tham khảo protocol RPC đầy đủ
+- [Personal Assistant](./personal-assistant.md) — điểm khởi đầu single-channel

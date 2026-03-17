@@ -6,7 +6,10 @@
 
 GoClaw runs multiple channels from one gateway process. A single agent can receive messages from Telegram, Discord, and direct WebSocket clients at the same time — each channel has its own session scope, so conversations stay isolated per channel and user.
 
-**Prerequisites:** A working gateway with at least one agent created.
+**What you need:**
+- A working gateway with at least one agent created
+- Web dashboard access at `http://localhost:18790`
+- Bot tokens for each messaging platform
 
 ## Step 1: Gather your tokens
 
@@ -17,7 +20,39 @@ You need a bot token for each messaging platform:
 
 WebSocket needs no external token — clients authenticate with your gateway token.
 
-## Step 2: Configure all three channels
+## Step 2: Create channel instances
+
+Open the web dashboard and go to **Channels → Create Instance**. Create one instance per platform:
+
+**Telegram:**
+- **Channel type:** Telegram
+- **Name:** `main-telegram`
+- **Agent:** Select your agent
+- **Credentials:** Paste the bot token from @BotFather
+- **Config:** Set `dm_policy` to `pairing` (recommended) or `open`
+
+Click **Save**.
+
+**Discord:**
+- **Channel type:** Discord
+- **Name:** `main-discord`
+- **Agent:** Select the same agent
+- **Credentials:** Paste the Discord bot token
+- **Config:** Set `dm_policy` to `open`, `require_mention` to `true`
+
+Click **Save**.
+
+Both channels are immediately active — no gateway restart needed. WebSocket is built into the gateway and needs no instance creation.
+
+On startup you should see log lines like:
+```
+channel=telegram status=connected bot=@YourBotName
+channel=discord  status=connected guild_count=2
+gateway          status=listening addr=0.0.0.0:18790
+```
+
+<details>
+<summary><strong>Via config.json</strong></summary>
 
 Add all channel configs to `config.json`. Secrets (tokens) go in `.env.local` — not in the config file.
 
@@ -60,9 +95,7 @@ export GOCLAW_POSTGRES_DSN="postgres://user:pass@localhost:5432/goclaw"
 
 GoClaw reads channel tokens from environment variables when the `token` field in config is empty.
 
-## Step 3: Bind an agent to all channels
-
-By default, the gateway routes all messages to the `default` agent. To explicitly bind your agent to all channels, add bindings to `config.json`:
+Add bindings to route messages to your agent:
 
 ```json
 {
@@ -79,22 +112,15 @@ By default, the gateway routes all messages to the `default` agent. To explicitl
 }
 ```
 
-WebSocket clients specify the agent in their chat request directly (see Step 5).
-
-## Step 4: Start the gateway
+Start the gateway:
 
 ```bash
 source .env.local && ./goclaw
 ```
 
-On startup you should see log lines like:
-```
-channel=telegram status=connected bot=@YourBotName
-channel=discord  status=connected guild_count=2
-gateway          status=listening addr=0.0.0.0:18790
-```
+</details>
 
-## Step 5: Connect a WebSocket client
+## Step 3: Connect a WebSocket client
 
 WebSocket is built into the gateway — no extra setup needed. Connect and authenticate:
 
@@ -141,11 +167,13 @@ ws.onmessage = (e) => {
 
 See [WebSocket Channel](../channels/websocket.md) for the full protocol reference.
 
-## Step 6: Verify cross-channel isolation
+## Step 4: Verify cross-channel isolation
 
 Sessions are isolated by channel and user by default (`dm_scope: "per-channel-peer"`). This means:
 - Alice on Telegram and Alice on Discord have **separate** conversation histories
 - The agent treats them as different users
+
+Verify isolation in the dashboard: go to **Sessions** and filter by agent — you should see separate sessions for each channel.
 
 If you want a single session across channels for the same user, set `dm_scope: "per-peer"` in `config.json`:
 
@@ -159,6 +187,15 @@ If you want a single session across channels for the same user, set `dm_scope: "
 
 This shares conversation history when the same `user_id` connects from any channel.
 
+## Telegram message handling
+
+Telegram has a 4096-character message limit. GoClaw handles long responses automatically:
+
+- Long messages are split into multiple parts at natural boundaries (paragraphs, code blocks)
+- HTML formatting is attempted first for rich output
+- If HTML parsing fails, the message falls back to plain text
+- No configuration needed — this is fully automatic
+
 ## Channel comparison
 
 | Feature | Telegram | Discord | WebSocket |
@@ -170,9 +207,12 @@ This shares conversation history when the same `user_id` connects from any chann
 | Mention required in groups | Yes (default) | Yes (default) | N/A |
 | Custom client | No | No | Yes |
 
-## Restrict channels per agent
+## Restrict tools per channel
 
-You can allow different tool sets per channel. In `config.json`:
+You can allow different tool sets per channel. Go to **Agents → your agent → Config tab** and configure per-channel tool policies.
+
+<details>
+<summary><strong>Via config.json</strong></summary>
 
 ```json
 {
@@ -191,7 +231,13 @@ You can allow different tool sets per channel. In `config.json`:
 }
 ```
 
+</details>
+
 WebSocket clients (usually developers or internal tools) can keep full tool access.
+
+## File attachments
+
+When the agent uses `write_file` to generate a file, it is automatically delivered as a channel attachment. This works across Telegram, Discord, and other supported channels — no extra configuration needed.
 
 ## Common Issues
 
@@ -200,7 +246,7 @@ WebSocket clients (usually developers or internal tools) can keep full tool acce
 | Telegram bot not responding | Check `dm_policy`. Default is `"pairing"` — complete browser pairing first, or set `"open"` for testing. |
 | Discord bot offline in server | Verify the bot has been added to the server via OAuth2 URL Generator with `bot` scope and `Send Messages` permission. |
 | WebSocket connect rejected | Ensure `token` in your connect frame matches `GOCLAW_GATEWAY_TOKEN`. Empty token gives viewer-only role. |
-| Messages routing to wrong agent | Check `bindings` order in config — first matching binding wins. More specific bindings (with `peer`) should come before channel-wide ones. |
+| Messages routing to wrong agent | Check channel instance agent assignment in Dashboard → Channels. First matching binding wins when using config.json. |
 | Same user gets different sessions on Telegram vs Discord | Expected with default `dm_scope: "per-channel-peer"`. Set `"per-peer"` to share sessions across channels. |
 
 ## What's Next

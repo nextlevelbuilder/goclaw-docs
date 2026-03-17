@@ -76,17 +76,26 @@ After onboarding, `config.json` looks roughly like this:
 
 ## Step 3: Pair your Telegram account
 
-Open the web dashboard at `http://localhost:18790` and complete the pairing flow with your Telegram account, or use `./goclaw agent chat` to chat directly in the terminal without pairing.
+Open the web dashboard at `http://localhost:18790`. Go to the pairing page and follow the instructions — you'll send a code to your Telegram bot, and the dashboard confirms the link. Once paired, the bot responds to your messages.
+
+Alternatively, use `./goclaw agent chat` to chat directly in the terminal without pairing.
 
 ## Step 4: Customize the personality (SOUL.md)
 
-On first chat, the agent seeds a `SOUL.md` file in your user context. Edit it:
+On first chat, the agent seeds a `SOUL.md` file in your user context. Edit it in the dashboard:
 
-```bash
-# In the web dashboard → Agents → your agent → Context Files → SOUL.md
+Go to **Agents → your agent → Files tab → SOUL.md** and edit inline. For example:
+
+```markdown
+You are a sharp, direct research partner. You prefer short answers over long explanations
+unless the user explicitly asks to dig deeper. You have a dry sense of humor.
+You never hedge with "I think" or "I believe" — just state your answer.
 ```
 
-Or via the API:
+Click **Save** when done.
+
+<details>
+<summary><strong>Via API</strong></summary>
 
 ```bash
 curl -X PUT http://localhost:18790/v1/agents/default/files/SOUL.md \
@@ -100,6 +109,8 @@ You never hedge with "I think" or "I believe" — just state your answer.
 EOF
 ```
 
+</details>
+
 See [Editing Personality](../agents/editing-personality.md) for full SOUL.md reference.
 
 ## Step 5: Enable memory
@@ -107,6 +118,15 @@ See [Editing Personality](../agents/editing-personality.md) for full SOUL.md ref
 Memory is already on if you selected it in the wizard. The agent uses SQLite + pgvector for hybrid search. Notes are stored with `memory_save` and searched with `memory_search` automatically.
 
 To verify memory is active, send your bot: "Remember that I prefer Python over JavaScript." Then in a later session: "What programming language do I prefer?" — the agent recalls from memory.
+
+You can also check memory status in the dashboard: go to **Agents → your agent** and verify the memory config shows as enabled.
+
+## Optional: Personalize your agent
+
+A few extra touches you can configure in the dashboard under **Agents → your agent**:
+
+- **Emoji:** Set an emoji icon via the emoji selector in the agent detail page — this shows in the agent list and chat UI
+- **Skill learning:** (Predefined agents only) Toggle **Skill Learning** to let the agent capture reusable workflows as skills after complex tasks. Set the nudge interval to control how often the agent suggests creating skills.
 
 ## Common Issues
 
