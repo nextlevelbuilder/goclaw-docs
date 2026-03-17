@@ -72,7 +72,7 @@ Click an agent to open its detail page with these tabs:
 Create agent teams for collaborative tasks. Click a team to see:
 - **Members** — Assign agents to the team and manage roles
 - **Tasks** — Shared task board for the team
-- **Delegations** — Delegation history between team members
+- **Delegations** — Tracks which agents delegated tasks to others, with status and results
 - **Settings** — Team configuration
 
 ### Conversations
@@ -114,7 +114,7 @@ Upload `SKILL.md` files that agents can discover and use. Skills are searchable 
 
 #### Builtin Tools
 
-Browse the 30+ built-in tools that come with GoClaw. Enable/disable individual tools and configure their settings.
+Browse the 32 built-in tools that come with GoClaw. Enable/disable individual tools and configure their settings.
 
 #### MCP Servers
 
@@ -165,13 +165,13 @@ LLM call history with:
 - Tool call sequences
 - Latency metrics
 
+#### Activity
+
+Agent lifecycle history — shows when agents were created, updated, or deleted, with timestamps and actor info.
+
 #### Events
 
 Real-time event stream — watch agent activity, tool calls, and system events as they happen.
-
-#### Delegations
-
-Delegation history across all agents — track which agents delegated tasks to others, with status and results.
 
 #### Usage
 
@@ -194,6 +194,14 @@ Edit gateway configuration. Same settings available in the JSON5 config file, bu
 #### Approvals
 
 Manage Exec Approval workflows — review and approve/reject tool executions that require human confirmation.
+
+#### CLI Credentials
+
+Manage CLI credentials for secure command-line access to GoClaw.
+
+#### API Keys
+
+Manage API keys for programmatic access — create, revoke, and assign roles to keys.
 
 ## Common Issues
 

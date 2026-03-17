@@ -21,7 +21,7 @@ GoClaw là phiên bản đa tenant được phát triển từ OpenClaw. Nếu b
 | Custom tool | Có (52+ built-in skill) | Có (định nghĩa qua dashboard hoặc API) |
 | Code sandbox | Có (Docker-based) | Có (Docker-based với per-agent config) |
 | Database | SQLite | PostgreSQL |
-| Channel | 18 (9 core + 9 extension) | 7 (Telegram, Discord, Slack, WhatsApp, Zalo OA, Zalo Personal, Feishu) |
+| Channel | 6 core (Telegram, Discord, Slack, Signal, iMessage, Web) + 35+ channel mở rộng | 7 (Telegram, Discord, Slack, WhatsApp, Zalo OA, Zalo Personal, Feishu) |
 | Dashboard | Web UI cơ bản | Management dashboard đầy đủ |
 
 ## Bảng so sánh Config
@@ -72,9 +72,10 @@ GoClaw dùng context file (khái niệm tương tự OpenClaw). 6 file core đư
 | `AGENTS.md` | Hướng dẫn vận hành, quy tắc memory, hướng dẫn an toàn |
 | `SOUL.md` | Tính cách và giọng điệu của agent |
 | `IDENTITY.md` | Tên, avatar, lời chào |
-| `TOOLS.md` | Hướng dẫn sử dụng tool |
 | `USER.md` | Hồ sơ người dùng, timezone, tùy chọn |
 | `BOOTSTRAP.md` | Nghi thức chạy lần đầu (tự động xóa sau khi hoàn tất) |
+
+> **Lưu ý:** `TOOLS.md` không được dùng trong GoClaw — cấu hình tool được quản lý qua Dashboard. Không cần chuyển file này.
 
 Context file bổ sung cho tính năng nâng cao:
 
@@ -100,9 +101,11 @@ GoClaw hỗ trợ context files ở cả cấp agent (dùng chung) và cấp use
 
 1. **Cài đặt GoClaw** — Làm theo hướng dẫn [Cài đặt](installation.md) và [Quick Start](quick-start.md)
 2. **Ánh xạ config** — Dịch OpenClaw config bằng bảng so sánh ở trên
-3. **Chuyển context file** — Copy các file `.md` context; upload qua dashboard hoặc API
+3. **Chuyển context file** — Copy các file `.md` context (ngoại trừ `TOOLS.md` — không dùng trong GoClaw); upload qua dashboard hoặc API
 4. **Cập nhật channel token** — Chuyển token từ config sang biến môi trường
 5. **Kiểm tra** — Xác minh agent phản hồi đúng qua từng channel
+
+> **Lưu ý bảo mật:** GoClaw mã hóa tất cả thông tin xác thực bằng AES-256-GCM trong database, an toàn hơn so với cách lưu plaintext trong config của OpenClaw. Sau khi chuyển API key và token sang GoClaw, chúng được lưu trữ ở dạng mã hóa.
 
 ## Tính năng mới trong GoClaw
 

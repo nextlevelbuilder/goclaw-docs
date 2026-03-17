@@ -11,9 +11,10 @@ GoClaw is an open-source AI agent gateway written in Go. It lets you run AI agen
 | Category | What You Get |
 |----------|-------------|
 | **Multi-Tenant** | Per-user isolation for context, sessions, memory, and traces |
-| **18+ LLM Providers** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more |
+| **22 Provider Types** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more (15 LLM APIs + local models + CLI agents + media) |
 | **7 Channels** | Telegram, Discord, WhatsApp, Zalo, Zalo Personal, Larksuite, Slack |
-| **30+ Built-in Tools** | File system, web search, browser, code execution, memory, and more |
+| **32 Built-in Tools** | File system, web search, browser, code execution, memory, and more |
+| **64+ WebSocket RPC Methods** | Real-time control — chat, agent management, traces, and more via `/ws` |
 | **Agent Orchestration** | 4 patterns — delegation (sync/async), teams, handoff, evaluate loops |
 | **Knowledge Graph** | LLM-powered entity/relationship extraction with graph traversal |
 | **MCP Support** | Connect to Model Context Protocol servers (stdio/SSE/HTTP) |

@@ -74,7 +74,7 @@ Nhấn vào agent để mở trang chi tiết với các tab:
 Tạo agent team cho các tác vụ cộng tác. Nhấn vào team để xem:
 - **Members** — Gán agent vào team và quản lý vai trò
 - **Tasks** — Task board chung của team
-- **Delegations** — Lịch sử phân công giữa các thành viên
+- **Delegations** — Theo dõi agent nào đã phân công tác vụ cho agent khác, kèm trạng thái và kết quả
 - **Settings** — Cấu hình team
 
 ### Conversations
@@ -116,7 +116,7 @@ Upload file `SKILL.md` để agent có thể khám phá và sử dụng. Skills 
 
 #### Builtin Tools
 
-Duyệt 30+ tool tích hợp sẵn của GoClaw. Bật/tắt từng tool và chỉnh sửa settings của chúng.
+Duyệt 32 tool tích hợp sẵn của GoClaw. Bật/tắt từng tool và chỉnh sửa settings của chúng.
 
 #### MCP Servers
 
@@ -171,9 +171,9 @@ Lịch sử gọi LLM bao gồm:
 
 Luồng sự kiện real-time — theo dõi hoạt động agent, tool call và sự kiện hệ thống khi chúng xảy ra.
 
-#### Delegations
+#### Activity
 
-Lịch sử phân công trên tất cả agent — theo dõi agent nào đã phân công tác vụ cho agent khác, kèm trạng thái và kết quả.
+Lịch sử vòng đời agent — hiển thị khi nào agent được tạo, cập nhật, hoặc xóa, kèm timestamp và thông tin người thực hiện.
 
 #### Usage
 
@@ -196,6 +196,14 @@ Sửa cấu hình gateway. Cùng các cài đặt có trong file config JSON5, n
 #### Approvals
 
 Quản lý quy trình Exec Approval — xem xét và chấp thuận/từ chối việc thực thi tool cần xác nhận của người dùng.
+
+#### CLI Credentials
+
+Quản lý thông tin xác thực CLI cho truy cập dòng lệnh an toàn vào GoClaw.
+
+#### API Keys
+
+Quản lý API key cho truy cập lập trình — tạo, thu hồi và gán role cho key.
 
 ## Các vấn đề thường gặp
 

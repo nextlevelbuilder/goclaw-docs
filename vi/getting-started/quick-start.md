@@ -35,6 +35,10 @@ Sau khi hoàn tất wizard, bạn đã sẵn sàng chat.
 
 ## Bước 3: Chat
 
+> **Lưu ý:** Trước khi gọi API hoặc WebSocket, hãy đảm bảo bạn đã thêm ít nhất một provider trong Setup Wizard (Bước 1 ở trên). Không có provider, yêu cầu sẽ trả về `no provider API key found`.
+
+> **Mẹo:** Kiểm tra GoClaw đang chạy: `curl http://localhost:18790/health`
+
 ### Dùng Dashboard
 
 Vào **Chat** (mục **CORE** trên sidebar) và chọn agent bạn đã tạo trong bước setup.
@@ -57,6 +61,8 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 ```
 
 Thay `YOUR_GATEWAY_TOKEN` bằng giá trị từ `.env.local` (cài trực tiếp) hoặc `.env` (Docker) và `your-agent-key` bằng agent key hiển thị trên trang Agents (ví dụ: `goclaw:my-assistant`).
+
+> **Mẹo về agent identifier:** Dashboard hiển thị hai identifier cho mỗi agent — `agent_key` (tên hiển thị dễ đọc) và `id` (UUID). Dùng `agent_key` trong trường `model` cho HTTP API. Dùng `id` (UUID) làm `agentId` cho WebSocket `chat.send`. Cả hai đều hiển thị trên trang Agents.
 
 ### Dùng WebSocket
 

@@ -19,7 +19,7 @@ GoClaw is the multi-tenant evolution of OpenClaw. If you've been running OpenCla
 | Custom tools | Yes (52+ built-in skills) | Yes (define via dashboard or API) |
 | Code sandbox | Yes (Docker-based) | Yes (Docker-based with per-agent config) |
 | Database | SQLite | PostgreSQL |
-| Channels | 18 (9 core + 9 extensions) | 7 (Telegram, Discord, Slack, WhatsApp, Zalo OA, Zalo Personal, Feishu) |
+| Channels | 6 core (Telegram, Discord, Slack, Signal, iMessage, Web) + 35+ extension channels | 7 (Telegram, Discord, Slack, WhatsApp, Zalo OA, Zalo Personal, Feishu) |
 | Dashboard | Basic web UI | Full management dashboard |
 
 ## Config Mapping
@@ -70,9 +70,10 @@ GoClaw uses context files (similar concepts to OpenClaw). The 6 core files loade
 | `AGENTS.md` | Operating instructions and safety rules |
 | `SOUL.md` | Agent personality and behavior |
 | `IDENTITY.md` | Name, avatar, greeting |
-| `TOOLS.md` | Tool usage guidance |
 | `USER.md` | User profile and preferences |
 | `BOOTSTRAP.md` | First-run onboarding ritual (auto-deleted after completion) |
+
+> **Note:** `TOOLS.md` is not used in GoClaw — tool configuration is managed via the Dashboard. Do not migrate this file.
 
 Additional context files for advanced features:
 
@@ -98,9 +99,11 @@ GoClaw supports both agent-level (shared) and per-user context file overrides. T
 
 1. **Set up GoClaw** — Follow the [Installation](installation.md) and [Quick Start](quick-start.md) guides
 2. **Map your config** — Translate your OpenClaw config using the mapping table above
-3. **Move context files** — Copy your `.md` context files; upload via the dashboard or API
+3. **Move context files** — Copy your `.md` context files (excluding `TOOLS.md` — not used in GoClaw); upload via the dashboard or API
 4. **Update channel tokens** — Move tokens from config to environment variables
 5. **Test** — Verify your agents respond correctly through each channel
+
+> **Security note:** GoClaw encrypts all credentials with AES-256-GCM in the database, which is more secure than OpenClaw's plaintext config approach. Once you move your API keys and tokens to GoClaw, they are stored encrypted at rest.
 
 ## What's New in GoClaw
 

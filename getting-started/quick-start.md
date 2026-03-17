@@ -33,6 +33,10 @@ To add additional providers later:
 
 ## Step 3: Chat
 
+> **Note:** Before making API or WebSocket calls, make sure you've added at least one provider during the Setup Wizard (Step 1 above). Without a provider, requests will return `no provider API key found`.
+
+> **Tip:** To verify GoClaw is running: `curl http://localhost:18790/health`
+
 ### Using the Dashboard
 
 Go to **Chat** (under **CORE** in the sidebar) and select the agent you created during setup.
@@ -55,6 +59,8 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 ```
 
 Replace `YOUR_GATEWAY_TOKEN` with the value from `.env.local` (bare metal) or `.env` (Docker) and `your-agent-key` with the agent key shown in the Agents page (e.g., `goclaw:my-assistant`).
+
+> **Agent identifier tip:** The Dashboard shows two identifiers per agent — `agent_key` (a human-readable display name) and `id` (a UUID). For HTTP API calls use `agent_key` in the `model` field. For WebSocket `chat.send`, use the agent's `id` (UUID) as `agentId`. Both are visible on the Agents page.
 
 ### Using WebSocket
 
