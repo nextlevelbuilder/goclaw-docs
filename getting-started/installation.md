@@ -1,6 +1,6 @@
 # Installation
 
-> Get GoClaw running on your machine in minutes. Three paths: bare metal, Docker (local), or Docker on a VPS.
+> Get GoClaw running on your machine in minutes. Four paths: quick binary install, bare metal, Docker (local), or Docker on a VPS.
 
 ## Overview
 
@@ -8,13 +8,61 @@ GoClaw compiles to a single static binary (~25 MB). Pick the path that fits your
 
 | Path | Best for | What you need |
 |------|----------|---------------|
+| Quick Install (Binary) | Fastest single-command setup on Linux/macOS | curl, PostgreSQL |
 | Bare Metal | Developers who want full control | Go 1.26+, PostgreSQL 15+ with pgvector |
-| Docker (Local) | Fastest way to get started | Docker + Docker Compose |
-| VPS (Production) | Self-hosted production deployment | $5+ VPS, Docker |
+| Docker (Local) | Run everything via Docker Compose | Docker + Docker Compose |
+| VPS (Production) | Self-hosted production deployment | VPS $5+, Docker |
 
 ---
 
-## Path 1: Bare Metal
+## Path 1: Quick Install (Binary)
+
+Download and install the latest pre-built GoClaw binary in one command. No Go toolchain required.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash
+```
+
+**Supported platforms:** Linux and macOS, both `amd64` and `arm64`.
+
+**Options:**
+
+```bash
+# Install a specific version
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash -s -- --version v1.30.0
+
+# Install to a custom directory (default: /usr/local/bin)
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash -s -- --dir /opt/goclaw
+```
+
+The script auto-detects your OS and architecture, downloads the matching release tarball from GitHub, and installs the binary. It uses `sudo` automatically if the target directory is not writable.
+
+### After install: set up PostgreSQL
+
+```bash
+# Start a PostgreSQL instance with pgvector (Docker is the easiest option)
+docker run -d --name goclaw-pg \
+  -p 5432:5432 \
+  -e POSTGRES_PASSWORD=goclaw \
+  pgvector/pgvector:pg18
+```
+
+### Run the setup wizard
+
+```bash
+export GOCLAW_POSTGRES_DSN='postgres://postgres:goclaw@localhost:5432/postgres?sslmode=disable'
+goclaw onboard
+```
+
+The wizard runs migrations, generates secrets, and saves everything to `.env.local`.
+
+```bash
+source .env.local && goclaw
+```
+
+---
+
+## Path 2: Bare Metal
 
 Install GoClaw directly on your machine. You manage Go, PostgreSQL, and the binary yourself.
 
@@ -91,6 +139,8 @@ go build -o goclaw .
 ./goclaw version
 ```
 
+> **Python runtime (optional):** Some built-in skills require Python 3. Install it with `sudo apt install -y python3 python3-pip` (Ubuntu/Debian) or `brew install python` (macOS) if you plan to use those skills.
+
 **Build Tags (Optional):** Enable extra features at compile time:
 
 ```bash
@@ -138,7 +188,7 @@ After login, follow the [Quick Start](#quick-start) guide to add an LLM provider
 
 ---
 
-## Path 2: Docker (Local)
+## Path 3: Docker (Local)
 
 Run GoClaw with Docker Compose — PostgreSQL and the web dashboard included.
 
@@ -186,28 +236,36 @@ After login, follow the [Quick Start](#quick-start) guide to add an LLM provider
 
 ### Optional Add-ons
 
-Add more capabilities with Docker Compose overlays:
+Add more capabilities with Docker Compose overlay files:
+
+| Overlay file | What it adds |
+|---|---|
+| `docker-compose.sandbox.yml` | Code sandbox for isolated script execution |
+| `docker-compose.tailscale.yml` | Secure remote access via Tailscale |
+| `docker-compose.otel.yml` | OpenTelemetry tracing (Jaeger UI on `:16686`) |
+| `docker-compose.redis.yml` | Redis caching layer |
+| `docker-compose.browser.yml` | Browser automation (Chrome sidecar) |
+| `docker-compose.upgrade.yml` | Database upgrade service |
+
+Append any overlay with `-f` when starting services:
 
 ```bash
-# Add Redis caching
-docker compose -f docker-compose.yml \
+# Example: add Redis caching
+docker compose \
+  -f docker-compose.yml \
   -f docker-compose.postgres.yml \
   -f docker-compose.selfservice.yml \
   -f docker-compose.redis.yml \
   up -d --build
-
-# Add browser automation (Chrome sidecar)
-# ... append: -f docker-compose.browser.yml
-
-# Add distributed tracing (Jaeger UI on :16686)
-# ... append: -f docker-compose.otel.yml
 ```
 
 > **Note:** Redis and OTel overlays require rebuilding the GoClaw image with the corresponding build args (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). See the overlay files for details.
 
+> **Python runtime:** The default `docker-compose.yml` builds GoClaw with `ENABLE_PYTHON: "true"`, so Python-based skills work out of the box in Docker.
+
 ---
 
-## Path 3: VPS (Production)
+## Path 4: VPS (Production)
 
 Deploy GoClaw on a VPS with Docker. Suitable for always-on, internet-accessible setups.
 
@@ -241,9 +299,11 @@ sudo ufw allow 443/tcp    # HTTPS
 sudo ufw --force enable
 ```
 
-### Step 3: Clone & Configure
+### Step 3: Create Working Directory & Clone
 
 ```bash
+sudo mkdir -p /opt/goclaw
+sudo chown $(whoami):$(whoami) /opt/goclaw
 git clone https://github.com/nextlevelbuilder/goclaw.git /opt/goclaw
 cd /opt/goclaw
 
