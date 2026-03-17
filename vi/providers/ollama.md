@@ -1,0 +1,30 @@
+> Bản dịch từ [English version](../../providers/ollama.md)
+
+# Ollama
+
+> Chạy các mô hình mã nguồn mở cục bộ với Ollama — không cần đám mây.
+
+🚧 **Trang này đang được xây dựng.** Nội dung sẽ sớm được cập nhật — đóng góp luôn được chào đón!
+
+## Tổng quan
+
+Ollama cho phép bạn chạy các mô hình ngôn ngữ lớn trên máy của mình. GoClaw kết nối với Ollama thông qua API tương thích OpenAI mà nó expose cục bộ, do đó không có dữ liệu nào rời khỏi hạ tầng của bạn.
+
+## Loại Provider
+
+```json
+{
+  "providers": {
+    "ollama": {
+      "provider_type": "ollama",
+      "api_base": "http://localhost:11434/v1"
+    }
+  }
+}
+```
+
+## Tiếp theo
+
+- [Tổng quan Provider](overview.md)
+- [Ollama Cloud](ollama-cloud.md) — tùy chọn Ollama hosted
+- [Custom / OpenAI-Compatible](custom-provider.md)
