@@ -137,6 +137,7 @@ GoClaw theo dõi thay đổi của `config.json` bằng `fsnotify` với debounc
 | `inbound_debounce_ms` | int | `1000` | Gộp các tin nhắn nhanh trong khoảng thời gian; `-1` = vô hiệu hóa |
 | `block_reply` | bool | `false` | Nếu true, ẩn văn bản trung gian trong quá trình lặp công cụ |
 | `tool_status` | bool | `true` | Hiển thị tên công cụ trong xem trước streaming |
+| `task_recovery_interval_sec` | int | `300` | Tần suất (giây) kiểm tra và khôi phục tác vụ nhóm bị treo |
 | `quota` | object | — | Hạn ngạch yêu cầu theo người dùng/nhóm (xem bên dưới) |
 
 **Các trường Quota** (`quota.default`, `quota.providers.*`, `quota.channels.*`, `quota.groups.*`):
@@ -166,7 +167,6 @@ Các cài đặt trong `agents.defaults` áp dụng cho tất cả agent trừ k
     "agent_type": "open",
     "workspace": "./workspace",
     "restrict_to_workspace": false,
-    "intent_classify": true,
     "bootstrapMaxChars": 20000,
     "bootstrapTotalMaxChars": 24000,
     "memory": { "enabled": true }
@@ -186,9 +186,10 @@ Các cài đặt trong `agents.defaults` áp dụng cho tất cả agent trừ k
 | `agent_type` | string | `"open"` | `"open"` (context theo session: identity/soul/user files refresh mỗi session mới) hoặc `"predefined"` (context cố định: identity/soul files dùng chung + USER.md riêng mỗi user, giữ xuyên suốt các session) |
 | `workspace` | string | `"./workspace"` | Thư mục làm việc cho các thao tác file |
 | `restrict_to_workspace` | bool | `false` | Chặn truy cập file ngoài workspace |
-| `intent_classify` | bool | `true` | Bật phân loại ý định trước khi định tuyến |
 | `bootstrapMaxChars` | int | `20000` | Số ký tự tối đa cho một tài liệu bootstrap đơn |
 | `bootstrapTotalMaxChars` | int | `24000` | Tổng số ký tự tối đa trên tất cả tài liệu bootstrap |
+
+> **Lưu ý:** `intent_classify` không phải là trường trong config.json. Nó được cấu hình theo từng agent qua Dashboard (phần Cài đặt agent → Behavior & UX) và được lưu trên bản ghi agent trong cơ sở dữ liệu.
 
 ### Ghi đè theo từng Agent
 
@@ -296,7 +297,16 @@ Cắt bỏ các kết quả tool cũ khỏi context khi đến giới hạn.
   "keepLastAssistants": 3,
   "softTrimRatio": 0.3,
   "hardClearRatio": 0.5,
-  "minPrunableToolChars": 50000
+  "minPrunableToolChars": 50000,
+  "softTrim": {
+    "maxChars": 4000,
+    "headChars": 1500,
+    "tailChars": 1500
+  },
+  "hardClear": {
+    "enabled": true,
+    "placeholder": "[Old tool result content cleared]"
+  }
 }
 ```
 
@@ -304,11 +314,14 @@ Cắt bỏ các kết quả tool cũ khỏi context khi đến giới hạn.
 |--------|------|---------|-------|
 | `mode` | string | `"off"` | `"off"` hoặc `"cache-ttl"` (prune theo tuổi) |
 | `keepLastAssistants` | int | `3` | Giữ N lượt assistant gần nhất nguyên vẹn |
-| `softTrimRatio` | float | `0.3` | Trim kết quả tool cũ khi context vượt quá tỷ lệ này |
-| `hardClearRatio` | float | `0.5` | Xóa cứng kết quả cũ khi context vượt quá tỷ lệ này |
+| `softTrimRatio` | float | `0.3` | Bắt đầu soft trim khi context vượt quá tỷ lệ này so với cửa sổ context |
+| `hardClearRatio` | float | `0.5` | Bắt đầu hard clear khi context vượt quá tỷ lệ này |
 | `minPrunableToolChars` | int | `50000` | Tổng ký tự tool tối thiểu trước khi bật pruning |
-
-Soft trim cắt ngắn các kết quả công cụ lớn (giữ 1500 ký tự đầu + 1500 ký tự cuối, tối đa 4000). Hard clear thay thế chúng bằng placeholder.
+| `softTrim.maxChars` | int | `4000` | Kết quả tool dài hơn giá trị này sẽ bị cắt ngắn |
+| `softTrim.headChars` | int | `1500` | Số ký tự giữ lại từ đầu kết quả bị cắt |
+| `softTrim.tailChars` | int | `1500` | Số ký tự giữ lại từ cuối kết quả bị cắt |
+| `hardClear.enabled` | bool | `true` | Bật hard clear cho các kết quả tool rất cũ |
+| `hardClear.placeholder` | string | `"[Old tool result content cleared]"` | Văn bản thay thế kết quả bị xóa |
 
 ## Subagents
 
@@ -326,7 +339,7 @@ Kiểm soát cách các agent có thể tạo agent con.
 
 | Trường | Kiểu | Mặc định | Mô tả |
 |--------|------|---------|-------|
-| `maxConcurrent` | int | `20` | Số subagent chạy đồng thời tối đa |
+| `maxConcurrent` | int | `20` | Số subagent chạy đồng thời tối đa (fallback khi không có config.json: `8`) |
 | `maxSpawnDepth` | int | `1` | Độ sâu lồng nhau tối đa (1–5); `1` = chỉ root mới được tạo |
 | `maxChildrenPerAgent` | int | `5` | Số agent con tối đa mỗi agent cha (1–20) |
 | `archiveAfterMinutes` | int | `60` | Lưu trữ subagent không hoạt động sau khoảng thời gian này |
@@ -402,6 +415,14 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
     "model": "claude-opus-4-5",
     "base_work_dir": "/tmp/claude-work",
     "perm_mode": "bypassPermissions"
+  },
+  "acp": {
+    "binary": "claude",
+    "args": [],
+    "model": "claude-sonnet-4-5",
+    "work_dir": "/tmp/acp-work",
+    "idle_ttl": "5m",
+    "perm_mode": "approve-all"
   }
 }
 ```
@@ -409,6 +430,18 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
 **Lưu ý:**
 - `ollama` — Ollama cục bộ; không cần API key, chỉ cần `host`
 - `claude_cli` — chạy Claude qua subprocess CLI; các trường đặc biệt: `cli_path`, `base_work_dir`, `perm_mode`
+- `acp` — điều phối bất kỳ agent tương thích ACP nào (Claude Code, Codex CLI, Gemini CLI) như một subprocess qua JSON-RPC 2.0 stdio
+
+**Các trường của provider ACP:**
+
+| Trường | Kiểu | Mô tả |
+|--------|------|-------|
+| `binary` | string | Tên hoặc đường dẫn binary agent (ví dụ: `"claude"`, `"codex"`) |
+| `args` | []string | Tham số bổ sung truyền khi spawn |
+| `model` | string | Tên model/agent mặc định |
+| `work_dir` | string | Thư mục workspace cơ sở cho các tiến trình agent |
+| `idle_ttl` | string | Thời gian giữ tiến trình nhàn rỗi (Go duration, ví dụ: `"5m"`) |
+| `perm_mode` | string | Chế độ phân quyền công cụ: `"approve-all"` (mặc định), `"approve-reads"`, `"deny-all"` |
 
 ## Channels
 
@@ -419,6 +452,7 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
   "enabled": true,
   "token": "env:TELEGRAM_BOT_TOKEN",
   "proxy": "",
+  "api_server": "",
   "allow_from": ["123456789"],
   "dm_policy": "pairing",
   "group_policy": "allowlist",
@@ -426,6 +460,8 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
   "history_limit": 50,
   "dm_stream": false,
   "group_stream": false,
+  "draft_transport": true,
+  "reasoning_stream": true,
   "reaction_level": "full",
   "media_max_bytes": 20971520,
   "link_preview": true,
@@ -445,6 +481,7 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
 |--------|------|---------|-------|
 | `token` | string | — | Bot token từ @BotFather |
 | `proxy` | string | — | URL proxy HTTP/SOCKS5 |
+| `api_server` | string | — | URL máy chủ Telegram Bot API tùy chỉnh (ví dụ: `"http://localhost:8081"`) |
 | `allow_from` | []string | — | ID người dùng/chat được phép; để trống = cho phép tất cả |
 | `dm_policy` | string | `"pairing"` | Truy cập DM: `"pairing"`, `"allowlist"`, `"open"`, `"disabled"` |
 | `group_policy` | string | `"open"` | Truy cập nhóm: `"open"`, `"allowlist"`, `"disabled"` |
@@ -452,6 +489,8 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
 | `history_limit` | int | `50` | Số tin nhắn tải để lấy ngữ cảnh khi bắt đầu hội thoại |
 | `dm_stream` | bool | `false` | Phản hồi streaming trong DM |
 | `group_stream` | bool | `false` | Phản hồi streaming trong nhóm |
+| `draft_transport` | bool | `true` | Dùng `sendMessageDraft` cho DM streaming (xem trước ẩn — không thông báo mỗi lần chỉnh sửa) |
+| `reasoning_stream` | bool | `true` | Hiển thị reasoning như tin nhắn riêng khi provider phát ra thinking events |
 | `reaction_level` | string | `"full"` | Reaction emoji: `"off"`, `"minimal"`, `"full"` |
 | `media_max_bytes` | int | `20971520` | Kích thước file media tối đa (mặc định 20 MB) |
 | `link_preview` | bool | `true` | Hiển thị xem trước liên kết |
@@ -850,7 +889,6 @@ Kiểm soát cách phiên hội thoại được xác định phạm vi và lưu
 
 ```jsonc
 "sessions": {
-  "storage": "postgres",
   "scope": "per-sender",
   "dm_scope": "per-channel-peer",
   "main_key": "main"
@@ -859,10 +897,11 @@ Kiểm soát cách phiên hội thoại được xác định phạm vi và lưu
 
 | Trường | Kiểu | Mặc định | Mô tả |
 |--------|------|---------|-------|
-| `storage` | string | — | Backend lưu trữ: `"postgres"`, `"redis"`, v.v. |
 | `scope` | string | `"per-sender"` | Phạm vi phiên: `"per-sender"` hoặc `"global"` |
 | `dm_scope` | string | `"per-channel-peer"` | Độ chi tiết phiên DM: `"main"`, `"per-peer"`, `"per-channel-peer"`, `"per-account-channel-peer"` |
 | `main_key` | string | `"main"` | Khóa dùng cho phiên chính/mặc định |
+
+> **Lưu ý:** Backend lưu trữ (PostgreSQL hoặc Redis) được xác định bằng build flags và biến môi trường (`GOCLAW_POSTGRES_DSN`, `GOCLAW_REDIS_DSN`), không phải bằng trường trong config.json.
 
 ## Cron
 

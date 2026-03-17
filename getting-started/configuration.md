@@ -135,6 +135,7 @@ GoClaw watches `config.json` for changes using `fsnotify` with a 300ms debounce.
 | `inbound_debounce_ms` | int | `1000` | Merge rapid messages within window; `-1` = disabled |
 | `block_reply` | bool | `false` | If true, suppress intermediate text during tool iterations |
 | `tool_status` | bool | `true` | Show tool name in streaming preview |
+| `task_recovery_interval_sec` | int | `300` | How often (seconds) to check for and recover stalled team tasks |
 | `quota` | object | — | Per-user/group request quotas (see below) |
 
 **Quota fields** (`quota.default`, `quota.providers.*`, `quota.channels.*`, `quota.groups.*`):
@@ -164,7 +165,6 @@ Settings in `agents.defaults` apply to all agents unless overridden.
     "agent_type": "open",
     "workspace": "./workspace",
     "restrict_to_workspace": false,
-    "intent_classify": true,
     "bootstrapMaxChars": 20000,
     "bootstrapTotalMaxChars": 24000,
     "memory": { "enabled": true }
@@ -184,9 +184,10 @@ Settings in `agents.defaults` apply to all agents unless overridden.
 | `agent_type` | string | `"open"` | `"open"` (per-session context: identity/soul/user files refresh each session) or `"predefined"` (persistent context: shared identity/soul files + per-user USER.md across sessions) |
 | `workspace` | string | `"./workspace"` | Working directory for file ops |
 | `restrict_to_workspace` | bool | `false` | Block file access outside workspace |
-| `intent_classify` | bool | `true` | Enable intent classification before routing |
 | `bootstrapMaxChars` | int | `20000` | Max chars for a single bootstrap doc |
 | `bootstrapTotalMaxChars` | int | `24000` | Max total chars across all bootstrap docs |
+
+> **Note:** `intent_classify` is not a config.json field. It is configured per-agent via the Dashboard (Agent settings → Behavior & UX section) and stored on the agent record in the database.
 
 ### Per-Agent Overrides
 
@@ -294,7 +295,16 @@ Prunes old tool results from context when approaching limits.
   "keepLastAssistants": 3,
   "softTrimRatio": 0.3,
   "hardClearRatio": 0.5,
-  "minPrunableToolChars": 50000
+  "minPrunableToolChars": 50000,
+  "softTrim": {
+    "maxChars": 4000,
+    "headChars": 1500,
+    "tailChars": 1500
+  },
+  "hardClear": {
+    "enabled": true,
+    "placeholder": "[Old tool result content cleared]"
+  }
 }
 ```
 
@@ -302,11 +312,14 @@ Prunes old tool results from context when approaching limits.
 |-------|------|---------|-------------|
 | `mode` | string | `"off"` | `"off"` or `"cache-ttl"` (prune by age) |
 | `keepLastAssistants` | int | `3` | Keep N most recent assistant turns intact |
-| `softTrimRatio` | float | `0.3` | Trim old tool results when context exceeds this ratio |
-| `hardClearRatio` | float | `0.5` | Hard-clear old results when context exceeds this ratio |
+| `softTrimRatio` | float | `0.3` | Start soft trim when context exceeds this ratio of context window |
+| `hardClearRatio` | float | `0.5` | Start hard clear when context exceeds this ratio |
 | `minPrunableToolChars` | int | `50000` | Minimum total tool chars before pruning activates |
-
-Soft trim truncates large tool results (keeping first 1500 + last 1500 chars, max 4000). Hard clear replaces them with a placeholder.
+| `softTrim.maxChars` | int | `4000` | Tool results longer than this are trimmed |
+| `softTrim.headChars` | int | `1500` | Chars to keep from the start of a trimmed result |
+| `softTrim.tailChars` | int | `1500` | Chars to keep from the end of a trimmed result |
+| `hardClear.enabled` | bool | `true` | Enable hard clear of very old tool results |
+| `hardClear.placeholder` | string | `"[Old tool result content cleared]"` | Text to replace cleared results |
 
 ## Subagents
 
@@ -324,7 +337,7 @@ Controls how agents can spawn child agents.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `maxConcurrent` | int | `20` | Max subagents running simultaneously |
+| `maxConcurrent` | int | `20` | Max subagents running simultaneously (code fallback when no config.json: `8`) |
 | `maxSpawnDepth` | int | `1` | Max nesting depth (1–5); `1` = only root can spawn |
 | `maxChildrenPerAgent` | int | `5` | Max children per parent agent (1–20) |
 | `archiveAfterMinutes` | int | `60` | Archive idle subagents after this duration |
@@ -400,6 +413,14 @@ Docker-based isolation for code execution. Can be set globally or overridden per
     "model": "claude-opus-4-5",
     "base_work_dir": "/tmp/claude-work",
     "perm_mode": "bypassPermissions"
+  },
+  "acp": {
+    "binary": "claude",
+    "args": [],
+    "model": "claude-sonnet-4-5",
+    "work_dir": "/tmp/acp-work",
+    "idle_ttl": "5m",
+    "perm_mode": "approve-all"
   }
 }
 ```
@@ -407,6 +428,18 @@ Docker-based isolation for code execution. Can be set globally or overridden per
 **Notes:**
 - `ollama` — local Ollama; no API key required, only `host`
 - `claude_cli` — runs Claude via CLI subprocess; special fields: `cli_path`, `base_work_dir`, `perm_mode`
+- `acp` — orchestrates any ACP-compatible agent (Claude Code, Codex CLI, Gemini CLI) as a subprocess over JSON-RPC 2.0 stdio
+
+**ACP provider fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `binary` | string | Agent binary name or path (e.g. `"claude"`, `"codex"`) |
+| `args` | []string | Extra arguments passed on spawn |
+| `model` | string | Default model/agent name |
+| `work_dir` | string | Base workspace directory for agent processes |
+| `idle_ttl` | string | How long an idle process is kept alive (Go duration, e.g. `"5m"`) |
+| `perm_mode` | string | Tool permission mode: `"approve-all"` (default), `"approve-reads"`, `"deny-all"` |
 
 ## Channels
 
@@ -417,6 +450,7 @@ Docker-based isolation for code execution. Can be set globally or overridden per
   "enabled": true,
   "token": "env:TELEGRAM_BOT_TOKEN",
   "proxy": "",
+  "api_server": "",
   "allow_from": ["123456789"],
   "dm_policy": "pairing",
   "group_policy": "allowlist",
@@ -424,6 +458,8 @@ Docker-based isolation for code execution. Can be set globally or overridden per
   "history_limit": 50,
   "dm_stream": false,
   "group_stream": false,
+  "draft_transport": true,
+  "reasoning_stream": true,
   "reaction_level": "full",
   "media_max_bytes": 20971520,
   "link_preview": true,
@@ -443,6 +479,7 @@ Docker-based isolation for code execution. Can be set globally or overridden per
 |-------|------|---------|-------------|
 | `token` | string | — | Bot token from @BotFather |
 | `proxy` | string | — | HTTP/SOCKS5 proxy URL |
+| `api_server` | string | — | Custom Telegram Bot API server URL (e.g. `"http://localhost:8081"`) |
 | `allow_from` | []string | — | Allowlisted user/chat IDs; empty = allow all |
 | `dm_policy` | string | `"pairing"` | DM access: `"pairing"`, `"allowlist"`, `"open"`, `"disabled"` |
 | `group_policy` | string | `"open"` | Group access: `"open"`, `"allowlist"`, `"disabled"` |
@@ -450,6 +487,8 @@ Docker-based isolation for code execution. Can be set globally or overridden per
 | `history_limit` | int | `50` | Messages fetched for context on new conversation |
 | `dm_stream` | bool | `false` | Stream responses in DMs |
 | `group_stream` | bool | `false` | Stream responses in groups |
+| `draft_transport` | bool | `true` | Use `sendMessageDraft` for DM streaming (stealth preview — no per-edit notifications) |
+| `reasoning_stream` | bool | `true` | Show reasoning as a separate message when the provider emits thinking events |
 | `reaction_level` | string | `"full"` | Emoji reactions: `"off"`, `"minimal"`, `"full"` |
 | `media_max_bytes` | int | `20971520` | Max media file size (default 20 MB) |
 | `link_preview` | bool | `true` | Show link previews |
@@ -848,7 +887,6 @@ Controls how conversation sessions are scoped and stored.
 
 ```jsonc
 "sessions": {
-  "storage": "postgres",
   "scope": "per-sender",
   "dm_scope": "per-channel-peer",
   "main_key": "main"
@@ -857,10 +895,11 @@ Controls how conversation sessions are scoped and stored.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `storage` | string | — | Storage backend: `"postgres"`, `"redis"`, etc. |
 | `scope` | string | `"per-sender"` | Session scope: `"per-sender"` or `"global"` |
 | `dm_scope` | string | `"per-channel-peer"` | DM session granularity: `"main"`, `"per-peer"`, `"per-channel-peer"`, `"per-account-channel-peer"` |
 | `main_key` | string | `"main"` | Key used for the primary/default session |
+
+> **Note:** The storage backend (PostgreSQL or Redis) is determined by build flags and environment variables (`GOCLAW_POSTGRES_DSN`, `GOCLAW_REDIS_DSN`), not by a field in config.json.
 
 ## Cron
 
