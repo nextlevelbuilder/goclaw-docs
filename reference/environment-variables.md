@@ -217,6 +217,8 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 
 ## What's Next
 
-- [Config Reference](./config-reference.md) — corresponding `config.json` fields for each category
-- [CLI Commands](./cli-commands.md) — `goclaw onboard` generates `.env.local` automatically
-- [Database Schema](./database-schema.md) — how secrets are stored encrypted in PostgreSQL
+- [Config Reference](#config-reference) — corresponding `config.json` fields for each category
+- [CLI Commands](#cli-commands) — `goclaw onboard` generates `.env.local` automatically
+- [Database Schema](#database-schema) — how secrets are stored encrypted in PostgreSQL
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

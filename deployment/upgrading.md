@@ -239,6 +239,8 @@ Before each upgrade, check the release notes for:
 
 ## What's Next
 
-- [Production Checklist](./production-checklist.md) — full pre-launch verification
-- [Database Setup](./database-setup.md) — PostgreSQL and pgvector setup
-- [Observability](./observability.md) — monitor your gateway post-upgrade
+- [Production Checklist](#deploy-checklist) — full pre-launch verification
+- [Database Setup](#deploy-database) — PostgreSQL and pgvector setup
+- [Observability](#deploy-observability) — monitor your gateway post-upgrade
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

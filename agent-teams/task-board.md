@@ -262,3 +262,5 @@ Note: the cancel reason is passed via the `text` parameter (not `reason`).
 3. **Add dependencies**: Link related tasks with `blocked_by` to enforce order
 4. **Include context**: Write clear descriptions so members know what to do
 5. **Check before claiming**: Use `list` to see what's available before claiming
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

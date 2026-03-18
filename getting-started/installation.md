@@ -439,8 +439,11 @@ docker compose logs goclaw
 | Docker build fails on ARM Mac | Enable Rosetta in Docker Desktop settings |
 | `no provider API key found` | Add an LLM provider & API key through the Dashboard |
 | `encryption key not set` | Run `./goclaw onboard` (bare metal) or `./prepare-env.sh` (Docker) |
+| `Cannot connect to the Docker daemon` | Start Docker Desktop first: `open -a Docker` (macOS) or `sudo systemctl start docker` (Linux) |
 
 ## What's Next
 
 - [Quick Start](#quick-start) — Run your first agent
-- [Configuration](configuration.md) — Customize GoClaw settings
+- [Configuration](#configuration) — Customize GoClaw settings
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

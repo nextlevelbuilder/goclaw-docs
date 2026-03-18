@@ -198,5 +198,7 @@ Maps to `reasoning_effort: "low"` on the OpenAI API.
 
 ## What's Next
 
-- [Agents Overview](../core-concepts/agents-explained.md) — per-agent configuration reference
-- [Hooks & Quality Gates](../advanced/hooks-quality-gates.md) — validate agent outputs after reasoning
+- [Agents Overview](#agents-explained) — per-agent configuration reference
+- [Hooks & Quality Gates](#hooks-quality-gates) — validate agent outputs after reasoning
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

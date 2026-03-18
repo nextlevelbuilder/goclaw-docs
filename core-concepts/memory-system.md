@@ -64,7 +64,7 @@ Memory is for things worth remembering forever. Sessions are for conversation fl
 
 ## Auto Memory Flush
 
-During [auto-compaction](sessions-and-history.md), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
+During [auto-compaction](#sessions-and-history), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
 
 - **Trigger**: >50 messages OR >75% context window (either condition triggers compaction)
 - **Process**: Synchronous flush, max 5 iterations, 90-second timeout
@@ -102,6 +102,8 @@ Set `memory: false` in an agent's config to disable memory entirely for that age
 
 ## What's Next
 
-- [Multi-Tenancy](multi-tenancy.md) — Per-user memory isolation
-- [Sessions and History](sessions-and-history.md) — How conversation history works
-- [Agents Explained](agents-explained.md) — Agent types and context files
+- [Multi-Tenancy](#multi-tenancy) — Per-user memory isolation
+- [Sessions and History](#sessions-and-history) — How conversation history works
+- [Agents Explained](#agents-explained) — Agent types and context files
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

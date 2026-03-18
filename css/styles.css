@@ -859,3 +859,42 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ============================================================
+   SOURCE METADATA BADGE — inline pill under article title area
+   ============================================================ */
+.doc-source-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2.5rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  line-height: 1;
+}
+.doc-source-meta svg {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.doc-source-meta a {
+  color: var(--color-text-dim);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.doc-source-meta a:hover {
+  color: var(--color-primary);
+}
+.doc-source-meta code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+}
+.doc-source-sep {
+  opacity: 0.3;
+}

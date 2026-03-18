@@ -354,6 +354,8 @@ FAQ bot creation with summoning:
 
 ## What's Next
 
-- [Open vs. Predefined](./open-vs-predefined.md) — understand when files are per-user vs. agent-level
-- [Summoning & Bootstrap](./summoning-bootstrap.md) — how SOUL.md and IDENTITY.md are LLM-generated
-- [Creating Agents](./creating-agents.md) — step-by-step agent creation
+- [Open vs. Predefined](#open-vs-predefined) — understand when files are per-user vs. agent-level
+- [Summoning & Bootstrap](#summoning-bootstrap) — how SOUL.md and IDENTITY.md are LLM-generated
+- [Creating Agents](#creating-agents) — step-by-step agent creation
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

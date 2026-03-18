@@ -139,9 +139,11 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 
 ## Next Steps
 
-- [Telegram](./telegram.md) — Full guide for Telegram integration
-- [Discord](./discord.md) — Discord bot setup
-- [Slack](./slack.md) — Slack Socket Mode integration
-- [Larksuite](./larksuite.md) — Larksuite integration with streaming cards
-- [WebSocket](./websocket.md) — Direct agent API via WS
-- [Browser Pairing](./browser-pairing.md) — 8-char code pairing flow
+- [Telegram](#channel-telegram) — Full guide for Telegram integration
+- [Discord](#channel-discord) — Discord bot setup
+- [Slack](#channel-slack) — Slack Socket Mode integration
+- [Larksuite](#channel-feishu) — Larksuite integration with streaming cards
+- [WebSocket](#channel-websocket) — Direct agent API via WS
+- [Browser Pairing](#channel-browser-pairing) — 8-char code pairing flow
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

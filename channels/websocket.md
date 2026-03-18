@@ -252,6 +252,8 @@ Failed requests include error details:
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Gateway Protocol](../gateway-protocol.md) — Full protocol documentation
-- [Browser Pairing](./browser-pairing.md) — Pairing flow for custom clients
+- [Overview](#channels-overview) — Channel concepts and policies
+- [WebSocket Protocol](#websocket-protocol) — Full protocol documentation
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow for custom clients
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

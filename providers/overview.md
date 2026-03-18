@@ -89,10 +89,12 @@ graph TD
 
 ## What's Next
 
-- [Anthropic](./anthropic.md) — native Claude integration with extended thinking
-- [OpenAI](./openai.md) — GPT-4o, o-series reasoning models
-- [OpenRouter](./openrouter.md) — access 100+ models through one API
-- [Gemini](./gemini.md) — Google Gemini via OpenAI-compatible endpoint
-- [DeepSeek](./deepseek.md) — DeepSeek with reasoning_content support
-- [Groq](./groq.md) — ultra-fast inference
-- [Mistral](./mistral.md) — Mistral AI models
+- [Anthropic](#provider-anthropic) — native Claude integration with extended thinking
+- [OpenAI](#provider-openai) — GPT-4o, o-series reasoning models
+- [OpenRouter](#provider-openrouter) — access 100+ models through one API
+- [Gemini](#provider-gemini) — Google Gemini via OpenAI-compatible endpoint
+- [DeepSeek](#provider-deepseek) — DeepSeek with reasoning_content support
+- [Groq](#provider-groq) — ultra-fast inference
+- [Mistral](#provider-mistral) — Mistral AI models
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

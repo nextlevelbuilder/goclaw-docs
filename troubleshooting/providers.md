@@ -132,6 +132,8 @@ INFO registered provider name=acp binary=claude
 
 ## What's Next
 
-- [Database issues](database.md)
-- [Common Issues](common-issues.md)
-- [Channel issues](channels.md)
+- [Database issues](#troubleshoot-database)
+- [Common Issues](#troubleshoot-common)
+- [Channel issues](#troubleshoot-channels)
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

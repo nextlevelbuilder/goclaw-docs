@@ -110,7 +110,9 @@ Default DM policy is `"pairing"`. New users see pairing code instructions with 6
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Zalo Personal](./zalo-personal.md) — Personal Zalo account integration
-- [Telegram](./telegram.md) — Telegram bot setup
-- [Browser Pairing](./browser-pairing.md) — Pairing flow
+- [Overview](#channels-overview) — Channel concepts and policies
+- [Zalo Personal](#channel-zalo-personal) — Personal Zalo account integration
+- [Telegram](#channel-telegram) — Telegram bot setup
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

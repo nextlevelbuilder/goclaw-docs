@@ -174,6 +174,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## What's Next
 
-- [Common Issues](common-issues.md)
-- [Provider issues](providers.md)
-- [Channel issues](channels.md)
+- [Common Issues](#troubleshoot-common)
+- [Provider issues](#troubleshoot-providers)
+- [Channel issues](#troubleshoot-channels)
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

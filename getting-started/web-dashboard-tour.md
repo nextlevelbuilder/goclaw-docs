@@ -213,6 +213,8 @@ Manage API keys for programmatic access — create, revoke, and assign roles to 
 
 ## What's Next
 
-- [Configuration](configuration.md) — Edit settings via config file instead
-- [How GoClaw Works](../core-concepts/how-goclaw-works.md) — Understand the architecture
-- [Agents Explained](../core-concepts/agents-explained.md) — Learn about agent types
+- [Configuration](#configuration) — Edit settings via config file instead
+- [How GoClaw Works](#how-goclaw-works) — Understand the architecture
+- [Agents Explained](#agents-explained) — Learn about agent types
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

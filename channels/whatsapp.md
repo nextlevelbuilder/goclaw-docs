@@ -137,7 +137,9 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Telegram](./telegram.md) — Telegram bot setup
-- [Larksuite](./larksuite.md) — Larksuite integration
-- [Browser Pairing](./browser-pairing.md) — Pairing flow
+- [Overview](#channels-overview) — Channel concepts and policies
+- [Telegram](#channel-telegram) — Telegram bot setup
+- [Larksuite](#channel-feishu) — Larksuite integration
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

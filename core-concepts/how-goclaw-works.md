@@ -99,6 +99,8 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 
 ## What's Next
 
-- [Agents Explained](agents-explained.md) — Deep dive into agent types and context files
-- [Tools Overview](tools-overview.md) — The full tool catalog
-- [Sessions and History](sessions-and-history.md) — How conversations persist
+- [Agents Explained](#agents-explained) — Deep dive into agent types and context files
+- [Tools Overview](#tools-overview) — The full tool catalog
+- [Sessions and History](#sessions-and-history) — How conversations persist
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

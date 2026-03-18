@@ -183,6 +183,8 @@ If tool calls fail, try disabling tools for that provider and falling back to pl
 
 ## What's Next
 
-- [Overview](./overview.md) — compare all providers side by side
-- [DashScope](./dashscope.md) — Alibaba's Qwen models
-- [Perplexity](./perplexity.md) — search-augmented generation
+- [Overview](#providers-overview) — compare all providers side by side
+- [DashScope](#provider-dashscope) — Alibaba's Qwen models
+- [Perplexity](#provider-perplexity) — search-augmented generation
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

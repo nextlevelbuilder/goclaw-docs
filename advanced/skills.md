@@ -248,6 +248,8 @@ Always:
 
 ## What's Next
 
-- [MCP Integration](../advanced/mcp-integration.md) — connect external tool servers
-- [Custom Tools](../advanced/custom-tools.md) — add shell-backed tools to your agents
-- [Scheduling & Cron](../advanced/scheduling-cron.md) — run agents on a schedule
+- [MCP Integration](#mcp-integration) — connect external tool servers
+- [Custom Tools](#custom-tools) — add shell-backed tools to your agents
+- [Scheduling & Cron](#scheduling-cron) — run agents on a schedule
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

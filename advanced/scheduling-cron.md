@@ -249,6 +249,8 @@ Failed jobs record `lastStatus: "error"` and `lastError` with the message. The j
 
 ## What's Next
 
-- [Custom Tools](../advanced/custom-tools.md) — give agents shell commands to run during scheduled turns
-- [Skills](../advanced/skills.md) — inject domain knowledge so scheduled agents are more effective
-- [Sandbox](../advanced/sandbox.md) — isolate code execution during scheduled agent runs
+- [Custom Tools](#custom-tools) — give agents shell commands to run during scheduled turns
+- [Skills](#skills) — inject domain knowledge so scheduled agents are more effective
+- [Sandbox](#sandbox) — isolate code execution during scheduled agent runs
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

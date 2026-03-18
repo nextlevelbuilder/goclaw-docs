@@ -176,6 +176,8 @@ The context is wrapped in `<system_context>` tags and refreshed automatically wh
 
 ## Next Steps
 
-- [Task Board](./task-board.md) - Create and manage tasks
-- [Team Messaging](./team-messaging.md) - Communicate between members
-- [Delegation & Handoff](./delegation-and-handoff.md) - Orchestrate work
+- [Task Board](#teams-task-board) - Create and manage tasks
+- [Team Messaging](#teams-messaging) - Communicate between members
+- [Delegation & Handoff](#teams-delegation) - Orchestrate work
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -97,6 +97,8 @@ OpenAI function calling works out of the box. GoClaw converts internal tool defi
 
 ## What's Next
 
-- [OpenRouter](./openrouter.md) — access 100+ models through one API key
-- [Anthropic](./anthropic.md) — native Claude integration
-- [Overview](./overview.md) — provider architecture and retry logic
+- [OpenRouter](#provider-openrouter) — access 100+ models through one API key
+- [Anthropic](#provider-anthropic) — native Claude integration
+- [Overview](#providers-overview) — provider architecture and retry logic
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

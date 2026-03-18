@@ -90,5 +90,7 @@ If you use MiniMax's international endpoint:
 
 ## What's Next
 
-- [Cohere](./cohere.md) — another OpenAI-compatible provider
-- [Custom Provider](./custom-provider.md) — connect any OpenAI-compatible API
+- [Cohere](#provider-cohere) — another OpenAI-compatible provider
+- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -111,7 +111,7 @@ EOF
 
 </details>
 
-See [Editing Personality](../agents/editing-personality.md) for full SOUL.md reference.
+See [Editing Personality](#editing-personality) for full SOUL.md reference.
 
 ## Step 5: Enable memory
 
@@ -139,7 +139,9 @@ A few extra touches you can configure in the dashboard under **Agents → your a
 
 ## What's Next
 
-- [Editing Personality](../agents/editing-personality.md) — customize SOUL.md, IDENTITY.md, USER.md
-- [Telegram Channel](../channels/telegram.md) — full Telegram configuration reference
-- [Team Chatbot](./team-chatbot.md) — add specialist agents for different tasks
-- [Multi-Channel Setup](./multi-channel-setup.md) — put the same agent on Discord and WebSocket too
+- [Editing Personality](#editing-personality) — customize SOUL.md, IDENTITY.md, USER.md
+- [Telegram Channel](#channel-telegram) — full Telegram configuration reference
+- [Team Chatbot](#recipe-team-chatbot) — add specialist agents for different tasks
+- [Multi-Channel Setup](#recipe-multi-channel) — put the same agent on Discord and WebSocket too
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -165,7 +165,7 @@ ws.onmessage = (e) => {
 };
 ```
 
-See [WebSocket Channel](../channels/websocket.md) for the full protocol reference.
+See [WebSocket Channel](#channel-websocket) for the full protocol reference.
 
 ## Step 4: Verify cross-channel isolation
 
@@ -251,7 +251,9 @@ When the agent uses `write_file` to generate a file, it is automatically deliver
 
 ## What's Next
 
-- [Telegram Channel](../channels/telegram.md) — full Telegram config reference including groups, topics, and STT
-- [Discord Channel](../channels/discord.md) — Discord gateway intents and streaming setup
-- [WebSocket Channel](../channels/websocket.md) — full RPC protocol reference
-- [Personal Assistant](./personal-assistant.md) — single-channel starting point
+- [Telegram Channel](#channel-telegram) — full Telegram config reference including groups, topics, and STT
+- [Discord Channel](#channel-discord) — Discord gateway intents and streaming setup
+- [WebSocket Channel](#channel-websocket) — full RPC protocol reference
+- [Personal Assistant](#recipe-personal-assistant) — single-channel starting point
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

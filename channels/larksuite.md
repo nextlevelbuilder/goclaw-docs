@@ -150,7 +150,9 @@ Different threads in same group maintain separate histories.
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Telegram](./telegram.md) — Telegram bot setup
-- [Zalo OA](./zalo-oa.md) — Zalo Official Account
-- [Browser Pairing](./browser-pairing.md) — Pairing flow
+- [Overview](#channels-overview) — Channel concepts and policies
+- [Telegram](#channel-telegram) — Telegram bot setup
+- [Zalo OA](#channel-zalo-oa) — Zalo Official Account
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

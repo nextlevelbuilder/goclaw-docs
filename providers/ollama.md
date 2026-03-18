@@ -23,6 +23,8 @@ Ollama lets you run large language models on your own machine. GoClaw connects t
 
 ## What's Next
 
-- [Provider Overview](overview.md)
-- [Ollama Cloud](ollama-cloud.md) — hosted Ollama option
-- [Custom / OpenAI-Compatible](custom-provider.md)
+- [Provider Overview](#providers-overview)
+- [Ollama Cloud](#provider-ollama-cloud) — hosted Ollama option
+- [Custom / OpenAI-Compatible](#provider-custom)
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

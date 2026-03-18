@@ -254,7 +254,9 @@ The lead delegates via the `delegate` tool. Specialists run as sub-sessions and 
 
 ## What's Next
 
-- [What Are Teams?](../agent-teams/what-are-teams.md) — team concepts and architecture
-- [Task Board](../agent-teams/task-board.md) — full task board reference
-- [Open vs. Predefined](../agents/open-vs-predefined.md) — why specialists must be predefined
-- [Customer Support](./customer-support.md) — predefined agent handling many users
+- [What Are Teams?](#teams-what-are-teams) — team concepts and architecture
+- [Task Board](#teams-task-board) — full task board reference
+- [Open vs. Predefined](#open-vs-predefined) — why specialists must be predefined
+- [Customer Support](#recipe-customer-support) — predefined agent handling many users
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

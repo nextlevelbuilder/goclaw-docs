@@ -73,6 +73,8 @@ For code-heavy agents, `codestral-latest` is optimized for programming tasks and
 
 ## What's Next
 
-- [Overview](./overview.md) — provider architecture and retry logic
-- [Groq](./groq.md) — ultra-fast inference for open models
-- [OpenRouter](./openrouter.md) — access Mistral and 100+ other models through one key
+- [Overview](#providers-overview) — provider architecture and retry logic
+- [Groq](#provider-groq) — ultra-fast inference for open models
+- [OpenRouter](#provider-openrouter) — access Mistral and 100+ other models through one key
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

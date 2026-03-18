@@ -242,6 +242,8 @@ docker ps --filter "label=goclaw.sandbox=true"
 
 ## What's Next
 
-- [Custom Tools](../advanced/custom-tools.md) — define shell tools that also benefit from sandbox isolation
-- [Exec Approval](../advanced/exec-approval.md) — require human approval before any command runs, sandboxed or not
-- [Scheduling & Cron](../advanced/scheduling-cron.md) — run sandboxed agent turns on a schedule
+- [Custom Tools](#custom-tools) — define shell tools that also benefit from sandbox isolation
+- [Exec Approval](#exec-approval) — require human approval before any command runs, sandboxed or not
+- [Scheduling & Cron](#scheduling-cron) — run sandboxed agent turns on a schedule
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -159,3 +159,5 @@ All messages are persisted to the database:
 - Broadcasts link sender → NULL (means all members)
 - Timestamps and read status tracked
 - Full message history available for audit/review
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

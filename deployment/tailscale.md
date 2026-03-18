@@ -138,6 +138,8 @@ You can find the full hostname in your [Tailscale admin console](https://login.t
 
 ## What's Next
 
-- [Production Checklist](./production-checklist.md) — secure your deployment end to end
-- [Security Hardening](./security-hardening.md) — CORS, rate limits, and token auth
-- [Docker Compose Setup](./docker-compose.md) — full compose overlay reference
+- [Production Checklist](#deploy-checklist) — secure your deployment end to end
+- [Security Hardening](#deploy-security) — CORS, rate limits, and token auth
+- [Docker Compose Setup](#deploy-docker-compose) — full compose overlay reference
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

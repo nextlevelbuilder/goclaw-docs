@@ -90,5 +90,7 @@ Set the default in `agents.defaults.model`, or pass `model` per-request via the 
 
 ## What's Next
 
-- [MiniMax](./minimax.md) — another OpenAI-compatible provider with a custom chat path
-- [Custom Provider](./custom-provider.md) — connect any OpenAI-compatible API
+- [MiniMax](#provider-minimax) — another OpenAI-compatible provider with a custom chat path
+- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -88,5 +88,7 @@ Both backends implement the same interface:
 
 ## What's Next
 
-- [Database Setup](../deployment/database-setup.md) — PostgreSQL configuration
-- [Production Checklist](../deployment/production-checklist.md) — Deploy with confidence
+- [Database Setup](#deploy-database) — PostgreSQL configuration
+- [Production Checklist](#deploy-checklist) — Deploy with confidence
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

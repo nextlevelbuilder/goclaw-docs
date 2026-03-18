@@ -134,6 +134,8 @@ This lets users pick their preferred LLM provider while the agent owner controls
 
 ## What's Next
 
-- [How GoClaw Works](how-goclaw-works.md) — Architecture overview
-- [Sessions and History](sessions-and-history.md) — Per-user session management
-- [Agents Explained](agents-explained.md) — Agent types and access control
+- [How GoClaw Works](#how-goclaw-works) — Architecture overview
+- [Sessions and History](#sessions-and-history) — Per-user session management
+- [Agents Explained](#agents-explained) — Agent types and access control
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

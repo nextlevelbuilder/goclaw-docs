@@ -175,6 +175,8 @@ The system will trigger background LLM summoning to generate personality files. 
 
 ## What's Next
 
-- [Open vs. Predefined](./open-vs-predefined.md) — understand context isolation differences
-- [Context Files](./context-files.md) — learn about SOUL.md, IDENTITY.md, and other system files
-- [Summoning & Bootstrap](./summoning-bootstrap.md) — how LLM generates personality files on first use
+- [Open vs. Predefined](#open-vs-predefined) — understand context isolation differences
+- [Context Files](#context-files) — learn about SOUL.md, IDENTITY.md, and other system files
+- [Summoning & Bootstrap](#summoning-bootstrap) — how LLM generates personality files on first use
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -187,6 +187,8 @@ The check runs on the **fully rendered command** after all `{{.param}}` substitu
 
 ## What's Next
 
-- [MCP Integration](./mcp-integration.md) — connect external tool servers instead of writing shell commands
-- [Exec Approval](./exec-approval.md) — require human approval before commands run
-- [Sandbox](./sandbox.md) — run commands inside Docker for extra isolation
+- [MCP Integration](#mcp-integration) — connect external tool servers instead of writing shell commands
+- [Exec Approval](#exec-approval) — require human approval before commands run
+- [Sandbox](#sandbox) — run commands inside Docker for extra isolation
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

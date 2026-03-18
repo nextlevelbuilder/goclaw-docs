@@ -124,6 +124,8 @@ Queue capacity is 10 by default. When full, the oldest message is dropped (drop 
 
 ## What's Next
 
-- [Memory System](memory-system.md) — How long-term memory works
-- [Tools Overview](tools-overview.md) — Available tools for agents
-- [Multi-Tenancy](multi-tenancy.md) — Per-user session isolation
+- [Memory System](#memory-system) — How long-term memory works
+- [Tools Overview](#tools-overview) — Available tools for agents
+- [Multi-Tenancy](#multi-tenancy) — Per-user session isolation
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

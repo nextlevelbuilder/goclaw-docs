@@ -367,7 +367,9 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 
 ## What's Next
 
-- [Database Setup](./database-setup.md) — manual PostgreSQL setup and migrations
-- [Security Hardening](./security-hardening.md) — five-layer security overview
-- [Observability](./observability.md) — OpenTelemetry and Jaeger configuration
-- [Tailscale](./tailscale.md) — secure remote access via Tailscale
+- [Database Setup](#deploy-database) — manual PostgreSQL setup and migrations
+- [Security Hardening](#deploy-security) — five-layer security overview
+- [Observability](#deploy-observability) — OpenTelemetry and Jaeger configuration
+- [Tailscale](#deploy-tailscale) — secure remote access via Tailscale
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

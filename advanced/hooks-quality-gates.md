@@ -224,5 +224,7 @@ Respond with EXACTLY one of:
 
 ## What's Next
 
-- [Extended Thinking](../advanced/extended-thinking.md) — deeper reasoning before producing output
-- [Exec Approval](../advanced/exec-approval.md) — human-in-the-loop approval for shell commands
+- [Extended Thinking](#extended-thinking) — deeper reasoning before producing output
+- [Exec Approval](#exec-approval) — human-in-the-loop approval for shell commands
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

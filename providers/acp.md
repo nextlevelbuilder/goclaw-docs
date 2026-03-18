@@ -10,6 +10,8 @@ ACP wraps command-line AI agents (Claude Code, OpenAI Codex CLI, Gemini CLI) as 
 
 ## What's Next
 
-- [Provider Overview](overview.md)
-- [Claude CLI](claude-cli.md)
-- [Custom / OpenAI-Compatible](custom-provider.md)
+- [Provider Overview](#providers-overview)
+- [Claude CLI](#provider-claude-cli)
+- [Custom / OpenAI-Compatible](#provider-custom)
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

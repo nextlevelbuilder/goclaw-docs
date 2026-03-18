@@ -169,6 +169,8 @@ Stay silent during off-topic discussions.
 
 ## What's Next
 
-- [Context Files](../../agents/context-files.md) — all 7 context files explained
-- [System Prompt Anatomy](../../agents/system-prompt-anatomy.md) — where AGENTS.md fits in the full prompt
-- [SOUL.md Template](soul.md) — the personality file that pairs with AGENTS.md
+- [Context Files](#context-files) — all 7 context files explained
+- [System Prompt Anatomy](#system-prompt-anatomy) — where AGENTS.md fits in the full prompt
+- [SOUL.md Template](#template-soul) — the personality file that pairs with AGENTS.md
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

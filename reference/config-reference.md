@@ -554,6 +554,8 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 
 ## What's Next
 
-- [Environment Variables](./environment-variables.md) — full env var reference
-- [CLI Commands](./cli-commands.md) — `goclaw onboard` to generate this file interactively
-- [Database Schema](./database-schema.md) — how agents and providers are stored in PostgreSQL
+- [Environment Variables](#env-vars) — full env var reference
+- [CLI Commands](#cli-commands) — `goclaw onboard` to generate this file interactively
+- [Database Schema](#database-schema) — how agents and providers are stored in PostgreSQL
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

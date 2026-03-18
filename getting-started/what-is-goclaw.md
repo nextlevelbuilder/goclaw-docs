@@ -58,6 +58,8 @@ graph LR
 
 ## What's Next
 
-- [Installation](installation.md) — Get GoClaw running on your machine
-- [Quick Start](quick-start.md) — Your first agent in 5 minutes
-- [How GoClaw Works](how-goclaw-works.md) — Deep dive into the architecture
+- [Installation](#installation) — Get GoClaw running on your machine
+- [Quick Start](#quick-start) — Your first agent in 5 minutes
+- [How GoClaw Works](#how-goclaw-works) — Deep dive into the architecture
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -888,6 +888,8 @@ Fine-grained API key management with scope-based access control. (migration 020)
 
 ## What's Next
 
-- [Environment Variables](./environment-variables.md) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
-- [Config Reference](./config-reference.md) — how database config maps to `config.json`
-- [Glossary](./glossary.md) — Session, Compaction, Lane, and other key terms
+- [Environment Variables](#env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
+- [Config Reference](#config-reference) — how database config maps to `config.json`
+- [Glossary](#glossary) — Session, Compaction, Lane, and other key terms
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

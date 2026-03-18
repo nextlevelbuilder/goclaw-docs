@@ -225,6 +225,8 @@ When a key is created or revoked, a `cache.invalidate` event is broadcast on the
 
 ## What's Next
 
-- [Authentication & OAuth](authentication.md) — gateway token and OAuth flow
-- [Exec Approval](exec-approval.md) — require `operator.approvals` scope
-- [Security Hardening](../deployment/security-hardening.md) — full 5-layer permission overview
+- [Authentication & OAuth](#authentication) — gateway token and OAuth flow
+- [Exec Approval](#exec-approval) — require `operator.approvals` scope
+- [Security Hardening](#deploy-security) — full 5-layer permission overview
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

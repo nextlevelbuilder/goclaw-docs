@@ -331,6 +331,8 @@ ws.onmessage = (e) => {
 
 ## What's Next
 
-- [REST API](./rest-api.md) — HTTP endpoints for agent CRUD, skill uploads, traces
-- [CLI Commands](./cli-commands.md) — pairing and session management from the terminal
-- [Glossary](./glossary.md) — Session, Lane, Compaction, and other key terms
+- [REST API](#rest-api) — HTTP endpoints for agent CRUD, skill uploads, traces
+- [CLI Commands](#cli-commands) — pairing and session management from the terminal
+- [Glossary](#glossary) — Session, Lane, Compaction, and other key terms
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

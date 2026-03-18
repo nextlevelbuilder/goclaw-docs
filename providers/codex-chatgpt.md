@@ -127,5 +127,7 @@ This conversion is transparent — you interact with GoClaw the same way regardl
 
 ## What's Next
 
-- [Custom Provider](./custom-provider.md) — connect any OpenAI-compatible API including local models
-- [Claude CLI](./claude-cli.md) — use your Claude subscription instead
+- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API including local models
+- [Claude CLI](#provider-claude-cli) — use your Claude subscription instead
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

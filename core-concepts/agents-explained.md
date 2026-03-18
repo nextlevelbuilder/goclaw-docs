@@ -148,6 +148,8 @@ Predefined agents have built-in protection against social engineering. If a user
 
 ## What's Next
 
-- [Sessions and History](sessions-and-history.md) — How conversations persist
-- [Tools Overview](tools-overview.md) — What tools agents can use
-- [Memory System](memory-system.md) — Long-term memory and search
+- [Sessions and History](#sessions-and-history) — How conversations persist
+- [Tools Overview](#tools-overview) — What tools agents can use
+- [Memory System](#memory-system) — Long-term memory and search
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

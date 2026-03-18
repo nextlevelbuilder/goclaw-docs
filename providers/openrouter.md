@@ -86,6 +86,8 @@ OpenRouter passes through most features to the underlying model provider. Availa
 
 ## What's Next
 
-- [Gemini](./gemini.md) — Google Gemini directly via OpenAI-compatible endpoint
-- [OpenAI](./openai.md) — direct OpenAI integration
-- [Overview](./overview.md) — provider architecture and retry logic
+- [Gemini](#provider-gemini) — Google Gemini directly via OpenAI-compatible endpoint
+- [OpenAI](#provider-openai) — direct OpenAI integration
+- [Overview](#providers-overview) — provider architecture and retry logic
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

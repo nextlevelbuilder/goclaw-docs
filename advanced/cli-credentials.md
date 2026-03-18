@@ -10,6 +10,8 @@ CLI Credentials let you define named credential sets (API keys, tokens, connecti
 
 ## What's Next
 
-- [Exec Approval](exec-approval.md)
-- [API Keys & RBAC](api-keys-rbac.md)
-- [Security Hardening](../deployment/security-hardening.md)
+- [Exec Approval](#exec-approval)
+- [API Keys & RBAC](#api-keys-rbac)
+- [Security Hardening](#deploy-security)
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

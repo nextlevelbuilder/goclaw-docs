@@ -80,3 +80,5 @@ flowchart TD
 **Use Agent Links When**:
 - Conversation needs to transfer between agents
 - No task board or orchestration needed
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

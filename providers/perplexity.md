@@ -100,5 +100,7 @@ Perplexity's `sonar` models automatically perform web searches before answering.
 
 ## What's Next
 
-- [DashScope](./dashscope.md) — Alibaba's Qwen models via OpenAI-compatible API
-- [Custom Provider](./custom-provider.md) — connect any OpenAI-compatible API
+- [DashScope](#provider-dashscope) — Alibaba's Qwen models via OpenAI-compatible API
+- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

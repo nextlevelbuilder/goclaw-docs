@@ -297,3 +297,5 @@ For async delegations, the lead receives periodic grouped updates (if progress n
 5. **Link dependencies**: Use `blocked_by` on task board to coordinate order
 6. **Handle handoffs gracefully**: Notify user of transfer; pass context
 7. **Set iteration limits in instructions**: Prevent infinite evaluate loops
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -176,3 +176,5 @@ Both GoClaw and ZeroClaw are part of the ClawFamily ecosystem, but serve differe
 | Multi-user RBAC | **GoClaw** |
 
 **In short:** GoClaw is a server-grade multi-tenant gateway optimized for organizations managing many users/agents on centralized infrastructure. ZeroClaw is an ultra-lightweight runtime optimized for every platform from cloud to edge, with the broadest integration ecosystem.
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

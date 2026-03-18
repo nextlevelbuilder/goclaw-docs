@@ -8,7 +8,7 @@ An AI assistant instance with its own identity, LLM configuration, workspace, an
 
 Agents are stored in the `agents` table. At runtime, the gateway resolves agent configuration by merging `agents.defaults` with per-agent overrides from `agents.list` in `config.json`, then applying any database-level overrides.
 
-See: [Open vs Predefined Agents](../agents/open-vs-predefined.md)
+See: [Open vs Predefined Agents](#open-vs-predefined)
 
 ---
 
@@ -34,7 +34,7 @@ The process of using an LLM to **auto-generate** an agent's personality files (S
 
 Summoning only runs once per agent, or when you trigger `POST /v1/agents/{id}/resummon`.
 
-See: [Summoning & Bootstrap](../agents/summoning-bootstrap.md)
+See: [Summoning & Bootstrap](#summoning-bootstrap)
 
 ---
 
@@ -200,6 +200,8 @@ MCP servers are managed via the `mcp_servers` table and `POST /v1/mcp/servers`. 
 
 ## What's Next
 
-- [Config Reference](./config-reference.md) — configure agents, compaction, context pruning, sandbox
-- [WebSocket Protocol](./websocket-protocol.md) — event names for delegation, handoff, and team activity
-- [Database Schema](./database-schema.md) — table definitions for sessions, traces, teams, and more
+- [Config Reference](#config-reference) — configure agents, compaction, context pruning, sandbox
+- [WebSocket Protocol](#websocket-protocol) — event names for delegation, handoff, and team activity
+- [Database Schema](#database-schema) — table definitions for sessions, traces, teams, and more
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

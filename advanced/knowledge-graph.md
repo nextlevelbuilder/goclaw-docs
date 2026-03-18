@@ -114,5 +114,7 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 
 ## What's Next
 
-- [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
-- [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation storage
+- [Memory System](#memory-system) — Vector-based long-term memory
+- [Sessions & History](#sessions-and-history) — Conversation storage
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

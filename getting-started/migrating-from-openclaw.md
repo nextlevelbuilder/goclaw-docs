@@ -97,7 +97,7 @@ GoClaw supports both agent-level (shared) and per-user context file overrides. T
 
 ## Migration Steps
 
-1. **Set up GoClaw** — Follow the [Installation](installation.md) and [Quick Start](quick-start.md) guides
+1. **Set up GoClaw** — Follow the [Installation](#installation) and [Quick Start](#quick-start) guides
 2. **Map your config** — Translate your OpenClaw config using the mapping table above
 3. **Move context files** — Copy your `.md` context files (excluding `TOOLS.md` — not used in GoClaw); upload via the dashboard or API
 4. **Update channel tokens** — Move tokens from config to environment variables
@@ -131,3 +131,5 @@ Features you gain after migrating:
 - [How GoClaw Works](#how-goclaw-works) — Understand the new architecture
 - [Multi-Tenancy](#multi-tenancy) — Learn about per-user isolation
 - [Configuration](#configuration) — Full config reference
+
+<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
