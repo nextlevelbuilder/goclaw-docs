@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../getting-started/what-is-goclaw.md)
+> Bản dịch từ [English version](#what-is-goclaw)
 
 # GoClaw là gì?
 
@@ -60,6 +60,8 @@ graph LR
 
 ## Tiếp theo
 
-- [Cài đặt](installation.md) — Cài GoClaw trên máy của bạn
-- [Quick Start](quick-start.md) — Agent đầu tiên trong 5 phút
-- [GoClaw hoạt động như thế nào](how-goclaw-works.md) — Tìm hiểu sâu về kiến trúc
+- [Cài đặt](#installation) — Cài GoClaw trên máy của bạn
+- [Quick Start](#quick-start) — Agent đầu tiên trong 5 phút
+- [GoClaw hoạt động như thế nào](#how-goclaw-works) — Tìm hiểu sâu về kiến trúc
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

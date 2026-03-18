@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../core-concepts/memory-system.md)
+> Bản dịch từ [English version](#memory-system)
 
 # Memory System
 
@@ -66,7 +66,7 @@ Memory dành cho những thứ đáng nhớ mãi mãi. Session dành cho luồng
 
 ## Auto Memory Flush
 
-Trong quá trình [auto-compaction](sessions-and-history.md), GoClaw trích xuất thông tin quan trọng từ cuộc hội thoại và lưu vào memory trước khi tóm tắt history.
+Trong quá trình [auto-compaction](#sessions-and-history), GoClaw trích xuất thông tin quan trọng từ cuộc hội thoại và lưu vào memory trước khi tóm tắt history.
 
 - **Trigger**: >50 tin nhắn HOẶC >75% context window (một trong hai điều kiện kích hoạt compaction)
 - **Quy trình**: Flush đồng bộ, tối đa 5 lần lặp, timeout 90 giây
@@ -104,6 +104,8 @@ Memory cần:
 
 ## Tiếp theo
 
-- [Multi-Tenancy](multi-tenancy.md) — Cách ly memory per-user
-- [Sessions and History](sessions-and-history.md) — Lịch sử hội thoại hoạt động như thế nào
-- [Agents Explained](agents-explained.md) — Loại agent và context file
+- [Multi-Tenancy](#multi-tenancy) — Cách ly memory per-user
+- [Sessions and History](#sessions-and-history) — Lịch sử hội thoại hoạt động như thế nào
+- [Agents Explained](#agents-explained) — Loại agent và context file
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -252,4 +252,4 @@ Không cần cấu hình — tính năng bảo vệ này luôn hoạt động ch
 - [Custom Tools](#custom-tools) — tạo tool shell mà không cần MCP server
 - [Skills](#skills) — inject kiến thức tái sử dụng vào system prompt của agent
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

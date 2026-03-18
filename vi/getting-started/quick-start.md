@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../getting-started/quick-start.md)
+> Bản dịch từ [English version](#quick-start)
 
 # Quick Start
 
@@ -117,3 +117,5 @@ Trường `media` chỉ xuất hiện trong payload khi agent trả về file me
 - [Configuration](#configuration) — Tinh chỉnh cài đặt của bạn
 - [Dashboard Tour](#dashboard-tour) — Khám phá giao diện trực quan
 - [Agents Explained](#agents-explained) — Hiểu về loại agent và context
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

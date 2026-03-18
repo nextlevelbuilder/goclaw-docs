@@ -209,4 +209,4 @@ Writer là thành viên nhóm được phép chạy lệnh nhạy cảm (`/reset
 - [Browser Pairing](#channel-browser-pairing) — Luồng pairing
 - [Sessions & History](#sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

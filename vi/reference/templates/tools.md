@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../../reference/templates/tools.md)
+> Bản dịch từ [English version](#template-tools)
 
 # TOOLS.md Template
 
@@ -117,6 +117,8 @@ TOOLS.md cho home automation agent:
 
 ## Tiếp theo
 
-- [Context Files](../../agents/context-files.md) — tất cả 7 context file và thứ tự load
-- [System Prompt Anatomy](../../agents/system-prompt-anatomy.md) — vị trí của TOOLS.md trong prompt (bao gồm minimal mode)
-- [AGENTS.md Template](agents.md) — hướng dẫn vận hành tham chiếu tool
+- [Context Files](#context-files) — tất cả 7 context file và thứ tự load
+- [System Prompt Anatomy](#system-prompt-anatomy) — vị trí của TOOLS.md trong prompt (bao gồm minimal mode)
+- [AGENTS.md Template](#template-agents) — hướng dẫn vận hành tham chiếu tool
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

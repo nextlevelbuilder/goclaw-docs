@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agent-teams/team-messaging.md)
+> Bản dịch từ [English version](#teams-messaging)
 
 # Team Messaging
 
@@ -161,3 +161,5 @@ Tất cả tin nhắn được lưu vào database:
 - Broadcast liên kết người gửi → NULL (nghĩa là tất cả member)
 - Timestamps và trạng thái đọc được theo dõi
 - Toàn bộ lịch sử tin nhắn có sẵn để kiểm tra/xem xét
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

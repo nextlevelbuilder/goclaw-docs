@@ -10,6 +10,8 @@ CLI Credentials cho phép định nghĩa bộ thông tin xác thực có tên (A
 
 ## Tiếp theo
 
-- [Exec Approval](exec-approval.md)
-- [API Keys & RBAC](api-keys-rbac.md)
-- [Security Hardening](../deployment/security-hardening.md)
+- [Exec Approval](#exec-approval)
+- [API Keys & RBAC](#api-keys-rbac)
+- [Security Hardening](#deploy-security)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

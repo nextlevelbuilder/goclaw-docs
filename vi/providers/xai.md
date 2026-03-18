@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/xai.md)
+> Bản dịch từ [English version](#provider-xai)
 
 # xAI (Grok)
 
@@ -92,5 +92,7 @@ Các model Grok phổ biến để dùng trong field `model`:
 
 ## Tiếp theo
 
-- [MiniMax](./minimax.md) — provider tương thích OpenAI với đường dẫn chat tùy chỉnh
-- [Custom Provider](./custom-provider.md) — kết nối bất kỳ API nào tương thích OpenAI
+- [MiniMax](#provider-minimax) — provider tương thích OpenAI với đường dẫn chat tùy chỉnh
+- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

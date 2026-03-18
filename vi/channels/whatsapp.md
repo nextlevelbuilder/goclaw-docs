@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/whatsapp.md)
+> Bản dịch từ [English version](#channel-whatsapp)
 
 # Channel WhatsApp
 
@@ -139,7 +139,9 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Telegram](./telegram.md) — Thiết lập Telegram bot
-- [Larksuite](./larksuite.md) — Tích hợp Larksuite
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [Telegram](#channel-telegram) — Thiết lập Telegram bot
+- [Larksuite](#channel-feishu) — Tích hợp Larksuite
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

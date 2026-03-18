@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agent-teams/delegation-and-handoff.md)
+> Bản dịch từ [English version](#teams-delegation)
 
 # Delegation & Handoff
 
@@ -299,3 +299,5 @@ Với delegation bất đồng bộ, lead nhận cập nhật nhóm định kỳ
 5. **Liên kết phụ thuộc**: Dùng `blocked_by` trên task board để phối hợp thứ tự
 6. **Xử lý handoff khéo léo**: Thông báo người dùng về việc chuyển giao; truyền context
 7. **Đặt giới hạn vòng lặp trong hướng dẫn**: Tránh vòng lặp evaluate vô hạn
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

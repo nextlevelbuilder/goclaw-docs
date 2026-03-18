@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../recipes/multi-channel-setup.md)
+> Bản dịch từ [English version](#recipe-multi-channel)
 
 # Multi-Channel Setup
 
@@ -167,7 +167,7 @@ ws.onmessage = (e) => {
 };
 ```
 
-Xem [WebSocket Channel](../channels/websocket.md) để biết tham khảo protocol đầy đủ.
+Xem [WebSocket Channel](#channel-websocket) để biết tham khảo protocol đầy đủ.
 
 ## Bước 4: Xác minh cách ly cross-channel
 
@@ -253,7 +253,9 @@ Khi agent dùng `write_file` để tạo file, nó tự động được gửi d
 
 ## Tiếp theo
 
-- [Telegram Channel](../channels/telegram.md) — tham khảo đầy đủ config Telegram bao gồm group, topic, và STT
-- [Discord Channel](../channels/discord.md) — Discord gateway intent và setup streaming
-- [WebSocket Channel](../channels/websocket.md) — tham khảo protocol RPC đầy đủ
-- [Personal Assistant](./personal-assistant.md) — điểm khởi đầu single-channel
+- [Telegram Channel](#channel-telegram) — tham khảo đầy đủ config Telegram bao gồm group, topic, và STT
+- [Discord Channel](#channel-discord) — Discord gateway intent và setup streaming
+- [WebSocket Channel](#channel-websocket) — tham khảo protocol RPC đầy đủ
+- [Personal Assistant](#recipe-personal-assistant) — điểm khởi đầu single-channel
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

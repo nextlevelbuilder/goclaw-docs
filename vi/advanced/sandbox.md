@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/sandbox.md)
+> Bản dịch từ [English version](#sandbox)
 
 # Sandbox
 
@@ -244,6 +244,8 @@ docker ps --filter "label=goclaw.sandbox=true"
 
 ## Tiếp theo
 
-- [Custom Tools](../advanced/custom-tools.md) — định nghĩa shell tool cũng hưởng lợi từ cô lập sandbox
-- [Exec Approval](../advanced/exec-approval.md) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy, dù có sandbox hay không
-- [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent turn được sandbox theo lịch
+- [Custom Tools](#custom-tools) — định nghĩa shell tool cũng hưởng lợi từ cô lập sandbox
+- [Exec Approval](#exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy, dù có sandbox hay không
+- [Scheduling & Cron](#scheduling-cron) — chạy agent turn được sandbox theo lịch
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

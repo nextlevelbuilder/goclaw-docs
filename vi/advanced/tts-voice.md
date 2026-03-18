@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/tts-voice.md)
+> Bản dịch từ [English version](#tts-voice)
 
 # TTS Voice
 
@@ -238,5 +238,7 @@ pip install edge-tts
 
 ## Tiếp theo
 
-- [Scheduling & Cron](../advanced/scheduling-cron.md) — kích hoạt agent theo lịch
-- [Extended Thinking](../advanced/extended-thinking.md) — suy luận sâu hơn cho câu trả lời phức tạp
+- [Scheduling & Cron](#scheduling-cron) — kích hoạt agent theo lịch
+- [Extended Thinking](#extended-thinking) — suy luận sâu hơn cho câu trả lời phức tạp
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

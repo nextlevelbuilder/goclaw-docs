@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../troubleshooting/common-issues.md)
+> Bản dịch từ [English version](#troubleshoot-common)
 
 # Các vấn đề thường gặp
 
@@ -80,6 +80,8 @@ Chạy `./goclaw doctor` để kiểm tra nhanh sức khỏe hệ thống. Lện
 
 ## Tiếp theo
 
-- [Vấn đề theo channel](channels.md)
-- [Vấn đề theo provider](providers.md)
-- [Vấn đề database](database.md)
+- [Vấn đề theo channel](#troubleshoot-channels)
+- [Vấn đề theo provider](#troubleshoot-providers)
+- [Vấn đề database](#troubleshoot-database)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

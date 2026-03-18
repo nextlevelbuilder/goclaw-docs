@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/skills.md)
+> Bản dịch từ [English version](#skills)
 
 # Skills
 
@@ -250,6 +250,8 @@ Always:
 
 ## Tiếp theo
 
-- [MCP Integration](../advanced/mcp-integration.md) — kết nối server tool bên ngoài
-- [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
-- [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
+- [MCP Integration](#mcp-integration) — kết nối server tool bên ngoài
+- [Custom Tools](#custom-tools) — thêm tool shell-backed cho agent
+- [Scheduling & Cron](#scheduling-cron) — chạy agent theo lịch
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

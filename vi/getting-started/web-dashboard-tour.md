@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../getting-started/web-dashboard-tour.md)
+> Bản dịch từ [English version](#dashboard-tour)
 
 # Web Dashboard Tour
 
@@ -215,6 +215,8 @@ Quản lý API key cho truy cập lập trình — tạo, thu hồi và gán rol
 
 ## Tiếp theo
 
-- [Configuration](configuration.md) — Sửa cài đặt qua file config thay thế
-- [GoClaw hoạt động như thế nào](../core-concepts/how-goclaw-works.md) — Hiểu về kiến trúc
-- [Agents Explained](../core-concepts/agents-explained.md) — Tìm hiểu về loại agent
+- [Configuration](#configuration) — Sửa cài đặt qua file config thay thế
+- [GoClaw hoạt động như thế nào](#how-goclaw-works) — Hiểu về kiến trúc
+- [Agents Explained](#agents-explained) — Tìm hiểu về loại agent
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

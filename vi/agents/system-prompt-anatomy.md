@@ -365,4 +365,4 @@ Agent này sẽ:
 - [Context Files — Thêm context dành riêng cho dự án](#context-files)
 - [Creating Agents — Thiết lập cấu hình system prompt](#creating-agents)
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

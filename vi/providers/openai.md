@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/openai.md)
+> Bản dịch từ [English version](#provider-openai)
 
 # OpenAI
 
@@ -99,6 +99,8 @@ OpenAI function calling hoạt động ngay mà không cần cấu hình thêm. 
 
 ## Tiếp theo
 
-- [OpenRouter](./openrouter.md) — truy cập 100+ model qua một API key
-- [Anthropic](./anthropic.md) — tích hợp Claude native
-- [Tổng quan](./overview.md) — kiến trúc provider và retry logic
+- [OpenRouter](#provider-openrouter) — truy cập 100+ model qua một API key
+- [Anthropic](#provider-anthropic) — tích hợp Claude native
+- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/suno.md)
+> Bản dịch từ [English version](#provider-suno)
 
 # Suno
 
@@ -25,6 +25,8 @@ Suno là provider tạo nhạc bằng AI. GoClaw agent có thể dùng Suno đ�
 
 ## Tiếp theo
 
-- [Tổng quan Provider](overview.md)
-- [Media Generation](../advanced/media-generation.md)
-- [MiniMax](minimax.md) — provider khác có khả năng xử lý âm thanh
+- [Tổng quan Provider](#providers-overview)
+- [Media Generation](#media-generation)
+- [MiniMax](#provider-minimax) — provider khác có khả năng xử lý âm thanh
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

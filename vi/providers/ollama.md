@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/ollama.md)
+> Bản dịch từ [English version](#provider-ollama)
 
 # Ollama
 
@@ -25,6 +25,8 @@ Ollama cho phép bạn chạy các mô hình ngôn ngữ lớn trên máy của 
 
 ## Tiếp theo
 
-- [Tổng quan Provider](overview.md)
-- [Ollama Cloud](ollama-cloud.md) — tùy chọn Ollama hosted
-- [Custom / OpenAI-Compatible](custom-provider.md)
+- [Tổng quan Provider](#providers-overview)
+- [Ollama Cloud](#provider-ollama-cloud) — tùy chọn Ollama hosted
+- [Custom / OpenAI-Compatible](#provider-custom)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

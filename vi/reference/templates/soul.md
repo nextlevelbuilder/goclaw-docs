@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../../reference/templates/soul.md)
+> Bản dịch từ [English version](#template-soul)
 
 # SOUL.md Template
 
@@ -136,6 +136,8 @@ Docker, Go services. Ưu tiên giải pháp đơn giản, có thể maintain lâ
 
 ## Tiếp theo
 
-- [IDENTITY.md Template](identity.md) — tên, emoji, loại creature
-- [Context Files](../../agents/context-files.md) — cách 7 file hoạt động cùng nhau
-- [Summoning & Bootstrap](../../agents/summoning-bootstrap.md) — SOUL.md được tạo như thế nào cho predefined agent
+- [IDENTITY.md Template](#template-identity) — tên, emoji, loại creature
+- [Context Files](#context-files) — cách 7 file hoạt động cùng nhau
+- [Summoning & Bootstrap](#summoning-bootstrap) — SOUL.md được tạo như thế nào cho predefined agent
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/scheduling-cron.md)
+> Bản dịch từ [English version](#scheduling-cron)
 
 # Scheduling & Cron
 
@@ -251,6 +251,8 @@ Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job
 
 ## Tiếp theo
 
-- [Custom Tools](../advanced/custom-tools.md) — cấp cho agent lệnh shell để chạy trong các turn theo lịch
-- [Skills](../advanced/skills.md) — inject kiến thức domain để agent theo lịch hiệu quả hơn
-- [Sandbox](../advanced/sandbox.md) — cô lập thực thi code trong các agent turn theo lịch
+- [Custom Tools](#custom-tools) — cấp cho agent lệnh shell để chạy trong các turn theo lịch
+- [Skills](#skills) — inject kiến thức domain để agent theo lịch hiệu quả hơn
+- [Sandbox](#sandbox) — cô lập thực thi code trong các agent turn theo lịch
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

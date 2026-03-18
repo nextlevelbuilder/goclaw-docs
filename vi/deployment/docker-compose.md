@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../deployment/docker-compose.md)
+> Bản dịch từ [English version](#deploy-docker-compose)
 
 # Docker Compose Deployment
 
@@ -369,7 +369,9 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 
 ## Tiếp theo
 
-- [Database Setup](./database-setup.md) — cài đặt PostgreSQL thủ công và migration
-- [Security Hardening](./security-hardening.md) — tổng quan bảo mật 5 lớp
-- [Observability](./observability.md) — cấu hình OpenTelemetry và Jaeger
-- [Tailscale](./tailscale.md) — truy cập từ xa an toàn qua Tailscale
+- [Database Setup](#deploy-database) — cài đặt PostgreSQL thủ công và migration
+- [Security Hardening](#deploy-security) — tổng quan bảo mật 5 lớp
+- [Observability](#deploy-observability) — cấu hình OpenTelemetry và Jaeger
+- [Tailscale](#deploy-tailscale) — truy cập từ xa an toàn qua Tailscale
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

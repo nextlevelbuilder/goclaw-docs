@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../deployment/upgrading.md)
+> Bản dịch từ [English version](#deploy-upgrading)
 
 # Upgrading
 
@@ -241,6 +241,8 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 
 ## Tiếp theo
 
-- [Production Checklist](./production-checklist.md) — kiểm tra đầy đủ trước khi go live
-- [Database Setup](./database-setup.md) — cài đặt PostgreSQL và pgvector
-- [Observability](./observability.md) — theo dõi gateway sau khi upgrade
+- [Production Checklist](#deploy-checklist) — kiểm tra đầy đủ trước khi go live
+- [Database Setup](#deploy-database) — cài đặt PostgreSQL và pgvector
+- [Observability](#deploy-observability) — theo dõi gateway sau khi upgrade
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

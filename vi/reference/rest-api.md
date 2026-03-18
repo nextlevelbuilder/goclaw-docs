@@ -411,4 +411,4 @@ HTTP status code theo quy ước REST: `200` OK, `201` Created, `400` Bad Reques
 - [Config Reference](#config-reference) — schema đầy đủ `config.json`
 - [Database Schema](#database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

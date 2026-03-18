@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../reference/glossary.md)
+> Bản dịch từ [English version](#glossary)
 
 # Glossary
 
@@ -10,7 +10,7 @@ Một AI assistant instance với identity, cấu hình LLM, workspace, và cont
 
 Agents được lưu trong bảng `agents`. Khi runtime, gateway resolve cấu hình agent bằng cách merge `agents.defaults` với per-agent overrides từ `agents.list` trong `config.json`, rồi áp dụng database-level overrides.
 
-Xem: [Open vs Predefined Agents](../agents/open-vs-predefined.md)
+Xem: [Open vs Predefined Agents](#open-vs-predefined)
 
 ---
 
@@ -36,7 +36,7 @@ Quá trình dùng LLM để **tự động tạo** các file personality của a
 
 Summoning chỉ chạy một lần mỗi agent, hoặc khi bạn kích hoạt `POST /v1/agents/{id}/resummon`.
 
-Xem: [Summoning & Bootstrap](../agents/summoning-bootstrap.md)
+Xem: [Summoning & Bootstrap](#summoning-bootstrap)
 
 ---
 
@@ -202,6 +202,8 @@ MCP server được quản lý qua bảng `mcp_servers` và `POST /v1/mcp/server
 
 ## Tiếp theo
 
-- [Config Reference](./config-reference.md) — cấu hình agents, compaction, context pruning, sandbox
-- [WebSocket Protocol](./websocket-protocol.md) — tên event cho delegation, handoff, và team activity
-- [Database Schema](./database-schema.md) — định nghĩa bảng cho sessions, traces, teams, và nhiều hơn
+- [Config Reference](#config-reference) — cấu hình agents, compaction, context pruning, sandbox
+- [WebSocket Protocol](#websocket-protocol) — tên event cho delegation, handoff, và team activity
+- [Database Schema](#database-schema) — định nghĩa bảng cho sessions, traces, teams, và nhiều hơn
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

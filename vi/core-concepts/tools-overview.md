@@ -183,4 +183,4 @@ Xem [Custom Tools](#custom-tools) và [MCP Integration](#mcp-integration) để 
 - [Multi-Tenancy](#multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

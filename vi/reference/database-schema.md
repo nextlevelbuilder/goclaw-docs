@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../reference/database-schema.md)
+> Bản dịch từ [English version](#database-schema)
 
 # Database Schema
 
@@ -890,6 +890,8 @@ Quản lý API key fine-grained với kiểm soát truy cập dựa trên scope.
 
 ## Tiếp theo
 
-- [Environment Variables](./environment-variables.md) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
-- [Config Reference](./config-reference.md) — cấu hình database map sang `config.json` như thế nào
-- [Glossary](./glossary.md) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
+- [Environment Variables](#env-vars) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
+- [Config Reference](#config-reference) — cấu hình database map sang `config.json` như thế nào
+- [Glossary](#glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

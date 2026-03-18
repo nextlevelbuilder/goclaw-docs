@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/websocket.md)
+> Bản dịch từ [English version](#channel-websocket)
 
 # Channel WebSocket
 
@@ -254,6 +254,8 @@ Request thất bại bao gồm chi tiết lỗi:
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Gateway Protocol](../gateway-protocol.md) — Tài liệu giao thức đầy đủ
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing cho client tuỳ chỉnh
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [WebSocket Protocol](#websocket-protocol) — Tài liệu giao thức đầy đủ
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing cho client tuỳ chỉnh
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

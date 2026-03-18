@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/cohere.md)
+> Bản dịch từ [English version](#provider-cohere)
 
 # Cohere
 
@@ -89,5 +89,7 @@ API base mặc định là `https://api.cohere.com/compatibility/v1`. GoClaw đ�
 
 ## Tiếp theo
 
-- [Perplexity](./perplexity.md) — AI tìm kiếm web qua OpenAI-compatible API
-- [Custom Provider](./custom-provider.md) — kết nối bất kỳ API nào tương thích OpenAI
+- [Perplexity](#provider-perplexity) — AI tìm kiếm web qua OpenAI-compatible API
+- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

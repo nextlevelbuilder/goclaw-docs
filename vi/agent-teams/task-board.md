@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agent-teams/task-board.md)
+> Bản dịch từ [English version](#teams-task-board)
 
 # Task Board
 
@@ -264,3 +264,5 @@ Lưu ý: lý do hủy được truyền qua tham số `text` (không phải `rea
 3. **Thêm phụ thuộc**: Liên kết các task liên quan với `blocked_by` để đảm bảo thứ tự
 4. **Thêm context**: Viết mô tả rõ ràng để member biết cần làm gì
 5. **Kiểm tra trước khi nhận**: Dùng `list` để xem có gì trước khi claim
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

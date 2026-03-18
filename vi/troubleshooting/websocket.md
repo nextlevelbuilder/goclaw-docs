@@ -115,5 +115,7 @@ Hầu hết thư viện WebSocket (browser native, `ws` cho Node.js, gorilla) x�
 
 ## Tiếp Theo
 
-- [Vấn Đề Phổ Biến](common-issues.md) — lỗi khởi động, agent, bộ nhớ
-- [Xử Lý Sự Cố Channel](channels.md) — lỗi Telegram, Discord, WhatsApp
+- [Vấn Đề Phổ Biến](#troubleshoot-common) — lỗi khởi động, agent, bộ nhớ
+- [Xử Lý Sự Cố Channel](#troubleshoot-channels) — lỗi Telegram, Discord, WhatsApp
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

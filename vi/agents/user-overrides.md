@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agents/user-overrides.md)
+> Bản dịch từ [English version](#user-overrides)
 
 # User Overrides
 
@@ -145,6 +145,8 @@ Hỏi admin nếu bạn không chắc provider nào đã được bật.
 
 ## Tiếp theo
 
-- [System Prompt Anatomy — Cách lựa chọn model ảnh hưởng đến kích thước system prompt](system-prompt-anatomy.md)
-- [Sharing and Access — Kiểm soát ai có thể truy cập agent](sharing-and-access.md)
-- [Creating Agents — Đặt provider/model mặc định khi tạo agent](creating-agents.md)
+- [System Prompt Anatomy — Cách lựa chọn model ảnh hưởng đến kích thước system prompt](#system-prompt-anatomy)
+- [Sharing and Access — Kiểm soát ai có thể truy cập agent](#sharing-and-access)
+- [Creating Agents — Đặt provider/model mặc định khi tạo agent](#creating-agents)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

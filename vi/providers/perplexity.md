@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/perplexity.md)
+> Bản dịch từ [English version](#provider-perplexity)
 
 # Perplexity
 
@@ -102,5 +102,7 @@ Các model `sonar` của Perplexity tự động tìm kiếm web trước khi tr
 
 ## Tiếp theo
 
-- [DashScope](./dashscope.md) — các model Qwen của Alibaba qua OpenAI-compatible API
-- [Custom Provider](./custom-provider.md) — kết nối bất kỳ API nào tương thích OpenAI
+- [DashScope](#provider-dashscope) — các model Qwen của Alibaba qua OpenAI-compatible API
+- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

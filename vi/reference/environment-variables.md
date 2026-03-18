@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../reference/environment-variables.md)
+> Bản dịch từ [English version](#env-vars)
 
 # Environment Variables
 
@@ -219,6 +219,8 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 
 ## Tiếp theo
 
-- [Config Reference](./config-reference.md) — các field `config.json` tương ứng mỗi danh mục
-- [CLI Commands](./cli-commands.md) — `goclaw onboard` tự tạo `.env.local`
-- [Database Schema](./database-schema.md) — secrets được lưu mã hóa trong PostgreSQL như thế nào
+- [Config Reference](#config-reference) — các field `config.json` tương ứng mỗi danh mục
+- [CLI Commands](#cli-commands) — `goclaw onboard` tự tạo `.env.local`
+- [Database Schema](#database-schema) — secrets được lưu mã hóa trong PostgreSQL như thế nào
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

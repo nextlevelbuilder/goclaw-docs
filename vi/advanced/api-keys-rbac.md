@@ -225,6 +225,8 @@ Khi một key được tạo hoặc thu hồi, sự kiện `cache.invalidate` đ
 
 ## Tiếp theo
 
-- [Authentication & OAuth](authentication.md) — gateway token và luồng OAuth
-- [Exec Approval](exec-approval.md) — yêu cầu scope `operator.approvals`
-- [Security Hardening](../deployment/security-hardening.md) — tổng quan đầy đủ 5 lớp phân quyền
+- [Authentication & OAuth](#authentication) — gateway token và luồng OAuth
+- [Exec Approval](#exec-approval) — yêu cầu scope `operator.approvals`
+- [Security Hardening](#deploy-security) — tổng quan đầy đủ 5 lớp phân quyền
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

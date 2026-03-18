@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/deepseek.md)
+> Bản dịch từ [English version](#provider-deepseek)
 
 # DeepSeek
 
@@ -81,6 +81,8 @@ DeepSeek hỗ trợ function calling theo định dạng tool chuẩn OpenAI. To
 
 ## Tiếp theo
 
-- [Groq](./groq.md) — inference cực nhanh cho open model
-- [Gemini](./gemini.md) — các model Google Gemini
-- [Tổng quan](./overview.md) — kiến trúc provider và retry logic
+- [Groq](#provider-groq) — inference cực nhanh cho open model
+- [Gemini](#provider-gemini) — các model Google Gemini
+- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

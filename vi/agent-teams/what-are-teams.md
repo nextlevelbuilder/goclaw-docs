@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agent-teams/what-are-teams.md)
+> Bản dịch từ [English version](#teams-what-are-teams)
 
 # Agent Team là gì?
 
@@ -82,3 +82,5 @@ flowchart TD
 **Dùng Agent Link khi**:
 - Hội thoại cần chuyển giao giữa các agent
 - Không cần task board hay điều phối
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

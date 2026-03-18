@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../recipes/customer-support.md)
+> Bản dịch từ [English version](#recipe-customer-support)
 
 # Customer Support
 
@@ -264,7 +264,9 @@ support (predefined)
 
 ## Tiếp theo
 
-- [Open vs. Predefined](../agents/open-vs-predefined.md) — tìm hiểu sâu về context isolation
-- [Summoning & Bootstrap](../agents/summoning-bootstrap.md) — cách tính cách được tự động tạo
-- [Team Chatbot](./team-chatbot.md) — điều phối nhiều chuyên gia qua team
-- [Context Files](../agents/context-files.md) — tham khảo đầy đủ về SOUL.md, USER.md và các file khác
+- [Open vs. Predefined](#open-vs-predefined) — tìm hiểu sâu về context isolation
+- [Summoning & Bootstrap](#summoning-bootstrap) — cách tính cách được tự động tạo
+- [Team Chatbot](#recipe-team-chatbot) — điều phối nhiều chuyên gia qua team
+- [Context Files](#context-files) — tham khảo đầy đủ về SOUL.md, USER.md và các file khác
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

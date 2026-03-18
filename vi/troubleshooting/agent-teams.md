@@ -62,5 +62,7 @@ Lệnh này trả về toàn bộ lịch sử thay đổi trạng thái của ta
 
 ## Tiếp Theo
 
-- [Hướng dẫn Agent Teams](../features/agent-teams.md) — thiết lập team, role, và task board
-- [Sự Cố Thường Gặp](common-issues.md) — khắc phục sự cố gateway và agent chung
+- [Hướng dẫn Agent Teams](#teams-what-are-teams) — thiết lập team, role, và task board
+- [Sự Cố Thường Gặp](#troubleshoot-common) — khắc phục sự cố gateway và agent chung
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

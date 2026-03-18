@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../troubleshooting/channels.md)
+> Bản dịch từ [English version](#troubleshoot-channels)
 
 # Vấn đề Channel
 
@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-Mỗi channel có connection mode, permission model, và đặc thù định dạng tin nhắn riêng. Trang này bao gồm các pattern lỗi phổ biến nhất cho mỗi channel. Để xem vấn đề cấp gateway (khởi động, WebSocket, rate limiting), xem [Các vấn đề thường gặp](common-issues.md).
+Mỗi channel có connection mode, permission model, và đặc thù định dạng tin nhắn riêng. Trang này bao gồm các pattern lỗi phổ biến nhất cho mỗi channel. Để xem vấn đề cấp gateway (khởi động, WebSocket, rate limiting), xem [Các vấn đề thường gặp](#troubleshoot-common).
 
 ## Mẹo Chung
 
@@ -115,6 +115,8 @@ Bridge phải được xác thực riêng với WhatsApp (QR scan qua bridge UI)
 
 ## Tiếp theo
 
-- [Vấn đề provider](providers.md)
-- [Vấn đề database](database.md)
-- [Các vấn đề thường gặp](common-issues.md)
+- [Vấn đề provider](#troubleshoot-providers)
+- [Vấn đề database](#troubleshoot-database)
+- [Các vấn đề thường gặp](#troubleshoot-common)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

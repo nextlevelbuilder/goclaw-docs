@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../deployment/tailscale.md)
+> Bản dịch từ [English version](#deploy-tailscale)
 
 # Tailscale Integration
 
@@ -140,6 +140,8 @@ Tìm hostname đầy đủ trong [Tailscale admin console](https://login.tailsca
 
 ## Tiếp theo
 
-- [Production Checklist](./production-checklist.md) — bảo mật deployment end to end
-- [Security Hardening](./security-hardening.md) — CORS, rate limits, và token auth
-- [Docker Compose Setup](./docker-compose.md) — tham chiếu đầy đủ compose overlay
+- [Production Checklist](#deploy-checklist) — bảo mật deployment end to end
+- [Security Hardening](#deploy-security) — CORS, rate limits, và token auth
+- [Docker Compose Setup](#deploy-docker-compose) — tham chiếu đầy đủ compose overlay
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

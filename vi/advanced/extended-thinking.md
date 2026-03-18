@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/extended-thinking.md)
+> Bản dịch từ [English version](#extended-thinking)
 
 # Extended Thinking
 
@@ -200,5 +200,7 @@ Cài đặt này đặt `budget_tokens: 32,000`. Dùng cho các tác vụ yêu c
 
 ## Tiếp theo
 
-- [Agents Overview](../core-concepts/agents-explained.md) — tài liệu tham khảo cấu hình mỗi agent
-- [Hooks & Quality Gates](../advanced/hooks-quality-gates.md) — validate đầu ra agent sau khi suy luận
+- [Agents Overview](#agents-explained) — tài liệu tham khảo cấu hình mỗi agent
+- [Hooks & Quality Gates](#hooks-quality-gates) — validate đầu ra agent sau khi suy luận
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

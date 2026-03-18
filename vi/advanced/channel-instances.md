@@ -244,6 +244,8 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 
 ## Tiếp theo
 
-- [Tổng quan Channel](../channels/overview.md)
-- [Multi-Channel Setup](../recipes/multi-channel-setup.md)
-- [Multi-Tenancy](../core-concepts/multi-tenancy.md)
+- [Tổng quan Channel](#channels-overview)
+- [Multi-Channel Setup](#recipe-multi-channel)
+- [Multi-Tenancy](#multi-tenancy)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

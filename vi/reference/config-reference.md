@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../reference/config-reference.md)
+> Bản dịch từ [English version](#config-reference)
 
 # Config Reference
 
@@ -556,6 +556,8 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 
 ## Tiếp theo
 
-- [Environment Variables](./environment-variables.md) — tham chiếu đầy đủ biến môi trường
-- [CLI Commands](./cli-commands.md) — `goclaw onboard` để tạo file này tự động
-- [Database Schema](./database-schema.md) — agents và providers lưu trong PostgreSQL như thế nào
+- [Environment Variables](#env-vars) — tham chiếu đầy đủ biến môi trường
+- [CLI Commands](#cli-commands) — `goclaw onboard` để tạo file này tự động
+- [Database Schema](#database-schema) — agents và providers lưu trong PostgreSQL như thế nào
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../getting-started/configuration.md)
+> Bản dịch từ [English version](#configuration)
 
 # Cấu hình
 
@@ -1031,3 +1031,5 @@ Expose GoClaw trên mạng Tailscale bằng tsnet.
 - [Web Dashboard Tour](#dashboard-tour) — Cấu hình trực quan thay vì chỉnh sửa JSON
 - [Agents Explained](#agents-explained) — Tìm hiểu sâu về cấu hình agent
 - [Tools Overview](#tools-overview) — Các tool có sẵn và danh mục
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

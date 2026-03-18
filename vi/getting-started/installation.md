@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../getting-started/installation.md)
+> Bản dịch từ [English version](#installation)
 
 # Cài đặt
 
@@ -441,8 +441,11 @@ docker compose logs goclaw
 | Docker build thất bại trên ARM Mac | Bật Rosetta trong Docker Desktop settings |
 | `no provider API key found` | Thêm LLM provider & API key qua Dashboard |
 | `encryption key not set` | Chạy `./goclaw onboard` (cài trực tiếp) hoặc `./prepare-env.sh` (Docker) |
+| `Cannot connect to the Docker daemon` | Khởi động Docker Desktop trước: `open -a Docker` (macOS) hoặc `sudo systemctl start docker` (Linux) |
 
 ## Tiếp theo
 
 - [Quick Start](#quick-start) — Chạy agent đầu tiên của bạn
-- [Configuration](configuration.md) — Tùy chỉnh cài đặt GoClaw
+- [Configuration](#configuration) — Tùy chỉnh cài đặt GoClaw
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/custom-provider.md)
+> Bản dịch từ [English version](#provider-custom)
 
 # Custom Provider
 
@@ -185,6 +185,8 @@ Nếu tool call thất bại, thử tắt tool cho provider đó và fallback sa
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — so sánh tất cả provider
-- [DashScope](./dashscope.md) — các model Qwen của Alibaba
-- [Perplexity](./perplexity.md) — sinh text tăng cường tìm kiếm
+- [Tổng quan](#providers-overview) — so sánh tất cả provider
+- [DashScope](#provider-dashscope) — các model Qwen của Alibaba
+- [Perplexity](#provider-perplexity) — sinh text tăng cường tìm kiếm
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

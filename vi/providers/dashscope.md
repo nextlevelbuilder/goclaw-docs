@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/dashscope.md)
+> Bản dịch từ [English version](#provider-dashscope)
 
 # DashScope (Alibaba Qwen)
 
@@ -117,5 +117,7 @@ GoClaw ánh xạ `thinking_level` sang `thinking_budget` của DashScope:
 
 ## Tiếp theo
 
-- [Claude CLI](./claude-cli.md) — provider đặc biệt gọi CLI binary của Claude Code
-- [Custom Provider](./custom-provider.md) — kết nối bất kỳ API nào tương thích OpenAI
+- [Claude CLI](#provider-claude-cli) — provider đặc biệt gọi CLI binary của Claude Code
+- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

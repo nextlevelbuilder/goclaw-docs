@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agents/creating-agents.md)
+> Bản dịch từ [English version](#creating-agents)
 
 # Tạo Agent
 
@@ -177,6 +177,8 @@ Hệ thống sẽ kích hoạt summoning bằng LLM ở nền để tạo ra cá
 
 ## Tiếp theo
 
-- [Open vs. Predefined](./open-vs-predefined.md) — hiểu sự khác biệt về context isolation
-- [Context Files](./context-files.md) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
-- [Summoning & Bootstrap](./summoning-bootstrap.md) — cách LLM tạo ra file personality khi lần đầu sử dụng
+- [Open vs. Predefined](#open-vs-predefined) — hiểu sự khác biệt về context isolation
+- [Context Files](#context-files) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
+- [Summoning & Bootstrap](#summoning-bootstrap) — cách LLM tạo ra file personality khi lần đầu sử dụng
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

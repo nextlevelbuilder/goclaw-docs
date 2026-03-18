@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../core-concepts/agents-explained.md)
+> Bản dịch từ [English version](#agents-explained)
 
 # Agents Explained
 
@@ -150,6 +150,8 @@ Predefined agent có cơ chế bảo vệ tích hợp chống lại social engin
 
 ## Tiếp theo
 
-- [Sessions and History](sessions-and-history.md) — Cách cuộc hội thoại được lưu trữ
-- [Tools Overview](tools-overview.md) — Tool agent có thể dùng
-- [Memory System](memory-system.md) — Memory dài hạn và tìm kiếm
+- [Sessions and History](#sessions-and-history) — Cách cuộc hội thoại được lưu trữ
+- [Tools Overview](#tools-overview) — Tool agent có thể dùng
+- [Memory System](#memory-system) — Memory dài hạn và tìm kiếm
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

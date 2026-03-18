@@ -373,4 +373,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](#deploy-docker-compose) — deploy với security settings qua compose overlays
 - [Database Setup](#deploy-database) — PostgreSQL TLS và encrypted secret storage
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

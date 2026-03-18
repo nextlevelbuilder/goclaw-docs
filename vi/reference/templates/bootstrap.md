@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../../reference/templates/bootstrap.md)
+> Bản dịch từ [English version](#template-bootstrap)
 
 # BOOTSTRAP.md Template
 
@@ -182,7 +182,9 @@ Khi agent gọi `write_file("BOOTSTRAP.md", "")`, file trở thành rỗng. Ở 
 
 ## Tiếp theo
 
-- [IDENTITY.md Template](identity.md) — những gì được ghi sau bootstrap
-- [SOUL.md Template](soul.md) — file được viết lại trong bootstrap
-- [USER.md Template](user.md) — thông tin user sau conversation
-- [Context Files](../../agents/context-files.md) — thứ tự load đầy đủ và vòng đời file
+- [IDENTITY.md Template](#template-identity) — những gì được ghi sau bootstrap
+- [SOUL.md Template](#template-soul) — file được viết lại trong bootstrap
+- [USER.md Template](#template-user) — thông tin user sau conversation
+- [Context Files](#context-files) — thứ tự load đầy đủ và vòng đời file
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

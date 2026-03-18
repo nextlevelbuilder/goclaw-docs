@@ -10,6 +10,8 @@ ACP bọc các AI agent dòng lệnh (Claude Code, OpenAI Codex CLI, Gemini CLI)
 
 ## Tiếp theo
 
-- [Tổng quan Provider](overview.md)
-- [Claude CLI](claude-cli.md)
-- [Custom / OpenAI-Compatible](custom-provider.md)
+- [Tổng quan Provider](#providers-overview)
+- [Claude CLI](#provider-claude-cli)
+- [Custom / OpenAI-Compatible](#provider-custom)
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

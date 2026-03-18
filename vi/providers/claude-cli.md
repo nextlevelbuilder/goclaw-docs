@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/claude-cli.md)
+> Bản dịch từ [English version](#provider-claude-cli)
 
 # Claude CLI
 
@@ -179,5 +179,7 @@ Lệnh này ghi file `cli-debug.log` trong workspace directory của mỗi sessi
 
 ## Tiếp theo
 
-- [Codex / ChatGPT](./codex-chatgpt.md) — provider OAuth dùng subscription ChatGPT
-- [Custom Provider](./custom-provider.md) — kết nối bất kỳ API nào tương thích OpenAI
+- [Codex / ChatGPT](#provider-codex) — provider OAuth dùng subscription ChatGPT
+- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

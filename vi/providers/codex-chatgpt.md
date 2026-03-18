@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/codex-chatgpt.md)
+> Bản dịch từ [English version](#provider-codex)
 
 # Codex / ChatGPT (OAuth)
 
@@ -129,5 +129,7 @@ Sự chuyển đổi này hoàn toàn trong suốt — bạn tương tác với 
 
 ## Tiếp theo
 
-- [Custom Provider](./custom-provider.md) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
-- [Claude CLI](./claude-cli.md) — dùng subscription Claude thay thế
+- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
+- [Claude CLI](#provider-claude-cli) — dùng subscription Claude thay thế
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

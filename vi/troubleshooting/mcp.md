@@ -77,5 +77,7 @@ Tool được đăng ký với tên `{prefix}__{tool_name}`. Prefix mặc địn
 
 ## Xem thêm
 
-- [Sự cố chung](common-issues.md) — các vấn đề khởi động và kết nối tổng quát
-- [Hướng dẫn Dashboard](../dashboard-tour.md) — quản lý MCP server và quyền truy cập trên giao diện
+- [Sự cố chung](#troubleshoot-common) — các vấn đề khởi động và kết nối tổng quát
+- [Hướng dẫn Dashboard](#dashboard-tour) — quản lý MCP server và quyền truy cập trên giao diện
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

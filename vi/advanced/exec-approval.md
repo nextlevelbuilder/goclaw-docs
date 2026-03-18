@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/exec-approval.md)
+> Bản dịch từ [English version](#exec-approval)
 
 # Exec Approval (Human-in-the-Loop)
 
@@ -196,6 +196,8 @@ Phản hồi:
 
 ## Tiếp theo
 
-- [Sandbox](./sandbox.md) — chạy lệnh exec trong container Docker cô lập
-- [Custom Tools](./custom-tools.md) — định nghĩa tool backed bởi lệnh shell
-- [Security Hardening](../deployment/security-hardening.md) — tổng quan bảo mật năm lớp đầy đủ
+- [Sandbox](#sandbox) — chạy lệnh exec trong container Docker cô lập
+- [Custom Tools](#custom-tools) — định nghĩa tool backed bởi lệnh shell
+- [Security Hardening](#deploy-security) — tổng quan bảo mật năm lớp đầy đủ
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

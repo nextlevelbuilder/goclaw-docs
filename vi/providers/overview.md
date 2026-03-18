@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../providers/overview.md)
+> Bản dịch từ [English version](#providers-overview)
 
 # Tổng quan về Providers
 
@@ -91,10 +91,12 @@ graph TD
 
 ## Tiếp theo
 
-- [Anthropic](./anthropic.md) — tích hợp Claude native với extended thinking
-- [OpenAI](./openai.md) — GPT-4o, các model reasoning o-series
-- [OpenRouter](./openrouter.md) — truy cập 100+ model qua một API key duy nhất
-- [Gemini](./gemini.md) — Google Gemini qua endpoint tương thích OpenAI
-- [DeepSeek](./deepseek.md) — DeepSeek với hỗ trợ reasoning_content
-- [Groq](./groq.md) — inference cực nhanh
-- [Mistral](./mistral.md) — các model Mistral AI
+- [Anthropic](#provider-anthropic) — tích hợp Claude native với extended thinking
+- [OpenAI](#provider-openai) — GPT-4o, các model reasoning o-series
+- [OpenRouter](#provider-openrouter) — truy cập 100+ model qua một API key duy nhất
+- [Gemini](#provider-gemini) — Google Gemini qua endpoint tương thích OpenAI
+- [DeepSeek](#provider-deepseek) — DeepSeek với hỗ trợ reasoning_content
+- [Groq](#provider-groq) — inference cực nhanh
+- [Mistral](#provider-mistral) — các model Mistral AI
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

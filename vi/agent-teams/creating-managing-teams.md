@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agent-teams/creating-managing-teams.md)
+> Bản dịch từ [English version](#teams-creating)
 
 # Tạo & Quản lý Team
 
@@ -178,6 +178,8 @@ Context được bọc trong tag `<system_context>` và tự động làm mới 
 
 ## Tiếp theo
 
-- [Task Board](./task-board.md) — Tạo và quản lý task
-- [Team Messaging](./team-messaging.md) — Giao tiếp giữa các member
-- [Delegation & Handoff](./delegation-and-handoff.md) — Điều phối công việc
+- [Task Board](#teams-task-board) — Tạo và quản lý task
+- [Team Messaging](#teams-messaging) — Giao tiếp giữa các member
+- [Delegation & Handoff](#teams-delegation) — Điều phối công việc
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

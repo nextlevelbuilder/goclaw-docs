@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/knowledge-graph.md)
+> Bản dịch từ [English version](#knowledge-graph)
 
 # Knowledge Graph
 
@@ -116,5 +116,7 @@ Agent có thể trả lời câu hỏi như *"Ai đang làm việc trên Project
 
 ## Tiếp theo
 
-- [Hệ thống bộ nhớ](../core-concepts/memory-system.md) — Bộ nhớ dài hạn dựa trên vector
-- [Sessions & History](../core-concepts/sessions-and-history.md) — Lưu trữ cuộc hội thoại
+- [Hệ thống bộ nhớ](#memory-system) — Bộ nhớ dài hạn dựa trên vector
+- [Sessions & History](#sessions-and-history) — Lưu trữ cuộc hội thoại
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../deployment/production-checklist.md)
+> Bản dịch từ [English version](#deploy-checklist)
 
 # Production Checklist
 
@@ -127,7 +127,7 @@ Nếu agent thực thi code, review cài đặt sandbox:
 - [ ] Alert khi có nhiều log `slog.Warn("security.*")` — dấu hiệu tấn công bị chặn hoặc anomaly
 - [ ] Alert khi có `tracing: span buffer full` — collector đang bị lag dưới tải cao
 - [ ] Uptime monitoring đã cấu hình (ví dụ ping `/health` hoặc gateway port)
-- [ ] Cân nhắc bật OTel export để có visibility ở cấp trace — xem [Observability](./observability.md)
+- [ ] Cân nhắc bật OTel export để có visibility ở cấp trace — xem [Observability](#deploy-observability)
 - [ ] Tài liệu API tương tác có tại `/docs` (Swagger UI) và `/v1/openapi.json` để kiểm tra tích hợp
 
 ---
@@ -137,7 +137,7 @@ Nếu agent thực thi code, review cài đặt sandbox:
 - [ ] Log rotation đã cấu hình nếu ghi ra file (dùng `logrotate` hoặc log driver của container runtime)
 - [ ] `GOCLAW_AUTO_UPGRADE=true` chỉ đặt **khi** bạn chấp nhận schema migration tự động khi khởi động; ngược lại upgrade thủ công bằng `./goclaw upgrade`
 - [ ] Có runbook cho: restart, rollback, DB restore, và encryption key rotation
-- [ ] Quy trình upgrade đã được ghi lại và kiểm tra — xem [Upgrading](./upgrading.md)
+- [ ] Quy trình upgrade đã được ghi lại và kiểm tra — xem [Upgrading](#deploy-upgrading)
 
 ---
 
@@ -236,7 +236,9 @@ curl http://localhost:18790/health
 
 ## Tiếp theo
 
-- [Upgrading](./upgrading.md) — cách upgrade GoClaw an toàn
-- [Observability](./observability.md) — cài đặt tracing và alerting
-- [Security Hardening](./security-hardening.md) — cấu hình bảo mật sâu hơn
-- [Docker Compose Setup](./docker-compose.md) — các pattern compose cho production
+- [Upgrading](#deploy-upgrading) — cách upgrade GoClaw an toàn
+- [Observability](#deploy-observability) — cài đặt tracing và alerting
+- [Security Hardening](#deploy-security) — cấu hình bảo mật sâu hơn
+- [Docker Compose Setup](#deploy-docker-compose) — các pattern compose cho production
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

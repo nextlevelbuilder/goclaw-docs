@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/larksuite.md)
+> Bản dịch từ [English version](#channel-feishu)
 
 # Channel Larksuite
 
@@ -152,7 +152,9 @@ Các thread khác nhau trong cùng nhóm duy trì lịch sử riêng.
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Telegram](./telegram.md) — Thiết lập Telegram bot
-- [Zalo OA](./zalo-oa.md) — Zalo Official Account
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [Telegram](#channel-telegram) — Thiết lập Telegram bot
+- [Zalo OA](#channel-zalo-oa) — Zalo Official Account
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

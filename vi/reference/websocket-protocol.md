@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../reference/websocket-protocol.md)
+> Bản dịch từ [English version](#websocket-protocol)
 
 # WebSocket Protocol
 
@@ -333,6 +333,8 @@ ws.onmessage = (e) => {
 
 ## Tiếp theo
 
-- [REST API](./rest-api.md) — HTTP endpoint cho agent CRUD, skill upload, traces
-- [CLI Commands](./cli-commands.md) — quản lý pairing và session từ terminal
-- [Glossary](./glossary.md) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
+- [REST API](#rest-api) — HTTP endpoint cho agent CRUD, skill upload, traces
+- [CLI Commands](#cli-commands) — quản lý pairing và session từ terminal
+- [Glossary](#glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

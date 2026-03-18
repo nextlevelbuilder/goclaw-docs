@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/zalo-oa.md)
+> Bản dịch từ [English version](#channel-zalo-oa)
 
 # Channel Zalo OA
 
@@ -112,7 +112,9 @@ Chính sách DM mặc định là `"pairing"`. User mới thấy hướng dẫn 
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Zalo Personal](./zalo-personal.md) — Tích hợp tài khoản Zalo cá nhân
-- [Telegram](./telegram.md) — Thiết lập Telegram bot
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [Zalo Personal](#channel-zalo-personal) — Tích hợp tài khoản Zalo cá nhân
+- [Telegram](#channel-telegram) — Thiết lập Telegram bot
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

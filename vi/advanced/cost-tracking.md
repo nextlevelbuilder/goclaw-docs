@@ -235,6 +235,8 @@ Kiểm tra chạy một lần mỗi request, trước bất kỳ lần gọi LLM
 
 ## Tiếp Theo
 
-- [Usage & Quota](usage-quota.md) — giới hạn request per-user và token count
-- [Observability](../deployment/observability.md) — xuất OpenTelemetry cho span bao gồm các trường chi phí
-- [Tham Chiếu Cấu Hình](../reference/config-reference.md) — đầy đủ các tùy chọn cấu hình `telemetry`
+- [Usage & Quota](#usage-quota) — giới hạn request per-user và token count
+- [Observability](#deploy-observability) — xuất OpenTelemetry cho span bao gồm các trường chi phí
+- [Tham Chiếu Cấu Hình](#config-reference) — đầy đủ các tùy chọn cấu hình `telemetry`
+
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
