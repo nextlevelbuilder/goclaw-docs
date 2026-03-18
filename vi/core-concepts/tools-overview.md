@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../core-concepts/tools-overview.md)
+> Bản dịch từ [English version](#tools-overview)
 
 # Tools Overview
 
@@ -119,17 +119,44 @@ Ghi vào `MEMORY.md` hoặc `memory/*` được định tuyến đến bảng `m
 
 ## Bảo mật Shell
 
-Tool `exec` có deny pattern tích hợp sẵn để ngăn lệnh nguy hiểm:
+Tool `exec` áp dụng 15 nhóm deny — tất cả đều bật theo mặc định:
 
-| Danh mục | Pattern bị chặn |
-|----------|-----------------|
-| Destructive | `rm -rf /`, `del /f`, `rmdir /s` |
-| Disk | `mkfs`, `dd if=`, `> /dev/sd*` |
-| System | `shutdown`, `reboot`, `poweroff` |
-| Fork bomb | `:(){ ... };:` |
-| RCE | `curl \| sh`, `wget -O - \| sh` |
-| Reverse shell | `/dev/tcp/`, `nc -e` |
-| Eval | `eval $()`, `base64 -d \| sh` |
+| Nhóm | Pattern bị chặn |
+|------|-----------------|
+| `destructive_ops` | `rm -rf`, `del /f`, `mkfs`, `dd`, `shutdown`, fork bomb |
+| `data_exfiltration` | `curl\|sh`, `wget\|sh`, DNS exfil, `/dev/tcp/`, curl POST/PUT, truy cập localhost |
+| `reverse_shell` | `nc`/`ncat`/`netcat`, `socat`, `openssl s_client`, `telnet`, socket python/perl/ruby/node, `mkfifo` |
+| `code_injection` | `eval $`, `base64 -d\|sh` |
+| `privilege_escalation` | `sudo`, `su -`, `nsenter`, `unshare`, `mount`, `capsh`/`setcap` |
+| `dangerous_paths` | `chmod` trên `/`, `chown` trên `/`, `chmod +x` trên `/tmp` `/var/tmp` `/dev/shm` |
+| `env_injection` | `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `LD_LIBRARY_PATH`, `GIT_EXTERNAL_DIFF`, `BASH_ENV` |
+| `container_escape` | `docker.sock`, `/proc/sys/`, `/sys/` |
+| `crypto_mining` | `xmrig`, `cpuminer`, `stratum+tcp://` |
+| `filter_bypass` | `sed /e`, `sort --compress-program`, `git --upload-pack`, `rg --pre=`, `man --html=` |
+| `network_recon` | `nmap`/`masscan`/`zmap`, `ssh/scp@`, tunnel `chisel`/`ngrok`/`cloudflared` |
+| `package_install` | `pip install`, `npm install`, `apk add`, `yarn add`, `pnpm add` |
+| `persistence` | `crontab`, ghi vào `.bashrc`/`.profile`/`.zshrc` |
+| `process_control` | `kill -9`, `killall`, `pkill` |
+| `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Ghi đè Per-Agent
+
+Admin có thể tắt nhóm cụ thể theo từng agent:
+
+```jsonc
+{
+  "agents": {
+    "list": {
+      "dev-bot": {
+        "shell_deny_groups": {
+          "package_install": false,
+          "process_control": false
+        }
+      }
+    }
+  }
+}
+```
 
 Cài đặt `tools.exec_approval` thêm một lớp phê duyệt bổ sung (`full`, `light`, hoặc `none`).
 
@@ -152,6 +179,8 @@ Xem [Custom Tools](#custom-tools) và [MCP Integration](#mcp-integration) để 
 
 ## Tiếp theo
 
-- [Memory System](memory-system.md) — Memory dài hạn và tìm kiếm hoạt động như thế nào
-- [Multi-Tenancy](multi-tenancy.md) — Truy cập tool per-user và cách ly
+- [Memory System](#memory-system) — Memory dài hạn và tìm kiếm hoạt động như thế nào
+- [Multi-Tenancy](#multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

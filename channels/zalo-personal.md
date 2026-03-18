@@ -4,7 +4,7 @@ Unofficial personal Zalo account integration using reverse-engineered protocol (
 
 ## Warning: Use at Your Own Risk
 
-Zalo Personal uses an **unofficial, reverse-engineered protocol**. Your account may be locked, banned, or restricted by Zalo at any time. This is NOT recommended for production bots. Use [Zalo OA](./zalo-oa.md) for official integrations.
+Zalo Personal uses an **unofficial, reverse-engineered protocol**. Your account may be locked, banned, or restricted by Zalo at any time. This is NOT recommended for production bots. Use [Zalo OA](#channel-zalo-oa) for official integrations.
 
 A security warning is logged on startup: `security.unofficial_api`.
 
@@ -94,6 +94,10 @@ Explicitly allow users/groups via `allow_from`:
 
 Requires credentials file with phone, password, and device ID. On first connection, account may require QR scan or additional verification from Zalo.
 
+### Media Handling
+
+Media sending includes post-write verification — files are confirmed written to disk before being sent to the Zalo API.
+
 ### Resilience
 
 On connection failure:
@@ -114,7 +118,9 @@ On connection failure:
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Zalo OA](./zalo-oa.md) — Official Zalo integration (recommended)
-- [Telegram](./telegram.md) — Telegram bot setup
-- [Browser Pairing](./browser-pairing.md) — Pairing flow
+- [Overview](#channels-overview) — Channel concepts and policies
+- [Zalo OA](#channel-zalo-oa) — Official Zalo integration (recommended)
+- [Telegram](#channel-telegram) — Telegram bot setup
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

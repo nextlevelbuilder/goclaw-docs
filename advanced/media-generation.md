@@ -8,6 +8,8 @@ GoClaw includes three built-in media generation tools: `create_image`, `create_v
 
 Generated files are saved to `workspace/generated/{YYYY-MM-DD}/` and returned as `MEDIA:` paths that channels render natively (inline images, video players, audio messages).
 
+Generated files are verified after writing — if the file doesn't exist on disk, the tool reports an error instead of returning a broken path.
+
 ---
 
 ## Image Generation
@@ -114,6 +116,45 @@ The chain executes sequentially — first success wins, last error is returned i
 
 ---
 
+## Image Analysis (read_image)
+
+The `read_image` tool can be configured with a dedicated vision provider chain. When configured, images are routed to the vision provider instead of being attached inline to the main LLM — useful when your main model lacks vision capability or you want a specialized model for image analysis.
+
+Supports the same chain format as `create_*` tools:
+
+```json
+{
+  "builtin_tools": {
+    "settings": {
+      "read_image": {
+        "providers": [
+          { "provider": "gemini", "model": "gemini-2.5-flash", "enabled": true },
+          { "provider": "openai", "model": "gpt-4o", "enabled": true }
+        ]
+      }
+    }
+  }
+}
+```
+
+Also supports the legacy flat format:
+
+```json
+{
+  "builtin_tools": {
+    "settings": {
+      "read_image": {
+        "provider": "gemini"
+      }
+    }
+  }
+}
+```
+
+If no `read_image` chain is configured, images are attached inline to the main LLM as usual.
+
+---
+
 ## Required API Keys
 
 Media generation uses your existing provider API keys. Make sure the relevant providers are configured:
@@ -137,6 +178,8 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 
 ## What's Next
 
-- [TTS & Voice](tts-voice.md) — Text-to-speech for agent replies
-- [Custom Tools](custom-tools.md) — Build your own tools
-- [Provider Overview](../providers/overview.md) — Configure API keys
+- [TTS & Voice](#tts-voice) — Text-to-speech for agent replies
+- [Custom Tools](#custom-tools) — Build your own tools
+- [Provider Overview](#providers-overview) — Configure API keys
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

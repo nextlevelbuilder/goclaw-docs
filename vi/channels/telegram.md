@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/telegram.md)
+> Bản dịch từ [English version](#channel-telegram)
 
 # Channel Telegram
 
@@ -166,6 +166,8 @@ Mặc định tắt do vấn đề với Telegram draft API.
 
 Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
 
+> Các reaction typing indicator hiện được xử lý với khả năng phục hồi lỗi tốt hơn — các loại reaction không hợp lệ được bắt một cách gracefully thay vì gây ra lỗi.
+
 - `off` — Không có reaction
 - `minimal` — Chỉ ⏳ (đang suy nghĩ)
 - `full` — ⏳ (suy nghĩ) → 🛠️ (dùng tool) → ✅ (xong) hoặc ❌ (lỗi)
@@ -202,7 +204,9 @@ Writer là thành viên nhóm được phép chạy lệnh nhạy cảm (`/reset
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Discord](./discord.md) — Thiết lập Discord bot
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing
-- [Session Management](../sessions.md) — Lịch sử cuộc trò chuyện
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [Discord](#channel-discord) — Thiết lập Discord bot
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+- [Sessions & History](#sessions-and-history) — Lịch sử cuộc trò chuyện
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

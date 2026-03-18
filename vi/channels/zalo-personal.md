@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/zalo-personal.md)
+> Bản dịch từ [English version](#channel-zalo-personal)
 
 # Channel Zalo Personal
 
@@ -6,7 +6,7 @@ Tích hợp tài khoản Zalo cá nhân không chính thức sử dụng giao th
 
 ## Cảnh báo: Dùng theo rủi ro của bạn
 
-Zalo Personal dùng **giao thức không chính thức, được dịch ngược**. Tài khoản của bạn có thể bị khoá, cấm, hoặc hạn chế bởi Zalo bất kỳ lúc nào. **KHÔNG** khuyến nghị dùng cho bot production. Dùng [Zalo OA](./zalo-oa.md) cho các tích hợp chính thức.
+Zalo Personal dùng **giao thức không chính thức, được dịch ngược**. Tài khoản của bạn có thể bị khoá, cấm, hoặc hạn chế bởi Zalo bất kỳ lúc nào. **KHÔNG** khuyến nghị dùng cho bot production. Dùng [Zalo OA](#channel-zalo-oa) cho các tích hợp chính thức.
 
 Cảnh báo bảo mật được ghi log khi khởi động: `security.unofficial_api`.
 
@@ -96,6 +96,10 @@ Cho phép user/nhóm cụ thể qua `allow_from`:
 
 Yêu cầu file thông tin đăng nhập có số điện thoại, mật khẩu, và device ID. Ở lần kết nối đầu tiên, tài khoản có thể yêu cầu quét QR hoặc xác minh thêm từ Zalo.
 
+### Xử lý Media
+
+Việc gửi media bao gồm xác minh sau khi ghi — các file được xác nhận đã ghi xuống đĩa trước khi gửi đến Zalo API.
+
 ### Khả năng phục hồi
 
 Khi kết nối thất bại:
@@ -116,7 +120,9 @@ Khi kết nối thất bại:
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Zalo OA](./zalo-oa.md) — Tích hợp Zalo chính thức (khuyến nghị)
-- [Telegram](./telegram.md) — Thiết lập Telegram bot
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [Zalo OA](#channel-zalo-oa) — Tích hợp Zalo chính thức (khuyến nghị)
+- [Telegram](#channel-telegram) — Thiết lập Telegram bot
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

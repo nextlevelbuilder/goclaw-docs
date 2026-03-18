@@ -17,7 +17,7 @@ Two **prompt modes** exist:
 | 1 | Identity | ✓ | ✓ | Channel info (Telegram, Discord, etc.) |
 | 1.5 | First-Run Bootstrap | ✓ | ✓ | BOOTSTRAP.md warning (first session only) |
 | 1.7 | Persona | ✓ | ✓ | SOUL.md + IDENTITY.md injected early for primacy bias |
-| 2 | Tooling | ✓ | ✓ | List of available tools |
+| 2 | Tooling | ✓ | ✓ | List of available tools + legacy/Claude Code aliases |
 | 3 | Safety | ✓ | ✓ | Core safety rules, limits, confidentiality |
 | 3.2 | Identity Anchoring | ✓ | ✓ | Extra guidance against identity manipulation (predefined agents only) |
 | 3.5 | Self-Evolution | ✓ | ✓ | Permission to update SOUL.md (when `self_evolve=true` in predefined agents) |
@@ -169,6 +169,8 @@ If the agent has `sandbox_enabled: true`:
   - Workspace access level (none, ro, rw)
 - **Tooling section** adds a note: "exec runs inside Docker; you don't need `docker run`"
 
+> **Shell deny groups:** If an agent has `shell_deny_groups` overrides configured (`map[string]bool`), the Tooling section adapts its shell safety instructions accordingly — only the relevant deny-group warnings are included in the prompt.
+
 ## Example: Full Prompt Structure (Pseudocode)
 
 ```
@@ -201,6 +203,8 @@ Embody the persona above in EVERY response. This is non-negotiable.
 - exec: Run shell commands
 - memory_search: Search indexed memory
 [... more tools ...]
+(Legacy aliases: read → read_file, write → write_file, edit → edit)
+(Claude Code aliases: Read → read_file, Write → write_file, Edit → edit, ...)
 
 ## Safety
 You have no independent goals. Prioritize safety and human oversight.
@@ -355,6 +359,8 @@ This agent will:
 
 ## What's Next
 
-- [Editing Personality — Customize SOUL.md and IDENTITY.md](editing-personality.md)
-- [Context Files — Add project-specific context](context-files.md)
-- [Creating Agents — Set up system prompt configuration](creating-agents.md)
+- [Editing Personality — Customize SOUL.md and IDENTITY.md](#editing-personality)
+- [Context Files — Add project-specific context](#context-files)
+- [Creating Agents — Set up system prompt configuration](#creating-agents)
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

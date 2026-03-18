@@ -164,6 +164,8 @@ Disabled by default due to Telegram draft API issues.
 
 Show emoji status on user messages. Set `reaction_level`:
 
+> Typing indicator reactions are now handled with better error recovery — invalid reaction types are caught gracefully instead of causing errors.
+
 - `off` — No reactions
 - `minimal` — Only ⏳ (thinking)
 - `full` — ⏳ (thinking) → 🛠️ (tool) → ✅ (done) or ❌ (error)
@@ -200,7 +202,9 @@ Writers are group members allowed to run sensitive commands (`/reset`, file writ
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Discord](./discord.md) — Discord bot setup
-- [Browser Pairing](./browser-pairing.md) — Pairing flow
-- [Session Management](../sessions.md) — Conversation history
+- [Overview](#channels-overview) — Channel concepts and policies
+- [Discord](#channel-discord) — Discord bot setup
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Sessions & History](#sessions-and-history) — Conversation history
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

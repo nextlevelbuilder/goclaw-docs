@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../advanced/media-generation.md)
+> Bản dịch từ [English version](#media-generation)
 
 # Tạo Media
 
@@ -9,6 +9,8 @@
 GoClaw có ba công cụ tạo media tích hợp: `create_image`, `create_video`, và `create_audio`. Mỗi công cụ sử dụng **chuỗi provider** — danh sách ưu tiên các AI provider mà GoClaw thử lần lượt. Nếu provider đầu tiên lỗi hoặc timeout, nó tự động chuyển sang provider tiếp theo.
 
 File được lưu vào `workspace/generated/{YYYY-MM-DD}/` và trả về dưới dạng đường dẫn `MEDIA:` mà các channel hiển thị trực tiếp (hình ảnh inline, trình phát video, tin nhắn âm thanh).
+
+File được tạo ra sẽ được xác minh sau khi ghi — nếu file không tồn tại trên đĩa, công cụ báo lỗi thay vì trả về đường dẫn bị hỏng.
 
 ---
 
@@ -114,6 +116,45 @@ Chuỗi thực thi tuần tự — thành công đầu tiên thắng, lỗi cu�
 
 ---
 
+## Phân tích hình ảnh (read_image)
+
+Công cụ `read_image` có thể được cấu hình với chuỗi vision provider riêng. Khi được cấu hình, hình ảnh sẽ được định tuyến đến vision provider thay vì đính kèm inline vào LLM chính — hữu ích khi model chính không hỗ trợ vision hoặc bạn muốn dùng model chuyên biệt để phân tích ảnh.
+
+Hỗ trợ cùng định dạng chuỗi với các công cụ `create_*`:
+
+```json
+{
+  "builtin_tools": {
+    "settings": {
+      "read_image": {
+        "providers": [
+          { "provider": "gemini", "model": "gemini-2.5-flash", "enabled": true },
+          { "provider": "openai", "model": "gpt-4o", "enabled": true }
+        ]
+      }
+    }
+  }
+}
+```
+
+Cũng hỗ trợ định dạng phẳng cũ:
+
+```json
+{
+  "builtin_tools": {
+    "settings": {
+      "read_image": {
+        "provider": "gemini"
+      }
+    }
+  }
+}
+```
+
+Nếu không cấu hình chuỗi `read_image`, hình ảnh được đính kèm inline vào LLM chính như bình thường.
+
+---
+
 ## API Key cần thiết
 
 Tạo media sử dụng API key provider hiện có. Đảm bảo các provider liên quan đã được cấu hình:
@@ -137,6 +178,8 @@ File media tải về giới hạn tối đa **200 MB**. File vượt quá sẽ 
 
 ## Tiếp theo
 
-- [TTS & Voice](tts-voice.md) — Chuyển văn bản thành giọng nói
-- [Custom Tools](custom-tools.md) — Tạo công cụ riêng
-- [Tổng quan Provider](../providers/overview.md) — Cấu hình API key
+- [TTS & Voice](#tts-voice) — Chuyển văn bản thành giọng nói
+- [Custom Tools](#custom-tools) — Tạo công cụ riêng
+- [Tổng quan Provider](#providers-overview) — Cấu hình API key
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

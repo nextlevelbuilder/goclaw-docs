@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../deployment/security-hardening.md)
+> Bản dịch từ [English version](#deploy-security)
 
 # Security Hardening
 
@@ -11,9 +11,9 @@ Mỗi lớp hoạt động độc lập. Cùng nhau chúng tạo thành kiến t
 ```mermaid
 flowchart TD
     REQ["Incoming Request"] --> L1["Lớp 1: Transport\nCORS · size limits · timing-safe auth · rate limiting"]
-    L1 --> L2["Lớp 2: Input\nInjection detection · message truncation"]
-    L2 --> L3["Lớp 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval"]
-    L3 --> L4["Lớp 4: Output\nCredential scrubbing · web content tagging"]
+    L1 --> L2["Lớp 2: Input\nInjection detection · message truncation · ILIKE escape"]
+    L2 --> L3["Lớp 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval · file serving protection"]
+    L3 --> L4["Lớp 4: Output\nCredential scrubbing · web content tagging · MCP content tagging"]
     L4 --> L5["Lớp 5: Isolation\nPer-user workspace · Docker sandbox"]
 ```
 
@@ -72,6 +72,8 @@ Với deployment public-facing hoặc multi-user agent chia sẻ, dùng `"block"
 
 **Message truncation:** Tin nhắn vượt `gateway.max_message_chars` (mặc định 32,000) bị cắt bớt — không bị reject — và LLM được thông báo về việc cắt bớt.
 
+**ILIKE ESCAPE:** Tất cả database ILIKE query (search/filter) đều escape ký tự `%`, `_`, và `\` trước khi thực thi, ngăn chặn tấn công SQL wildcard injection.
+
 ---
 
 ## Lớp 3: Tool Security
@@ -97,6 +99,10 @@ Bảo vệ khỏi command execution nguy hiểm, truy cập file trái phép, v�
 `resolvePath()` áp dụng `filepath.Clean()` rồi `HasPrefix()` để đảm bảo tất cả file path nằm trong workspace của agent. Với `restrict_to_workspace: true` (mặc định trên agents), bất kỳ path nào ngoài workspace đều bị chặn.
 
 Bốn filesystem tool (`read_file`, `write_file`, `list_files`, `edit`) đều implement interface `PathDenyable`. Agent loop gọi `DenyPaths(".goclaw")` khi khởi động — agent không thể đọc thư mục internal của GoClaw. Tool `list_files` lọc bỏ hoàn toàn các path bị deny khỏi directory listing.
+
+### Bảo vệ path traversal khi serve file
+
+Endpoint serve file (`/v1/files/...`) kiểm tra tất cả path được yêu cầu để ngăn chặn tấn công directory traversal. Bất kỳ path nào chứa chuỗi `../` hoặc resolve ra ngoài thư mục cho phép đều bị từ chối với lỗi 400.
 
 ### SSRF protection (3 bước kiểm tra)
 
@@ -124,7 +130,7 @@ Shell metacharacter (`;`, `|`, `&`, `$()`, backtick) được phát hiện và t
 
 ### Exec approval
 
-Xem [Exec Approval](../advanced/exec-approval.md) để biết flow phê duyệt đầy đủ. Tối thiểu, bật `ask: "on-miss"` để hỏi trước khi chạy các network và infrastructure tool:
+Xem [Exec Approval](#exec-approval) để biết flow phê duyệt đầy đủ. Tối thiểu, bật `ask: "on-miss"` để hỏi trước khi chạy các network và infrastructure tool:
 
 ```json
 {
@@ -169,6 +175,18 @@ Scrubbing bật mặc định. Để tắt (không khuyến nghị):
 ```
 
 Bạn cũng có thể đăng ký runtime values để scrub động (ví dụ server IP phát hiện lúc runtime) qua `AddDynamicScrubValues()` trong custom tool integrations.
+
+### MCP content tagging
+
+Kết quả từ MCP tool call được bọc trong cùng untrusted-content marker như web fetch:
+
+```
+<<<EXTERNAL_UNTRUSTED_CONTENT>>>
+[kết quả MCP tool ở đây]
+<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
+```
+
+Điều này ngăn chặn prompt injection từ MCP server độc hại — LLM được hướng dẫn không coi nội dung được tag là instructions.
 
 ### Web content tagging
 
@@ -350,7 +368,9 @@ journalctl -u goclaw | grep 'security\.'
 
 ## Tiếp theo
 
-- [Exec Approval](../advanced/exec-approval.md) — human-in-the-loop cho shell commands
-- [Sandbox](../advanced/sandbox.md) — chi tiết cấu hình Docker sandbox
-- [Docker Compose](./docker-compose.md) — deploy với security settings qua compose overlays
-- [Database Setup](./database-setup.md) — PostgreSQL TLS và encrypted secret storage
+- [Exec Approval](#exec-approval) — human-in-the-loop cho shell commands
+- [Sandbox](#sandbox) — chi tiết cấu hình Docker sandbox
+- [Docker Compose](#deploy-docker-compose) — deploy với security settings qua compose overlays
+- [Database Setup](#deploy-database) — PostgreSQL TLS và encrypted secret storage
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

@@ -117,17 +117,44 @@ Writes to `MEMORY.md` or `memory/*` are routed to the `memory_documents` table, 
 
 ## Shell Safety
 
-The `exec` tool has built-in deny patterns to prevent dangerous commands:
+The `exec` tool enforces 15 deny groups — all enabled by default:
 
-| Category | Blocked Patterns |
-|----------|-----------------|
-| Destructive | `rm -rf /`, `del /f`, `rmdir /s` |
-| Disk | `mkfs`, `dd if=`, `> /dev/sd*` |
-| System | `shutdown`, `reboot`, `poweroff` |
-| Fork bombs | `:(){ ... };:` |
-| RCE | `curl \| sh`, `wget -O - \| sh` |
-| Reverse shells | `/dev/tcp/`, `nc -e` |
-| Eval | `eval $()`, `base64 -d \| sh` |
+| Group | Blocked Patterns |
+|-------|-----------------|
+| `destructive_ops` | `rm -rf`, `del /f`, `mkfs`, `dd`, `shutdown`, fork bombs |
+| `data_exfiltration` | `curl\|sh`, `wget\|sh`, DNS exfil, `/dev/tcp/`, curl POST/PUT, localhost access |
+| `reverse_shell` | `nc`/`ncat`/`netcat`, `socat`, `openssl s_client`, `telnet`, python/perl/ruby/node sockets, `mkfifo` |
+| `code_injection` | `eval $`, `base64 -d\|sh` |
+| `privilege_escalation` | `sudo`, `su -`, `nsenter`, `unshare`, `mount`, `capsh`/`setcap` |
+| `dangerous_paths` | `chmod` on `/`, `chown` on `/`, `chmod +x` on `/tmp` `/var/tmp` `/dev/shm` |
+| `env_injection` | `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `LD_LIBRARY_PATH`, `GIT_EXTERNAL_DIFF`, `BASH_ENV` |
+| `container_escape` | `docker.sock`, `/proc/sys/`, `/sys/` |
+| `crypto_mining` | `xmrig`, `cpuminer`, `stratum+tcp://` |
+| `filter_bypass` | `sed /e`, `sort --compress-program`, `git --upload-pack`, `rg --pre=`, `man --html=` |
+| `network_recon` | `nmap`/`masscan`/`zmap`, `ssh/scp@`, `chisel`/`ngrok`/`cloudflared` tunneling |
+| `package_install` | `pip install`, `npm install`, `apk add`, `yarn add`, `pnpm add` |
+| `persistence` | `crontab`, writes to `.bashrc`/`.profile`/`.zshrc` |
+| `process_control` | `kill -9`, `killall`, `pkill` |
+| `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Per-Agent Override
+
+Admins can disable specific groups per agent:
+
+```jsonc
+{
+  "agents": {
+    "list": {
+      "dev-bot": {
+        "shell_deny_groups": {
+          "package_install": false,
+          "process_control": false
+        }
+      }
+    }
+  }
+}
+```
 
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
 
@@ -150,6 +177,8 @@ See [Custom Tools](#custom-tools) and [MCP Integration](#mcp-integration) for de
 
 ## What's Next
 
-- [Memory System](memory-system.md) — How long-term memory and search work
-- [Multi-Tenancy](multi-tenancy.md) — Per-user tool access and isolation
+- [Memory System](#memory-system) — How long-term memory and search work
+- [Multi-Tenancy](#multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](#custom-tools) — Build your own tools
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

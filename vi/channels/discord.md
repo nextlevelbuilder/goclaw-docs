@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../channels/discord.md)
+> Bản dịch từ [English version](#channel-discord)
 
 # Channel Discord
 
@@ -84,6 +84,10 @@ Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 gi
 
 Bot tự động phát hiện và phản hồi trong Discord thread. Phản hồi ở lại trong cùng thread.
 
+### Lịch sử Media Nhóm
+
+Các file media (hình ảnh, video, âm thanh) được gửi trong cuộc trò chuyện nhóm được theo dõi trong lịch sử tin nhắn, cho phép agent tham chiếu đến media đã chia sẻ trước đó.
+
 ### Định danh Bot
 
 Khi khởi động, bot lấy user ID của chính mình qua endpoint `@me` để tránh phản hồi tin nhắn của chính mình.
@@ -112,7 +116,9 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 
 ## Tiếp theo
 
-- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
-- [Telegram](./telegram.md) — Thiết lập Telegram bot
-- [Larksuite](./larksuite.md) — Tích hợp Larksuite với streaming card
-- [Browser Pairing](./browser-pairing.md) — Luồng pairing
+- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
+- [Telegram](#channel-telegram) — Thiết lập Telegram bot
+- [Larksuite](#channel-feishu) — Tích hợp Larksuite với streaming card
+- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

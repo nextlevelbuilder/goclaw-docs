@@ -82,6 +82,10 @@ While the agent processes, a typing indicator is shown (9-second keepalive).
 
 The bot automatically detects and responds in Discord threads. Responses stay in the same thread.
 
+### Group Media History
+
+Media files (images, video, audio) sent in group conversations are tracked in message history, allowing agents to reference previously shared media.
+
 ### Bot Identity
 
 On startup, the bot fetches its own user ID via `@me` endpoint to avoid responding to its own messages.
@@ -110,7 +114,9 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 
 ## What's Next
 
-- [Overview](./overview.md) — Channel concepts and policies
-- [Telegram](./telegram.md) — Telegram bot setup
-- [Larksuite](./larksuite.md) — Larksuite integration with streaming cards
-- [Browser Pairing](./browser-pairing.md) — Pairing flow
+- [Overview](#channels-overview) — Channel concepts and policies
+- [Telegram](#channel-telegram) — Telegram bot setup
+- [Larksuite](#channel-feishu) — Larksuite integration with streaming cards
+- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../reference/rest-api.md)
+> Bản dịch từ [English version](#rest-api)
 
 # REST API
 
@@ -19,6 +19,8 @@ Authorization: Bearer YOUR_GATEWAY_TOKEN
 ```
 X-GoClaw-User-Id: user123
 ```
+
+**Kiểm tra input:** Tất cả string input được sanitize trước khi sử dụng — ký tự đặc biệt SQL được escape trong ILIKE query, request body giới hạn 1 MB, tên agent/provider/tool được kiểm tra theo allowlist pattern (`[a-zA-Z0-9_-]`).
 
 ---
 
@@ -405,6 +407,8 @@ HTTP status code theo quy ước REST: `200` OK, `201` Created, `400` Bad Reques
 
 ## Tiếp theo
 
-- [WebSocket Protocol](./websocket-protocol.md) — real-time RPC cho chat và agent event
-- [Config Reference](./config-reference.md) — schema đầy đủ `config.json`
-- [Database Schema](./database-schema.md) — định nghĩa bảng và quan hệ
+- [WebSocket Protocol](#websocket-protocol) — real-time RPC cho chat và agent event
+- [Config Reference](#config-reference) — schema đầy đủ `config.json`
+- [Database Schema](#database-schema) — định nghĩa bảng và quan hệ
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

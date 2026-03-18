@@ -9,9 +9,9 @@ Each layer operates independently. Together they form a defense-in-depth archite
 ```mermaid
 flowchart TD
     REQ["Incoming Request"] --> L1["Layer 1: Transport\nCORS · size limits · timing-safe auth · rate limiting"]
-    L1 --> L2["Layer 2: Input\nInjection detection · message truncation"]
-    L2 --> L3["Layer 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval"]
-    L3 --> L4["Layer 4: Output\nCredential scrubbing · web content tagging"]
+    L1 --> L2["Layer 2: Input\nInjection detection · message truncation · ILIKE escape"]
+    L2 --> L3["Layer 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval · file serving protection"]
+    L3 --> L4["Layer 4: Output\nCredential scrubbing · web content tagging · MCP content tagging"]
     L4 --> L5["Layer 5: Isolation\nPer-user workspace · Docker sandbox"]
 ```
 
@@ -70,6 +70,8 @@ For public-facing deployments or shared multi-user agents, set `"block"`.
 
 **Message truncation:** Messages exceeding `gateway.max_message_chars` (default 32,000) are truncated — not rejected — and the LLM is notified of the truncation.
 
+**ILIKE ESCAPE:** All database ILIKE queries (search/filter operations) escape `%`, `_`, and `\` characters before execution, preventing SQL wildcard injection attacks.
+
 ---
 
 ## Layer 3: Tool Security
@@ -95,6 +97,10 @@ Protects against dangerous command execution, unauthorized file access, and serv
 `resolvePath()` applies `filepath.Clean()` then `HasPrefix()` to ensure all file paths stay within the agent's workspace. With `restrict_to_workspace: true` (the default on agents), any path outside the workspace is blocked.
 
 All four filesystem tools (`read_file`, `write_file`, `list_files`, `edit`) implement the `PathDenyable` interface. The agent loop calls `DenyPaths(".goclaw")` at startup — agents cannot read GoClaw's internal data directory. The `list_files` tool filters denied paths from directory listings entirely, so agents never see them.
+
+### File serving path traversal protection
+
+The file serving endpoint (`/v1/files/...`) validates all requested paths to prevent directory traversal attacks. Any path containing `../` sequences or resolving outside the permitted base directory is rejected with a 400 error.
 
 ### SSRF protection (3-step validation)
 
@@ -122,7 +128,7 @@ Shell metacharacters (`;`, `|`, `&`, `$()`, backticks) are detected and rejected
 
 ### Exec approval
 
-See [Exec Approval](../advanced/exec-approval.md) for the full interactive approval flow. At minimum, enable `ask: "on-miss"` to prompt before network and infrastructure tools run:
+See [Exec Approval](#exec-approval) for the full interactive approval flow. At minimum, enable `ask: "on-miss"` to prompt before network and infrastructure tools run:
 
 ```json
 {
@@ -167,6 +173,18 @@ Scrubbing is enabled by default. To disable (not recommended):
 ```
 
 You can also register runtime values for dynamic scrubbing (e.g., server IPs discovered at runtime) via `AddDynamicScrubValues()` in custom tool integrations.
+
+### MCP content tagging
+
+Results returned by MCP tool calls are wrapped in the same untrusted-content markers as web fetches:
+
+```
+<<<EXTERNAL_UNTRUSTED_CONTENT>>>
+[MCP tool result here]
+<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
+```
+
+This prevents prompt injection from malicious MCP servers — the LLM is instructed not to treat tagged content as instructions.
 
 ### Web content tagging
 
@@ -348,7 +366,9 @@ journalctl -u goclaw | grep 'security\.'
 
 ## What's Next
 
-- [Exec Approval](../advanced/exec-approval.md) — interactive human-in-the-loop for shell commands
-- [Sandbox](../advanced/sandbox.md) — Docker sandbox configuration details
-- [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
-- [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
+- [Exec Approval](#exec-approval) — interactive human-in-the-loop for shell commands
+- [Sandbox](#sandbox) — Docker sandbox configuration details
+- [Docker Compose](#deploy-docker-compose) — deploying with security settings via compose overlays
+- [Database Setup](#deploy-database) — PostgreSQL TLS and encrypted secret storage
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

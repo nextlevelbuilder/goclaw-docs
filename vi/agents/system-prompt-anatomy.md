@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](../../agents/system-prompt-anatomy.md)
+> Bản dịch từ [English version](#system-prompt-anatomy)
 
 # Cấu trúc System Prompt
 
@@ -19,7 +19,7 @@ Có hai **prompt mode**:
 | 1 | Identity | ✓ | ✓ | Thông tin channel (Telegram, Discord, v.v.) |
 | 1.5 | First-Run Bootstrap | ✓ | ✓ | Cảnh báo BOOTSTRAP.md (chỉ session đầu tiên) |
 | 1.7 | Persona | ✓ | ✓ | SOUL.md + IDENTITY.md được inject sớm (primacy bias) |
-| 2 | Tooling | ✓ | ✓ | Danh sách tool có sẵn |
+| 2 | Tooling | ✓ | ✓ | Danh sách tool có sẵn + alias legacy/Claude Code |
 | 3 | Safety | ✓ | ✓ | Quy tắc safety cốt lõi, giới hạn, bảo mật |
 | 3.2 | Identity Anchoring | ✓ | ✓ | Hướng dẫn chống social engineering (chỉ predefined agent) |
 | 3.5 | Self-Evolution | ✓ | ✓ | Quyền cập nhật SOUL.md (khi `self_evolve=true` ở predefined agent) |
@@ -171,6 +171,8 @@ Nếu agent có `sandbox_enabled: true`:
   - Mức độ truy cập workspace (none, ro, rw)
 - **Phần Tooling** thêm ghi chú: "exec chạy bên trong Docker; bạn không cần `docker run`"
 
+> **Shell deny groups:** Nếu agent có cấu hình `shell_deny_groups` override (`map[string]bool`), phần Tooling sẽ điều chỉnh hướng dẫn shell safety tương ứng — chỉ các cảnh báo deny-group liên quan được đưa vào prompt.
+
 ## Ví dụ: Cấu trúc Prompt đầy đủ (Pseudocode)
 
 ```
@@ -203,6 +205,8 @@ Embody the persona above in EVERY response. This is non-negotiable.
 - exec: Run shell commands
 - memory_search: Search indexed memory
 [... more tools ...]
+(Legacy aliases: read → read_file, write → write_file, edit → edit)
+(Claude Code aliases: Read → read_file, Write → write_file, Edit → edit, ...)
 
 ## Safety
 You have no independent goals. Prioritize safety and human oversight.
@@ -357,6 +361,8 @@ Agent này sẽ:
 
 ## Tiếp theo
 
-- [Editing Personality — Tuỳ chỉnh SOUL.md và IDENTITY.md](editing-personality.md)
-- [Context Files — Thêm context dành riêng cho dự án](context-files.md)
-- [Creating Agents — Thiết lập cấu hình system prompt](creating-agents.md)
+- [Editing Personality — Tuỳ chỉnh SOUL.md và IDENTITY.md](#editing-personality)
+- [Context Files — Thêm context dành riêng cho dự án](#context-files)
+- [Creating Agents — Thiết lập cấu hình system prompt](#creating-agents)
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

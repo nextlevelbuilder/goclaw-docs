@@ -18,6 +18,8 @@ Authorization: Bearer YOUR_GATEWAY_TOKEN
 X-GoClaw-User-Id: user123
 ```
 
+**Input validation:** All string inputs are sanitized before use — SQL special characters are escaped in ILIKE queries, request bodies are limited to 1 MB, and agent/provider/tool names are validated against allowlist patterns (`[a-zA-Z0-9_-]`).
+
 ---
 
 ## Agents
@@ -403,6 +405,8 @@ HTTP status codes follow REST conventions: `200` OK, `201` Created, `400` Bad Re
 
 ## What's Next
 
-- [WebSocket Protocol](./websocket-protocol.md) — real-time RPC for chat and agent events
-- [Config Reference](./config-reference.md) — full `config.json` schema
-- [Database Schema](./database-schema.md) — table definitions and relationships
+- [WebSocket Protocol](#websocket-protocol) — real-time RPC for chat and agent events
+- [Config Reference](#config-reference) — full `config.json` schema
+- [Database Schema](#database-schema) — table definitions and relationships
+
+<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
