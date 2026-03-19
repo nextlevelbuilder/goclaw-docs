@@ -64,16 +64,15 @@ flowchart TD
 
 ## Session Key Format
 
-Session keys identify unique conversations and threads across platforms.
+Session keys identify unique conversations and threads across platforms. All keys follow the canonical format `agent:{agentId}:{rest}`.
 
 | Context | Format | Example |
 |---------|--------|---------|
-| Telegram DM | Chat ID | `"123456"` |
-| Telegram group | Chat ID + group | `"-12345"` |
-| Telegram topic/thread | Chat + topic ID | `"-12345:topic:99"` |
-| Larksuite DM/group | Conversation ID | `"oc_xyz..."` |
-| Larksuite thread | Conversation + root message | `"oc_xyz:topic:{msg_id}"` |
-| Discord DM/channel | Channel ID | `"987654"` |
+| DM | `agent:{agentId}:{channel}:direct:{peerId}` | `agent:default:telegram:direct:386246614` |
+| Group | `agent:{agentId}:{channel}:group:{groupId}` | `agent:default:telegram:group:-100123456` |
+| Forum topic | `agent:{agentId}:{channel}:group:{groupId}:topic:{topicId}` | `agent:default:telegram:group:-100123456:topic:99` |
+| DM thread | `agent:{agentId}:{channel}:direct:{peerId}:thread:{threadId}` | `agent:default:telegram:direct:386246614:thread:5` |
+| Subagent | `agent:{agentId}:subagent:{label}` | `agent:default:subagent:my-task` |
 
 ## Channel Comparison
 
@@ -146,4 +145,4 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 - [WebSocket](#channel-websocket) — Direct agent API via WS
 - [Browser Pairing](#channel-browser-pairing) — 8-char code pairing flow
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->

@@ -130,6 +130,10 @@ Max 30 MB by default (`media_max_mb`).
 
 **Outbound**: Files auto-detected and uploaded with correct type (opus, mp4, pdf, doc, xls, ppt, or stream).
 
+### @Mention Support
+
+The bot sends native Feishu @mentions in group messages. When the agent response contains `@open_id` patterns (e.g. `@ou_abc123`), they are automatically converted to native Lark `at` elements that trigger real notifications to the mentioned user. This works in both `post` text messages and interactive card messages.
+
 ### Mention Resolution
 
 Feishu sends placeholder tokens (e.g., `@_user_1`). Bot parses mention list and resolves to `@DisplayName`.
@@ -143,6 +147,30 @@ Session key: "{chatID}:topic:{rootMessageID}"
 ```
 
 Different threads in same group maintain separate histories.
+
+### list_group_members Tool
+
+When connected to a Feishu channel, agents have access to the `list_group_members` tool. It returns all members of the current group chat with their `open_id` and display name.
+
+```
+list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name }] }
+```
+
+Use cases: checking who is in a group, identifying members before mentioning them, attendance tracking. To @mention a member in a reply, use `@member_id` (e.g. `@ou_abc123`) — the bot converts it to a native Feishu mention with notification.
+
+> This tool is only available on Feishu/Lark channels. It will not appear in the tool list for other channel types.
+
+### Per-Topic Tool Allow List
+
+Forum topics support their own tool whitelist. Configure under the agent's tool settings or channel metadata:
+
+| Value | Behavior |
+|-------|----------|
+| `nil` (omit) | Inherit parent group's tool allow list |
+| `[]` (empty) | No tools allowed in this topic |
+| `["web_search", "group:fs"]` | Only these tools allowed |
+
+The `group:fs` prefix selects all tools in the `fs` (Feishu) tool group. This follows the same `group:xxx` syntax used in Telegram topic config.
 
 ### Speech-to-Text
 
@@ -177,4 +205,4 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 - [Telegram](#channel-telegram) — Telegram bot setup
 - [Browser Pairing](#channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->

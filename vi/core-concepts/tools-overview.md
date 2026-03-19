@@ -23,7 +23,7 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Heartbeat** | heartbeat | Cấu hình và quản lý check-in định kỳ chủ động |
 | **UI** | browser | Duyệt web |
 | **Automation** | cron | Lên lịch job định kỳ |
-| **Messaging** | message | Gửi tin nhắn |
+| **Messaging** | message, create_forum_topic, list_group_members | Gửi tin nhắn; tạo topic forum Telegram; liệt kê thành viên nhóm Lark/Feishu |
 | **Media** | read_image, create_image, read_document, read_audio, read_video, create_video, create_audio, tts | Đọc và tạo hình ảnh, tài liệu, audio, video, và text-to-speech |
 | **Skills** | use_skill, skill_search, publish_skill | Khám phá, gọi, và xuất bản skill |
 
@@ -128,11 +128,11 @@ Hai interceptor đặc biệt định tuyến thao tác file đến database:
 
 ### Context File Interceptor
 
-Khi agent đọc/ghi context file (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md), thao tác được định tuyến đến bảng `user_context_files` thay vì filesystem. TOOLS.md bị loại trừ khỏi routing. Điều này cho phép tùy chỉnh per-user và cách ly đa tenant.
+Khi agent đọc/ghi context file (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md, HEARTBEAT.md), thao tác được định tuyến đến bảng `user_context_files` thay vì filesystem. TOOLS.md bị loại trừ khỏi routing. Điều này cho phép tùy chỉnh per-user và cách ly đa tenant.
 
 ### Memory Interceptor
 
-Ghi vào `MEMORY.md` hoặc `memory/*` được định tuyến đến bảng `memory_documents`, tự động chia chunk và tạo embedding để tìm kiếm.
+Ghi vào `MEMORY.md`, `memory.md`, hoặc `memory/*` được định tuyến đến bảng `memory_documents`, tự động chia chunk và tạo embedding để tìm kiếm.
 
 ## Bảo mật Shell
 

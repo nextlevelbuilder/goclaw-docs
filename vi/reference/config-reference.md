@@ -218,9 +218,12 @@ Cấu hình messaging channel.
 | `history_limit` | integer | `50` | Max group message đang chờ cho context (0 = tắt) |
 | `dm_stream` | boolean | `false` | Progressive streaming cho DM |
 | `group_stream` | boolean | `false` | Progressive streaming cho group |
+| `draft_transport` | boolean | `true` | Dùng draft message API cho DM streaming (preview ẩn, không gửi thông báo mỗi lần sửa) |
+| `reasoning_stream` | boolean | `true` | Hiển thị extended thinking thành message riêng khi provider emit thinking event |
 | `reaction_level` | string | `full` | `"off"`, `"minimal"`, `"full"` — emoji reaction status |
 | `media_max_bytes` | integer | `20971520` | Max kích thước tải media (mặc định 20 MB) |
 | `link_preview` | boolean | `true` | Bật URL preview |
+| `force_ipv4` | boolean | `false` | Buộc dùng IPv4 cho tất cả Telegram API request (dùng khi routing IPv6 bị lỗi) |
 | `stt_proxy_url` | string | — | URL proxy speech-to-text cho voice message |
 | `voice_agent_id` | string | — | Route voice message đến agent này |
 | `groups` | object | — | Per-group overrides theo chat ID |

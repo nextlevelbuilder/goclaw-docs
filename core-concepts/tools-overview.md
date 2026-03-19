@@ -21,7 +21,7 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Heartbeat** | heartbeat | Configure and manage periodic proactive check-ins |
 | **UI** | browser | Browse websites |
 | **Automation** | cron | Schedule recurring jobs |
-| **Messaging** | message | Send messages |
+| **Messaging** | message, create_forum_topic, list_group_members | Send messages; create Telegram forum topics; list Lark/Feishu group members |
 | **Media** | read_image, create_image, read_document, read_audio, read_video, create_video, create_audio, tts | Read and generate images, documents, audio, video, and text-to-speech |
 | **Skills** | use_skill, skill_search, publish_skill | Discover, invoke, and publish skills |
 
@@ -126,11 +126,11 @@ Two special interceptors route file operations to the database:
 
 ### Context File Interceptor
 
-When an agent reads/writes context files (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md), the operation is routed to the `user_context_files` table instead of the filesystem. TOOLS.md is explicitly excluded from routing. This enables per-user customization and multi-tenant isolation.
+When an agent reads/writes context files (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md, HEARTBEAT.md), the operation is routed to the `user_context_files` table instead of the filesystem. TOOLS.md is explicitly excluded from routing. This enables per-user customization and multi-tenant isolation.
 
 ### Memory Interceptor
 
-Writes to `MEMORY.md` or `memory/*` are routed to the `memory_documents` table, automatically chunked and embedded for search.
+Writes to `MEMORY.md`, `memory.md`, or `memory/*` are routed to the `memory_documents` table, automatically chunked and embedded for search.
 
 ## Shell Safety
 

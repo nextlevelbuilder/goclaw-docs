@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **21**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **23**.
 
 ```mermaid
 graph LR
@@ -208,6 +208,15 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 > **Theo dõi data hooks:** GoClaw lưu các Go transform sau migration trong bảng `data_migrations` riêng biệt (khác với `schema_migrations`). Chạy `./goclaw upgrade --status` để xem cả SQL migration version và data hooks đang chờ.
 
+## Migration gần đây
+
+| Phiên bản | Thay đổi |
+|-----------|----------|
+| 022 | Tạo bảng `agent_heartbeats` và `heartbeat_run_logs` cho heartbeat monitoring; thêm bảng permission tổng quát `agent_config_permissions` (thay thế `group_file_writers`) |
+| 023 | Hỗ trợ hard-delete agent (FK constraint cascade trên sessions, cron_jobs, delegation_history, bảng team; unique index chỉ trên agent đang active); chuyển `group_file_writers` vào `agent_config_permissions` và xóa bảng cũ |
+
+Xem toàn bộ lịch sử schema tại [Database Schema → Lịch sử Migration](#database-schema).
+
 ## Biến môi trường đã bị xóa gần đây
 
 Các biến môi trường sau đã bị xóa và sẽ bị bỏ qua nếu còn đặt:
@@ -245,4 +254,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](#deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](#deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | cập nhật: 2026-03-19 -->

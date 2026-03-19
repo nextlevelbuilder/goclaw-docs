@@ -216,9 +216,12 @@ Messaging channel configuration.
 | `history_limit` | integer | `50` | Max pending group messages for context (0 = disabled) |
 | `dm_stream` | boolean | `false` | Progressive streaming for DMs |
 | `group_stream` | boolean | `false` | Progressive streaming for groups |
+| `draft_transport` | boolean | `true` | Use draft message API for DM streaming (stealth preview, no per-edit notifications) |
+| `reasoning_stream` | boolean | `true` | Show extended thinking as a separate message when the provider emits thinking events |
 | `reaction_level` | string | `full` | `"off"`, `"minimal"`, `"full"` — status emoji reactions |
 | `media_max_bytes` | integer | `20971520` | Max media download size (20 MB default) |
 | `link_preview` | boolean | `true` | Enable URL previews |
+| `force_ipv4` | boolean | `false` | Force IPv4 for all Telegram API requests (use when IPv6 routing is broken) |
 | `stt_proxy_url` | string | — | Speech-to-text proxy URL for voice messages |
 | `voice_agent_id` | string | — | Route voice messages to this agent |
 | `groups` | object | — | Per-group overrides keyed by chat ID |

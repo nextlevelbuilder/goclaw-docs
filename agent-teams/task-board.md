@@ -15,7 +15,11 @@ flowchart TD
     IN_REVIEW -->|reject| CANCELLED["Cancelled"]
     PENDING -->|cancel| CANCELLED
     IN_PROGRESS -->|cancel| CANCELLED
-    IN_PROGRESS -->|agent error| FAILED["Failed"]
+    IN_PROGRESS -->|agent error| FAILED["Failed<br/>(error)"]
+    PENDING -->|system failure| STALE["Stale<br/>(timed out)"]
+    IN_PROGRESS -->|system failure| STALE
+    FAILED -->|retry| PENDING
+    STALE -->|retry| PENDING
 ```
 
 ## Core Tool: `team_tasks`
@@ -24,7 +28,7 @@ All team members access the task board via the `team_tasks` tool. Available acti
 
 | Action | Required Params | Description |
 |--------|-----------------|-------------|
-| `list` | `action` | Show active tasks (pagination: 20 max) |
+| `list` | `action` | Show active tasks (pagination: 30 per page) |
 | `get` | `action`, `task_id` | Get full task detail with comments, events, attachments (result: 8,000 char limit) |
 | `create` | `action`, `subject` | Create new task (lead only); optional: `description`, `priority`, `blocked_by`, `require_approval` |
 | `claim` | `action`, `task_id` | Atomically claim a pending task |
@@ -263,4 +267,4 @@ Note: the cancel reason is passed via the `text` parameter (not `reason`).
 4. **Include context**: Write clear descriptions so members know what to do
 5. **Check before claiming**: Use `list` to see what's available before claiming
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 57754a5 | updated: 2026-03-19 -->

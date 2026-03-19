@@ -351,6 +351,63 @@ API keys are passed via `Authorization: Bearer {key}` header, same as the gatewa
 
 ---
 
+## Memory File Overwrite Protection
+
+The memory interceptor prevents silent data loss when an agent attempts to overwrite an existing memory file with different content. When a write is issued in replace mode (not append) and the target already contains different content, the previous value is captured and returned to the caller so the agent can be warned before data is lost.
+
+**How it works:**
+
+- `appendMode = true` — new content is merged onto existing content with a `---` separator. No overwrite warning.
+- `appendMode = false` — if the target file already contains different content, `PreviousContent` is populated in the write result. The caller decides whether to surface a warning to the agent.
+
+This ensures agents cannot silently clobber memory files with unrelated content during concurrent or sequential writes. The write still proceeds atomically via `PutDocument`, but the warning provides a conflict-detection hook.
+
+---
+
+## Config Permissions System
+
+GoClaw exposes three RPC methods to control which users can modify an agent's configuration (heartbeat intervals, cron schedules, etc.):
+
+| Method | Description |
+|--------|-------------|
+| `config.permissions.list` | List all granted permissions for an agent, optionally filtered by `configType` |
+| `config.permissions.grant` | Grant a specific user permission to modify a config type |
+| `config.permissions.revoke` | Revoke a previously granted permission |
+
+**Permission model — deny → allow fallback:**
+
+By default, config modifications require admin access. Granting a permission to a `userId` for a given `scope` and `configType` allows that user to make the specific change without full admin rights.
+
+**Grant parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `agentId` | yes | UUID of the agent |
+| `scope` | yes | Scope identifier (e.g. `"heartbeat"`, `"cron"`) |
+| `configType` | yes | Config type being controlled |
+| `userId` | yes | User to grant permission to |
+| `permission` | yes | Permission level (e.g. `"write"`) |
+| `grantedBy` | no | Auto-filled from caller's identity if omitted |
+
+**Example — allow a user to modify heartbeat config:**
+
+```json
+{
+  "method": "config.permissions.grant",
+  "params": {
+    "agentId": "3f2a1b4c-0000-0000-0000-000000000000",
+    "scope": "heartbeat",
+    "configType": "interval",
+    "userId": "user:telegram:123456789",
+    "permission": "write"
+  }
+}
+```
+
+Config permission checks are enforced in the Telegram channel and other channel handlers before applying heartbeat or agent configuration updates from user messages.
+
+---
+
 ## Hardening Checklist
 
 Use this before exposing GoClaw to the internet or shared users:

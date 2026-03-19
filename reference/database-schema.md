@@ -52,6 +52,9 @@ erDiagram
     team_tasks ||--o{ team_task_events : "logs"
     team_workspace_files ||--o{ team_workspace_file_versions : "versioned by"
     team_workspace_files ||--o{ team_workspace_comments : "commented on"
+    agents ||--o| agent_heartbeats : "has"
+    agent_heartbeats ||--o{ heartbeat_run_logs : "logs"
+    agents ||--o{ agent_config_permissions : "has"
 ```
 
 ---
@@ -547,17 +550,7 @@ Encrypted key-value store for secrets that override `config.json` values (manage
 
 ### `group_file_writers`
 
-Telegram group members authorized to use file-writing tools.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `agent_id` | UUID FK → agents | |
-| `group_id` | VARCHAR(255) | Telegram group/chat ID |
-| `user_id` | VARCHAR(255) | Telegram user ID |
-| `display_name` | VARCHAR(255) | |
-| `username` | VARCHAR(255) | |
-
-**PK:** `(agent_id, group_id, user_id)`
+> **Removed in migration 023.** Data was migrated into `agent_config_permissions` (`config_type = 'file_writer'`).
 
 ---
 
@@ -858,6 +851,87 @@ Fine-grained API key management with scope-based access control. (migration 020)
 
 ---
 
+### `agent_heartbeats`
+
+Per-agent heartbeat configuration for periodic proactive check-ins. (migration 022)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL UNIQUE ON DELETE CASCADE | One config per agent |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | Whether heartbeat is active |
+| `interval_sec` | INT | NOT NULL DEFAULT 1800 | Run interval in seconds |
+| `prompt` | TEXT | | Message sent to the agent each heartbeat |
+| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `model` | VARCHAR(200) | | Override model |
+| `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Run in a dedicated session |
+| `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject minimal context |
+| `ack_max_chars` | INT | NOT NULL DEFAULT 300 | Max chars in acknowledgement response |
+| `max_retries` | INT | NOT NULL DEFAULT 2 | Max retry attempts on failure |
+| `active_hours_start` | VARCHAR(5) | | Start of active window (HH:MM) |
+| `active_hours_end` | VARCHAR(5) | | End of active window (HH:MM) |
+| `timezone` | TEXT | | Timezone for active hours |
+| `channel` | VARCHAR(50) | | Delivery channel |
+| `chat_id` | TEXT | | Delivery chat ID |
+| `next_run_at` | TIMESTAMPTZ | | Scheduled next execution |
+| `last_run_at` | TIMESTAMPTZ | | Last execution time |
+| `last_status` | VARCHAR(20) | | Last run status |
+| `last_error` | TEXT | | Last run error |
+| `run_count` | INT | NOT NULL DEFAULT 0 | Total runs |
+| `suppress_count` | INT | NOT NULL DEFAULT 0 | Total suppressed runs |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Indexes:** `idx_heartbeats_due` on `(next_run_at) WHERE enabled = true AND next_run_at IS NOT NULL` — partial index for efficient scheduler polling.
+
+---
+
+### `heartbeat_run_logs`
+
+Execution log for each heartbeat run. (migration 022)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `heartbeat_id` | UUID FK → agent_heartbeats | NOT NULL ON DELETE CASCADE | Parent heartbeat config |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `status` | VARCHAR(20) | NOT NULL | `ok`, `error`, `skipped` |
+| `summary` | TEXT | | Short run summary |
+| `error` | TEXT | | Error message if failed |
+| `duration_ms` | INT | | Run duration in milliseconds |
+| `input_tokens` | INT | DEFAULT 0 | |
+| `output_tokens` | INT | DEFAULT 0 | |
+| `skip_reason` | VARCHAR(50) | | Reason run was skipped |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
+| `ran_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Indexes:** `idx_hb_logs_heartbeat` on `(heartbeat_id, ran_at DESC)`, `idx_hb_logs_agent` on `(agent_id, ran_at DESC)`
+
+---
+
+### `agent_config_permissions`
+
+Generic permission table for agent configuration (heartbeat, cron, file writers, etc.). Replaces `group_file_writers`. (migration 022)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `scope` | VARCHAR(255) | NOT NULL | Group/chat ID scope |
+| `config_type` | VARCHAR(50) | NOT NULL | e.g. `file_writer`, `heartbeat` |
+| `user_id` | VARCHAR(255) | NOT NULL | Grantee user ID |
+| `permission` | VARCHAR(10) | NOT NULL | `allow` or `deny` |
+| `granted_by` | VARCHAR(255) | | Who granted this permission |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata (e.g. displayName, username) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Unique:** `(agent_id, scope, config_type, user_id)`
+
+**Indexes:** `idx_acp_lookup` on `(agent_id, scope, config_type)`
+
+---
+
 ## Migration History
 
 | Version | Description |
@@ -883,6 +957,8 @@ Fine-grained API key management with scope-based access control. (migration 020)
 | 19 | `team_id` FK on memory_documents, memory_chunks, kg_entities, kg_relations, traces, spans, cron_jobs, cron_run_logs, sessions |
 | 20 | `secure_cli_binaries` and `api_keys` tables |
 | 21 | `expires_at` on paired_devices; `confidence_score` on team_tasks, team_messages, team_task_comments |
+| 22 | `agent_heartbeats` and `heartbeat_run_logs` tables for heartbeat monitoring; `agent_config_permissions` generic permission table |
+| 23 | Agent hard-delete support (cascade FK constraints, unique index on active agents); merges `group_file_writers` into `agent_config_permissions` |
 
 ---
 
@@ -892,4 +968,4 @@ Fine-grained API key management with scope-based access control. (migration 020)
 - [Config Reference](#config-reference) — how database config maps to `config.json`
 - [Glossary](#glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

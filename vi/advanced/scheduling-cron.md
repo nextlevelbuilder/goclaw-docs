@@ -199,6 +199,68 @@ Scheduler kiểm tra job mỗi 1 giây. Job đến hạn được dispatch trong
 
 Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job vẫn ở trạng thái enabled và sẽ thử lại vào lần tick tiếp theo (trừ khi là job một lần `at`).
 
+## Retry — Exponential Backoff
+
+Khi một cron job thất bại, GoClaw tự động thử lại với exponential backoff trước khi ghi log lỗi.
+
+| Tham số | Mặc định |
+|---------|---------|
+| Max retry | 3 |
+| Delay cơ bản | 2 giây |
+| Max delay | 30 giây |
+| Jitter | ±25% |
+
+**Công thức:** `delay = min(base × 2^attempt, max) ± 25% jitter`
+
+Ví dụ: thất bại → 2s → thử lại → thất bại → 4s → thử lại → thất bại → 8s → thử lại → thất bại → ghi log lỗi.
+
+## Lane Scheduler & Hành vi Queue
+
+GoClaw định tuyến tất cả request — cron job, chat user, delegation — qua các scheduler lane có tên với giới hạn concurrency có thể cấu hình.
+
+### Giá trị mặc định của lane
+
+| Lane | Concurrency | Mục đích |
+|------|:-----------:|---------|
+| `main` | 30 | Phiên chat user chính |
+| `subagent` | 50 | Sub-agent được spawn bởi main agent |
+| `team` | 100 | Thực thi agent team/delegation |
+| `cron` | 30 | Cron job theo lịch |
+
+Tất cả giá trị có thể cấu hình qua biến môi trường (`GOCLAW_LANE_MAIN`, `GOCLAW_LANE_SUBAGENT`, `GOCLAW_LANE_TEAM`, `GOCLAW_LANE_CRON`).
+
+### Giá trị mặc định của session queue
+
+Mỗi session có queue tin nhắn riêng. Khi queue đầy, tin nhắn cũ nhất bị drop để nhường chỗ cho tin nhắn mới.
+
+| Tham số | Mặc định | Mô tả |
+|---------|---------|-------|
+| `mode` | `queue` | Chế độ queue (xem bên dưới) |
+| `cap` | 10 | Max tin nhắn trong queue |
+| `drop` | `old` | Drop tin cũ nhất khi đầy |
+| `debounce_ms` | 800 | Gộp tin nhắn nhanh trong khoảng thời gian này |
+
+### Chế độ queue
+
+| Chế độ | Hành vi |
+|--------|---------|
+| `queue` | FIFO — tin nhắn chờ đến khi có slot chạy |
+| `followup` | Giống `queue` — tin nhắn được xếp hàng như follow-up |
+| `interrupt` | Hủy run hiện tại, drain queue, bắt đầu tin nhắn mới ngay lập tức |
+
+### Adaptive throttle
+
+Khi lịch sử hội thoại của session vượt quá **60% context window**, scheduler tự động giảm concurrency xuống 1 cho session đó. Điều này ngăn tràn context window trong các giai đoạn có lưu lượng cao.
+
+### /stop và /stopall
+
+Lệnh `/stop` và `/stopall` được chặn **trước** debouncer 800ms để không bao giờ bị gộp chung với tin nhắn user đến.
+
+| Lệnh | Hành vi |
+|------|---------|
+| `/stop` | Hủy task đang chạy cũ nhất; các task khác tiếp tục |
+| `/stopall` | Hủy tất cả task đang chạy và drain queue |
+
 ## Ví dụ
 
 ### Bản tin tức buổi sáng qua Telegram

@@ -17,7 +17,11 @@ flowchart TD
     IN_REVIEW -->|reject| CANCELLED["Cancelled"]
     PENDING -->|cancel| CANCELLED
     IN_PROGRESS -->|cancel| CANCELLED
-    IN_PROGRESS -->|lỗi agent| FAILED["Failed"]
+    IN_PROGRESS -->|lỗi agent| FAILED["Failed<br/>(lỗi)"]
+    PENDING -->|lỗi hệ thống| STALE["Stale<br/>(hết thời gian)"]
+    IN_PROGRESS -->|lỗi hệ thống| STALE
+    FAILED -->|retry| PENDING
+    STALE -->|retry| PENDING
 ```
 
 ## Tool Cốt lõi: `team_tasks`
@@ -26,7 +30,7 @@ Tất cả thành viên team truy cập task board qua tool `team_tasks`. Các h
 
 | Hành động | Tham số bắt buộc | Mô tả |
 |--------|-----------------|-------------|
-| `list` | `action` | Hiển thị task đang hoạt động (phân trang: tối đa 20) |
+| `list` | `action` | Hiển thị task đang hoạt động (phân trang: 30 task mỗi trang) |
 | `get` | `action`, `task_id` | Lấy chi tiết đầy đủ của task kèm comment, sự kiện, tệp đính kèm (kết quả: giới hạn 8.000 ký tự) |
 | `create` | `action`, `subject` | Tạo task mới (chỉ lead); tùy chọn: `description`, `priority`, `blocked_by`, `require_approval` |
 | `claim` | `action`, `task_id` | Nhận task đang chờ theo kiểu atomic |
@@ -265,4 +269,4 @@ Lưu ý: lý do hủy được truyền qua tham số `text` (không phải `rea
 4. **Thêm context**: Viết mô tả rõ ràng để member biết cần làm gì
 5. **Kiểm tra trước khi nhận**: Dùng `list` để xem có gì trước khi claim
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-19 -->

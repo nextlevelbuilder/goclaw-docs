@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **21**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **23**.
 
 ```mermaid
 graph LR
@@ -206,6 +206,15 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 > **Data hooks tracking:** GoClaw tracks post-migration Go transforms in a separate `data_migrations` table (distinct from `schema_migrations`). Run `./goclaw upgrade --status` to see both SQL migration version and pending data hooks.
 
+## Recent Migrations
+
+| Version | What changed |
+|---------|-------------|
+| 022 | Creates `agent_heartbeats` and `heartbeat_run_logs` tables for heartbeat monitoring; adds `agent_config_permissions` generic permission table (replaces `group_file_writers`) |
+| 023 | Adds agent hard-delete support (cascade FK constraints on sessions, cron_jobs, delegation_history, team tables; unique index on active agents only); merges `group_file_writers` into `agent_config_permissions` and drops the old table |
+
+For the full schema history see [Database Schema → Migration History](#database-schema).
+
 ## Recently Removed Environment Variables
 
 These environment variables have been removed and will be silently ignored if set:
@@ -243,4 +252,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](#deploy-database) — PostgreSQL and pgvector setup
 - [Observability](#deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

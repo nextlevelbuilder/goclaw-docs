@@ -353,6 +353,63 @@ API key được truyền qua header `Authorization: Bearer {key}`, giống như
 
 ---
 
+## Bảo vệ Ghi đè File Memory
+
+Memory interceptor ngăn chặn mất dữ liệu âm thầm khi agent cố gắng ghi đè file memory hiện có bằng nội dung khác. Khi thực hiện ghi ở chế độ replace (không phải append) và mục tiêu đã có nội dung khác, giá trị cũ được capture và trả về cho caller để agent có thể được cảnh báo trước khi dữ liệu bị mất.
+
+**Cách hoạt động:**
+
+- `appendMode = true` — nội dung mới được gộp vào nội dung hiện có với dấu phân cách `---`. Không có cảnh báo ghi đè.
+- `appendMode = false` — nếu file đích đã chứa nội dung khác, `PreviousContent` được điền vào kết quả ghi. Caller quyết định có hiển thị cảnh báo cho agent không.
+
+Điều này đảm bảo agent không thể âm thầm ghi đè file memory bằng nội dung không liên quan trong quá trình ghi song song hoặc tuần tự. Thao tác ghi vẫn thực hiện theo kiểu atomic qua `PutDocument`, nhưng cảnh báo cung cấp một hook phát hiện xung đột.
+
+---
+
+## Hệ thống Config Permissions
+
+GoClaw cung cấp ba RPC method để kiểm soát người dùng nào có thể thay đổi cấu hình của agent (heartbeat interval, lịch cron, v.v.):
+
+| Method | Mô tả |
+|--------|-------|
+| `config.permissions.list` | Liệt kê tất cả quyền đã cấp cho agent, có thể lọc theo `configType` |
+| `config.permissions.grant` | Cấp quyền cho một user cụ thể để thay đổi config type |
+| `config.permissions.revoke` | Thu hồi quyền đã cấp trước đó |
+
+**Mô hình quyền — deny → allow fallback:**
+
+Mặc định, việc thay đổi cấu hình yêu cầu quyền admin. Việc cấp quyền cho `userId` với `scope` và `configType` cụ thể cho phép user đó thực hiện thay đổi cụ thể mà không cần toàn quyền admin.
+
+**Tham số Grant:**
+
+| Tham số | Bắt buộc | Mô tả |
+|---------|----------|-------|
+| `agentId` | có | UUID của agent |
+| `scope` | có | Định danh scope (ví dụ: `"heartbeat"`, `"cron"`) |
+| `configType` | có | Loại config được kiểm soát |
+| `userId` | có | User được cấp quyền |
+| `permission` | có | Cấp độ quyền (ví dụ: `"write"`) |
+| `grantedBy` | không | Tự động điền từ danh tính caller nếu bỏ trống |
+
+**Ví dụ — cho phép user thay đổi heartbeat config:**
+
+```json
+{
+  "method": "config.permissions.grant",
+  "params": {
+    "agentId": "3f2a1b4c-0000-0000-0000-000000000000",
+    "scope": "heartbeat",
+    "configType": "interval",
+    "userId": "user:telegram:123456789",
+    "permission": "write"
+  }
+}
+```
+
+Kiểm tra config permission được thực thi trong Telegram channel và các channel handler khác trước khi áp dụng cập nhật heartbeat hoặc agent configuration từ tin nhắn user.
+
+---
+
 ## Hardening Checklist
 
 Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ:

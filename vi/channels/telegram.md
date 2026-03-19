@@ -43,9 +43,14 @@ Tất cả config key nằm trong `channels.telegram`:
 | `history_limit` | int | 50 | Tin nhắn chờ tối đa mỗi nhóm (0=tắt) |
 | `dm_stream` | bool | false | Bật streaming cho DM (chỉnh sửa placeholder) |
 | `group_stream` | bool | false | Bật streaming cho nhóm (tin nhắn mới) |
+| `draft_transport` | bool | false | Dùng `sendMessageDraft` cho DM streaming (xem trước ẩn, không thông báo mỗi lần chỉnh sửa) |
+| `reasoning_stream` | bool | true | Hiển thị token suy luận dưới dạng tin nhắn riêng trước câu trả lời |
+| `block_reply` | bool | -- | Ghi đè cài đặt `block_reply` của gateway cho channel này (nil = kế thừa) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (chỉ ⏳), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Kích thước file media tối đa |
 | `link_preview` | bool | true | Hiển thị xem trước URL |
+| `force_ipv4` | bool | false | Bắt buộc dùng IPv4 cho tất cả kết nối Telegram API |
+| `api_server` | string | -- | URL server Telegram Bot API tuỳ chỉnh (ví dụ: `http://localhost:8081`) |
 | `stt_proxy_url` | string | -- | URL dịch vụ STT (để chuyển giọng nói thành văn bản) |
 | `stt_api_key` | string | -- | Bearer token cho STT proxy |
 | `stt_timeout_seconds` | int | 30 | Timeout cho request STT |
@@ -157,10 +162,10 @@ Khi user gửi voice message:
 
 Bật cập nhật phản hồi trực tiếp:
 
-- **DM** (`dm_stream`): Chỉnh sửa placeholder "Thinking..." khi từng chunk đến
+- **DM** (`dm_stream`): Chỉnh sửa placeholder "Thinking..." khi từng chunk đến. Mặc định dùng `sendMessage+editMessageText`; đặt `draft_transport: true` để dùng `sendMessageDraft` (xem trước ẩn, không thông báo mỗi lần chỉnh sửa, nhưng có thể gây lỗi "reply to deleted message" trên một số client).
 - **Nhóm** (`group_stream`): Gửi placeholder, chỉnh sửa với phản hồi đầy đủ
 
-Mặc định tắt do vấn đề với Telegram draft API.
+Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), token suy luận hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
 
 ### Reaction
 
@@ -192,6 +197,31 @@ Lệnh được xử lý trước khi làm phong phú tin nhắn:
 
 Writer là thành viên nhóm được phép chạy lệnh nhạy cảm (`/reset`, ghi file). Quản lý qua `/addwriter` và `/removewriter` (reply vào tin nhắn của user mục tiêu).
 
+## Cách ly mạng
+
+Mỗi instance Telegram duy trì một HTTP transport riêng biệt — không dùng chung connection pool giữa các bot. Điều này ngăn contention giữa các bot và cho phép định tuyến mạng theo từng tài khoản.
+
+| Tuỳ chọn | Mặc định | Mô tả |
+|--------|---------|-------------|
+| `force_ipv4` | false | Bắt buộc dùng IPv4 cho tất cả kết nối. Hữu ích cho sticky routing hoặc khi IPv6 bị lỗi/chặn. |
+| `proxy` | -- | URL HTTP proxy cho instance bot này (ví dụ: `http://proxy:8080`). |
+| `api_server` | -- | Server Telegram Bot API tuỳ chỉnh. Hữu ích với local Bot API server hoặc private deployment. |
+
+**Sticky IPv4 fallback**: Khi `force_ipv4: true`, dialer được khóa vào `tcp4` lúc khởi động, đảm bảo IP nguồn nhất quán cho tất cả request đến Telegram. Hữu ích cho quản lý rate limit trong môi trường có IPv6 không ổn định.
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "token": "...",
+      "force_ipv4": true,
+      "proxy": "http://proxy.example.com:8080",
+      "api_server": "http://localhost:8081"
+    }
+  }
+}
+```
+
 ## Xử lý sự cố
 
 | Vấn đề | Giải pháp |
@@ -209,4 +239,4 @@ Writer là thành viên nhóm được phép chạy lệnh nhạy cảm (`/reset
 - [Browser Pairing](#channel-browser-pairing) — Luồng pairing
 - [Sessions & History](#sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-19 -->

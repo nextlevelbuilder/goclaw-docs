@@ -197,6 +197,68 @@ The scheduler checks jobs every 1 second. Due jobs are dispatched in parallel go
 
 Failed jobs record `lastStatus: "error"` and `lastError` with the message. The job stays enabled and will retry on its next scheduled tick (unless it was a one-time `at` job).
 
+## Retry — Exponential Backoff
+
+When a cron job execution fails, GoClaw automatically retries with exponential backoff before logging it as an error.
+
+| Parameter | Default |
+|-----------|---------|
+| Max retries | 3 |
+| Base delay | 2 seconds |
+| Max delay | 30 seconds |
+| Jitter | ±25% |
+
+**Formula:** `delay = min(base × 2^attempt, max) ± 25% jitter`
+
+Example sequence: fail → 2s → retry → fail → 4s → retry → fail → 8s → retry → fail → logged as error.
+
+## Scheduler Lanes & Queue Behavior
+
+GoClaw routes all requests — cron jobs, user chats, delegations — through named scheduler lanes with configurable concurrency.
+
+### Lane defaults
+
+| Lane | Concurrency | Purpose |
+|------|:-----------:|---------|
+| `main` | 30 | Primary user chat sessions |
+| `subagent` | 50 | Sub-agents spawned by the main agent |
+| `team` | 100 | Agent team/delegation executions |
+| `cron` | 30 | Scheduled cron jobs |
+
+All values are configurable via environment variables (`GOCLAW_LANE_MAIN`, `GOCLAW_LANE_SUBAGENT`, `GOCLAW_LANE_TEAM`, `GOCLAW_LANE_CRON`).
+
+### Session queue defaults
+
+Each session maintains its own message queue. When the queue is full, the oldest message is dropped to make room for the new one.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `mode` | `queue` | Queue mode (see below) |
+| `cap` | 10 | Max messages in the queue |
+| `drop` | `old` | Drop oldest on overflow |
+| `debounce_ms` | 800 | Collapse rapid messages within this window |
+
+### Queue modes
+
+| Mode | Behavior |
+|------|----------|
+| `queue` | FIFO — messages wait until a run slot is available |
+| `followup` | Same as `queue` — messages are queued as follow-ups |
+| `interrupt` | Cancel the active run, drain the queue, start the new message immediately |
+
+### Adaptive throttle
+
+When a session's conversation history exceeds **60% of the context window**, the scheduler automatically reduces concurrency to 1 for that session. This prevents context window overflow during high-throughput periods.
+
+### /stop and /stopall
+
+`/stop` and `/stopall` commands are intercepted **before** the 800ms debouncer so they are never merged with an incoming user message.
+
+| Command | Behavior |
+|---------|----------|
+| `/stop` | Cancel the oldest active task; others continue |
+| `/stopall` | Cancel all active tasks and drain the queue |
+
 ## Examples
 
 ### Daily news briefing via Telegram

@@ -130,6 +130,10 @@ Tối đa 30 MB theo mặc định (`media_max_mb`).
 
 **Gửi ra**: File được tự động phát hiện và upload đúng loại (opus, mp4, pdf, doc, xls, ppt, hoặc stream).
 
+### Hỗ trợ @Mention
+
+Bot gửi @mention Feishu gốc trong tin nhắn nhóm. Khi phản hồi của agent chứa pattern `@open_id` (ví dụ `@ou_abc123`), chúng được tự động chuyển thành phần tử `at` gốc của Lark, kích hoạt thông báo thực sự đến người dùng được đề cập. Hoạt động trong cả tin nhắn văn bản `post` và card tương tác.
+
 ### Phân giải mention
 
 Feishu gửi token placeholder (ví dụ `@_user_1`). Bot phân tích danh sách mention và chuyển thành `@DisplayName`.
@@ -143,6 +147,30 @@ Session key: "{chatID}:topic:{rootMessageID}"
 ```
 
 Các thread khác nhau trong cùng nhóm duy trì lịch sử riêng.
+
+### Tool list_group_members
+
+Khi kết nối với kênh Feishu, agent có quyền dùng tool `list_group_members`. Tool này trả về tất cả thành viên của nhóm chat hiện tại cùng `open_id` và tên hiển thị.
+
+```
+list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name }] }
+```
+
+Các trường hợp dùng: kiểm tra thành viên trong nhóm, xác định người dùng trước khi mention, theo dõi sự hiện diện. Để @mention thành viên trong phản hồi, dùng `@member_id` (ví dụ `@ou_abc123`) — bot tự chuyển thành mention Feishu gốc có thông báo.
+
+> Tool này chỉ khả dụng trên kênh Feishu/Lark. Nó sẽ không xuất hiện trong danh sách tool cho các loại kênh khác.
+
+### Danh sách tool cho phép theo topic
+
+Forum topic hỗ trợ danh sách trắng tool riêng. Cấu hình trong cài đặt tool của agent hoặc metadata kênh:
+
+| Giá trị | Hành vi |
+|-------|----------|
+| `nil` (bỏ qua) | Kế thừa danh sách tool của nhóm cha |
+| `[]` (rỗng) | Không cho phép tool nào trong topic này |
+| `["web_search", "group:fs"]` | Chỉ cho phép các tool này |
+
+Tiền tố `group:fs` chọn tất cả tool trong nhóm `fs` (Feishu). Cú pháp `group:xxx` này tương tự với cấu hình topic của Telegram.
 
 ### Speech-to-Text
 
@@ -177,4 +205,4 @@ Tin nhắn thoại có thể được chuyển văn bản bằng cách cấu hì
 - [Telegram](#channel-telegram) — Cài đặt Telegram bot
 - [Browser Pairing](#channel-browser-pairing) — Luồng ghép cặp trình duyệt
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-19 -->

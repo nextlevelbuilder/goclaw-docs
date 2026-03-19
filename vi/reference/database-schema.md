@@ -54,6 +54,9 @@ erDiagram
     team_tasks ||--o{ team_task_events : "logs"
     team_workspace_files ||--o{ team_workspace_file_versions : "versioned by"
     team_workspace_files ||--o{ team_workspace_comments : "commented on"
+    agents ||--o| agent_heartbeats : "has"
+    agent_heartbeats ||--o{ heartbeat_run_logs : "logs"
+    agents ||--o{ agent_config_permissions : "has"
 ```
 
 ---
@@ -549,17 +552,7 @@ Key-value store mã hóa cho secrets ghi đè giá trị `config.json` (quản l
 
 ### `group_file_writers`
 
-Thành viên nhóm Telegram được phép dùng file-writing tool.
-
-| Cột | Type | Mô tả |
-|-----|------|-------|
-| `agent_id` | UUID FK → agents | |
-| `group_id` | VARCHAR(255) | Telegram group/chat ID |
-| `user_id` | VARCHAR(255) | Telegram user ID |
-| `display_name` | VARCHAR(255) | |
-| `username` | VARCHAR(255) | |
-
-**PK:** `(agent_id, group_id, user_id)`
+> **Đã xóa trong migration 023.** Dữ liệu đã được chuyển sang `agent_config_permissions` (`config_type = 'file_writer'`).
 
 ---
 
@@ -860,6 +853,87 @@ Quản lý API key fine-grained với kiểm soát truy cập dựa trên scope.
 
 ---
 
+### `agent_heartbeats`
+
+Cấu hình heartbeat per-agent cho các check-in chủ động định kỳ. (migration 022)
+
+| Cột | Type | Constraint | Mô tả |
+|-----|------|------------|-------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL UNIQUE ON DELETE CASCADE | Một config mỗi agent |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | Heartbeat có đang hoạt động không |
+| `interval_sec` | INT | NOT NULL DEFAULT 1800 | Chu kỳ chạy (giây) |
+| `prompt` | TEXT | | Tin nhắn gửi đến agent mỗi heartbeat |
+| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `model` | VARCHAR(200) | | Override model |
+| `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Chạy trong session riêng biệt |
+| `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject context tối thiểu |
+| `ack_max_chars` | INT | NOT NULL DEFAULT 300 | Số ký tự tối đa trong phản hồi xác nhận |
+| `max_retries` | INT | NOT NULL DEFAULT 2 | Số lần thử lại tối đa khi lỗi |
+| `active_hours_start` | VARCHAR(5) | | Giờ bắt đầu khung hoạt động (HH:MM) |
+| `active_hours_end` | VARCHAR(5) | | Giờ kết thúc khung hoạt động (HH:MM) |
+| `timezone` | TEXT | | Múi giờ cho active hours |
+| `channel` | VARCHAR(50) | | Channel giao nhận |
+| `chat_id` | TEXT | | Chat ID giao nhận |
+| `next_run_at` | TIMESTAMPTZ | | Lịch thực thi tiếp theo |
+| `last_run_at` | TIMESTAMPTZ | | Thời gian thực thi cuối |
+| `last_status` | VARCHAR(20) | | Trạng thái lần chạy cuối |
+| `last_error` | TEXT | | Lỗi lần chạy cuối |
+| `run_count` | INT | NOT NULL DEFAULT 0 | Tổng số lần chạy |
+| `suppress_count` | INT | NOT NULL DEFAULT 0 | Tổng số lần bị bỏ qua |
+| `metadata` | JSONB | DEFAULT `{}` | Metadata bổ sung |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Indexes:** `idx_heartbeats_due` trên `(next_run_at) WHERE enabled = true AND next_run_at IS NOT NULL` — partial index để scheduler polling hiệu quả.
+
+---
+
+### `heartbeat_run_logs`
+
+Log thực thi mỗi lần chạy heartbeat. (migration 022)
+
+| Cột | Type | Constraint | Mô tả |
+|-----|------|------------|-------|
+| `id` | UUID | PK | UUID v7 |
+| `heartbeat_id` | UUID FK → agent_heartbeats | NOT NULL ON DELETE CASCADE | Heartbeat config cha |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Agent sở hữu |
+| `status` | VARCHAR(20) | NOT NULL | `ok`, `error`, `skipped` |
+| `summary` | TEXT | | Tóm tắt ngắn lần chạy |
+| `error` | TEXT | | Thông báo lỗi nếu thất bại |
+| `duration_ms` | INT | | Thời gian chạy (millisecond) |
+| `input_tokens` | INT | DEFAULT 0 | |
+| `output_tokens` | INT | DEFAULT 0 | |
+| `skip_reason` | VARCHAR(50) | | Lý do lần chạy bị bỏ qua |
+| `metadata` | JSONB | DEFAULT `{}` | Metadata bổ sung |
+| `ran_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Indexes:** `idx_hb_logs_heartbeat` trên `(heartbeat_id, ran_at DESC)`, `idx_hb_logs_agent` trên `(agent_id, ran_at DESC)`
+
+---
+
+### `agent_config_permissions`
+
+Bảng permission tổng quát cho cấu hình agent (heartbeat, cron, file writer, v.v.). Thay thế `group_file_writers`. (migration 022)
+
+| Cột | Type | Constraint | Mô tả |
+|-----|------|------------|-------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Agent sở hữu |
+| `scope` | VARCHAR(255) | NOT NULL | Group/chat ID phạm vi |
+| `config_type` | VARCHAR(50) | NOT NULL | ví dụ `file_writer`, `heartbeat` |
+| `user_id` | VARCHAR(255) | NOT NULL | User được cấp quyền |
+| `permission` | VARCHAR(10) | NOT NULL | `allow` hoặc `deny` |
+| `granted_by` | VARCHAR(255) | | Người cấp quyền |
+| `metadata` | JSONB | DEFAULT `{}` | Metadata bổ sung (ví dụ displayName, username) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Unique:** `(agent_id, scope, config_type, user_id)`
+
+**Indexes:** `idx_acp_lookup` trên `(agent_id, scope, config_type)`
+
+---
+
 ## Lịch sử Migration
 
 | Phiên bản | Mô tả |
@@ -885,6 +959,8 @@ Quản lý API key fine-grained với kiểm soát truy cập dựa trên scope.
 | 19 | `team_id` FK trên memory_documents, memory_chunks, kg_entities, kg_relations, traces, spans, cron_jobs, cron_run_logs, sessions |
 | 20 | Bảng `secure_cli_binaries` và `api_keys` |
 | 21 | `expires_at` trên paired_devices; `confidence_score` trên team_tasks, team_messages, team_task_comments |
+| 22 | Bảng `agent_heartbeats` và `heartbeat_run_logs` cho heartbeat monitoring; bảng permission tổng quát `agent_config_permissions` |
+| 23 | Hỗ trợ hard-delete agent (FK constraint cascade, unique index trên agent active); chuyển `group_file_writers` vào `agent_config_permissions` |
 
 ---
 
@@ -894,4 +970,4 @@ Quản lý API key fine-grained với kiểm soát truy cập dựa trên scope.
 - [Config Reference](#config-reference) — cấu hình database map sang `config.json` như thế nào
 - [Glossary](#glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | cập nhật: 2026-03-19 -->

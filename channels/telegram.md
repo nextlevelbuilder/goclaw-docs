@@ -41,9 +41,14 @@ All config keys are in `channels.telegram`:
 | `history_limit` | int | 50 | Pending messages per group (0=disabled) |
 | `dm_stream` | bool | false | Enable streaming for DMs (edits placeholder) |
 | `group_stream` | bool | false | Enable streaming for groups (new message) |
+| `draft_transport` | bool | false | Use `sendMessageDraft` for DM streaming (stealth preview, no per-edit notifications) |
+| `reasoning_stream` | bool | true | Show reasoning tokens as a separate message before the answer |
+| `block_reply` | bool | -- | Override gateway `block_reply` setting for this channel (nil = inherit) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (⏳ only), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Max media file size |
 | `link_preview` | bool | true | Show URL previews |
+| `force_ipv4` | bool | false | Force IPv4 for all Telegram API connections |
+| `api_server` | string | -- | Custom Telegram Bot API server URL (e.g. `http://localhost:8081`) |
 | `stt_proxy_url` | string | -- | STT service URL (for voice transcription) |
 | `stt_api_key` | string | -- | Bearer token for STT proxy |
 | `stt_timeout_seconds` | int | 30 | Timeout for STT transcription requests |
@@ -155,10 +160,10 @@ When a user sends a voice message:
 
 Enable live response updates:
 
-- **DMs** (`dm_stream`): Edits the "Thinking..." placeholder as chunks arrive
+- **DMs** (`dm_stream`): Edits the "Thinking..." placeholder as chunks arrive. Uses `sendMessage+editMessageText` by default; set `draft_transport: true` to use `sendMessageDraft` (stealth preview, no per-edit notifications, but may cause "reply to deleted message" artifacts on some clients).
 - **Groups** (`group_stream`): Sends placeholder, edits with full response
 
-Disabled by default due to Telegram draft API issues.
+Disabled by default. When enabled with `reasoning_stream: true` (default), reasoning tokens appear as a separate message before the final answer.
 
 ### Reactions
 
@@ -190,6 +195,31 @@ Commands processed before message enrichment:
 
 Writers are group members allowed to run sensitive commands (`/reset`, file writes). Manage via `/addwriter` and `/removewriter` (reply to target user).
 
+## Networking Isolation
+
+Each Telegram instance maintains an isolated HTTP transport — no shared connection pools between bots. This prevents cross-bot contention and enables per-account network routing.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `force_ipv4` | false | Force IPv4 for all connections. Useful for sticky routing or when IPv6 is broken/blocked. |
+| `proxy` | -- | HTTP proxy URL for this specific bot instance (e.g. `http://proxy:8080`). |
+| `api_server` | -- | Custom Telegram Bot API server. Useful with local Bot API server or private deployments. |
+
+**Sticky IPv4 fallback**: When `force_ipv4: true`, the dialer is locked to `tcp4` at startup, ensuring consistent source IP across all requests to Telegram. This helps with rate limit management in environments with unstable IPv6.
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "token": "...",
+      "force_ipv4": true,
+      "proxy": "http://proxy.example.com:8080",
+      "api_server": "http://localhost:8081"
+    }
+  }
+}
+```
+
 ## Troubleshooting
 
 | Issue | Solution |
@@ -207,4 +237,4 @@ Writers are group members allowed to run sensitive commands (`/reset`, file writ
 - [Browser Pairing](#channel-browser-pairing) — Pairing flow
 - [Sessions & History](#sessions-and-history) — Conversation history
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->
