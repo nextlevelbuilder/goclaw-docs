@@ -2414,12 +2414,13 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Web** | web_search, web_fetch | Search the web (Brave/DuckDuckGo) and fetch pages |
 | **Memory** | memory_search, memory_get, knowledge_graph_search | Query long-term memory (hybrid vector + FTS search) and knowledge graph |
 | **Sessions** | sessions_list, sessions_history, sessions_send, session_status | Manage conversation sessions |
-| **Delegation** | handoff, delegate_search, evaluate_loop | Delegate tasks to other agents |
+| **Delegation** | handoff | Delegate tasks to other agents |
 | **Subagents** | spawn | Spawn subtasks as subagents |
 | **Teams** | team_tasks, team_message | Collaborate with agent teams via task boards |
+| **Heartbeat** | heartbeat | Configure and manage periodic proactive check-ins |
 | **UI** | browser | Browse websites |
 | **Automation** | cron | Schedule recurring jobs |
-| **Messaging** | message | Send messages |
+| **Messaging** | message, create_forum_topic, list_group_members | Send messages; create Telegram forum topics; list Lark/Feishu group members |
 | **Media** | read_image, create_image, read_document, read_audio, read_video, create_video, create_audio, tts | Read and generate images, documents, audio, video, and text-to-speech |
 | **Skills** | use_skill, skill_search, publish_skill | Discover, invoke, and publish skills |
 
@@ -2472,6 +2473,22 @@ Set the profile in agent config:
 }
 ```
 
+## Tool Aliases
+
+GoClaw registers aliases so agents can reference tools by alternative names. This enables compatibility with Claude Code skills and legacy tool names:
+
+| Alias | Maps to |
+|-------|---------|
+| `Read` | `read_file` |
+| `Write` | `write_file` |
+| `Edit` | `edit` |
+| `Bash` | `exec` |
+| `WebFetch` | `web_fetch` |
+| `WebSearch` | `web_search` |
+| `edit_file` | `edit` |
+
+Aliases appear as one-line descriptions in the system prompt. They are not separate tools — calling an alias invokes the underlying tool.
+
 ## Policy Engine
 
 Beyond profiles, a 7-step policy engine gives fine-grained control:
@@ -2508,27 +2525,58 @@ Two special interceptors route file operations to the database:
 
 ### Context File Interceptor
 
-When an agent reads/writes context files (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md), the operation is routed to the `user_context_files` table instead of the filesystem. TOOLS.md is explicitly excluded from routing. This enables per-user customization and multi-tenant isolation.
+When an agent reads/writes context files (SOUL.md, IDENTITY.md, AGENTS.md, USER.md, USER_PREDEFINED.md, BOOTSTRAP.md, HEARTBEAT.md), the operation is routed to the `user_context_files` table instead of the filesystem. TOOLS.md is explicitly excluded from routing. This enables per-user customization and multi-tenant isolation.
 
 ### Memory Interceptor
 
-Writes to `MEMORY.md` or `memory/*` are routed to the `memory_documents` table, automatically chunked and embedded for search.
+Writes to `MEMORY.md`, `memory.md`, or `memory/*` are routed to the `memory_documents` table, automatically chunked and embedded for search.
 
 ## Shell Safety
 
-The `exec` tool has built-in deny patterns to prevent dangerous commands:
+The `exec` tool enforces 15 deny groups — all enabled by default:
 
-| Category | Blocked Patterns |
-|----------|-----------------|
-| Destructive | `rm -rf /`, `del /f`, `rmdir /s` |
-| Disk | `mkfs`, `dd if=`, `> /dev/sd*` |
-| System | `shutdown`, `reboot`, `poweroff` |
-| Fork bombs | `:(){ ... };:` |
-| RCE | `curl \| sh`, `wget -O - \| sh` |
-| Reverse shells | `/dev/tcp/`, `nc -e` |
-| Eval | `eval $()`, `base64 -d \| sh` |
+| Group | Blocked Patterns |
+|-------|-----------------|
+| `destructive_ops` | `rm -rf`, `del /f`, `mkfs`, `dd`, `shutdown`, fork bombs |
+| `data_exfiltration` | `curl\|sh`, `wget\|sh`, DNS exfil, `/dev/tcp/`, curl POST/PUT, localhost access |
+| `reverse_shell` | `nc`/`ncat`/`netcat`, `socat`, `openssl s_client`, `telnet`, python/perl/ruby/node sockets, `mkfifo` |
+| `code_injection` | `eval $`, `base64 -d\|sh` |
+| `privilege_escalation` | `sudo`, `su -`, `nsenter`, `unshare`, `mount`, `capsh`/`setcap` |
+| `dangerous_paths` | `chmod` on `/`, `chown` on `/`, `chmod +x` on `/tmp` `/var/tmp` `/dev/shm` |
+| `env_injection` | `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `LD_LIBRARY_PATH`, `GIT_EXTERNAL_DIFF`, `BASH_ENV` |
+| `container_escape` | `docker.sock`, `/proc/sys/`, `/sys/` |
+| `crypto_mining` | `xmrig`, `cpuminer`, `stratum+tcp://` |
+| `filter_bypass` | `sed /e`, `sort --compress-program`, `git --upload-pack`, `rg --pre=`, `man --html=` |
+| `network_recon` | `nmap`/`masscan`/`zmap`, `ssh/scp@`, `chisel`/`ngrok`/`cloudflared` tunneling |
+| `package_install` | `pip install`, `npm install`, `apk add`, `yarn add`, `pnpm add` |
+| `persistence` | `crontab`, writes to `.bashrc`/`.profile`/`.zshrc` |
+| `process_control` | `kill -9`, `killall`, `pkill` |
+| `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Per-Agent Override
+
+Admins can disable specific groups per agent:
+
+```jsonc
+{
+  "agents": {
+    "list": {
+      "dev-bot": {
+        "shell_deny_groups": {
+          "package_install": false,
+          "process_control": false
+        }
+      }
+    }
+  }
+}
+```
 
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
+
+## Adaptive Tool Timing
+
+GoClaw tracks execution time per tool in each session. If a tool call takes longer than 2× its historical maximum (with at least 3 prior samples), a slow-tool notification is emitted. The default threshold for tools without history is 120 seconds.
 
 ## Custom Tools & MCP
 
@@ -4543,7 +4591,7 @@ Two **prompt modes** exist:
 | 1 | Identity | ✓ | ✓ | Channel info (Telegram, Discord, etc.) |
 | 1.5 | First-Run Bootstrap | ✓ | ✓ | BOOTSTRAP.md warning (first session only) |
 | 1.7 | Persona | ✓ | ✓ | SOUL.md + IDENTITY.md injected early for primacy bias |
-| 2 | Tooling | ✓ | ✓ | List of available tools |
+| 2 | Tooling | ✓ | ✓ | List of available tools + legacy/Claude Code aliases |
 | 3 | Safety | ✓ | ✓ | Core safety rules, limits, confidentiality |
 | 3.2 | Identity Anchoring | ✓ | ✓ | Extra guidance against identity manipulation (predefined agents only) |
 | 3.5 | Self-Evolution | ✓ | ✓ | Permission to update SOUL.md (when `self_evolve=true` in predefined agents) |
@@ -4695,6 +4743,8 @@ If the agent has `sandbox_enabled: true`:
   - Workspace access level (none, ro, rw)
 - **Tooling section** adds a note: "exec runs inside Docker; you don't need `docker run`"
 
+> **Shell deny groups:** If an agent has `shell_deny_groups` overrides configured (`map[string]bool`), the Tooling section adapts its shell safety instructions accordingly — only the relevant deny-group warnings are included in the prompt.
+
 ## Example: Full Prompt Structure (Pseudocode)
 
 ```
@@ -4727,6 +4777,8 @@ Embody the persona above in EVERY response. This is non-negotiable.
 - exec: Run shell commands
 - memory_search: Search indexed memory
 [... more tools ...]
+(Legacy aliases: read → read_file, write → write_file, edit → edit)
+(Claude Code aliases: Read → read_file, Write → write_file, Edit → edit, ...)
 
 ## Safety
 You have no independent goals. Prioritize safety and human oversight.
@@ -4968,6 +5020,10 @@ graph TD
     OAI --> Groq
     OAI --> Mistral
 ```
+
+## Auto-Clamp max_tokens
+
+When a model rejects a request because `max_tokens` is too large, GoClaw automatically retries with a clamped value. This handles both `max_tokens` and `max_completion_tokens` parameter names depending on the provider. The retry is transparent — the agent never sees the error.
 
 ## Common Issues
 
@@ -6948,16 +7004,15 @@ flowchart TD
 
 ## Session Key Format
 
-Session keys identify unique conversations and threads across platforms.
+Session keys identify unique conversations and threads across platforms. All keys follow the canonical format `agent:{agentId}:{rest}`.
 
 | Context | Format | Example |
 |---------|--------|---------|
-| Telegram DM | Chat ID | `"123456"` |
-| Telegram group | Chat ID + group | `"-12345"` |
-| Telegram topic/thread | Chat + topic ID | `"-12345:topic:99"` |
-| Larksuite DM/group | Conversation ID | `"oc_xyz..."` |
-| Larksuite thread | Conversation + root message | `"oc_xyz:topic:{msg_id}"` |
-| Discord DM/channel | Channel ID | `"987654"` |
+| DM | `agent:{agentId}:{channel}:direct:{peerId}` | `agent:default:telegram:direct:386246614` |
+| Group | `agent:{agentId}:{channel}:group:{groupId}` | `agent:default:telegram:group:-100123456` |
+| Forum topic | `agent:{agentId}:{channel}:group:{groupId}:topic:{topicId}` | `agent:default:telegram:group:-100123456:topic:99` |
+| DM thread | `agent:{agentId}:{channel}:direct:{peerId}:thread:{threadId}` | `agent:default:telegram:direct:386246614:thread:5` |
+| Subagent | `agent:{agentId}:subagent:{label}` | `agent:default:subagent:my-task` |
 
 ## Channel Comparison
 
@@ -7077,9 +7132,14 @@ All config keys are in `channels.telegram`:
 | `history_limit` | int | 50 | Pending messages per group (0=disabled) |
 | `dm_stream` | bool | false | Enable streaming for DMs (edits placeholder) |
 | `group_stream` | bool | false | Enable streaming for groups (new message) |
+| `draft_transport` | bool | false | Use `sendMessageDraft` for DM streaming (stealth preview, no per-edit notifications) |
+| `reasoning_stream` | bool | true | Show reasoning tokens as a separate message before the answer |
+| `block_reply` | bool | -- | Override gateway `block_reply` setting for this channel (nil = inherit) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (⏳ only), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Max media file size |
 | `link_preview` | bool | true | Show URL previews |
+| `force_ipv4` | bool | false | Force IPv4 for all Telegram API connections |
+| `api_server` | string | -- | Custom Telegram Bot API server URL (e.g. `http://localhost:8081`) |
 | `stt_proxy_url` | string | -- | STT service URL (for voice transcription) |
 | `stt_api_key` | string | -- | Bearer token for STT proxy |
 | `stt_timeout_seconds` | int | 30 | Timeout for STT transcription requests |
@@ -7191,14 +7251,16 @@ When a user sends a voice message:
 
 Enable live response updates:
 
-- **DMs** (`dm_stream`): Edits the "Thinking..." placeholder as chunks arrive
+- **DMs** (`dm_stream`): Edits the "Thinking..." placeholder as chunks arrive. Uses `sendMessage+editMessageText` by default; set `draft_transport: true` to use `sendMessageDraft` (stealth preview, no per-edit notifications, but may cause "reply to deleted message" artifacts on some clients).
 - **Groups** (`group_stream`): Sends placeholder, edits with full response
 
-Disabled by default due to Telegram draft API issues.
+Disabled by default. When enabled with `reasoning_stream: true` (default), reasoning tokens appear as a separate message before the final answer.
 
 ### Reactions
 
 Show emoji status on user messages. Set `reaction_level`:
+
+> Typing indicator reactions are now handled with better error recovery — invalid reaction types are caught gracefully instead of causing errors.
 
 - `off` — No reactions
 - `minimal` — Only ⏳ (thinking)
@@ -7223,6 +7285,31 @@ Commands processed before message enrichment:
 | `/writers` | List group writers | -- |
 
 Writers are group members allowed to run sensitive commands (`/reset`, file writes). Manage via `/addwriter` and `/removewriter` (reply to target user).
+
+## Networking Isolation
+
+Each Telegram instance maintains an isolated HTTP transport — no shared connection pools between bots. This prevents cross-bot contention and enables per-account network routing.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `force_ipv4` | false | Force IPv4 for all connections. Useful for sticky routing or when IPv6 is broken/blocked. |
+| `proxy` | -- | HTTP proxy URL for this specific bot instance (e.g. `http://proxy:8080`). |
+| `api_server` | -- | Custom Telegram Bot API server. Useful with local Bot API server or private deployments. |
+
+**Sticky IPv4 fallback**: When `force_ipv4: true`, the dialer is locked to `tcp4` at startup, ensuring consistent source IP across all requests to Telegram. This helps with rate limit management in environments with unstable IPv6.
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "token": "...",
+      "force_ipv4": true,
+      "proxy": "http://proxy.example.com:8080",
+      "api_server": "http://localhost:8081"
+    }
+  }
+}
+```
 
 ## Troubleshooting
 
@@ -7329,6 +7416,10 @@ While the agent processes, a typing indicator is shown (9-second keepalive).
 
 The bot automatically detects and responds in Discord threads. Responses stay in the same thread.
 
+### Group Media History
+
+Media files (images, video, audio) sent in group conversations are tracked in message history, allowing agents to reference previously shared media.
+
 ### Bot Identity
 
 On startup, the bot fetches its own user ID via `@me` endpoint to avoid responding to its own messages.
@@ -7379,7 +7470,9 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 3. Under "Bots" → enable "Bot" capability
 4. Set bot name and avatar
 5. Copy `App ID` and `App Secret`
-6. Grant permissions: `im:message`, `im:message.p2p_msg:send`, `im:message.group_msg:send`, `contact:user.id:readonly`
+6. Grant the required API scopes (see [Required API Scopes](#required-api-scopes) below)
+7. Set Contact Range to **"All members"** under Permissions & Scopes → Contacts
+8. Publish the app version (scopes take effect only after publishing)
 
 **Enable Larksuite:**
 
@@ -7457,7 +7550,35 @@ Then configure the webhook URL in Larksuite Developer Console:
 - Gateway mux: `https://your-gateway.com/feishu/events`
 - Separate server: `https://your-webhook-host:3000/feishu/events`
 
+## Required API Scopes
+
+Your Larksuite app needs these 15 scopes. The Dashboard shows the full list in a collapsible panel when creating or editing a Feishu channel.
+
+| Scope | Purpose |
+|-------|---------|
+| `im:message` | Core messaging |
+| `im:message:readonly` | Read messages (reply context) |
+| `im:message.p2p_msg:send` | Send DMs |
+| `im:message.group_msg:send` | Send group messages |
+| `im:message.group_at_msg` | Send @-mention messages |
+| `im:message.group_at_msg:readonly` | Read @-mention messages |
+| `im:chat` | Chat management |
+| `im:chat:readonly` | Read chat info |
+| `im:resource` | Upload/download media |
+| `contact:user.base:readonly` | Read user profiles |
+| `contact:user.id:readonly` | Resolve user IDs |
+| `contact:user.employee_id:readonly` | Resolve employee IDs |
+| `contact:user.phone:readonly` | Resolve phone numbers |
+| `contact:user.email:readonly` | Resolve emails |
+| `contact:department.id:readonly` | Department lookup |
+
+> **Important:** After granting scopes, set **Contact Range** to **"All members"** under Permissions & Scopes → Contacts, then publish a new app version. Without this, contact resolution returns empty names.
+
 ## Features
+
+### Reply Context
+
+When a user replies to a message in a DM, GoClaw includes the original message as context for the agent. In DMs, a `[From: sender_name]` annotation is prepended so the agent knows who sent the message.
 
 ### Streaming Cards
 
@@ -7491,6 +7612,10 @@ Max 30 MB by default (`media_max_mb`).
 
 **Outbound**: Files auto-detected and uploaded with correct type (opus, mp4, pdf, doc, xls, ppt, or stream).
 
+### @Mention Support
+
+The bot sends native Lark @mentions in group messages. When the agent response contains `@open_id` patterns (e.g. `@ou_abc123`), they are automatically converted to native Lark `at` elements that trigger real notifications to the mentioned user. This works in both `post` text messages and interactive card messages.
+
 ### Mention Resolution
 
 Larksuite sends placeholder tokens (e.g., `@_user_1`). Bot parses mention list and resolves to `@DisplayName`.
@@ -7504,6 +7629,30 @@ Session key: "{chatID}:topic:{rootMessageID}"
 ```
 
 Different threads in same group maintain separate histories.
+
+### list_group_members Tool
+
+When connected to a Larksuite channel, agents have access to the `list_group_members` tool. It returns all members of the current group chat with their `open_id` and display name.
+
+```
+list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name }] }
+```
+
+Use cases: checking who is in a group, identifying members before mentioning them, attendance tracking. To @mention a member in a reply, use `@member_id` (e.g. `@ou_abc123`) — the bot converts it to a native Lark mention with notification.
+
+> This tool is only available on Feishu/Lark channels. It will not appear in the tool list for other channel types.
+
+### Per-Topic Tool Allow List
+
+Forum topics support their own tool whitelist. Configure under the agent's tool settings or channel metadata:
+
+| Value | Behavior |
+|-------|----------|
+| `nil` (omit) | Inherit parent group's tool allow list |
+| `[]` (empty) | No tools allowed in this topic |
+| `["web_search", "group:fs"]` | Only these tools allowed |
+
+The `group:fs` prefix selects all tools in the `fs` (Feishu/Lark) tool group. This follows the same `group:xxx` syntax used in Telegram topic config.
 
 ## Troubleshooting
 
@@ -7743,6 +7892,10 @@ Explicitly allow users/groups via `allow_from`:
 ### Authentication
 
 Requires credentials file with phone, password, and device ID. On first connection, account may require QR scan or additional verification from Zalo.
+
+### Media Handling
+
+Media sending includes post-write verification — files are confirmed written to disk before being sent to the Zalo API.
 
 ### Resilience
 
@@ -8898,7 +9051,7 @@ Teams support fine-grained access control via settings JSON:
   }'
 ```
 
-System channels (`delegate`, `system`) always pass access checks.
+System channels (`teammate`, `system`) always pass access checks.
 
 ## Team Status
 
@@ -8916,6 +9069,22 @@ To fully remove a team, use the delete operation — it hard-deletes the record 
   --team-id 550e8400-e29b-41d4-a716-446655440000 \
   --status archived
 ```
+
+## Team Members in System Prompt
+
+When a team is active, GoClaw injects a `## Team Members` section into the lead agent's system prompt listing all teammates:
+
+```
+## Team Members
+- agent_key: analyst_agent | display_name: Data Analyst | role: member | expertise: Data analysis and visualization...
+- agent_key: writer_agent | display_name: Content Writer | role: reviewer | expertise: Technical writing...
+```
+
+This lets the lead assign tasks to the correct agent by key without guessing. The section updates automatically when members are added or removed.
+
+## Media Auto-Copy
+
+When a task is created from a conversation that includes media files (images, documents), GoClaw automatically copies those files to the team workspace at `{team_workspace}/attachments/`. Hard links are used when possible for efficiency, with a copy fallback. Files are validated and saved with restrictive permissions (0640).
 
 ## TEAM.md Injection
 
@@ -8962,7 +9131,11 @@ flowchart TD
     IN_REVIEW -->|reject| CANCELLED["Cancelled"]
     PENDING -->|cancel| CANCELLED
     IN_PROGRESS -->|cancel| CANCELLED
-    IN_PROGRESS -->|agent error| FAILED["Failed"]
+    IN_PROGRESS -->|agent error| FAILED["Failed<br/>(error)"]
+    PENDING -->|system failure| STALE["Stale<br/>(timed out)"]
+    IN_PROGRESS -->|system failure| STALE
+    FAILED -->|retry| PENDING
+    STALE -->|retry| PENDING
 ```
 
 ## Core Tool: `team_tasks`
@@ -8971,7 +9144,7 @@ All team members access the task board via the `team_tasks` tool. Available acti
 
 | Action | Required Params | Description |
 |--------|-----------------|-------------|
-| `list` | `action` | Show active tasks (pagination: 20 max) |
+| `list` | `action` | Show active tasks (pagination: 30 per page) |
 | `get` | `action`, `task_id` | Get full task detail with comments, events, attachments (result: 8,000 char limit) |
 | `create` | `action`, `subject` | Create new task (lead only); optional: `description`, `priority`, `blocked_by`, `require_approval` |
 | `claim` | `action`, `task_id` | Atomically claim a pending task |
@@ -9225,7 +9398,7 @@ All team members access the mailbox via the `team_message` tool. Actions:
 | Action | Params | Description |
 |--------|--------|-------------|
 | `send` | `to`, `text`, `media` (optional) | Send direct message to specific teammate |
-| `broadcast` | `text` | Send message to all teammates (except self); system/delegate channel only |
+| `broadcast` | `text` | Send message to all teammates (except self); system/teammate channel only |
 | `read` | none | Get unread messages; auto-marks as read |
 
 ## Send a Direct Message
@@ -9255,7 +9428,7 @@ Message sent to analyst_agent.
 
 ## Broadcast to All Members
 
-Broadcast delivers a message to all team members simultaneously. This action is restricted to system/delegate channels (internal operations) — regular member agents cannot call `broadcast` directly.
+Broadcast delivers a message to all team members simultaneously. This action is restricted to system/teammate channels (internal operations) — regular member agents cannot call `broadcast` directly.
 
 ```json
 {
@@ -9990,6 +10163,10 @@ When the total number of MCP tools across all servers exceeds **40**, GoClaw aut
 
 This keeps the tool list manageable when connecting many MCP servers. There is no configuration required — the switch is automatic.
 
+### Lazy activation
+
+In search mode, if an agent calls a deferred MCP tool directly by name (without searching first), GoClaw **auto-activates** it. The tool is resolved from the MCP server, registered on the fly, and executed — no extra search step needed. This enables compatibility with agents that already know the tool name from prior context.
+
 ## Per-Agent Access Grants
 
 DB-backed servers (added via Dashboard or API) support per-agent and per-user access control. You can also restrict which tools an agent can call:
@@ -10096,21 +10273,18 @@ Your agents can now call `vnstock_get_price`, `vnstock_get_financials`, etc.
 }
 ```
 
-## Common Issues
+## Security: Prompt Injection Protection
 
-| Issue | Cause | Fix |
-|---|---|---|
-| Server shows `connected: false` | Network unreachable or wrong URL/command | Check logs for `mcp.server.connect_failed`; verify URL |
-| Tools not visible to agent | No access grant for that agent | Add a grant via Dashboard or API |
-| Tool name collision warning in logs | Two servers expose same tool name without prefix | Set `tool_prefix` on one or both servers |
-| `unsupported transport` error | Typo in transport field | Use exactly `stdio`, `sse`, or `streamable-http` |
-| SSE server reconnects repeatedly | Server does not implement `ping` | This is normal — GoClaw treats `method not found` as healthy |
+MCP servers are external processes — a compromised or malicious server could attempt to inject instructions into the LLM by returning crafted tool results. GoClaw hardens against this automatically.
 
-## What's Next
+**How it works** (`internal/mcp/bridge_tool.go`):
 
-- [Custom Tools](#custom-tools) — build shell-backed tools without an MCP server
-- [Skills](#skills) — inject reusable knowledge into agent system prompts
+1. **Marker sanitization** — Any `<<<EXTERNAL_UNTRUSTED_CONTENT>>>` markers already present in the result are replaced with `[[MARKER_SANITIZED]]` before wrapping.
+2. **Content wrapping** — Every MCP tool result is wrapped in untrusted-content markers before being returned to the LLM:
 
+```
+<<<EXTERNAL_UNTRUSTED_CONTENT>>>
+Source: MCP Server {server_name} / Tool {tool_name}
 
 
 ---
@@ -10349,6 +10523,10 @@ Always:
 - Keep code examples under 20 lines
 ```
 
+## Skill Evolution
+
+When `skill_evolve` is enabled in agent config, agents gain a `skill_manage` tool that allows them to create, update, and version skills from within conversations — a learning loop where the agent improves its own knowledge base. When `skill_evolve` is **off** (the default), the `skill_manage` tool is hidden from the LLM's tool list entirely.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -10478,6 +10656,7 @@ goclaw cron delete <jobId>
 | `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
 | `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
 | `deleteAfterRun` | bool | Auto-set to `true` for `at` jobs; can be set manually on any job |
+| `wakeHeartbeat` | bool | When `true`, triggers an immediate [Heartbeat](heartbeat.md) run after the cron job completes. Useful for jobs that should report status via the heartbeat system |
 
 ## Schedule Expressions
 
@@ -10567,6 +10746,68 @@ The scheduler checks jobs every 1 second. Due jobs are dispatched in parallel go
 
 Failed jobs record `lastStatus: "error"` and `lastError` with the message. The job stays enabled and will retry on its next scheduled tick (unless it was a one-time `at` job).
 
+## Retry — Exponential Backoff
+
+When a cron job execution fails, GoClaw automatically retries with exponential backoff before logging it as an error.
+
+| Parameter | Default |
+|-----------|---------|
+| Max retries | 3 |
+| Base delay | 2 seconds |
+| Max delay | 30 seconds |
+| Jitter | ±25% |
+
+**Formula:** `delay = min(base × 2^attempt, max) ± 25% jitter`
+
+Example sequence: fail → 2s → retry → fail → 4s → retry → fail → 8s → retry → fail → logged as error.
+
+## Scheduler Lanes & Queue Behavior
+
+GoClaw routes all requests — cron jobs, user chats, delegations — through named scheduler lanes with configurable concurrency.
+
+### Lane defaults
+
+| Lane | Concurrency | Purpose |
+|------|:-----------:|---------|
+| `main` | 30 | Primary user chat sessions |
+| `subagent` | 50 | Sub-agents spawned by the main agent |
+| `team` | 100 | Agent team/delegation executions |
+| `cron` | 30 | Scheduled cron jobs |
+
+All values are configurable via environment variables (`GOCLAW_LANE_MAIN`, `GOCLAW_LANE_SUBAGENT`, `GOCLAW_LANE_TEAM`, `GOCLAW_LANE_CRON`).
+
+### Session queue defaults
+
+Each session maintains its own message queue. When the queue is full, the oldest message is dropped to make room for the new one.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `mode` | `queue` | Queue mode (see below) |
+| `cap` | 10 | Max messages in the queue |
+| `drop` | `old` | Drop oldest on overflow |
+| `debounce_ms` | 800 | Collapse rapid messages within this window |
+
+### Queue modes
+
+| Mode | Behavior |
+|------|----------|
+| `queue` | FIFO — messages wait until a run slot is available |
+| `followup` | Same as `queue` — messages are queued as follow-ups |
+| `interrupt` | Cancel the active run, drain the queue, start the new message immediately |
+
+### Adaptive throttle
+
+When a session's conversation history exceeds **60% of the context window**, the scheduler automatically reduces concurrency to 1 for that session. This prevents context window overflow during high-throughput periods.
+
+### /stop and /stopall
+
+`/stop` and `/stopall` commands are intercepted **before** the 800ms debouncer so they are never merged with an incoming user message.
+
+| Command | Behavior |
+|---------|----------|
+| `/stop` | Cancel the oldest active task; others continue |
+| `/stopall` | Cancel all active tasks and drain the queue |
+
 ## Examples
 
 ### Daily news briefing via Telegram
@@ -10620,9 +10861,256 @@ Failed jobs record `lastStatus: "error"` and `lastError` with the message. The j
 
 ## What's Next
 
+- [Heartbeat](heartbeat.md) — proactive periodic check-ins with smart suppression
 - [Custom Tools](#custom-tools) — give agents shell commands to run during scheduled turns
 - [Skills](#skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](#sandbox) — isolate code execution during scheduled agent runs
+
+
+
+---
+
+# Heartbeat
+
+> Proactive periodic check-ins — agents execute a configurable checklist on a timer and report results to your channels.
+
+## Overview
+
+Heartbeat is an application-level monitoring feature: your agent wakes up on a schedule, runs through a HEARTBEAT.md checklist, and delivers results to a messaging channel (Telegram, Discord, Feishu). If everything looks fine, the agent can suppress delivery entirely using a `HEARTBEAT_OK` token — keeping your channels quiet when there's nothing to report.
+
+This is **not** a WebSocket keep-alive. It's a user-facing proactive monitoring system with smart suppression, active-hours windows, and per-heartbeat model overrides.
+
+## Quick Setup
+
+### Via the Dashboard
+
+1. Open **Agent Detail** → **Heartbeat** tab
+2. Click **Configure** (or **Setup** if not yet configured)
+3. Set interval, delivery channel, and write your HEARTBEAT.md checklist
+4. Click **Save** — the agent will run on schedule
+
+### Via the agent tool
+
+Agents can self-configure heartbeat during a conversation:
+
+```json
+{
+  "action": "set",
+  "enabled": true,
+  "interval": 1800,
+  "channel": "telegram",
+  "chat_id": "-100123456789",
+  "active_hours": "08:00-22:00",
+  "timezone": "Asia/Ho_Chi_Minh"
+}
+```
+
+## HEARTBEAT.md Checklist
+
+HEARTBEAT.md is an agent context file that defines what the agent should do during each heartbeat run. It lives alongside your other context files (BOOTSTRAP.md, SKILLS.md, etc.).
+
+**How to write one:**
+
+- List concrete tasks using your agent's tools — not just reading the list back
+- Use `HEARTBEAT_OK` at the end when all checks pass and there's nothing to deliver
+- Keep it focused: short checklists run faster and cost less
+
+**Example HEARTBEAT.md:**
+
+```markdown
+# Heartbeat Checklist
+
+1. Check https://api.example.com/health — if non-200, alert immediately
+2. Query the DB for any failed jobs in the last 30 minutes — summarize if any
+3. If all clear, respond with: HEARTBEAT_OK
+```
+
+The agent receives your checklist in its system prompt with explicit instructions to execute the tasks using its tools, not just repeat the checklist text.
+
+## Configuration
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Master on/off switch |
+| `interval_sec` | int | 1800 | Seconds between runs (minimum: 300) |
+| `prompt` | string | — | Custom check-in message (default: "Execute your heartbeat checklist now.") |
+| `provider_id` | UUID | — | LLM provider override for heartbeat runs |
+| `model` | string | — | Model override (e.g. `gpt-4o-mini`) |
+| `isolated_session` | bool | `true` | Fresh session per run, auto-deleted after |
+| `light_context` | bool | `false` | Skip context files, inject only HEARTBEAT.md |
+| `max_retries` | int | 2 | Retry attempts on failure (0–10, exponential backoff) |
+| `active_hours_start` | string | — | Window start in `HH:MM` format |
+| `active_hours_end` | string | — | Window end in `HH:MM` format (supports midnight wrap) |
+| `timezone` | string | — | IANA timezone for active hours (default: UTC) |
+| `channel` | string | — | Delivery channel: `telegram`, `discord`, `feishu` |
+| `chat_id` | string | — | Target chat or group ID |
+
+## Scheduling & Wake Modes
+
+The heartbeat ticker polls for due agents every 30 seconds. There are four ways a heartbeat run is triggered:
+
+| Mode | Trigger |
+|---|---|
+| **Ticker poll** | Background goroutine runs `ListDue(now)` every 30s |
+| **Manual test** | "Test" button in Dashboard UI or `{"action": "test"}` agent tool call |
+| **RPC test** | `heartbeat.test` WebSocket RPC call |
+| **Cron wake** | Cron job with `wake_heartbeat: true` completes → triggers immediate run |
+
+**Stagger mechanism:** When you first enable a heartbeat, the initial `next_run_at` is offset by a deterministic amount (FNV-1a hash of the agent UUID, capped at 10% of `interval_sec`). This prevents multiple agents enabled at the same time from all firing at once. Subsequent runs advance by a flat interval without stagger.
+
+## Execution Flow
+
+```mermaid
+flowchart TD
+    A[Ticker due] --> B{Active hours?}
+    B -- outside window --> Z1[Skip: active_hours]
+    B -- inside window --> C{Agent busy?}
+    C -- has active sessions --> Z2[Skip: queue_busy\nno next_run_at advance]
+    C -- idle --> D{HEARTBEAT.md?}
+    D -- empty or missing --> Z3[Skip: empty_checklist]
+    D -- found --> E[Emit 'running' event]
+    E --> F[Build system prompt\nwith checklist]
+    F --> G[Run agent loop\nmax_retries + 1 attempts]
+    G -- all failed --> Z4[Log error, advance next_run_at]
+    G -- success --> H{Contains HEARTBEAT_OK?}
+    H -- yes --> I[Suppress: increment suppress_count]
+    H -- no --> J[Deliver to channel/chatID]
+```
+
+**Steps:**
+
+1. **Active hours filter** — If outside the configured window, skip and advance `next_run_at`
+2. **Queue-aware check** — If agent has active chat sessions, skip *without* advancing `next_run_at` (retried on next 30s poll)
+3. **Checklist load** — Reads HEARTBEAT.md from agent context files; skips if empty
+4. **Emit event** — Broadcasts `heartbeat: running` to all WebSocket clients
+5. **Build prompt** — Injects checklist + suppression rules into the agent's extra system prompt
+6. **Run agent loop** — Exponential backoff: immediate → 1s → 2s → ... up to `max_retries + 1` total attempts
+7. **Suppression check** — If response contains `HEARTBEAT_OK` anywhere, delivery is cancelled
+8. **Deliver** — Publishes to the configured `channel` + `chat_id` via the message bus
+
+## Smart Suppression
+
+When the agent's response contains the token `HEARTBEAT_OK` anywhere, the **entire response is suppressed** — nothing is sent to the channel. This keeps your chat quiet during routine "all clear" runs.
+
+**Use `HEARTBEAT_OK` when:**
+- All monitoring checks passed
+- No anomalies detected
+- The checklist doesn't ask you to send content
+
+**Do NOT use `HEARTBEAT_OK` when:**
+- The checklist explicitly asks for a report, summary, joke, greeting, etc.
+- Any check failed or needs attention
+
+The `suppress_count` field tracks how often suppression fires, giving you a signal-to-noise ratio for your checklist quality.
+
+## Provider & Model Override
+
+You can run heartbeats on a cheaper model than your agent's default:
+
+```json
+{
+  "action": "set",
+  "provider_name": "openai",
+  "model": "gpt-4o-mini"
+}
+```
+
+This is applied only during heartbeat runs. Your agent's regular conversations continue using its configured model. The override is useful when heartbeat frequency is high and you want to manage costs.
+
+## Light Context Mode
+
+By default, the agent loads all its context files (BOOTSTRAP.md, SKILLS.md, INSTRUCTIONS.md, etc.) before each run. Enabling `light_context` skips all of them and injects only HEARTBEAT.md:
+
+```json
+{ "action": "set", "light_context": true }
+```
+
+This reduces context size, speeds up execution, and lowers token costs — ideal when the checklist is self-contained and doesn't rely on general agent instructions.
+
+## Delivery Targets
+
+The heartbeat delivers results to the `channel` + `chat_id` pair you configure. GoClaw can suggest targets automatically by inspecting your agent's session history:
+
+- In the Dashboard → **Delivery** tab → click **Fetch targets**
+- Via RPC: `heartbeat.targets` returns known `(channel, chatId, title, kind)` tuples
+
+When an agent self-configures heartbeat using the `set` action from within a real channel conversation, the delivery target is auto-filled from the current conversation context.
+
+## Agent Tool
+
+The `heartbeat` built-in tool lets agents read and manage their own heartbeat configuration:
+
+| Action | Requires Permission | Description |
+|---|---|---|
+| `status` | No | One-line status: enabled, interval, run counts, last/next times |
+| `get` | No | Full configuration as JSON |
+| `set` | Yes | Create or update config (upsert) |
+| `toggle` | Yes | Enable or disable |
+| `set_checklist` | Yes | Write HEARTBEAT.md content |
+| `get_checklist` | No | Read HEARTBEAT.md content |
+| `test` | No | Trigger an immediate run |
+| `logs` | No | View paginated run history |
+
+Permission for mutation actions (`set`, `toggle`, `set_checklist`) falls back to: deny list → allow list → agent owner → always allowed in system context (cron, subagent).
+
+## RPC Methods
+
+| Method | Description |
+|---|---|
+| `heartbeat.get` | Fetch heartbeat config for an agent |
+| `heartbeat.set` | Create or update config (upsert) |
+| `heartbeat.toggle` | Enable or disable (`agentId` + `enabled: bool`) |
+| `heartbeat.test` | Trigger immediate run via wake channel |
+| `heartbeat.logs` | Paginated run history (`limit`, `offset`) |
+| `heartbeat.checklist.get` | Read HEARTBEAT.md content |
+| `heartbeat.checklist.set` | Write HEARTBEAT.md content |
+| `heartbeat.targets` | List known delivery targets from session history |
+
+## Dashboard UI
+
+**HeartbeatCard** (Agent Detail → overview) — Quick status overview: enabled toggle, interval, active hours, delivery target, model override badge, last run time, next run countdown, run/suppress counts, and last error.
+
+**HeartbeatConfigDialog** — Five sections:
+1. **Basic** — Enable switch, interval slider (5–300 min), custom prompt
+2. **Schedule** — Active hours start/end (HH:MM), timezone selector
+3. **Delivery** — Channel dropdown, chat ID, fetch-targets button
+4. **Model & Context** — Provider/model selectors, isolated session toggle, light context toggle, max retries
+5. **Checklist** — HEARTBEAT.md editor with character count, load/save buttons
+
+**HeartbeatLogsDialog** — Paginated run history table: timestamp, status badge (ok / suppressed / error / skipped), duration, token usage, summary or error text.
+
+## Heartbeat vs Cron
+
+| Aspect | Heartbeat | Cron |
+|---|---|---|
+| Purpose | Health monitoring + proactive check-in | General-purpose scheduled tasks |
+| Schedule types | Fixed interval only | `at`, `every`, `cron` (5-field expr) |
+| Minimum interval | 300 seconds | No minimum |
+| Checklist source | HEARTBEAT.md context file | `message` field in job |
+| Suppression | `HEARTBEAT_OK` token | None |
+| Queue-aware | Skips if agent busy (no advance) | Runs regardless |
+| Model override | Configurable per-heartbeat | Not available |
+| Light context | Configurable | Not available |
+| Active hours | Built-in HH:MM + timezone | Not built-in |
+| Cardinality | One per agent | Many per agent |
+
+## Common Issues
+
+| Issue | Cause | Fix |
+|---|---|---|
+| Heartbeat never fires | `enabled: false` or no `next_run_at` | Enable via Dashboard or `{"action": "toggle", "enabled": true}` |
+| Runs but nothing delivered | `HEARTBEAT_OK` in all responses | Check checklist logic; use HEARTBEAT_OK only when truly silent |
+| Skipped every time | Agent is always busy | Heartbeat waits for idle; reduce user conversation load or check session leaks |
+| Outside active hours | `active_hours` window misconfigured | Verify `timezone` matches your IANA zone and HH:MM values |
+| `interval_sec < 300` error | Minimum is 5 minutes | Set `interval_sec` to 300 or higher |
+| No delivery targets | No session history for agent | Start a conversation in the target channel first; targets are auto-discovered |
+| Error status, no detail | All retries failed | Check `heartbeat.logs` for `error` field; verify tools and provider are reachable |
+
+## What's Next
+
+- [Scheduling & Cron](scheduling-cron.md) — general-purpose scheduled tasks and cron expressions
+- [Custom Tools](custom-tools.md) — give your agent shell commands and APIs to call during heartbeat runs
+- [Sandbox](sandbox.md) — isolate code execution during agent runs
 
 
 
@@ -10636,7 +11124,7 @@ Failed jobs record `lastStatus: "error"` and `lastError` with the message. The j
 
 When sandbox mode is enabled, every tool call that touches the filesystem or runs a command (`exec`, `read_file`, `write_file`, `list_files`, `edit`) is routed into a Docker container instead of running directly on the host. The container is ephemeral, network-isolated, and heavily restricted by default — dropped capabilities, read-only root filesystem, tmpfs for `/tmp`, and a 512 MB memory cap.
 
-If Docker is unavailable at runtime, GoClaw falls back to host execution and logs a warning.
+If Docker is unavailable at runtime, GoClaw returns an error and refuses to execute — it will **not** fall back to unsandboxed host execution.
 
 ```mermaid
 graph LR
@@ -10646,7 +11134,7 @@ graph LR
     Container -->|docker exec| Command
     Command -->|stdout/stderr| Tools
     Tools -->|result| Agent
-    Tools -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
+    Tools -->|Docker unavailable| Error["Error\n(sandbox required)"]
 ```
 
 ## Sandbox Modes
@@ -10864,7 +11352,7 @@ docker ps --filter "label=goclaw.sandbox=true"
 | Issue | Cause | Fix |
 |---|---|---|
 | `docker not available` in logs | Docker daemon not running or socket not mounted | Start Docker; ensure socket is mounted in compose |
-| Commands fall back to host execution | Docker unavailable at exec time | Check `sandbox unavailable, falling back to host exec` warning in logs |
+| Commands fail with sandbox error | Docker unavailable at exec time | Start Docker; ensure socket is mounted in compose; sandbox mode does not fall back to host |
 | `docker run failed` on container creation | Image not found or insufficient permissions | Build the sandbox image; check `DOCKER_GID` |
 | Output truncated at 1 MB | Command produced very large output | Increase `max_output_bytes` or pipe output to a file |
 | Container not cleaned up after session | Pruner not running or `idle_hours` too high | Lower `idle_hours`; check `sandbox pruning started` in logs |
@@ -10889,6 +11377,8 @@ docker ps --filter "label=goclaw.sandbox=true"
 GoClaw includes three built-in media generation tools: `create_image`, `create_video`, and `create_audio`. Each tool uses a **provider chain** — a prioritized list of AI providers that GoClaw tries in order. If the first provider fails or times out, it automatically falls back to the next one.
 
 Generated files are saved to `workspace/generated/{YYYY-MM-DD}/` and returned as `MEDIA:` paths that channels render natively (inline images, video players, audio messages).
+
+Generated files are verified after writing — if the file doesn't exist on disk, the tool reports an error instead of returning a broken path.
 
 
 ## Video Generation
@@ -10972,6 +11462,45 @@ The chain executes sequentially — first success wins, last error is returned i
 
 ---
 
+## Image Analysis (read_image)
+
+The `read_image` tool can be configured with a dedicated vision provider chain. When configured, images are routed to the vision provider instead of being attached inline to the main LLM — useful when your main model lacks vision capability or you want a specialized model for image analysis.
+
+Supports the same chain format as `create_*` tools:
+
+```json
+{
+  "builtin_tools": {
+    "settings": {
+      "read_image": {
+        "providers": [
+          { "provider": "gemini", "model": "gemini-2.5-flash", "enabled": true },
+          { "provider": "openai", "model": "gpt-4o", "enabled": true }
+        ]
+      }
+    }
+  }
+}
+```
+
+Also supports the legacy flat format:
+
+```json
+{
+  "builtin_tools": {
+    "settings": {
+      "read_image": {
+        "provider": "gemini"
+      }
+    }
+  }
+}
+```
+
+If no `read_image` chain is configured, images are attached inline to the main LLM as usual.
+
+---
+
 ## Required API Keys
 
 Media generation uses your existing provider API keys. Make sure the relevant providers are configured:
@@ -11017,7 +11546,7 @@ Four providers are available:
 |----------|-----|---------|
 | OpenAI | `openai` | API key |
 | ElevenLabs | `elevenlabs` | API key |
-| Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) + `enabled: true` |
+| Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) — always available as fallback |
 | MiniMax | `minimax` | API key + Group ID |
 
 
@@ -13948,9 +14477,9 @@ Each layer operates independently. Together they form a defense-in-depth archite
 ```mermaid
 flowchart TD
     REQ["Incoming Request"] --> L1["Layer 1: Transport\nCORS · size limits · timing-safe auth · rate limiting"]
-    L1 --> L2["Layer 2: Input\nInjection detection · message truncation"]
-    L2 --> L3["Layer 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval"]
-    L3 --> L4["Layer 4: Output\nCredential scrubbing · web content tagging"]
+    L1 --> L2["Layer 2: Input\nInjection detection · message truncation · ILIKE escape"]
+    L2 --> L3["Layer 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval · file serving protection"]
+    L3 --> L4["Layer 4: Output\nCredential scrubbing · web content tagging · MCP content tagging"]
     L4 --> L5["Layer 5: Isolation\nPer-user workspace · Docker sandbox"]
 ```
 
@@ -13981,31 +14510,62 @@ For public-facing deployments or shared multi-user agents, set `"block"`.
 
 **Message truncation:** Messages exceeding `gateway.max_message_chars` (default 32,000) are truncated — not rejected — and the LLM is notified of the truncation.
 
+**ILIKE ESCAPE:** All database ILIKE queries (search/filter operations) escape `%`, `_`, and `\` characters before execution, preventing SQL wildcard injection attacks.
+
 ---
 
 ## Layer 3: Tool Security
 
 Protects against dangerous command execution, unauthorized file access, and server-side request forgery.
 
-### Shell deny patterns
+### Shell deny groups
 
-7 categories of commands are always blocked regardless of exec approval config:
+15 categories of commands are blocked by default. All groups are **on (denied)** out of the box. Per-agent overrides are possible via `shell_deny_groups` in agent config.
 
-| Category | Examples |
-|----------|----------|
-| Destructive file ops | `rm -rf`, `del /f`, `rmdir /s` |
-| Destructive disk ops | `mkfs`, `dd if=`, `> /dev/sd*` |
-| System commands | `shutdown`, `reboot`, `poweroff` |
-| Fork bombs | `:(){ ... };:` |
-| Remote code execution | `curl \| sh`, `wget -O - \| sh` |
-| Reverse shells | `/dev/tcp/`, `nc -e` |
-| Eval injection | `eval $()`, `base64 -d \| sh` |
+| # | Group | Examples |
+|---|-------|----------|
+| 1 | `destructive_ops` | `rm -rf /`, `dd if=`, `mkfs`, `reboot`, `shutdown` |
+| 2 | `data_exfiltration` | `curl \| sh`, localhost access, DNS queries |
+| 3 | `reverse_shell` | `nc -e`, `socat`, Python/Node socket |
+| 4 | `code_injection` | `eval $()`, `base64 -d \| sh` |
+| 5 | `privilege_escalation` | `sudo`, `su -`, `nsenter`, `mount`, `setcap` |
+| 6 | `dangerous_paths` | `chmod`/`chown` on `/` paths |
+| 7 | `env_injection` | `LD_PRELOAD=`, `DYLD_INSERT_LIBRARIES=` |
+| 8 | `container_escape` | `docker.sock`, `/proc/sys/`, `/sys/kernel/` |
+| 9 | `crypto_mining` | `xmrig`, `cpuminer`, stratum URLs |
+| 10 | `filter_bypass` | `sed /e`, `git --upload-pack=`, CVE mitigations |
+| 11 | `network_recon` | `nmap`, `ssh@`, `ngrok`, `chisel` |
+| 12 | `package_install` | `pip install`, `npm i`, `apk add`, `yarn` |
+| 13 | `persistence` | `crontab`, `.bashrc`, tee shell init |
+| 14 | `process_control` | `kill -9`, `killall`, `pkill` |
+| 15 | `env_dump` | `env`, `printenv`, `GOCLAW_*` vars, `/proc/*/environ` |
+
+To allow a specific group for one agent, set it to `false` in the agent's config:
+
+```json
+{
+  "agents": {
+    "list": {
+      "devops-bot": {
+        "shell_deny_groups": {
+          "package_install": false,
+          "process_control": false
+        }
+      }
+    }
+  }
+}
+```
 
 ### Path traversal prevention
 
 `resolvePath()` applies `filepath.Clean()` then `HasPrefix()` to ensure all file paths stay within the agent's workspace. With `restrict_to_workspace: true` (the default on agents), any path outside the workspace is blocked.
 
 All four filesystem tools (`read_file`, `write_file`, `list_files`, `edit`) implement the `PathDenyable` interface. The agent loop calls `DenyPaths(".goclaw")` at startup — agents cannot read GoClaw's internal data directory. The `list_files` tool filters denied paths from directory listings entirely, so agents never see them.
+
+### File serving path traversal protection
+
+The file serving endpoint (`/v1/files/...`) validates all requested paths to prevent directory traversal attacks. Any path containing `../` sequences or resolving outside the permitted base directory is rejected with a 400 error.
 
 ### SSRF protection (3-step validation)
 
@@ -14030,6 +14590,10 @@ For tools that need credentials (e.g., `gh`, `aws`), GoClaw uses direct process 
 4. **Output scrubbing** — credentials registered at runtime are scrubbed from stdout/stderr
 
 Shell metacharacters (`;`, `|`, `&`, `$()`, backticks) are detected and rejected before execution.
+
+### Shell output limit
+
+Host-executed commands have stdout and stderr capped at **1 MB** each. If a command exceeds this limit, output is truncated with a flag to prevent further writes. Sandboxed execution uses Docker container limits instead.
 
 ### Exec approval
 
@@ -14079,6 +14643,18 @@ Scrubbing is enabled by default. To disable (not recommended):
 
 You can also register runtime values for dynamic scrubbing (e.g., server IPs discovered at runtime) via `AddDynamicScrubValues()` in custom tool integrations.
 
+### MCP content tagging
+
+Results returned by MCP tool calls are wrapped in the same untrusted-content markers as web fetches:
+
+```
+<<<EXTERNAL_UNTRUSTED_CONTENT>>>
+[MCP tool result here]
+<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
+```
+
+This prevents prompt injection from malicious MCP servers — the LLM is instructed not to treat tagged content as instructions.
+
 ### Web content tagging
 
 Content fetched from external URLs is wrapped:
@@ -14092,6 +14668,18 @@ Content fetched from external URLs is wrapped:
 This signals to the LLM that the content is untrusted and should not be treated as instructions.
 
 The content markers are protected against Unicode homoglyph spoofing — GoClaw sanitizes lookalike characters (e.g., Cyrillic `а` vs Latin `a`) to prevent external content from forging the boundary markers.
+
+### MCP content tagging
+
+Tool results from MCP servers are wrapped with the same untrusted content markers:
+
+```
+<<<EXTERNAL_UNTRUSTED_CONTENT>>> (MCP server: my-server, tool: search)
+[tool result here]
+<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
+```
+
+The header identifies the server and tool name. The footer warns the LLM not to follow instructions from the content. Marker breakout attempts are sanitized.
 
 ---
 
@@ -14203,6 +14791,63 @@ API keys are passed via `Authorization: Bearer {key}` header, same as the gatewa
 
 ---
 
+## Memory File Overwrite Protection
+
+The memory interceptor prevents silent data loss when an agent attempts to overwrite an existing memory file with different content. When a write is issued in replace mode (not append) and the target already contains different content, the previous value is captured and returned to the caller so the agent can be warned before data is lost.
+
+**How it works:**
+
+- `appendMode = true` — new content is merged onto existing content with a `---` separator. No overwrite warning.
+- `appendMode = false` — if the target file already contains different content, `PreviousContent` is populated in the write result. The caller decides whether to surface a warning to the agent.
+
+This ensures agents cannot silently clobber memory files with unrelated content during concurrent or sequential writes. The write still proceeds atomically via `PutDocument`, but the warning provides a conflict-detection hook.
+
+---
+
+## Config Permissions System
+
+GoClaw exposes three RPC methods to control which users can modify an agent's configuration (heartbeat intervals, cron schedules, etc.):
+
+| Method | Description |
+|--------|-------------|
+| `config.permissions.list` | List all granted permissions for an agent, optionally filtered by `configType` |
+| `config.permissions.grant` | Grant a specific user permission to modify a config type |
+| `config.permissions.revoke` | Revoke a previously granted permission |
+
+**Permission model — deny → allow fallback:**
+
+By default, config modifications require admin access. Granting a permission to a `userId` for a given `scope` and `configType` allows that user to make the specific change without full admin rights.
+
+**Grant parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `agentId` | yes | UUID of the agent |
+| `scope` | yes | Scope identifier (e.g. `"heartbeat"`, `"cron"`) |
+| `configType` | yes | Config type being controlled |
+| `userId` | yes | User to grant permission to |
+| `permission` | yes | Permission level (e.g. `"write"`) |
+| `grantedBy` | no | Auto-filled from caller's identity if omitted |
+
+**Example — allow a user to modify heartbeat config:**
+
+```json
+{
+  "method": "config.permissions.grant",
+  "params": {
+    "agentId": "3f2a1b4c-0000-0000-0000-000000000000",
+    "scope": "heartbeat",
+    "configType": "interval",
+    "userId": "user:telegram:123456789",
+    "permission": "write"
+  }
+}
+```
+
+Config permission checks are enforced in the Telegram channel and other channel handlers before applying heartbeat or agent configuration updates from user messages.
+
+---
+
 ## Hardening Checklist
 
 Use this before exposing GoClaw to the internet or shared users:
@@ -14220,6 +14865,8 @@ Use this before exposing GoClaw to the internet or shared users:
 - [ ] Set `agents.restrict_to_workspace: true` (this is the default — do not disable)
 - [ ] Create scoped API keys for integrations instead of sharing the gateway token
 - [ ] Configure `tools.credentialed_exec` for secure CLI tool integrations (gh, aws, etc.)
+- [ ] Review shell deny groups — all 15 are on by default; only relax for specific agents that need it
+- [ ] Verify sandbox mode does not fall back to host execution (fail-closed since v0.x)
 
 ---
 
@@ -14259,10 +14906,10 @@ journalctl -u goclaw | grep 'security\.'
 
 ## What's Next
 
-- [Exec Approval](#exec-approval) — interactive human-in-the-loop for shell commands
-- [Sandbox](#sandbox) — Docker sandbox configuration details
-- [Docker Compose](#deploy-docker-compose) — deploying with security settings via compose overlays
-- [Database Setup](#deploy-database) — PostgreSQL TLS and encrypted secret storage
+- [Exec Approval](../advanced/exec-approval.md) — interactive human-in-the-loop for shell commands
+- [Sandbox](../advanced/sandbox.md) — Docker sandbox configuration details
+- [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
+- [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
 
 
@@ -14833,7 +15480,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **21**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **23**.
 
 ```mermaid
 graph LR
@@ -15029,6 +15676,15 @@ Only do this if you understand what the failed migration was doing. When in doub
 ```
 
 > **Data hooks tracking:** GoClaw tracks post-migration Go transforms in a separate `data_migrations` table (distinct from `schema_migrations`). Run `./goclaw upgrade --status` to see both SQL migration version and pending data hooks.
+
+## Recent Migrations
+
+| Version | What changed |
+|---------|-------------|
+| 022 | Creates `agent_heartbeats` and `heartbeat_run_logs` tables for heartbeat monitoring; adds `agent_config_permissions` generic permission table (replaces `group_file_writers`) |
+| 023 | Adds agent hard-delete support (cascade FK constraints on sessions, cron_jobs, delegation_history, team tables; unique index on active agents only); merges `group_file_writers` into `agent_config_permissions` and drops the old table |
+
+For the full schema history see [Database Schema → Migration History](#database-schema).
 
 ## Recently Removed Environment Variables
 
@@ -17144,6 +17800,8 @@ Authorization: Bearer YOUR_GATEWAY_TOKEN
 X-GoClaw-User-Id: user123
 ```
 
+**Input validation:** All string inputs are sanitized before use — SQL special characters are escaped in ILIKE queries, request bodies are limited to 1 MB, and agent/provider/tool names are validated against allowlist patterns (`[a-zA-Z0-9_-]`).
+
 
 ## Providers
 
@@ -17671,9 +18329,12 @@ Messaging channel configuration.
 | `history_limit` | integer | `50` | Max pending group messages for context (0 = disabled) |
 | `dm_stream` | boolean | `false` | Progressive streaming for DMs |
 | `group_stream` | boolean | `false` | Progressive streaming for groups |
+| `draft_transport` | boolean | `true` | Use draft message API for DM streaming (stealth preview, no per-edit notifications) |
+| `reasoning_stream` | boolean | `true` | Show extended thinking as a separate message when the provider emits thinking events |
 | `reaction_level` | string | `full` | `"off"`, `"minimal"`, `"full"` — status emoji reactions |
 | `media_max_bytes` | integer | `20971520` | Max media download size (20 MB default) |
 | `link_preview` | boolean | `true` | Enable URL previews |
+| `force_ipv4` | boolean | `false` | Force IPv4 for all Telegram API requests (use when IPv6 routing is broken) |
 | `stt_proxy_url` | string | — | Speech-to-text proxy URL for voice messages |
 | `voice_agent_id` | string | — | Route voice messages to this agent |
 | `groups` | object | — | Per-group overrides keyed by chat ID |
@@ -18735,17 +19396,7 @@ Encrypted key-value store for secrets that override `config.json` values (manage
 
 ### `group_file_writers`
 
-Telegram group members authorized to use file-writing tools.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `agent_id` | UUID FK → agents | |
-| `group_id` | VARCHAR(255) | Telegram group/chat ID |
-| `user_id` | VARCHAR(255) | Telegram user ID |
-| `display_name` | VARCHAR(255) | |
-| `username` | VARCHAR(255) | |
-
-**PK:** `(agent_id, group_id, user_id)`
+> **Removed in migration 023.** Data was migrated into `agent_config_permissions` (`config_type = 'file_writer'`).
 
 ---
 
@@ -19046,6 +19697,87 @@ Fine-grained API key management with scope-based access control. (migration 020)
 
 ---
 
+### `agent_heartbeats`
+
+Per-agent heartbeat configuration for periodic proactive check-ins. (migration 022)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL UNIQUE ON DELETE CASCADE | One config per agent |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | Whether heartbeat is active |
+| `interval_sec` | INT | NOT NULL DEFAULT 1800 | Run interval in seconds |
+| `prompt` | TEXT | | Message sent to the agent each heartbeat |
+| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `model` | VARCHAR(200) | | Override model |
+| `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Run in a dedicated session |
+| `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject minimal context |
+| `ack_max_chars` | INT | NOT NULL DEFAULT 300 | Max chars in acknowledgement response |
+| `max_retries` | INT | NOT NULL DEFAULT 2 | Max retry attempts on failure |
+| `active_hours_start` | VARCHAR(5) | | Start of active window (HH:MM) |
+| `active_hours_end` | VARCHAR(5) | | End of active window (HH:MM) |
+| `timezone` | TEXT | | Timezone for active hours |
+| `channel` | VARCHAR(50) | | Delivery channel |
+| `chat_id` | TEXT | | Delivery chat ID |
+| `next_run_at` | TIMESTAMPTZ | | Scheduled next execution |
+| `last_run_at` | TIMESTAMPTZ | | Last execution time |
+| `last_status` | VARCHAR(20) | | Last run status |
+| `last_error` | TEXT | | Last run error |
+| `run_count` | INT | NOT NULL DEFAULT 0 | Total runs |
+| `suppress_count` | INT | NOT NULL DEFAULT 0 | Total suppressed runs |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Indexes:** `idx_heartbeats_due` on `(next_run_at) WHERE enabled = true AND next_run_at IS NOT NULL` — partial index for efficient scheduler polling.
+
+---
+
+### `heartbeat_run_logs`
+
+Execution log for each heartbeat run. (migration 022)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `heartbeat_id` | UUID FK → agent_heartbeats | NOT NULL ON DELETE CASCADE | Parent heartbeat config |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `status` | VARCHAR(20) | NOT NULL | `ok`, `error`, `skipped` |
+| `summary` | TEXT | | Short run summary |
+| `error` | TEXT | | Error message if failed |
+| `duration_ms` | INT | | Run duration in milliseconds |
+| `input_tokens` | INT | DEFAULT 0 | |
+| `output_tokens` | INT | DEFAULT 0 | |
+| `skip_reason` | VARCHAR(50) | | Reason run was skipped |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
+| `ran_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Indexes:** `idx_hb_logs_heartbeat` on `(heartbeat_id, ran_at DESC)`, `idx_hb_logs_agent` on `(agent_id, ran_at DESC)`
+
+---
+
+### `agent_config_permissions`
+
+Generic permission table for agent configuration (heartbeat, cron, file writers, etc.). Replaces `group_file_writers`. (migration 022)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `scope` | VARCHAR(255) | NOT NULL | Group/chat ID scope |
+| `config_type` | VARCHAR(50) | NOT NULL | e.g. `file_writer`, `heartbeat` |
+| `user_id` | VARCHAR(255) | NOT NULL | Grantee user ID |
+| `permission` | VARCHAR(10) | NOT NULL | `allow` or `deny` |
+| `granted_by` | VARCHAR(255) | | Who granted this permission |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata (e.g. displayName, username) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Unique:** `(agent_id, scope, config_type, user_id)`
+
+**Indexes:** `idx_acp_lookup` on `(agent_id, scope, config_type)`
+
+---
+
 ## Migration History
 
 | Version | Description |
@@ -19071,6 +19803,8 @@ Fine-grained API key management with scope-based access control. (migration 020)
 | 19 | `team_id` FK on memory_documents, memory_chunks, kg_entities, kg_relations, traces, spans, cron_jobs, cron_run_logs, sessions |
 | 20 | `secure_cli_binaries` and `api_keys` tables |
 | 21 | `expires_at` on paired_devices; `confidence_score` on team_tasks, team_messages, team_task_comments |
+| 22 | `agent_heartbeats` and `heartbeat_run_logs` tables for heartbeat monitoring; `agent_config_permissions` generic permission table |
+| 23 | Agent hard-delete support (cascade FK constraints, unique index on active agents); merges `group_file_writers` into `agent_config_permissions` |
 
 ---
 

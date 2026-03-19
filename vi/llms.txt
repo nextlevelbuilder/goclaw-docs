@@ -78,6 +78,7 @@
 - [MCP Integration](vi/advanced/mcp-integration.md): Kết nối bất kỳ server Model Context Protocol nào vào GoClaw và ngay lập tức cấp cho agent toàn bộ catalog tool của server đó.
 - [Skills](vi/advanced/skills.md): Đóng gói kiến thức tái sử dụng vào file Markdown và tự động inject vào context của bất kỳ agent nào.
 - [Scheduling & Cron](vi/advanced/scheduling-cron.md): Kích hoạt agent tự động — một lần, theo chu kỳ lặp lại, hoặc theo biểu thức cron.
+- [Heartbeat](vi/advanced/heartbeat.md): Kiểm tra định kỳ chủ động — agent thực thi danh sách kiểm tra có thể cấu hình theo timer và báo cáo kết quả đến channel của bạn.
 - [Sandbox](vi/advanced/sandbox.md): Chạy lệnh shell của agent bên trong container Docker cô lập để code không đáng tin cậy không bao giờ chạm đến host.
 - [Media Generation](vi/advanced/media-generation.md): Tạo hình ảnh, video và âm thanh trực tiếp từ agent — với chuỗi provider tự động fallback.
 - [TTS & Voice](vi/advanced/tts-voice.md): Thêm trả lời bằng giọng nói cho agent — chọn từ bốn provider và kiểm soát chính xác khi nào audio được phát.

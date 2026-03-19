@@ -78,6 +78,7 @@
 - [MCP Integration](advanced/mcp-integration.md): Connect any Model Context Protocol server to GoClaw and instantly give your agents its full tool catalog.
 - [Skills](advanced/skills.md): Package reusable knowledge into Markdown files and inject them into any agent's context automatically.
 - [Scheduling & Cron](advanced/scheduling-cron.md): Trigger agent turns automatically — once, on a repeating interval, or on a cron expression.
+- [Heartbeat](advanced/heartbeat.md): Proactive periodic check-ins — agents execute a configurable checklist on a timer and report results to your channels.
 - [Sandbox](advanced/sandbox.md): Run agent shell commands inside an isolated Docker container so untrusted code never touches your host.
 - [Media Generation](advanced/media-generation.md): Generate images, videos, and audio directly from your agents — with automatic provider fallback chains.
 - [TTS & Voice](advanced/tts-voice.md): Add voice replies to your agents — pick from four providers and control exactly when audio fires.
