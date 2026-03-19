@@ -15,9 +15,10 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Web** | web_search, web_fetch | Search the web (Brave/DuckDuckGo) and fetch pages |
 | **Memory** | memory_search, memory_get, knowledge_graph_search | Query long-term memory (hybrid vector + FTS search) and knowledge graph |
 | **Sessions** | sessions_list, sessions_history, sessions_send, session_status | Manage conversation sessions |
-| **Delegation** | handoff, delegate_search, evaluate_loop | Delegate tasks to other agents |
+| **Delegation** | handoff | Delegate tasks to other agents |
 | **Subagents** | spawn | Spawn subtasks as subagents |
 | **Teams** | team_tasks, team_message | Collaborate with agent teams via task boards |
+| **Heartbeat** | heartbeat | Configure and manage periodic proactive check-ins |
 | **UI** | browser | Browse websites |
 | **Automation** | cron | Schedule recurring jobs |
 | **Messaging** | message | Send messages |
@@ -72,6 +73,22 @@ Set the profile in agent config:
   }
 }
 ```
+
+## Tool Aliases
+
+GoClaw registers aliases so agents can reference tools by alternative names. This enables compatibility with Claude Code skills and legacy tool names:
+
+| Alias | Maps to |
+|-------|---------|
+| `Read` | `read_file` |
+| `Write` | `write_file` |
+| `Edit` | `edit` |
+| `Bash` | `exec` |
+| `WebFetch` | `web_fetch` |
+| `WebSearch` | `web_search` |
+| `edit_file` | `edit` |
+
+Aliases appear as one-line descriptions in the system prompt. They are not separate tools — calling an alias invokes the underlying tool.
 
 ## Policy Engine
 
@@ -158,6 +175,10 @@ Admins can disable specific groups per agent:
 
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
 
+## Adaptive Tool Timing
+
+GoClaw tracks execution time per tool in each session. If a tool call takes longer than 2× its historical maximum (with at least 3 prior samples), a slow-tool notification is emitted. The default threshold for tools without history is 120 seconds.
+
 ## Custom Tools & MCP
 
 Beyond built-in tools, you can extend agents with:
@@ -181,4 +202,4 @@ See [Custom Tools](#custom-tools) and [MCP Integration](#mcp-integration) for de
 - [Multi-Tenancy](#multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](#custom-tools) — Build your own tools
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

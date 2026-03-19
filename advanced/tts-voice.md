@@ -12,7 +12,7 @@ Four providers are available:
 |----------|-----|---------|
 | OpenAI | `openai` | API key |
 | ElevenLabs | `elevenlabs` | API key |
-| Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) + `enabled: true` |
+| Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) — always available as fallback |
 | MiniMax | `minimax` | API key + Group ID |
 
 ---
@@ -239,4 +239,4 @@ pip install edge-tts
 - [Scheduling & Cron](#scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](#extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

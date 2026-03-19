@@ -137,7 +137,7 @@ Teams support fine-grained access control via settings JSON:
   }'
 ```
 
-System channels (`delegate`, `system`) always pass access checks.
+System channels (`teammate`, `system`) always pass access checks.
 
 ## Team Status
 
@@ -155,6 +155,22 @@ To fully remove a team, use the delete operation — it hard-deletes the record 
   --team-id 550e8400-e29b-41d4-a716-446655440000 \
   --status archived
 ```
+
+## Team Members in System Prompt
+
+When a team is active, GoClaw injects a `## Team Members` section into the lead agent's system prompt listing all teammates:
+
+```
+## Team Members
+- agent_key: analyst_agent | display_name: Data Analyst | role: member | expertise: Data analysis and visualization...
+- agent_key: writer_agent | display_name: Content Writer | role: reviewer | expertise: Technical writing...
+```
+
+This lets the lead assign tasks to the correct agent by key without guessing. The section updates automatically when members are added or removed.
+
+## Media Auto-Copy
+
+When a task is created from a conversation that includes media files (images, documents), GoClaw automatically copies those files to the team workspace at `{team_workspace}/attachments/`. Hard links are used when possible for efficiency, with a copy fallback. Files are validated and saved with restrictive permissions (0640).
 
 ## TEAM.md Injection
 
@@ -180,4 +196,4 @@ The context is wrapped in `<system_context>` tags and refreshed automatically wh
 - [Team Messaging](#teams-messaging) - Communicate between members
 - [Delegation & Handoff](#teams-delegation) - Orchestrate work
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

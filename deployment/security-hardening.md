@@ -78,19 +78,44 @@ For public-facing deployments or shared multi-user agents, set `"block"`.
 
 Protects against dangerous command execution, unauthorized file access, and server-side request forgery.
 
-### Shell deny patterns
+### Shell deny groups
 
-7 categories of commands are always blocked regardless of exec approval config:
+15 categories of commands are blocked by default. All groups are **on (denied)** out of the box. Per-agent overrides are possible via `shell_deny_groups` in agent config.
 
-| Category | Examples |
-|----------|----------|
-| Destructive file ops | `rm -rf`, `del /f`, `rmdir /s` |
-| Destructive disk ops | `mkfs`, `dd if=`, `> /dev/sd*` |
-| System commands | `shutdown`, `reboot`, `poweroff` |
-| Fork bombs | `:(){ ... };:` |
-| Remote code execution | `curl \| sh`, `wget -O - \| sh` |
-| Reverse shells | `/dev/tcp/`, `nc -e` |
-| Eval injection | `eval $()`, `base64 -d \| sh` |
+| # | Group | Examples |
+|---|-------|----------|
+| 1 | `destructive_ops` | `rm -rf /`, `dd if=`, `mkfs`, `reboot`, `shutdown` |
+| 2 | `data_exfiltration` | `curl \| sh`, localhost access, DNS queries |
+| 3 | `reverse_shell` | `nc -e`, `socat`, Python/Node socket |
+| 4 | `code_injection` | `eval $()`, `base64 -d \| sh` |
+| 5 | `privilege_escalation` | `sudo`, `su -`, `nsenter`, `mount`, `setcap` |
+| 6 | `dangerous_paths` | `chmod`/`chown` on `/` paths |
+| 7 | `env_injection` | `LD_PRELOAD=`, `DYLD_INSERT_LIBRARIES=` |
+| 8 | `container_escape` | `docker.sock`, `/proc/sys/`, `/sys/kernel/` |
+| 9 | `crypto_mining` | `xmrig`, `cpuminer`, stratum URLs |
+| 10 | `filter_bypass` | `sed /e`, `git --upload-pack=`, CVE mitigations |
+| 11 | `network_recon` | `nmap`, `ssh@`, `ngrok`, `chisel` |
+| 12 | `package_install` | `pip install`, `npm i`, `apk add`, `yarn` |
+| 13 | `persistence` | `crontab`, `.bashrc`, tee shell init |
+| 14 | `process_control` | `kill -9`, `killall`, `pkill` |
+| 15 | `env_dump` | `env`, `printenv`, `GOCLAW_*` vars, `/proc/*/environ` |
+
+To allow a specific group for one agent, set it to `false` in the agent's config:
+
+```json
+{
+  "agents": {
+    "list": {
+      "devops-bot": {
+        "shell_deny_groups": {
+          "package_install": false,
+          "process_control": false
+        }
+      }
+    }
+  }
+}
+```
 
 ### Path traversal prevention
 
@@ -125,6 +150,10 @@ For tools that need credentials (e.g., `gh`, `aws`), GoClaw uses direct process 
 4. **Output scrubbing** — credentials registered at runtime are scrubbed from stdout/stderr
 
 Shell metacharacters (`;`, `|`, `&`, `$()`, backticks) are detected and rejected before execution.
+
+### Shell output limit
+
+Host-executed commands have stdout and stderr capped at **1 MB** each. If a command exceeds this limit, output is truncated with a flag to prevent further writes. Sandboxed execution uses Docker container limits instead.
 
 ### Exec approval
 
@@ -199,6 +228,18 @@ Content fetched from external URLs is wrapped:
 This signals to the LLM that the content is untrusted and should not be treated as instructions.
 
 The content markers are protected against Unicode homoglyph spoofing — GoClaw sanitizes lookalike characters (e.g., Cyrillic `а` vs Latin `a`) to prevent external content from forging the boundary markers.
+
+### MCP content tagging
+
+Tool results from MCP servers are wrapped with the same untrusted content markers:
+
+```
+<<<EXTERNAL_UNTRUSTED_CONTENT>>> (MCP server: my-server, tool: search)
+[tool result here]
+<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
+```
+
+The header identifies the server and tool name. The footer warns the LLM not to follow instructions from the content. Marker breakout attempts are sanitized.
 
 ---
 
@@ -327,6 +368,8 @@ Use this before exposing GoClaw to the internet or shared users:
 - [ ] Set `agents.restrict_to_workspace: true` (this is the default — do not disable)
 - [ ] Create scoped API keys for integrations instead of sharing the gateway token
 - [ ] Configure `tools.credentialed_exec` for secure CLI tool integrations (gh, aws, etc.)
+- [ ] Review shell deny groups — all 15 are on by default; only relax for specific agents that need it
+- [ ] Verify sandbox mode does not fall back to host execution (fail-closed since v0.x)
 
 ---
 
@@ -366,9 +409,9 @@ journalctl -u goclaw | grep 'security\.'
 
 ## What's Next
 
-- [Exec Approval](#exec-approval) — interactive human-in-the-loop for shell commands
-- [Sandbox](#sandbox) — Docker sandbox configuration details
-- [Docker Compose](#deploy-docker-compose) — deploying with security settings via compose overlays
-- [Database Setup](#deploy-database) — PostgreSQL TLS and encrypted secret storage
+- [Exec Approval](../advanced/exec-approval.md) — interactive human-in-the-loop for shell commands
+- [Sandbox](../advanced/sandbox.md) — Docker sandbox configuration details
+- [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
+- [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

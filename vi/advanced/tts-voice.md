@@ -14,7 +14,7 @@ Bốn provider có sẵn:
 |----------|-----|---------|
 | OpenAI | `openai` | API key |
 | ElevenLabs | `elevenlabs` | API key |
-| Microsoft Edge TTS | `edge` | CLI `edge-tts` (miễn phí) + `enabled: true` |
+| Microsoft Edge TTS | `edge` | CLI `edge-tts` (miễn phí) — luôn khả dụng như fallback |
 | MiniMax | `minimax` | API key + Group ID |
 
 ---
@@ -105,7 +105,7 @@ pip install edge-tts
 }
 ```
 
-Trường `enabled` phải là `true` để kích hoạt Edge provider — provider này không có API key để tự động phát hiện.
+Trường `enabled` trong ví dụ trên là tùy chọn — Edge TTS luôn khả dụng và có thể dùng làm fallback tự động khi provider chính thất bại.
 
 Xem tất cả giọng có sẵn:
 
@@ -226,8 +226,8 @@ pip install edge-tts
 
 | Vấn đề | Nguyên nhân | Giải pháp |
 |-------|-------|-----|
-| `tts provider not found: edge` | `enabled` chưa được đặt | Thêm `"enabled": true` vào phần `edge` |
-| `edge-tts failed` | CLI chưa được cài | `pip install edge-tts` |
+| `tts provider not found: edge` | CLI `edge-tts` chưa được cài | `pip install edge-tts` |
+| `edge-tts failed` | CLI lỗi khi thực thi | Kiểm tra cài đặt: `edge-tts --list-voices` |
 | `all tts providers failed` | Tất cả provider báo lỗi | Kiểm tra API key; xem log gateway |
 | Không có giọng nói trong Telegram | `auto` là `off` | Đặt `auto: "inbound"` hoặc `"always"` |
 | Giọng phát trên kết quả tool | `mode` là `all` | Đặt `mode: "final"` |
@@ -238,7 +238,7 @@ pip install edge-tts
 
 ## Tiếp theo
 
-- [Scheduling & Cron](#scheduling-cron) — kích hoạt agent theo lịch
-- [Extended Thinking](#extended-thinking) — suy luận sâu hơn cho câu trả lời phức tạp
+- [Scheduling & Cron](../advanced/scheduling-cron.md) — kích hoạt agent theo lịch
+- [Extended Thinking](../advanced/extended-thinking.md) — suy luận sâu hơn cho câu trả lời phức tạp
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

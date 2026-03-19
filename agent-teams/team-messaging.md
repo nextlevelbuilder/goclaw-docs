@@ -9,7 +9,7 @@ All team members access the mailbox via the `team_message` tool. Actions:
 | Action | Params | Description |
 |--------|--------|-------------|
 | `send` | `to`, `text`, `media` (optional) | Send direct message to specific teammate |
-| `broadcast` | `text` | Send message to all teammates (except self); system/delegate channel only |
+| `broadcast` | `text` | Send message to all teammates (except self); system/teammate channel only |
 | `read` | none | Get unread messages; auto-marks as read |
 
 ## Send a Direct Message
@@ -39,7 +39,7 @@ Message sent to analyst_agent.
 
 ## Broadcast to All Members
 
-Broadcast delivers a message to all team members simultaneously. This action is restricted to system/delegate channels (internal operations) — regular member agents cannot call `broadcast` directly.
+Broadcast delivers a message to all team members simultaneously. This action is restricted to system/teammate channels (internal operations) — regular member agents cannot call `broadcast` directly.
 
 ```json
 {
@@ -160,4 +160,4 @@ All messages are persisted to the database:
 - Timestamps and read status tracked
 - Full message history available for audit/review
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

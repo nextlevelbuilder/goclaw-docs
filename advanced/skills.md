@@ -236,6 +236,10 @@ Always:
 - Keep code examples under 20 lines
 ```
 
+## Skill Evolution
+
+When `skill_evolve` is enabled in agent config, agents gain a `skill_manage` tool that allows them to create, update, and version skills from within conversations — a learning loop where the agent improves its own knowledge base. When `skill_evolve` is **off** (the default), the `skill_manage` tool is hidden from the LLM's tool list entirely.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -252,4 +256,4 @@ Always:
 - [Custom Tools](#custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](#scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

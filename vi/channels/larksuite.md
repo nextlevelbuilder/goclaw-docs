@@ -13,7 +13,9 @@ Tích hợp nhắn tin [Larksuite](https://www.larksuite.com/) hỗ trợ DM, nh
 3. Trong "Bots" → bật tính năng "Bot"
 4. Đặt tên bot và avatar
 5. Sao chép `App ID` và `App Secret`
-6. Cấp permissions: `im:message`, `im:message.p2p_msg:send`, `im:message.group_msg:send`, `contact:user.id:readonly`
+6. Cấp các API scope cần thiết (xem [Required API Scopes](#required-api-scopes) bên dưới)
+7. Đặt Contact Range thành **"All members"** trong Permissions & Scopes → Contacts
+8. Publish phiên bản app (scope chỉ có hiệu lực sau khi publish)
 
 **Bật Larksuite:**
 
@@ -91,7 +93,35 @@ Sau đó cấu hình URL webhook trong Larksuite Developer Console:
 - Gateway mux: `https://your-gateway.com/feishu/events`
 - Server riêng: `https://your-webhook-host:3000/feishu/events`
 
+## Required API Scopes
+
+App Larksuite của bạn cần 15 scope sau. Dashboard hiển thị danh sách đầy đủ trong panel thu gọn khi tạo hoặc chỉnh sửa channel Feishu.
+
+| Scope | Mục đích |
+|-------|---------|
+| `im:message` | Nhắn tin cốt lõi |
+| `im:message:readonly` | Đọc tin nhắn (reply context) |
+| `im:message.p2p_msg:send` | Gửi DM |
+| `im:message.group_msg:send` | Gửi tin nhắn nhóm |
+| `im:message.group_at_msg` | Gửi tin nhắn @-mention |
+| `im:message.group_at_msg:readonly` | Đọc tin nhắn @-mention |
+| `im:chat` | Quản lý chat |
+| `im:chat:readonly` | Đọc thông tin chat |
+| `im:resource` | Upload/download media |
+| `contact:user.base:readonly` | Đọc hồ sơ người dùng |
+| `contact:user.id:readonly` | Phân giải user ID |
+| `contact:user.employee_id:readonly` | Phân giải employee ID |
+| `contact:user.phone:readonly` | Phân giải số điện thoại |
+| `contact:user.email:readonly` | Phân giải email |
+| `contact:department.id:readonly` | Tra cứu phòng ban |
+
+> **Quan trọng:** Sau khi cấp scope, đặt **Contact Range** thành **"All members"** trong Permissions & Scopes → Contacts, rồi publish phiên bản app mới. Nếu không, phân giải contact sẽ trả về tên trống.
+
 ## Tính năng
+
+### Reply Context
+
+Khi người dùng trả lời một tin nhắn trong DM, GoClaw đưa tin nhắn gốc vào làm context cho agent. Trong DM, chú thích `[From: sender_name]` được thêm vào đầu để agent biết ai đã gửi tin nhắn.
 
 ### Streaming Card
 
@@ -152,9 +182,9 @@ Các thread khác nhau trong cùng nhóm duy trì lịch sử riêng.
 
 ## Tiếp theo
 
-- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
-- [Telegram](#channel-telegram) — Thiết lập Telegram bot
-- [Zalo OA](#channel-zalo-oa) — Zalo Official Account
-- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+- [Tổng quan](./overview.md) — Khái niệm và chính sách channel
+- [Telegram](./telegram.md) — Thiết lập Telegram bot
+- [Zalo OA](./zalo-oa.md) — Zalo Official Account
+- [Browser Pairing](./browser-pairing.md) — Luồng pairing
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

@@ -78,6 +78,10 @@ graph TD
     OAI --> Mistral
 ```
 
+## Auto-Clamp max_tokens
+
+When a model rejects a request because `max_tokens` is too large, GoClaw automatically retries with a clamped value. This handles both `max_tokens` and `max_completion_tokens` parameter names depending on the provider. The retry is transparent — the agent never sees the error.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -96,5 +100,7 @@ graph TD
 - [DeepSeek](#provider-deepseek) — DeepSeek with reasoning_content support
 - [Groq](#provider-groq) — ultra-fast inference
 - [Mistral](#provider-mistral) — Mistral AI models
+
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

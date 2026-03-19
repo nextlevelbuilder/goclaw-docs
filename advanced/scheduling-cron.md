@@ -107,6 +107,7 @@ goclaw cron delete <jobId>
 | `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
 | `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
 | `deleteAfterRun` | bool | Auto-set to `true` for `at` jobs; can be set manually on any job |
+| `wakeHeartbeat` | bool | When `true`, triggers an immediate [Heartbeat](heartbeat.md) run after the cron job completes. Useful for jobs that should report status via the heartbeat system |
 
 ## Schedule Expressions
 
@@ -249,8 +250,9 @@ Failed jobs record `lastStatus: "error"` and `lastError` with the message. The j
 
 ## What's Next
 
+- [Heartbeat](heartbeat.md) — proactive periodic check-ins with smart suppression
 - [Custom Tools](#custom-tools) — give agents shell commands to run during scheduled turns
 - [Skills](#skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](#sandbox) — isolate code execution during scheduled agent runs
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

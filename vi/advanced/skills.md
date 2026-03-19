@@ -238,6 +238,10 @@ Always:
 - Keep code examples under 20 lines
 ```
 
+## Tiến hóa Skill (Skill Evolution)
+
+Khi `skill_evolve` được bật trong config của agent, agent sẽ có thêm tool `skill_manage` cho phép tạo, cập nhật, và version skill ngay trong cuộc hội thoại — một vòng lặp học tập giúp agent tự cải thiện knowledge base của mình. Khi `skill_evolve` là **off** (mặc định), tool `skill_manage` bị ẩn hoàn toàn khỏi danh sách tool của LLM.
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Nguyên nhân | Giải pháp |
@@ -250,8 +254,8 @@ Always:
 
 ## Tiếp theo
 
-- [MCP Integration](#mcp-integration) — kết nối server tool bên ngoài
-- [Custom Tools](#custom-tools) — thêm tool shell-backed cho agent
-- [Scheduling & Cron](#scheduling-cron) — chạy agent theo lịch
+- [MCP Integration](../advanced/mcp-integration.md) — kết nối server tool bên ngoài
+- [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
+- [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

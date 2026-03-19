@@ -107,6 +107,10 @@ When the total number of MCP tools across all servers exceeds **40**, GoClaw aut
 
 This keeps the tool list manageable when connecting many MCP servers. There is no configuration required — the switch is automatic.
 
+### Lazy activation
+
+In search mode, if an agent calls a deferred MCP tool directly by name (without searching first), GoClaw **auto-activates** it. The tool is resolved from the MCP server, registered on the fly, and executed — no extra search step needed. This enables compatibility with agents that already know the tool name from prior context.
+
 ## Per-Agent Access Grants
 
 DB-backed servers (added via Dashboard or API) support per-agent and per-user access control. You can also restrict which tools an agent can call:
@@ -247,7 +251,7 @@ No configuration is required — this protection is always active for all MCP to
 
 ## What's Next
 
-- [Custom Tools](#custom-tools) — build shell-backed tools without an MCP server
-- [Skills](#skills) — inject reusable knowledge into agent system prompts
+- [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
+- [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

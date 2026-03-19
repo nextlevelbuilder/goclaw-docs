@@ -17,9 +17,10 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Web** | web_search, web_fetch | Tìm kiếm web (Brave/DuckDuckGo) và fetch trang |
 | **Memory** | memory_search, memory_get, knowledge_graph_search | Truy vấn memory dài hạn (hybrid vector + FTS search) và knowledge graph |
 | **Sessions** | sessions_list, sessions_history, sessions_send, session_status | Quản lý conversation session |
-| **Delegation** | handoff, delegate_search, evaluate_loop | Phân công tác vụ cho agent khác |
+| **Delegation** | handoff | Phân công tác vụ cho agent khác |
 | **Subagents** | spawn | Spawn subtask dưới dạng subagent |
 | **Teams** | team_tasks, team_message | Cộng tác với agent team qua task board |
+| **Heartbeat** | heartbeat | Cấu hình và quản lý check-in định kỳ chủ động |
 | **UI** | browser | Duyệt web |
 | **Automation** | cron | Lên lịch job định kỳ |
 | **Messaging** | message | Gửi tin nhắn |
@@ -74,6 +75,22 @@ Profile kiểm soát tool nào agent có thể truy cập:
   }
 }
 ```
+
+## Tool Aliases
+
+GoClaw đăng ký alias để agent có thể tham chiếu tool bằng tên khác. Điều này cho phép tương thích với Claude Code skills và các tên tool cũ:
+
+| Alias | Maps to |
+|-------|---------|
+| `Read` | `read_file` |
+| `Write` | `write_file` |
+| `Edit` | `edit` |
+| `Bash` | `exec` |
+| `WebFetch` | `web_fetch` |
+| `WebSearch` | `web_search` |
+| `edit_file` | `edit` |
+
+Alias xuất hiện dưới dạng mô tả một dòng trong system prompt. Chúng không phải tool riêng biệt — gọi alias sẽ kích hoạt tool gốc.
 
 ## Policy Engine
 
@@ -160,6 +177,10 @@ Admin có thể tắt nhóm cụ thể theo từng agent:
 
 Cài đặt `tools.exec_approval` thêm một lớp phê duyệt bổ sung (`full`, `light`, hoặc `none`).
 
+## Adaptive Tool Timing
+
+GoClaw theo dõi thời gian thực thi per-tool trong mỗi session. Nếu một lần gọi tool mất hơn 2× giá trị tối đa lịch sử (với ít nhất 3 mẫu trước), một thông báo slow-tool được phát ra. Ngưỡng mặc định cho tool chưa có lịch sử là 120 giây.
+
 ## Custom Tool và MCP
 
 Ngoài tool tích hợp sẵn, bạn có thể mở rộng agent bằng:
@@ -183,4 +204,4 @@ Xem [Custom Tools](#custom-tools) và [MCP Integration](#mcp-integration) để 
 - [Multi-Tenancy](#multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

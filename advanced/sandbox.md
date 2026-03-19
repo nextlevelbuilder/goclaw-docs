@@ -6,7 +6,7 @@
 
 When sandbox mode is enabled, every tool call that touches the filesystem or runs a command (`exec`, `read_file`, `write_file`, `list_files`, `edit`) is routed into a Docker container instead of running directly on the host. The container is ephemeral, network-isolated, and heavily restricted by default — dropped capabilities, read-only root filesystem, tmpfs for `/tmp`, and a 512 MB memory cap.
 
-If Docker is unavailable at runtime, GoClaw falls back to host execution and logs a warning.
+If Docker is unavailable at runtime, GoClaw returns an error and refuses to execute — it will **not** fall back to unsandboxed host execution.
 
 ```mermaid
 graph LR
@@ -16,7 +16,7 @@ graph LR
     Container -->|docker exec| Command
     Command -->|stdout/stderr| Tools
     Tools -->|result| Agent
-    Tools -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
+    Tools -->|Docker unavailable| Error["Error\n(sandbox required)"]
 ```
 
 ## Sandbox Modes
@@ -234,7 +234,7 @@ docker ps --filter "label=goclaw.sandbox=true"
 | Issue | Cause | Fix |
 |---|---|---|
 | `docker not available` in logs | Docker daemon not running or socket not mounted | Start Docker; ensure socket is mounted in compose |
-| Commands fall back to host execution | Docker unavailable at exec time | Check `sandbox unavailable, falling back to host exec` warning in logs |
+| Commands fail with sandbox error | Docker unavailable at exec time | Start Docker; ensure socket is mounted in compose; sandbox mode does not fall back to host |
 | `docker run failed` on container creation | Image not found or insufficient permissions | Build the sandbox image; check `DOCKER_GID` |
 | Output truncated at 1 MB | Command produced very large output | Increase `max_output_bytes` or pipe output to a file |
 | Container not cleaned up after session | Pruner not running or `idle_hours` too high | Lower `idle_hours`; check `sandbox pruning started` in logs |
@@ -246,4 +246,4 @@ docker ps --filter "label=goclaw.sandbox=true"
 - [Exec Approval](#exec-approval) — require human approval before any command runs, sandboxed or not
 - [Scheduling & Cron](#scheduling-cron) — run sandboxed agent turns on a schedule
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

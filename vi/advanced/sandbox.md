@@ -8,7 +8,7 @@
 
 Khi bật chế độ sandbox, mọi lệnh gọi tool chạm vào filesystem hoặc thực thi lệnh (`exec`, `read_file`, `write_file`, `list_files`, `edit`) đều được chuyển vào container Docker thay vì chạy trực tiếp trên host. Container là tạm thời, cô lập mạng, và bị giới hạn nghiêm ngặt theo mặc định — dropped capabilities, filesystem root chỉ đọc, tmpfs cho `/tmp`, và giới hạn bộ nhớ 512 MB.
 
-Nếu Docker không khả dụng lúc runtime, GoClaw fallback sang thực thi trên host và ghi log cảnh báo.
+Nếu Docker không khả dụng lúc runtime, GoClaw trả về lỗi và từ chối thực thi — nó **sẽ không** fallback sang thực thi không sandbox trên host.
 
 ```mermaid
 graph LR
@@ -18,7 +18,7 @@ graph LR
     Container -->|docker exec| Command
     Command -->|stdout/stderr| Tools
     Tools -->|result| Agent
-    Tools -->|Docker unavailable| HostExec["Host exec\n(fallback)"]
+    Tools -->|Docker unavailable| Error["Error\n(sandbox required)"]
 ```
 
 ## Chế độ Sandbox
@@ -236,7 +236,7 @@ docker ps --filter "label=goclaw.sandbox=true"
 | Vấn đề | Nguyên nhân | Giải pháp |
 |---|---|---|
 | `docker not available` trong log | Docker daemon không chạy hoặc socket chưa được mount | Khởi động Docker; đảm bảo socket được mount trong compose |
-| Lệnh fallback sang thực thi trên host | Docker không khả dụng lúc exec | Kiểm tra cảnh báo `sandbox unavailable, falling back to host exec` trong log |
+| Lệnh thất bại với sandbox error | Docker không khả dụng lúc exec | Khởi động Docker; đảm bảo socket được mount trong compose; sandbox mode không fallback sang host |
 | `docker run failed` khi tạo container | Image không tìm thấy hoặc không đủ quyền | Build sandbox image; kiểm tra `DOCKER_GID` |
 | Đầu ra bị cắt ở 1 MB | Lệnh tạo ra đầu ra rất lớn | Tăng `max_output_bytes` hoặc pipe đầu ra vào file |
 | Container không dọn dẹp sau session | Pruner không chạy hoặc `idle_hours` quá cao | Giảm `idle_hours`; kiểm tra `sandbox pruning started` trong log |
@@ -244,8 +244,8 @@ docker ps --filter "label=goclaw.sandbox=true"
 
 ## Tiếp theo
 
-- [Custom Tools](#custom-tools) — định nghĩa shell tool cũng hưởng lợi từ cô lập sandbox
-- [Exec Approval](#exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy, dù có sandbox hay không
-- [Scheduling & Cron](#scheduling-cron) — chạy agent turn được sandbox theo lịch
+- [Custom Tools](../advanced/custom-tools.md) — định nghĩa shell tool cũng hưởng lợi từ cô lập sandbox
+- [Exec Approval](../advanced/exec-approval.md) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy, dù có sandbox hay không
+- [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent turn được sandbox theo lịch
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

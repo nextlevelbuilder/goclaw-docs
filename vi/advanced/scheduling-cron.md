@@ -109,6 +109,7 @@ goclaw cron delete <jobId>
 | `channel` | string | Channel đích: `telegram`, `discord`, v.v. Tự động điền từ context khi `deliver` là `true` |
 | `to` | string | Chat ID hoặc định danh người nhận. Tự động điền từ context khi `deliver` là `true` |
 | `deleteAfterRun` | bool | Tự động đặt `true` cho job `at`; có thể đặt thủ công cho bất kỳ job nào |
+| `wakeHeartbeat` | bool | Khi `true`, kích hoạt chạy [Heartbeat](heartbeat.md) ngay sau khi cron job hoàn thành. Hữu ích cho các job cần báo cáo trạng thái qua hệ thống heartbeat |
 
 ## Biểu thức lịch
 
@@ -251,8 +252,9 @@ Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job
 
 ## Tiếp theo
 
-- [Custom Tools](#custom-tools) — cấp cho agent lệnh shell để chạy trong các turn theo lịch
-- [Skills](#skills) — inject kiến thức domain để agent theo lịch hiệu quả hơn
-- [Sandbox](#sandbox) — cô lập thực thi code trong các agent turn theo lịch
+- [Heartbeat](heartbeat.md) — kiểm tra định kỳ chủ động với tính năng triệt tiêu thông minh
+- [Custom Tools](../advanced/custom-tools.md) — cấp cho agent lệnh shell để chạy trong các turn theo lịch
+- [Skills](../advanced/skills.md) — inject kiến thức domain để agent theo lịch hiệu quả hơn
+- [Sandbox](../advanced/sandbox.md) — cô lập thực thi code trong các agent turn theo lịch
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

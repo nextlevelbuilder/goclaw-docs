@@ -80,6 +80,10 @@ graph TD
     OAI --> Mistral
 ```
 
+## Tự động giới hạn max_tokens
+
+Khi một model từ chối request vì `max_tokens` quá lớn, GoClaw tự động thử lại với giá trị được giới hạn. Cơ chế này xử lý cả tên tham số `max_tokens` và `max_completion_tokens` tùy theo provider. Việc thử lại diễn ra hoàn toàn trong suốt — agent không bao giờ thấy lỗi này.
+
 ## Lỗi thường gặp
 
 | Lỗi | Nguyên nhân | Cách xử lý |
@@ -91,12 +95,12 @@ graph TD
 
 ## Tiếp theo
 
-- [Anthropic](#provider-anthropic) — tích hợp Claude native với extended thinking
-- [OpenAI](#provider-openai) — GPT-4o, các model reasoning o-series
-- [OpenRouter](#provider-openrouter) — truy cập 100+ model qua một API key duy nhất
-- [Gemini](#provider-gemini) — Google Gemini qua endpoint tương thích OpenAI
-- [DeepSeek](#provider-deepseek) — DeepSeek với hỗ trợ reasoning_content
-- [Groq](#provider-groq) — inference cực nhanh
-- [Mistral](#provider-mistral) — các model Mistral AI
+- [Anthropic](./anthropic.md) — tích hợp Claude native với extended thinking
+- [OpenAI](./openai.md) — GPT-4o, các model reasoning o-series
+- [OpenRouter](./openrouter.md) — truy cập 100+ model qua một API key duy nhất
+- [Gemini](./gemini.md) — Google Gemini qua endpoint tương thích OpenAI
+- [DeepSeek](./deepseek.md) — DeepSeek với hỗ trợ reasoning_content
+- [Groq](./groq.md) — inference cực nhanh
+- [Mistral](./mistral.md) — các model Mistral AI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

@@ -11,7 +11,9 @@
 3. Under "Bots" → enable "Bot" capability
 4. Set bot name and avatar
 5. Copy `App ID` and `App Secret`
-6. Grant permissions: `im:message`, `im:message.p2p_msg:send`, `im:message.group_msg:send`, `contact:user.id:readonly`
+6. Grant the required API scopes (see [Required API Scopes](#required-api-scopes) below)
+7. Set Contact Range to **"All members"** under Permissions & Scopes → Contacts
+8. Publish the app version (scopes take effect only after publishing)
 
 **Enable Larksuite:**
 
@@ -89,7 +91,35 @@ Then configure the webhook URL in Larksuite Developer Console:
 - Gateway mux: `https://your-gateway.com/feishu/events`
 - Separate server: `https://your-webhook-host:3000/feishu/events`
 
+## Required API Scopes
+
+Your Larksuite app needs these 15 scopes. The Dashboard shows the full list in a collapsible panel when creating or editing a Feishu channel.
+
+| Scope | Purpose |
+|-------|---------|
+| `im:message` | Core messaging |
+| `im:message:readonly` | Read messages (reply context) |
+| `im:message.p2p_msg:send` | Send DMs |
+| `im:message.group_msg:send` | Send group messages |
+| `im:message.group_at_msg` | Send @-mention messages |
+| `im:message.group_at_msg:readonly` | Read @-mention messages |
+| `im:chat` | Chat management |
+| `im:chat:readonly` | Read chat info |
+| `im:resource` | Upload/download media |
+| `contact:user.base:readonly` | Read user profiles |
+| `contact:user.id:readonly` | Resolve user IDs |
+| `contact:user.employee_id:readonly` | Resolve employee IDs |
+| `contact:user.phone:readonly` | Resolve phone numbers |
+| `contact:user.email:readonly` | Resolve emails |
+| `contact:department.id:readonly` | Department lookup |
+
+> **Important:** After granting scopes, set **Contact Range** to **"All members"** under Permissions & Scopes → Contacts, then publish a new app version. Without this, contact resolution returns empty names.
+
 ## Features
+
+### Reply Context
+
+When a user replies to a message in a DM, GoClaw includes the original message as context for the agent. In DMs, a `[From: sender_name]` annotation is prepended so the agent knows who sent the message.
 
 ### Streaming Cards
 
@@ -155,4 +185,4 @@ Different threads in same group maintain separate histories.
 - [Zalo OA](#channel-zalo-oa) — Zalo Official Account
 - [Browser Pairing](#channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

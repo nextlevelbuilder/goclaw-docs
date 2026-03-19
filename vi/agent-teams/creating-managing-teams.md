@@ -139,7 +139,7 @@ Team hỗ trợ kiểm soát truy cập chi tiết qua settings JSON:
   }'
 ```
 
-Các system channel (`delegate`, `system`) luôn vượt qua kiểm tra truy cập.
+Các system channel (`teammate`, `system`) luôn vượt qua kiểm tra truy cập.
 
 ## Trạng thái Team
 
@@ -157,6 +157,22 @@ Team có trường `status`:
   --team-id 550e8400-e29b-41d4-a716-446655440000 \
   --status archived
 ```
+
+## Thành viên Team trong System Prompt
+
+Khi team đang hoạt động, GoClaw tự động inject phần `## Team Members` vào system prompt của lead agent, liệt kê tất cả các teammate:
+
+```
+## Team Members
+- agent_key: analyst_agent | display_name: Data Analyst | role: member | expertise: Data analysis and visualization...
+- agent_key: writer_agent | display_name: Content Writer | role: reviewer | expertise: Technical writing...
+```
+
+Điều này giúp lead giao task cho đúng agent theo key mà không cần đoán. Phần này tự động cập nhật khi thành viên được thêm hoặc xóa.
+
+## Sao chép Media Tự động
+
+Khi task được tạo từ cuộc hội thoại có đính kèm file media (hình ảnh, tài liệu), GoClaw tự động sao chép các file đó vào workspace của team tại `{team_workspace}/attachments/`. Hard link được dùng khi có thể để tiết kiệm tài nguyên, với fallback là copy thông thường. File được xác thực và lưu với quyền hạn chế (0640).
 
 ## Đưa TEAM.md vào System Prompt
 
@@ -178,8 +194,8 @@ Context được bọc trong tag `<system_context>` và tự động làm mới 
 
 ## Tiếp theo
 
-- [Task Board](#teams-task-board) — Tạo và quản lý task
-- [Team Messaging](#teams-messaging) — Giao tiếp giữa các member
-- [Delegation & Handoff](#teams-delegation) — Điều phối công việc
+- [Task Board](./task-board.md) — Tạo và quản lý task
+- [Team Messaging](./team-messaging.md) — Giao tiếp giữa các member
+- [Delegation & Handoff](./delegation-and-handoff.md) — Điều phối công việc
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
