@@ -109,7 +109,7 @@ Khi tổng số MCP tool từ tất cả server vượt quá **40**, GoClaw tự
 
 Điều này giúp giữ danh sách tool ở mức hợp lý khi kết nối nhiều MCP server. Không cần cấu hình — chuyển đổi xảy ra tự động.
 
-### Kích hoạt lười (Lazy activation)
+### Tự động kích hoạt khi gọi (Lazy Activation)
 
 Trong search mode, nếu agent gọi trực tiếp một MCP tool bị trì hoãn theo tên (mà không tìm kiếm trước), GoClaw **tự động kích hoạt** tool đó. Tool được phân giải từ MCP server, đăng ký ngay lập tức, và thực thi — không cần bước tìm kiếm thêm. Điều này đảm bảo tương thích với các agent đã biết tên tool từ context trước.
 

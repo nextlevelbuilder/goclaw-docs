@@ -91,6 +91,10 @@ const DOC_MAP = {
   'provider-claude-cli': docEntry('providers', 'claude-cli', 'Claude CLI'),
   'provider-codex': docEntry('providers', 'codex-chatgpt', 'Codex / ChatGPT'),
   'provider-acp': docEntry('providers', 'acp', 'ACP (Agent Client Protocol)', 'ACP (Agent Client Protocol)'),
+  'provider-ollama': docEntry('providers', 'ollama', 'Ollama'),
+  'provider-ollama-cloud': docEntry('providers', 'ollama-cloud', 'Ollama Cloud'),
+  'provider-suno': docEntry('providers', 'suno', 'Suno'),
+  'provider-yescale': docEntry('providers', 'yescale', 'YesScale'),
   'provider-custom': docEntry('providers', 'custom-provider', 'Custom / OpenAI-Compatible', 'Tùy chỉnh / OpenAI-Compatible'),
 
   // Channels
@@ -98,6 +102,7 @@ const DOC_MAP = {
   'channel-telegram': docEntry('channels', 'telegram', 'Telegram'),
   'channel-discord': docEntry('channels', 'discord', 'Discord'),
   'channel-feishu': docEntry('channels', 'feishu', 'Feishu / Lark'),
+  'channel-larksuite': docEntry('channels', 'larksuite', 'Larksuite'),
   'channel-zalo-oa': docEntry('channels', 'zalo-oa', 'Zalo OA'),
   'channel-zalo-personal': docEntry('channels', 'zalo-personal', 'Zalo Personal', 'Zalo Cá nhân'),
   'channel-slack': docEntry('channels', 'slack', 'Slack'),
@@ -117,6 +122,7 @@ const DOC_MAP = {
   'mcp-integration': docEntry('advanced', 'mcp-integration', 'MCP Integration', 'Tích hợp MCP'),
   'skills': docEntry('advanced', 'skills', 'Skills', 'Kỹ năng'),
   'scheduling-cron': docEntry('advanced', 'scheduling-cron', 'Scheduling & Cron', 'Lập lịch & Cron'),
+  'heartbeat': docEntry('advanced', 'heartbeat', 'Heartbeat', 'Nhịp tim'),
   'sandbox': docEntry('advanced', 'sandbox', 'Sandbox', 'Hộp cát'),
   'media-generation': docEntry('advanced', 'media-generation', 'Media Generation', 'Tạo Media'),
   'tts-voice': docEntry('advanced', 'tts-voice', 'TTS & Voice', 'Chuyển văn bản thành giọng nói'),
@@ -166,13 +172,18 @@ const DOC_MAP = {
   'template-identity': docEntry('reference/templates', 'identity', 'IDENTITY.md Template'),
   'template-tools': docEntry('reference/templates', 'tools', 'TOOLS.md Template'),
   'template-user': docEntry('reference/templates', 'user', 'USER.md Template'),
+  'template-user-predefined': docEntry('reference/templates', 'user-predefined', 'USER_PREDEFINED.md Template'),
   'template-bootstrap': docEntry('reference/templates', 'bootstrap', 'BOOTSTRAP.md Template'),
+  'template-team': docEntry('reference/templates', 'team', 'TEAM.md Template'),
 
   // Troubleshooting
   'troubleshoot-common': docEntry('troubleshooting', 'common-issues', 'Common Issues', 'Vấn đề thường gặp'),
   'troubleshoot-channels': docEntry('troubleshooting', 'channels', 'Channels', 'Kênh'),
   'troubleshoot-providers': docEntry('troubleshooting', 'providers', 'Providers', 'Provider'),
+  'troubleshoot-websocket': docEntry('troubleshooting', 'websocket', 'WebSocket', 'WebSocket'),
+  'troubleshoot-mcp': docEntry('troubleshooting', 'mcp', 'MCP', 'MCP'),
   'troubleshoot-database': docEntry('troubleshooting', 'database', 'Database', 'Cơ sở dữ liệu'),
+  'troubleshoot-agent-teams': docEntry('troubleshooting', 'agent-teams', 'Agent Teams', 'Agent Teams'),
 };
 
 const DEFAULT_DOC = 'what-is-goclaw';
