@@ -10,8 +10,8 @@ GoClaw compiles to a single static binary (~25 MB). Pick the path that fits your
 |------|----------|---------------|
 | Quick Install (Binary) | Fastest single-command setup on Linux/macOS | curl, PostgreSQL |
 | Bare Metal | Developers who want full control | Go 1.26+, PostgreSQL 15+ with pgvector |
-| Docker (Local) | Run everything via Docker Compose | Docker + Docker Compose |
-| VPS (Production) | Self-hosted production deployment | VPS $5+, Docker |
+| **Docker (Local) ⭐** | **Run everything via Docker Compose (recommended)** | **Docker + Docker Compose, 2 GB+ RAM** |
+| VPS (Production) | Self-hosted production deployment | VPS $5+, Docker, 2 GB+ RAM |
 
 ---
 
@@ -59,6 +59,40 @@ The wizard runs migrations, generates secrets, and saves everything to `.env.loc
 ```bash
 source .env.local && goclaw
 ```
+
+### Open the Dashboard
+
+The binary install only starts the gateway. To access the web dashboard, clone the repo and run the UI:
+
+```bash
+git clone https://github.com/nextlevelbuilder/goclaw.git
+cd goclaw/ui/web
+cp .env.example .env    # Required — configures backend connection
+pnpm install
+pnpm dev
+```
+
+Open `http://localhost:5173` and log in:
+- **User ID:** `system`
+- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
+
+After login, follow the [Quick Start](#quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+
+<details>
+<summary><strong>Alternative: run the dashboard via Docker</strong></summary>
+
+If you have Docker installed, you can run just the dashboard container without building from source:
+
+```bash
+cd goclaw
+docker compose -f docker-compose.selfservice.yml up -d
+```
+
+Dashboard will be available at `http://localhost:3000`.
+
+</details>
+
+> **Tip:** For the easiest all-in-one experience (gateway + database + dashboard), consider [Path 3: Docker (Local)](#path-3-docker-local) instead.
 
 ---
 
@@ -190,9 +224,11 @@ After login, follow the [Quick Start](#quick-start) guide to add an LLM provider
 
 ## Path 3: Docker (Local)
 
-Run GoClaw with Docker Compose — PostgreSQL and the web dashboard included.
+Run GoClaw with Docker Compose — PostgreSQL and the web dashboard included. This is the **recommended path** for most users.
 
 > **Note:** This setup includes PostgreSQL automatically via `docker-compose.postgres.yml`. You don't need to install it separately.
+
+> **Minimum RAM:** 2 GB. The gateway, PostgreSQL, and dashboard containers together use ~1.2 GB at idle.
 
 ### Step 1: Clone & Configure
 
@@ -273,7 +309,7 @@ Deploy GoClaw on a VPS with Docker. Suitable for always-on, internet-accessible 
 
 ### Requirements
 
-- **VPS**: 1 vCPU, 1 GB RAM minimum ($5 tier works). 2 vCPU / 2 GB recommended for heavier workloads.
+- **VPS**: 1 vCPU, **2 GB RAM minimum** ($6 tier). 2 vCPU / 4 GB recommended for heavier workloads.
 - **OS**: Ubuntu 24.04+ or Debian 12+
 - **Domain** (optional): For HTTPS/SSL via reverse proxy
 
