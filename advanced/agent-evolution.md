@@ -351,4 +351,4 @@ Maximum overhead per run with both features enabled: ~305 tokens for skill learn
 - [Predefined Agents](../core-concepts/predefined-agents.md) — how predefined agents differ from open agents
 - [publish_skill](./skill-publishing.md) — directory-based skill publishing
 
-<!-- goclaw-source: 21-agent-evolution-and-skill-management | updated: 2026-03-23 -->
+<!-- goclaw-source: b9d8754 | updated: 2026-03-23 -->

@@ -290,4 +290,4 @@ Trong SaaS mode, cô lập theo user_id như trên vẫn áp dụng bên trong m
 - [Agents Explained](agents-explained.md) — Các loại agent và kiểm soát truy cập
 - [API Keys](../getting-started/api-keys.md) — Tạo và quản lý API key
 
-<!-- goclaw-source: latest | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: b9d8754 | cập nhật: 2026-03-23 -->

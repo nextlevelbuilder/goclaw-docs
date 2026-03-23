@@ -288,4 +288,4 @@ In SaaS mode, the above user-level isolation applies within each tenant, and **4
 - [Agents Explained](agents-explained.md) — Agent types and access control
 - [API Keys](../getting-started/api-keys.md) — Creating and managing API keys
 
-<!-- goclaw-source: latest | updated: 2026-03-23 -->
+<!-- goclaw-source: b9d8754 | updated: 2026-03-23 -->

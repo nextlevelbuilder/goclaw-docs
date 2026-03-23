@@ -351,4 +351,4 @@ Chi phí tối đa mỗi lần chạy với cả hai tính năng bật: ~305 tok
 - [Predefined Agents](../core-concepts/predefined-agents.md) — sự khác biệt giữa predefined agents và open agents
 - [publish_skill](./skill-publishing.md) — publishing skill dựa trên thư mục
 
-<!-- goclaw-source: 21-agent-evolution-and-skill-management | updated: 2026-03-23 -->
+<!-- goclaw-source: b9d8754 | cập nhật: 2026-03-23 -->
