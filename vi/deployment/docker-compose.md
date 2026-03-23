@@ -36,6 +36,29 @@ Chạy script chuẩn bị môi trường để tự động tạo các secret c
 
 Script này tạo `.env` từ `.env.example` và tự động sinh `GOCLAW_ENCRYPTION_KEY` và `GOCLAW_GATEWAY_TOKEN` nếu chưa có.
 
+Tùy chọn thêm API key của LLM provider vào `.env` ngay, hoặc thêm sau qua web dashboard:
+
+```env
+GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
+# hoặc GOCLAW_ANTHROPIC_API_KEY=sk-ant-xxxxx
+# hoặc bất kỳ GOCLAW_*_API_KEY nào khác
+```
+
+> **Docker vs bare metal:** Với Docker, cấu hình provider qua `.env` hoặc qua web dashboard sau khi khởi động. Wizard `goclaw onboard` chỉ dành cho bare metal — nó cần terminal tương tác và không chạy được trong container.
+
+### Biến môi trường bắt buộc vs tùy chọn (Docker)
+
+| Biến | Bắt buộc | Ghi chú |
+|------|----------|---------|
+| `GOCLAW_GATEWAY_TOKEN` | Có | Tự sinh bởi `prepare-env.sh` |
+| `GOCLAW_ENCRYPTION_KEY` | Có | Tự sinh bởi `prepare-env.sh` |
+| `GOCLAW_*_API_KEY` | Không | Key của LLM provider — đặt trong `.env` hoặc thêm qua dashboard. Cần có trước khi chat |
+| `GOCLAW_AUTO_UPGRADE` | Khuyến nghị | Đặt `true` để tự chạy DB migration khi khởi động |
+| `POSTGRES_USER` | Không | Mặc định: `goclaw` |
+| `POSTGRES_PASSWORD` | Không | Mặc định: `goclaw` — **đổi cho production** |
+
+> **Quan trọng:** Tất cả biến `GOCLAW_*` phải đặt trong file `.env`, không dùng prefix trước command (ví dụ `GOCLAW_AUTO_UPGRADE=true docker compose …` sẽ **không hoạt động** vì compose đọc từ `env_file`).
+
 ### Tối giản — chỉ core + PostgreSQL
 
 Không dashboard, không sandbox. Phù hợp cho các triển khai headless/API-only.
@@ -364,6 +387,8 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 | Dashboard trả về 502 | Service `goclaw` chưa healthy | Kiểm tra `docker compose logs goclaw`; dashboard phụ thuộc vào goclaw |
 | OTel traces không hiện trong Jaeger | Binary build thiếu `ENABLE_OTEL=true` | Thêm flag `--build` khi dùng otel overlay; nó sẽ rebuild với build arg |
 | Port 5432 đã bị chiếm | Postgres local đang chạy | Đặt `POSTGRES_PORT=5433` trong `.env` |
+| `database schema is outdated` | Migration chưa chạy sau khi update | Thêm `GOCLAW_AUTO_UPGRADE=true` vào **file** `.env` (không dùng prefix trước command — compose đọc từ `env_file`), hoặc chạy upgrade overlay trước khi start |
+| `network shared … incorrect label` | Docker network `shared` đã tồn tại (tạo thủ công hoặc từ project khác) | Chạy `docker network rm shared` rồi thử lại — Compose tự tạo network `shared` |
 
 ---
 
@@ -374,4 +399,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](#deploy-observability) — cấu hình OpenTelemetry và Jaeger
 - [Tailscale](#deploy-tailscale) — truy cập từ xa an toàn qua Tailscale
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 0bce640 | cập nhật: 2026-03-24 -->
