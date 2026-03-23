@@ -240,6 +240,15 @@ cd goclaw
 ./prepare-env.sh
 ```
 
+Optionally add an LLM provider API key to `.env` now (or add it later via the dashboard):
+
+```env
+GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
+# or GOCLAW_ANTHROPIC_API_KEY=sk-ant-xxxxx
+```
+
+> **Note:** You do **not** need to run `goclaw onboard` for Docker — the onboard wizard is for bare metal only. Docker reads all configuration from `.env` and auto-runs migrations on startup.
+
 ### Step 2: Start Services
 
 GoClaw uses modular Docker Compose files:

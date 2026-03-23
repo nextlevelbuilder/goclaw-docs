@@ -242,6 +242,15 @@ cd goclaw
 ./prepare-env.sh
 ```
 
+Tùy chọn thêm API key của LLM provider vào `.env` ngay (hoặc thêm sau qua dashboard):
+
+```env
+GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
+# hoặc GOCLAW_ANTHROPIC_API_KEY=sk-ant-xxxxx
+```
+
+> **Lưu ý:** Bạn **không cần** chạy `goclaw onboard` cho Docker — wizard onboard chỉ dành cho bare metal. Docker đọc cấu hình từ `.env` và tự chạy migration khi khởi động.
+
 ### Bước 2: Khởi động services
 
 GoClaw dùng các file Docker Compose theo module:
