@@ -1,6 +1,6 @@
 > Bản dịch từ [English version](#deploy-database)
 
-# Database Setup
+# Thiết lập Database
 
 > GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` để lưu trữ đa tenant, tìm kiếm memory, và theo dõi usage.
 

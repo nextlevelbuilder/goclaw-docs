@@ -1,6 +1,6 @@
 > Bản dịch từ [English version](#deploy-security)
 
-# Security Hardening
+# Tăng cường bảo mật
 
 > GoClaw dùng năm lớp bảo vệ độc lập — transport, input, tools, output, và isolation — để bypass một lớp không ảnh hưởng đến các lớp còn lại.
 

@@ -1,6 +1,6 @@
 > Bản dịch từ [English version](#tts-voice)
 
-# TTS Voice
+# Chuyển văn bản thành giọng nói
 
 > Thêm trả lời bằng giọng nói cho agent — chọn từ bốn provider và kiểm soát chính xác khi nào audio được phát.
 

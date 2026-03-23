@@ -1,4 +1,4 @@
-# Model Steering
+# Điều hướng mô hình
 
 > Cách GoClaw dẫn dắt các model nhỏ qua 3 tầng kiểm soát: Track (lập lịch), Hint (gợi ý theo ngữ cảnh) và Guard (ranh giới an toàn).
 

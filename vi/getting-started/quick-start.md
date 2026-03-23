@@ -1,6 +1,6 @@
 > Bản dịch từ [English version](#quick-start)
 
-# Quick Start
+# Bắt đầu nhanh
 
 > Cuộc trò chuyện AI agent đầu tiên của bạn trong 5 phút.
 
