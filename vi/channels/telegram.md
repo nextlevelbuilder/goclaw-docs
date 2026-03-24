@@ -247,4 +247,4 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 - [Browser Pairing](#channel-browser-pairing) — Luồng pairing
 - [Sessions & History](#sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-19 -->
+<!-- goclaw-source: eab3766c | cập nhật: 2026-03-24 -->

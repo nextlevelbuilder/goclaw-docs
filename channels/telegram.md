@@ -245,4 +245,4 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 - [Browser Pairing](#channel-browser-pairing) — Pairing flow
 - [Sessions & History](#sessions-and-history) — Conversation history
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->
+<!-- goclaw-source: eab3766c | updated: 2026-03-24 -->
