@@ -9,6 +9,8 @@ Telegram bot integration via long polling (Bot API). Supports DMs, groups, forum
 2. `/newbot` → choose name and username
 3. Copy the token (format: `123456:ABCDEFGHIJKLMNOPQRSTUVWxyz...`)
 
+> **Important — Group Privacy Mode:** By default, Telegram bots run in **privacy mode** and can only see commands (`/`) and @mentions in groups. To let the bot read all group messages (required for history buffer, `require_mention: false`, and group context), message **@BotFather** → `/setprivacy` → select your bot → **Disable**. Without this, the bot will silently ignore most group messages.
+
 **Enable Telegram:**
 
 ```json
@@ -230,8 +232,8 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 
 | Issue | Solution |
 |-------|----------|
-| Bot not responding in groups | Check `require_mention=true` (default). Mention bot or reply to its message. |
-| Media downloads fail | Verify bot has `Can read all group messages` in @BotFather settings. Check `media_max_bytes` limit. |
+| Bot not responding in groups | Ensure privacy mode is disabled via @BotFather (`/setprivacy` → Disable). Then check `require_mention=true` (default) — mention bot or reply to its message. |
+| Media downloads fail | Verify bot has `Can read all group messages` in @BotFather (`/setprivacy` → Disable). Check `media_max_bytes` limit. |
 | STT transcription missing | Verify STT proxy URL and API key. Check logs for timeout. |
 | Streaming not working | Enable `dm_stream` or `group_stream`. Ensure provider supports streaming. |
 | Topic routing fails | Check topic ID in config keys (integer thread ID). Generic topic (ID=1) stripped in Telegram API. |

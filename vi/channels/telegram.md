@@ -11,6 +11,8 @@ Tích hợp Telegram bot qua long polling (Bot API). Hỗ trợ DM, nhóm, forum
 2. `/newbot` → chọn tên và username
 3. Sao chép token (định dạng: `123456:ABCDEFGHIJKLMNOPQRSTUVWxyz...`)
 
+> **Quan trọng — Group Privacy Mode:** Mặc định, Telegram bot chạy ở **privacy mode** và chỉ nhận được command (`/`) và @mention trong group. Để bot đọc được tất cả tin nhắn trong group (cần thiết cho history buffer, `require_mention: false`, và group context), nhắn **@BotFather** → `/setprivacy` → chọn bot → **Disable**. Nếu không, bot sẽ bỏ qua hầu hết tin nhắn trong group.
+
 **Bật Telegram:**
 
 ```json
@@ -36,15 +38,15 @@ Tất cả config key nằm trong `channels.telegram`:
 | `enabled` | bool | false | Bật/tắt channel |
 | `token` | string | bắt buộc | Bot API token từ BotFather |
 | `proxy` | string | -- | HTTP proxy (ví dụ: `http://proxy:8080`) |
-| `allow_from` | list | -- | Danh sách trắng user ID hoặc username |
+| `allow_from` | list | -- | Allowlist user ID hoặc username |
 | `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
 | `group_policy` | string | `"open"` | `open`, `allowlist`, `disabled` |
-| `require_mention` | bool | true | Yêu cầu mention @bot trong nhóm |
+| `require_mention` | bool | true | Yêu cầu mention @bot trong group |
 | `history_limit` | int | 50 | Tin nhắn chờ tối đa mỗi nhóm (0=tắt) |
 | `dm_stream` | bool | false | Bật streaming cho DM (chỉnh sửa placeholder) |
 | `group_stream` | bool | false | Bật streaming cho nhóm (tin nhắn mới) |
-| `draft_transport` | bool | false | Dùng `sendMessageDraft` cho DM streaming (xem trước ẩn, không thông báo mỗi lần chỉnh sửa) |
-| `reasoning_stream` | bool | true | Hiển thị token suy luận dưới dạng tin nhắn riêng trước câu trả lời |
+| `draft_transport` | bool | false | Dùng `sendMessageDraft` cho DM streaming (stealth preview, không thông báo mỗi lần edit) |
+| `reasoning_stream` | bool | true | Hiển thị reasoning token dưới dạng tin nhắn riêng trước câu trả lời |
 | `block_reply` | bool | -- | Ghi đè cài đặt `block_reply` của gateway cho channel này (nil = kế thừa) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (chỉ ⏳), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Kích thước file media tối đa |
@@ -56,7 +58,7 @@ Tất cả config key nằm trong `channels.telegram`:
 | `stt_timeout_seconds` | int | 30 | Timeout cho request STT |
 | `voice_agent_id` | string | -- | Định tuyến voice message đến agent cụ thể |
 
-**Giới hạn upload media**: Trường `media_max_bytes` áp đặt giới hạn cứng cho việc upload media ra ngoài do agent gửi (mặc định 20 MB). File vượt quá giới hạn này bị bỏ qua yên lặng và ghi log. Không ảnh hưởng đến media nhận vào từ người dùng.
+**Giới hạn upload media**: Trường `media_max_bytes` áp đặt hard limit cho outbound media upload do agent gửi (mặc định 20 MB). File vượt giới hạn bị skip và ghi log. Không ảnh hưởng đến inbound media từ user.
 
 ## Cấu hình nhóm
 
@@ -94,8 +96,8 @@ Các config key cho nhóm:
 - `group_policy` — Ghi đè chính sách cấp nhóm
 - `allow_from` — Ghi đè allowlist
 - `require_mention` — Ghi đè yêu cầu mention
-- `skills` — Danh sách trắng skill (nil=tất cả, []=không có)
-- `tools` — Danh sách trắng tool (hỗ trợ cú pháp `group:xxx`)
+- `skills` — Whitelist skill (nil=tất cả, []=không có)
+- `tools` — Whitelist tool (hỗ trợ cú pháp `group:xxx`)
 - `system_prompt` — Extra system prompt cho nhóm này
 - `topics` — Ghi đè theo topic (key: topic/thread ID)
 
@@ -103,19 +105,19 @@ Các config key cho nhóm:
 
 ### Mention Gating
 
-Trong nhóm, bot chỉ phản hồi tin nhắn có mention nó (mặc định `require_mention: true`). Khi không được mention, tin nhắn được lưu vào buffer lịch sử chờ (mặc định 50 tin nhắn) và được đưa vào context khi bot được mention. Reply vào tin nhắn của bot được tính là mention.
+Trong group, bot chỉ phản hồi tin nhắn có mention nó (mặc định `require_mention: true`). Khi không được mention, tin nhắn được lưu vào pending history buffer (mặc định 50 tin nhắn) và được đưa vào context khi bot được mention. Reply vào tin nhắn của bot được tính là mention.
 
 ```mermaid
 flowchart TD
-    MSG["User đăng trong nhóm"] --> MENTION{"Bot được @mention<br/>hoặc reply?"}
-    MENTION -->|Không| BUFFER["Thêm vào lịch sử chờ<br/>(tối đa 50 tin nhắn)"]
-    MENTION -->|Có| PROCESS["Xử lý ngay<br/>Kèm lịch sử làm context"]
-    BUFFER --> NEXT["Mention tiếp theo:<br/>lịch sử được đưa vào"]
+    MSG["User gửi tin trong group"] --> MENTION{"Bot được @mention<br/>hoặc reply?"}
+    MENTION -->|Không| BUFFER["Thêm vào pending history<br/>(tối đa 50 tin nhắn)"]
+    MENTION -->|Có| PROCESS["Xử lý ngay<br/>Kèm history làm context"]
+    BUFFER --> NEXT["Mention tiếp theo:<br/>history được đưa vào"]
 ```
 
-### Đồng thời trong nhóm
+### Group Concurrency
 
-Session nhóm hỗ trợ tối đa **3 lần chạy agent đồng thời**. Khi đạt giới hạn này, các tin nhắn tiếp theo sẽ được xếp hàng. Áp dụng cho tất cả context nhóm và forum topic.
+Group session hỗ trợ tối đa **3 agent run đồng thời**. Khi đạt giới hạn này, các tin nhắn tiếp theo sẽ được xếp hàng chờ. Áp dụng cho tất cả group context và forum topic.
 
 ### Forum Topic
 
@@ -168,16 +170,16 @@ Khi user gửi voice message:
 
 Bật cập nhật phản hồi trực tiếp:
 
-- **DM** (`dm_stream`): Chỉnh sửa placeholder "Thinking..." khi từng chunk đến. Mặc định dùng `sendMessage+editMessageText`; đặt `draft_transport: true` để dùng `sendMessageDraft` (xem trước ẩn, không thông báo mỗi lần chỉnh sửa, nhưng có thể gây lỗi "reply to deleted message" trên một số client).
-- **Nhóm** (`group_stream`): Gửi placeholder, chỉnh sửa với phản hồi đầy đủ
+- **DM** (`dm_stream`): Edit placeholder "Thinking..." khi từng chunk đến. Mặc định dùng `sendMessage+editMessageText`; đặt `draft_transport: true` để dùng `sendMessageDraft` (stealth preview, không thông báo mỗi lần edit, nhưng có thể gây lỗi "reply to deleted message" trên một số client).
+- **Group** (`group_stream`): Gửi placeholder, edit với phản hồi đầy đủ
 
-Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), token suy luận hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
+Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), reasoning token hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
 
 ### Reaction
 
 Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
 
-> Các reaction typing indicator hiện được xử lý với khả năng phục hồi lỗi tốt hơn — các loại reaction không hợp lệ được bắt một cách gracefully thay vì gây ra lỗi.
+> Typing indicator reaction giờ có error recovery tốt hơn — invalid reaction type được handle gracefully thay vì gây lỗi.
 
 - `off` — Không có reaction
 - `minimal` — Chỉ ⏳ (đang suy nghĩ)
@@ -185,7 +187,7 @@ Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
 
 ### Lệnh Bot
 
-Lệnh được xử lý trước khi làm phong phú tin nhắn:
+Lệnh được xử lý trước bước message enrichment:
 
 | Lệnh | Hành vi | Hạn chế |
 |---------|----------|-----------|
@@ -203,17 +205,17 @@ Lệnh được xử lý trước khi làm phong phú tin nhắn:
 
 Writer là thành viên nhóm được phép chạy lệnh nhạy cảm (`/reset`, ghi file). Quản lý qua `/addwriter` và `/removewriter` (reply vào tin nhắn của user mục tiêu).
 
-## Cách ly mạng
+## Network Isolation
 
-Mỗi instance Telegram duy trì một HTTP transport riêng biệt — không dùng chung connection pool giữa các bot. Điều này ngăn contention giữa các bot và cho phép định tuyến mạng theo từng tài khoản.
+Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share connection pool giữa các bot. Điều này ngăn cross-bot contention và cho phép network routing theo từng account.
 
 | Tuỳ chọn | Mặc định | Mô tả |
 |--------|---------|-------------|
-| `force_ipv4` | false | Bắt buộc dùng IPv4 cho tất cả kết nối. Hữu ích cho sticky routing hoặc khi IPv6 bị lỗi/chặn. |
+| `force_ipv4` | false | Bắt buộc dùng IPv4 cho tất cả connection. Hữu ích cho sticky routing hoặc khi IPv6 bị lỗi/chặn. |
 | `proxy` | -- | URL HTTP proxy cho instance bot này (ví dụ: `http://proxy:8080`). |
 | `api_server` | -- | Server Telegram Bot API tuỳ chỉnh. Hữu ích với local Bot API server hoặc private deployment. |
 
-**Sticky IPv4 fallback**: Khi `force_ipv4: true`, dialer được khóa vào `tcp4` lúc khởi động, đảm bảo IP nguồn nhất quán cho tất cả request đến Telegram. Hữu ích cho quản lý rate limit trong môi trường có IPv6 không ổn định.
+**Sticky IPv4 fallback**: Khi `force_ipv4: true`, dialer được lock vào `tcp4` lúc khởi động, đảm bảo source IP nhất quán cho tất cả request đến Telegram. Hữu ích cho rate limit management trong môi trường có IPv6 không ổn định.
 
 ```json
 {
@@ -232,8 +234,8 @@ Mỗi instance Telegram duy trì một HTTP transport riêng biệt — không d
 
 | Vấn đề | Giải pháp |
 |-------|----------|
-| Bot không phản hồi trong nhóm | Kiểm tra `require_mention=true` (mặc định). Mention bot hoặc reply vào tin nhắn của nó. |
-| Tải media thất bại | Xác minh bot có quyền "Can read all group messages" trong @BotFather. Kiểm tra giới hạn `media_max_bytes`. |
+| Bot không phản hồi trong group | Đảm bảo đã tắt privacy mode qua @BotFather (`/setprivacy` → Disable). Kiểm tra `require_mention=true` (mặc định) — mention bot hoặc reply vào tin nhắn của nó. |
+| Tải media thất bại | Xác minh bot đã Disable privacy mode trong @BotFather (`/setprivacy` → Disable). Kiểm tra giới hạn `media_max_bytes`. |
 | Thiếu transcript STT | Xác minh URL proxy STT và API key. Kiểm tra log về timeout. |
 | Streaming không hoạt động | Bật `dm_stream` hoặc `group_stream`. Đảm bảo provider hỗ trợ streaming. |
 | Định tuyến topic thất bại | Kiểm tra topic ID trong config key (integer thread ID). Generic topic (ID=1) bị loại bỏ trong Telegram API. |
