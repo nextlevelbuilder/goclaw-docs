@@ -414,6 +414,19 @@ Kiểm tra config permission được thực thi trong Telegram channel và các
 
 ---
 
+## Goroutine Panic Recovery
+
+GoClaw bọc tất cả goroutine nền (thực thi tool, cron job, summarization) trong panic recovery handler qua package `safego`. Nếu một goroutine bị panic, lỗi được bắt và ghi log thay vì crash toàn bộ server.
+
+Áp dụng tự động cho:
+- Goroutine thực thi tool
+- Thực thi cron job
+- Tác vụ summarization nền
+
+Không cần cấu hình — panic recovery luôn hoạt động.
+
+---
+
 ## Hardening Checklist
 
 Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ:
@@ -477,4 +490,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploy với security settings qua compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS và encrypted secret storage
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-25 -->

@@ -239,6 +239,19 @@ The LLM is instructed to treat anything inside these markers as **data**, not as
 
 No configuration is required — this protection is always active for all MCP tool calls.
 
+## Admin User Credentials
+
+Admins can set MCP user credentials on behalf of any user. This is useful for pre-configuring OAuth tokens or API keys for MCP servers that require per-user authentication.
+
+```bash
+curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{userID} \
+  -H "Authorization: Bearer $GOCLAW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"credentials": {"api_key": "user-specific-key"}}'
+```
+
+Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPTION_KEY`.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -254,4 +267,4 @@ No configuration is required — this protection is always active for all MCP to
 - [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
 - [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->

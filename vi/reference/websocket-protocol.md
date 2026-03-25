@@ -268,6 +268,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `teams.tasks.comments` | Liệt kê comment của task |
 | `teams.tasks.events` | Liệt kê lịch sử event của task |
 | `teams.tasks.delete` | Xóa task |
+| `teams.tasks.active-by-session` | Lấy task đang hoạt động theo session (dùng để khôi phục trạng thái khi chuyển session) |
 | `teams.workspace.list` | Liệt kê file workspace của team |
 | `teams.workspace.read` | Đọc file workspace |
 | `teams.workspace.delete` | Xóa file workspace |
@@ -380,4 +381,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](#cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](#glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->

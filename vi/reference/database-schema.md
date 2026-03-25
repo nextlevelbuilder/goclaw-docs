@@ -57,6 +57,7 @@ erDiagram
     agents ||--o| agent_heartbeats : "has"
     agent_heartbeats ||--o{ heartbeat_run_logs : "logs"
     agents ||--o{ agent_config_permissions : "has"
+    tenants ||--o{ system_configs : "has"
 ```
 
 ---
@@ -934,6 +935,23 @@ Bảng permission tổng quát cho cấu hình agent (heartbeat, cron, file writ
 
 ---
 
+### `system_configs`
+
+Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback về master tenant ở tầng ứng dụng. (migration 029)
+
+| Cột | Type | Constraint | Mô tả |
+|-----|------|------------|-------|
+| `key` | VARCHAR(100) | PK (composite) | Config key |
+| `value` | TEXT | NOT NULL | Giá trị config (plain text, không mã hóa) |
+| `tenant_id` | UUID FK → tenants | PK (composite), ON DELETE CASCADE | Tenant sở hữu |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | Thời gian cập nhật |
+
+**Primary Key:** `(key, tenant_id)`
+
+**Indexes:** `idx_system_configs_tenant` trên `(tenant_id)`
+
+---
+
 ## Lịch sử Migration
 
 | Phiên bản | Mô tả |
@@ -966,6 +984,7 @@ Bảng permission tổng quát cho cấu hình agent (heartbeat, cron, file writ
 | 26 | Thêm `owner_id VARCHAR(255)` vào `api_keys` — khi đặt, xác thực qua key này ép `user_id = owner_id` (API key gắn với user); thêm bảng `team_user_grants` cho kiểm soát truy cập team; xóa bảng `handoff_routes` và `delegation_history` cũ |
 | 27 | Tenant foundation — tạo bảng `tenants` và `tenant_users`; seed master tenant (`0193a5b0-7000-7000-8000-000000000001`); thêm cột `tenant_id` vào 40+ bảng cho multi-tenant isolation; thay unique constraint toàn cục bằng composite index theo tenant; thêm bảng `builtin_tool_tenant_configs`, `skill_tenant_configs` và `mcp_user_credentials`; xóa bảng `custom_tools` (dead code); chuyển UUID v4 default còn lại sang v7 |
 | 28 | Thêm `comment_type VARCHAR(20) DEFAULT 'note'` vào `team_task_comments` — hỗ trợ loại `"blocker"` kích hoạt tự động fail task và escalation lên lead |
+| 29 | `system_configs` — kho cấu hình key-value tập trung theo tenant; PK composite `(key, tenant_id)` với cascade delete |
 
 ---
 
@@ -975,4 +994,4 @@ Bảng permission tổng quát cho cấu hình agent (heartbeat, cron, file writ
 - [Config Reference](#config-reference) — cấu hình database map sang `config.json` như thế nào
 - [Glossary](#glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 941a965 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-25 -->

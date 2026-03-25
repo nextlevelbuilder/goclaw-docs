@@ -104,6 +104,9 @@ flowchart TD
 | Reports progress via task board | No | Yes |
 | Sends/receives mailbox messages | Yes | Yes |
 | Spawn / delegate access | Yes | No |
+| Self-assign tasks | No | N/A |
+
+> **Note**: The lead agent cannot self-assign tasks. Attempting to do so is rejected to prevent a dual-session loop where the lead acts as both coordinator and executor.
 
 Members work within the team structure. They do not have spawn or delegate capabilities — their role is to execute assigned tasks and report results.
 
@@ -227,4 +230,4 @@ The context refreshes automatically when team configuration changes (members add
 - [Team Messaging](./team-messaging.md) - Communicate between members
 - [Delegation & Handoff](./delegation-and-handoff.md) - Orchestrate work
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->

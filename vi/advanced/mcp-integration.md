@@ -241,6 +241,19 @@ LLM được hướng dẫn xử lý mọi nội dung bên trong các marker nà
 
 Không cần cấu hình — tính năng bảo vệ này luôn hoạt động cho tất cả các lần gọi MCP tool.
 
+## Admin User Credentials
+
+Admin có thể đặt MCP user credential thay mặt bất kỳ user nào. Hữu ích để cấu hình trước OAuth token hoặc API key cho các MCP server yêu cầu xác thực per-user.
+
+```bash
+curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{userID} \
+  -H "Authorization: Bearer $GOCLAW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"credentials": {"api_key": "user-specific-key"}}'
+```
+
+Yêu cầu quyền admin. Credential được mã hóa khi lưu trữ bằng `GOCLAW_ENCRYPTION_KEY`.
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Nguyên nhân | Giải pháp |
@@ -256,4 +269,4 @@ Không cần cấu hình — tính năng bảo vệ này luôn hoạt động ch
 - [Custom Tools](../advanced/custom-tools.md) — tạo tool shell mà không cần MCP server
 - [Skills](../advanced/skills.md) — inject kiến thức tái sử dụng vào system prompt của agent
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-25 -->

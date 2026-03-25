@@ -20,6 +20,7 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
 | **Media Generation** (`group:media_gen`) | create_image, create_audio, create_video, tts | Generate images, audio, video, and text-to-speech |
+| **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
 | **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images, transcribe audio, extract documents, analyze video |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
 | **Workspace** | workspace_dir | Resolve workspace directory for team/user context |
@@ -204,10 +205,24 @@ See [Custom Tools](#custom-tools) and [MCP Integration](#mcp-integration) for de
 | Shell command blocked | Review deny patterns; adjust `exec_approval` level |
 | Tool results too large | GoClaw auto-trims results >4,000 chars; consider more specific queries |
 
+### Browser Automation
+
+The `browser` tool lets agents control a headless browser (Chrome/Chromium). It must be enabled in config (`tools.browser.enabled: true`).
+
+**Safety mechanisms:**
+
+| Parameter | Default | Config Key | Description |
+|-----------|---------|------------|-------------|
+| Action timeout | 30 s | `tools.browser.action_timeout_ms` | Max time per browser action |
+| Idle timeout | 10 min | `tools.browser.idle_timeout_ms` | Auto-close pages after idle (0 = disabled, negative = disabled) |
+| Max pages | 5 | `tools.browser.max_pages` | Max open pages per tenant |
+
+All parameters are optional — defaults apply when not configured.
+
 ## What's Next
 
 - [Memory System](#memory-system) — How long-term memory and search work
 - [Multi-Tenancy](#multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](#custom-tools) — Build your own tools
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->

@@ -388,7 +388,7 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 | OTel traces không hiện trong Jaeger | Binary build thiếu `ENABLE_OTEL=true` | Thêm flag `--build` khi dùng otel overlay; nó sẽ rebuild với build arg |
 | Port 5432 đã bị chiếm | Postgres local đang chạy | Đặt `POSTGRES_PORT=5433` trong `.env` |
 | `database schema is outdated` | Migration chưa chạy sau khi update | Thêm `GOCLAW_AUTO_UPGRADE=true` vào **file** `.env` (không dùng prefix trước command — compose đọc từ `env_file`), hoặc chạy upgrade overlay trước khi start |
-| `network shared … incorrect label` | Docker network `shared` đã tồn tại (tạo thủ công hoặc từ project khác) | Chạy `docker network rm shared` rồi thử lại — Compose tự tạo network `shared` |
+| `network goclaw-net … incorrect label` | Docker network `goclaw-net` đã tồn tại với label xung đột | Chạy `docker network rm goclaw-net` rồi thử lại — Compose tự tạo network `goclaw-net` |
 
 ---
 
@@ -399,4 +399,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](#deploy-observability) — cấu hình OpenTelemetry và Jaeger
 - [Tailscale](#deploy-tailscale) — truy cập từ xa an toàn qua Tailscale
 
-<!-- goclaw-source: 0bce640 | cập nhật: 2026-03-24 -->
+<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->

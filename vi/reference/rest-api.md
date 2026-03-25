@@ -254,6 +254,14 @@ Xóa skill.
 
 Bật/tắt skill.
 
+### `PUT /v1/skills/{id}/tenant-config`
+
+Đặt cấu hình ghi đè cho skill theo tenant (ví dụ: bật/tắt cho tenant hiện tại). Chỉ admin.
+
+### `DELETE /v1/skills/{id}/tenant-config`
+
+Xóa cấu hình ghi đè theo tenant (khôi phục về mặc định). Chỉ admin.
+
 ### Skill Grants
 
 | Method | Path | Mô tả |
@@ -646,6 +654,12 @@ Auth qua Bearer token hoặc query param `?token=` (dùng cho tag `<img>` và `<
 |--------|------|-------|
 | `GET` | `/v1/files/{path...}` | Serve workspace file theo path |
 
+**Query parameters:**
+
+| Param | Type | Mô tả |
+|-------|------|-------|
+| `download` | `bool` | Khi `true`, ép `Content-Disposition: attachment` (tải về thay vì hiển thị inline) |
+
 ---
 
 ## API Keys
@@ -703,6 +717,19 @@ Quản lý multi-tenant (chỉ gateway token scope).
 
 ---
 
+## System Configs
+
+Kho cấu hình key-value theo tenant. Đọc cho tất cả user đã xác thực; ghi yêu cầu quyền admin.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/system-configs` | Liệt kê config cho tenant hiện tại |
+| `GET` | `/v1/system-configs/{key}` | Lấy giá trị config theo key |
+| `PUT` | `/v1/system-configs/{key}` | Đặt giá trị config (chỉ admin) |
+| `DELETE` | `/v1/system-configs/{key}` | Xóa config entry (chỉ admin) |
+
+---
+
 ## System
 
 | Method | Path | Mô tả |
@@ -757,4 +784,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](#config-reference) — schema đầy đủ `config.json`
 - [Database Schema](#database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->

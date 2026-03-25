@@ -412,6 +412,19 @@ Config permission checks are enforced in the Telegram channel and other channel 
 
 ---
 
+## Goroutine Panic Recovery
+
+GoClaw wraps all background goroutines (tool execution, cron jobs, summarization) in a panic recovery handler via the `safego` package. If a goroutine panics, the error is caught and logged instead of crashing the entire server process.
+
+This applies automatically to:
+- Tool execution goroutines
+- Cron job execution
+- Background summarization tasks
+
+No configuration is required — panic recovery is always active.
+
+---
+
 ## Hardening Checklist
 
 Use this before exposing GoClaw to the internet or shared users:
@@ -475,4 +488,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->

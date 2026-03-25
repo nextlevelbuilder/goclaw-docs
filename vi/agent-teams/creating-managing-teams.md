@@ -106,6 +106,9 @@ flowchart TD
 | Báo cáo tiến độ qua task board | Không | Có |
 | Gửi/nhận tin nhắn mailbox | Có | Có |
 | Quyền spawn / delegate | Có | Không |
+| Tự gán task | Không | N/A |
+
+> **Lưu ý**: Lead agent không thể tự gán task cho chính mình. Hành vi này bị chặn để tránh vòng lặp dual-session khi lead vừa là điều phối viên vừa là người thực thi.
 
 Member làm việc trong cấu trúc team. Họ không có khả năng spawn hay delegate — vai trò của họ là thực thi task được giao và báo cáo kết quả.
 
@@ -229,4 +232,4 @@ Context tự động làm mới khi cấu hình team thay đổi (thêm/xóa mem
 - [Team Messaging](./team-messaging.md) — Giao tiếp giữa các member
 - [Delegation & Handoff](./delegation-and-handoff.md) — Điều phối công việc
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-25 -->

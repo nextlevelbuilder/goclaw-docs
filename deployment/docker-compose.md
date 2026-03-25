@@ -386,7 +386,7 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 | OTel traces not appearing in Jaeger | Binary built without `ENABLE_OTEL=true` | Add `--build` flag when using the otel overlay; it rebuilds with the build arg |
 | Port 5432 already in use | Local Postgres running | Set `POSTGRES_PORT=5433` in `.env` |
 | `database schema is outdated` | Migrations not applied after update | Add `GOCLAW_AUTO_UPGRADE=true` to `.env` **file** (not as shell prefix — compose reads from `env_file`), or run the upgrade overlay before starting |
-| `network shared … incorrect label` | A `shared` Docker network already exists (created manually or by another project) | Run `docker network rm shared` then retry — Compose creates its own `shared` network automatically |
+| `network goclaw-net … incorrect label` | A `goclaw-net` Docker network already exists with conflicting labels | Run `docker network rm goclaw-net` then retry — Compose creates its own `goclaw-net` network automatically |
 
 ---
 
@@ -397,4 +397,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](#deploy-observability) — OpenTelemetry and Jaeger configuration
 - [Tailscale](#deploy-tailscale) — secure remote access via Tailscale
 
-<!-- goclaw-source: 0bce640 | updated: 2026-03-24 -->
+<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->

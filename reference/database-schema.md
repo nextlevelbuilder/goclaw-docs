@@ -55,6 +55,7 @@ erDiagram
     agents ||--o| agent_heartbeats : "has"
     agent_heartbeats ||--o{ heartbeat_run_logs : "logs"
     agents ||--o{ agent_config_permissions : "has"
+    tenants ||--o{ system_configs : "has"
 ```
 
 ---
@@ -932,6 +933,23 @@ Generic permission table for agent configuration (heartbeat, cron, file writers,
 
 ---
 
+### `system_configs`
+
+Centralized key-value store for per-tenant system settings. Falls back to master tenant at application layer. (migration 029)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `key` | VARCHAR(100) | PK (composite) | Config key |
+| `value` | TEXT | NOT NULL | Config value (plain text, not encrypted) |
+| `tenant_id` | UUID FK → tenants | PK (composite), ON DELETE CASCADE | Owning tenant |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | Last update time |
+
+**Primary Key:** `(key, tenant_id)`
+
+**Indexes:** `idx_system_configs_tenant` on `(tenant_id)`
+
+---
+
 ## Migration History
 
 | Version | Description |
@@ -964,6 +982,7 @@ Generic permission table for agent configuration (heartbeat, cron, file writers,
 | 26 | Adds `owner_id VARCHAR(255)` to `api_keys` — when set, authenticating via this key forces `user_id = owner_id` (user-bound API key); adds `team_user_grants` table for team-level access control; drops legacy `handoff_routes` and `delegation_history` tables |
 | 27 | Tenant foundation — creates `tenants` and `tenant_users` tables; seeds master tenant (`0193a5b0-7000-7000-8000-000000000001`); adds `tenant_id` column to 40+ tables for multi-tenant isolation; drops global unique constraints and replaces with per-tenant composite indexes; adds `builtin_tool_tenant_configs`, `skill_tenant_configs`, and `mcp_user_credentials` tables; drops `custom_tools` table (dead code); migrates remaining UUID v4 defaults to v7 |
 | 28 | Adds `comment_type VARCHAR(20) DEFAULT 'note'` to `team_task_comments` — supports `"blocker"` type that triggers task auto-fail and leader escalation |
+| 29 | `system_configs` — centralized per-tenant key-value configuration store; composite PK `(key, tenant_id)` with cascade delete |
 
 ---
 
@@ -973,4 +992,4 @@ Generic permission table for agent configuration (heartbeat, cron, file writers,
 - [Config Reference](#config-reference) — how database config maps to `config.json`
 - [Glossary](#glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->

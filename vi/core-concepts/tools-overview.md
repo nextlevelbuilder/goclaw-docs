@@ -22,6 +22,7 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Automation** (`group:automation`) | cron, datetime | Lên lịch job định kỳ; lấy ngày/giờ hiện tại |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Gửi tin nhắn; tạo topic forum Telegram |
 | **Tạo Media** (`group:media_gen`) | create_image, create_audio, create_video, tts | Tạo hình ảnh, audio, video, và text-to-speech |
+| **Browser** | browser | Điều hướng trang web, chụp ảnh màn hình, tương tác với element |
 | **Đọc Media** (`group:media_read`) | read_image, read_audio, read_document, read_video | Phân tích hình ảnh, chuyển ngữ audio, trích xuất tài liệu, phân tích video |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Gọi và xuất bản skill |
 | **Workspace** | workspace_dir | Resolve workspace directory theo team/user context |
@@ -206,10 +207,24 @@ Xem [Custom Tools](#custom-tools) và [MCP Integration](#mcp-integration) để 
 | Lệnh shell bị chặn | Xem lại deny pattern; điều chỉnh mức `exec_approval` |
 | Kết quả tool quá lớn | GoClaw tự động cắt kết quả >4.000 ký tự; thử query cụ thể hơn |
 
+### Browser Automation
+
+Tool `browser` cho phép agent điều khiển trình duyệt headless (Chrome/Chromium). Phải bật trong config (`tools.browser.enabled: true`).
+
+**Cơ chế an toàn:**
+
+| Tham số | Mặc định | Config Key | Mô tả |
+|---------|----------|------------|-------|
+| Action timeout | 30 giây | `tools.browser.action_timeout_ms` | Thời gian tối đa mỗi browser action |
+| Idle timeout | 10 phút | `tools.browser.idle_timeout_ms` | Tự đóng trang sau khi idle (0 = tắt, âm = tắt) |
+| Max pages | 5 | `tools.browser.max_pages` | Số trang mở tối đa mỗi tenant |
+
+Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng khi không cấu hình.
+
 ## Tiếp theo
 
 - [Memory System](#memory-system) — Memory dài hạn và tìm kiếm hoạt động như thế nào
 - [Multi-Tenancy](#multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->

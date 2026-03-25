@@ -266,6 +266,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `teams.tasks.comments` | List task comments |
 | `teams.tasks.events` | List task event history |
 | `teams.tasks.delete` | Delete task |
+| `teams.tasks.active-by-session` | Get active tasks for a session (used to restore state on session switch) |
 | `teams.workspace.list` | List team workspace files |
 | `teams.workspace.read` | Read workspace file |
 | `teams.workspace.delete` | Delete workspace file |
@@ -378,4 +379,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](#cli-commands) — pairing and session management from the terminal
 - [Glossary](#glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->

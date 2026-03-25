@@ -69,12 +69,12 @@ GoClaw uses a lane-based scheduler to manage concurrency:
 |------|:-----------:|---------|
 | `main` | 30 | Channel messages and WebSocket requests |
 | `subagent` | 50 | Spawned subagent tasks |
-| `delegate` | 100 | Agent-to-agent delegation |
+| `team` | 100 | Agent-to-agent delegation |
 | `cron` | 30 | Scheduled cron jobs |
 
 Each lane has its own semaphore. This prevents cron jobs from starving user messages, and keeps delegation from overwhelming the system.
 
-> Concurrency limits are configurable via env vars: `GOCLAW_LANE_MAIN`, `GOCLAW_LANE_SUBAGENT`, `GOCLAW_LANE_CRON`.
+> Concurrency limits are configurable via env vars: `GOCLAW_LANE_MAIN`, `GOCLAW_LANE_SUBAGENT`, `GOCLAW_LANE_TEAM`, `GOCLAW_LANE_CRON`.
 
 ## Components
 
@@ -103,4 +103,4 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 - [Tools Overview](#tools-overview) — The full tool catalog
 - [Sessions and History](#sessions-and-history) — How conversations persist
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->

@@ -252,6 +252,14 @@ Delete a skill.
 
 Toggle skill enabled/disabled state.
 
+### `PUT /v1/skills/{id}/tenant-config`
+
+Set a per-tenant override for a skill (e.g., enable/disable for the current tenant). Admin only.
+
+### `DELETE /v1/skills/{id}/tenant-config`
+
+Remove per-tenant override (revert to default). Admin only.
+
 ### Skill Grants
 
 | Method | Path | Description |
@@ -644,6 +652,12 @@ Auth via Bearer token or `?token=` query param (for `<img>` and `<audio>` tags).
 |--------|------|-------------|
 | `GET` | `/v1/files/{path...}` | Serve workspace file by path |
 
+**Query parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `download` | `bool` | When `true`, forces `Content-Disposition: attachment` (browser download instead of inline display) |
+
 ---
 
 ## API Keys
@@ -701,6 +715,19 @@ Multi-tenant management (gateway token scope only).
 
 ---
 
+## System Configs
+
+Per-tenant key-value configuration store. Read access for all authenticated users; write access requires admin role.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/system-configs` | List all config entries for current tenant |
+| `GET` | `/v1/system-configs/{key}` | Get a single config value by key |
+| `PUT` | `/v1/system-configs/{key}` | Set a config value (admin only) |
+| `DELETE` | `/v1/system-configs/{key}` | Delete a config entry (admin only) |
+
+---
+
 ## System
 
 | Method | Path | Description |
@@ -755,4 +782,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](#config-reference) — full `config.json` schema
 - [Database Schema](#database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-23 -->
+<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->
