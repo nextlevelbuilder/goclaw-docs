@@ -1,126 +1,65 @@
 # Delegation & Handoff
 
-Delegation allows the lead to spawn work on member agents. Handoff transfers conversation control between agents without interrupting the user's session.
+Delegation allows the lead to assign work to member agents via the task board. Handoff transfers conversation control between agents without interrupting the user's session.
 
 ## Agent Delegation Flow
 
+Delegation works through the `team_tasks` tool — the lead creates a task with an assignee, and the system auto-dispatches it to the assigned member:
+
 ```mermaid
 flowchart TD
-    LEAD["Lead receives user request"] --> DELEGATE["1. Delegate to member<br/>spawn agent=member,<br/>task='do the work'"]
-    DELEGATE --> MEMBER["Member agent executes<br/>in isolated session"]
-    MEMBER --> COMPLETE["2. Task auto-completed<br/>with delegation result"]
-    COMPLETE --> ANNOUNCE["3. Result announced<br/>back to lead"]
+    LEAD["Lead receives user request"] --> CREATE["1. Create task on board<br/>team_tasks(action=create,<br/>assignee=member)"]
+    CREATE --> DISPATCH["2. System auto-dispatches<br/>to assigned member"]
+    DISPATCH --> MEMBER["Member agent executes<br/>in isolated session"]
+    MEMBER --> COMPLETE["3. Task auto-completed<br/>with result"]
+    COMPLETE --> ANNOUNCE["4. Result announced<br/>back to lead"]
 
     subgraph "Parallel Delegation"
-        DELEGATE2["spawn member_A"] --> RUNA["Member A works"]
-        DELEGATE3["spawn member_B"] --> RUNB["Member B works"]
+        CREATE2["create task → member_A"] --> RUNA["Member A works"]
+        CREATE3["create task → member_B"] --> RUNB["Member B works"]
         RUNA --> COLLECT["Results accumulate"]
         RUNB --> COLLECT
         COLLECT --> ANNOUNCE2["Single combined<br/>announcement to lead"]
     end
 ```
 
-## Task Linking
+> **Note**: The `spawn` tool is for **self-clone subagents only** — it does not accept an `agent` parameter. To delegate to a team member, always use `team_tasks(action="create", assignee=...)`.
 
-Delegations can optionally link to a team task via `team_task_id`. For v2 teams, **if you omit `team_task_id`, the system auto-creates a task** — you don't need a separate create step:
+## Creating a Delegation Task
 
-```json
-{
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Analyze the market trends in the Q1 report"
-}
-```
-
-The system auto-creates a task and links the delegation. You can also provide an explicit task ID:
+Use the `team_tasks` tool with `action: "create"` and a required `assignee`:
 
 ```json
 {
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Analyze the market trends in the Q1 report",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000"
+  "action": "create",
+  "subject": "Analyze the market trends in the Q1 report",
+  "description": "Focus on Q1 revenue data and competitor analysis",
+  "assignee": "analyst_agent"
 }
 ```
 
-**If `team_task_id` is invalid** or from a wrong team:
-- Delegation rejected with helpful error message
-- Error includes guidance to omit `team_task_id` to auto-create
+The system validates and auto-dispatches:
+- **`assignee` is required** — every task must be assigned to a team member
+- **Assignee must be a team member** — non-members are rejected
+- **Lead cannot self-assign** — prevents dual-session execution loops
+- **Auto-dispatch**: after the lead's turn ends, pending tasks are dispatched to their assigned agents
 
 **Guards enforced**:
-- Cannot reuse a completed or cancelled task ID
-- Cannot reuse an in-progress task ID (each spawn needs its own task)
+- Max **3 dispatches** per task — auto-fails after 3 attempts to prevent infinite loops
+- Task dispatched to lead agent is blocked and auto-failed
+- Member requests (non-lead) can optionally require leader approval before dispatch
 
-This ensures every piece of work is tracked on the task board.
+## Parallel Delegation
 
-## Sync vs Async Delegation
-
-### Sync Delegation (Default)
-
-Parent waits for result before continuing:
+Create multiple tasks in the same turn — they dispatch simultaneously after the turn:
 
 ```json
-{
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Quick analysis",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "mode": "sync"
-}
+// Lead creates 2 tasks in one turn
+{"action": "create", "subject": "Extract facts", "assignee": "analyst1"}
+{"action": "create", "subject": "Extract opinions", "assignee": "analyst2"}
 ```
 
-- Lead blocks until member finishes
-- Result returned directly to lead
-- Best for quick tasks (< 2 minutes)
-- Task auto-claimed and auto-completed on success
-
-### Async Delegation
-
-Parent spawns work in the background and receives the result via a system announcement when complete:
-
-```json
-{
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Deep research into market trends",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "mode": "async"
-}
-```
-
-- Lead gets a delegation ID immediately
-- Lead can continue with other work
-- Periodic progress notifications sent to chat (every 30 seconds, if enabled)
-- Result announced when complete via a system message to the lead
-
-**Response** (delegation ID for tracking):
-```json
-{
-  "delegation_id": "abc123def456",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-## Parallel Delegation Batching
-
-When lead delegates to multiple members simultaneously, results are collected and announced together:
-
-1. Each delegation runs independently
-2. Intermediate completions accumulate results (artifacts)
-3. When **last sibling** finishes, all results are collected
-4. Single combined announcement delivered to lead
-
-**Example**:
-
-```json
-// Lead delegates to 2 members simultaneously
-{"action": "spawn", "agent": "analyst1", "task": "Extract facts"}
-{"action": "spawn", "agent": "analyst2", "task": "Extract opinions"}
-
-// Results announced together:
-// "analyst1 (facts extraction): ..."
-// "analyst2 (opinions extraction): ..."
-```
+Results are collected and announced together when all complete.
 
 ## Auto-Completion & Artifacts
 
@@ -252,24 +191,14 @@ Please greet the user and continue the conversation.
 
 ## Evaluate Loop (Generator-Evaluator)
 
-For iterative work, use the evaluate pattern:
+For iterative work, use the evaluate pattern with task creation:
 
 ```json
-{
-  "action": "spawn",
-  "agent": "generator_agent",
-  "task": "Generate initial proposal",
-  "mode": "async"
-}
+{"action": "create", "subject": "Generate initial proposal", "assignee": "generator_agent"}
 
 // Wait for result, then:
 
-{
-  "action": "spawn",
-  "agent": "evaluator_agent",
-  "task": "Review proposal and provide feedback",
-  "context": "[previous result from generator]"
-}
+{"action": "create", "subject": "Review proposal and provide feedback", "assignee": "evaluator_agent"}
 
 // Generator refines based on feedback...
 ```
@@ -290,12 +219,12 @@ For async delegations, the lead receives periodic grouped updates (if progress n
 
 ## Best Practices
 
-1. **Omit `team_task_id` for simplicity**: v2 teams auto-create tasks on delegation
-2. **Use sync for quick tasks**: < 2 minutes
-3. **Use async for long tasks**: > 2 minutes, parallel work
-4. **Batch parallel work**: Delegate to multiple members simultaneously
+1. **Use `team_tasks` to delegate**: create tasks with `assignee` — system auto-dispatches
+2. **Don't use `spawn` for delegation**: `spawn` is self-clone only, not for team members
+3. **Create multiple tasks in one turn**: they dispatch in parallel after the turn ends
+4. **Use `blocked_by`**: coordinate task ordering with dependencies
 5. **Link dependencies**: Use `blocked_by` on task board to coordinate order
 6. **Handle handoffs gracefully**: Notify user of transfer; pass context
 7. **Set iteration limits in instructions**: Prevent infinite evaluate loops
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 0dab087f | updated: 2026-03-27 -->

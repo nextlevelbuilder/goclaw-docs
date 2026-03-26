@@ -438,7 +438,24 @@ Lấy MCP server.
 
 ### `PUT /v1/mcp/servers/{id}`
 
-Cập nhật MCP server.
+Cập nhật MCP server. Các field có thể cập nhật:
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `name` | string | Tên hiển thị server |
+| `transport` | string | `"stdio"`, `"sse"`, `"streamable-http"` |
+| `command` | string | Lệnh chạy (stdio) |
+| `args` | string[] | Tham số lệnh |
+| `url` | string | URL server (sse/streamable-http) |
+| `api_key` | string | API key cho server |
+| `env` | object | Biến môi trường |
+| `headers` | object | HTTP headers |
+| `enabled` | boolean | Bật/tắt |
+| `tool_prefix` | string | Tiền tố cho tên tool |
+| `timeout_sec` | integer | Timeout request (giây) |
+| `agent_id` | string | Gắn với agent cụ thể |
+| `config` | object | Cấu hình bổ sung |
+| `settings` | object | Cài đặt server |
 
 ### `DELETE /v1/mcp/servers/{id}`
 
@@ -504,7 +521,20 @@ Lấy channel instance.
 
 ### `PUT /v1/channels/instances/{id}`
 
-Cập nhật channel instance.
+Cập nhật channel instance. Các field có thể cập nhật:
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `channel_type` | string | Loại channel |
+| `credentials` | object | Thông tin xác thực channel |
+| `agent_id` | string | UUID agent gắn kết |
+| `enabled` | boolean | Bật/tắt |
+| `display_name` | string | Tên hiển thị |
+| `group_policy` | string | Chính sách tin nhắn nhóm |
+| `allow_from` | string[] | Danh sách sender ID được phép |
+| `metadata` | object | Metadata tùy chỉnh |
+| `webhook_secret` | string | Secret xác minh webhook |
+| `config` | object | Cấu hình bổ sung |
 
 ### `DELETE /v1/channels/instances/{id}`
 
@@ -784,4 +814,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](#config-reference) — schema đầy đủ `config.json`
 - [Database Schema](#database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: 9168e4b4 | cập nhật: 2026-03-26 -->

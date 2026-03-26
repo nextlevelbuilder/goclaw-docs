@@ -42,6 +42,7 @@ Tất cả config key nằm trong `channels.telegram`:
 | `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
 | `group_policy` | string | `"open"` | `open`, `allowlist`, `disabled` |
 | `require_mention` | bool | true | Yêu cầu mention @bot trong group |
+| `mention_mode` | string | `"strict"` | `strict` = chỉ phản hồi khi @mention; `yield` = phản hồi trừ khi bot khác được @mention (group nhiều bot) |
 | `history_limit` | int | 50 | Tin nhắn chờ tối đa mỗi nhóm (0=tắt) |
 | `dm_stream` | bool | false | Bật streaming cho DM (chỉnh sửa placeholder) |
 | `group_stream` | bool | false | Bật streaming cho nhóm (tin nhắn mới) |
@@ -96,6 +97,7 @@ Các config key cho nhóm:
 - `group_policy` — Ghi đè chính sách cấp nhóm
 - `allow_from` — Ghi đè allowlist
 - `require_mention` — Ghi đè yêu cầu mention
+- `mention_mode` — Ghi đè mention mode (`strict` hoặc `yield`)
 - `skills` — Whitelist skill (nil=tất cả, []=không có)
 - `tools` — Whitelist tool (hỗ trợ cú pháp `group:xxx`)
 - `system_prompt` — Extra system prompt cho nhóm này
@@ -107,9 +109,37 @@ Các config key cho nhóm:
 
 Trong group, bot chỉ phản hồi tin nhắn có mention nó (mặc định `require_mention: true`). Khi không được mention, tin nhắn được lưu vào pending history buffer (mặc định 50 tin nhắn) và được đưa vào context khi bot được mention. Reply vào tin nhắn của bot được tính là mention.
 
+#### Mention Mode
+
+| Mode | Hành vi | Trường hợp sử dụng |
+|------|---------|---------------------|
+| `strict` (mặc định) | Chỉ phản hồi khi @mention hoặc reply | Group có 1 bot |
+| `yield` | Phản hồi tất cả tin nhắn TRỪ KHI bot/user khác được @mention | Group nhiều bot |
+
+**Yield mode** cho phép nhiều bot cùng hoạt động trong một group:
+- Bot phản hồi tất cả tin nhắn khi không có @mention cụ thể nhắm đến bot khác
+- Nếu user @mention bot khác, bot này im lặng (nhường)
+- Tin nhắn từ bot khác tự động bị bỏ qua để tránh vòng lặp vô hạn giữa các bot
+- Cross-bot @command vẫn hoạt động (ví dụ: `@my_bot help` gửi bởi bot khác)
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "mention_mode": "yield",
+      "require_mention": false
+    }
+  }
+}
+```
+
 ```mermaid
 flowchart TD
-    MSG["User gửi tin trong group"] --> MENTION{"Bot được @mention<br/>hoặc reply?"}
+    MSG["User gửi tin trong group"] --> MODE{"mention_mode?"}
+    MODE -->|strict| MENTION{"Bot được @mention<br/>hoặc reply?"}
+    MODE -->|yield| OTHER{"Bot/user khác<br/>được @mention?"}
+    OTHER -->|Có| YIELD["Nhường — im lặng"]
+    OTHER -->|Không| PROCESS
     MENTION -->|Không| BUFFER["Thêm vào pending history<br/>(tối đa 50 tin nhắn)"]
     MENTION -->|Có| PROCESS["Xử lý ngay<br/>Kèm history làm context"]
     BUFFER --> NEXT["Mention tiếp theo:<br/>history được đưa vào"]
@@ -234,7 +264,7 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 
 | Vấn đề | Giải pháp |
 |-------|----------|
-| Bot không phản hồi trong group | Đảm bảo đã tắt privacy mode qua @BotFather (`/setprivacy` → Disable). Kiểm tra `require_mention=true` (mặc định) — mention bot hoặc reply vào tin nhắn của nó. |
+| Bot không phản hồi trong group | Đảm bảo đã tắt privacy mode qua @BotFather (`/setprivacy` → Disable). Kiểm tra `require_mention=true` (mặc định) — mention bot hoặc reply vào tin nhắn của nó. Với group nhiều bot, thử `mention_mode: "yield"`. |
 | Tải media thất bại | Xác minh bot đã Disable privacy mode trong @BotFather (`/setprivacy` → Disable). Kiểm tra giới hạn `media_max_bytes`. |
 | Thiếu transcript STT | Xác minh URL proxy STT và API key. Kiểm tra log về timeout. |
 | Streaming không hoạt động | Bật `dm_stream` hoặc `group_stream`. Đảm bảo provider hỗ trợ streaming. |
@@ -247,4 +277,4 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 - [Browser Pairing](#channel-browser-pairing) — Luồng pairing
 - [Sessions & History](#sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: eab3766c | cập nhật: 2026-03-24 -->
+<!-- goclaw-source: 0dab087f | cập nhật: 2026-03-26 -->

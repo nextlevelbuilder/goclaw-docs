@@ -2,127 +2,66 @@
 
 # Delegation & Handoff
 
-Delegation cho phép lead tạo công việc trên các member agent. Handoff chuyển giao quyền kiểm soát hội thoại giữa các agent mà không làm gián đoạn session của người dùng.
+Delegation cho phép lead giao việc cho member agent thông qua task board. Handoff chuyển giao quyền kiểm soát hội thoại giữa các agent mà không làm gián đoạn session của người dùng.
 
 ## Luồng Delegation của Agent
 
+Delegation hoạt động thông qua tool `team_tasks` — lead tạo task với assignee, hệ thống tự động dispatch đến member được giao:
+
 ```mermaid
 flowchart TD
-    LEAD["Lead nhận yêu cầu người dùng"] --> DELEGATE["1. Delegate cho member<br/>spawn agent=member,<br/>task='thực hiện công việc'"]
-    DELEGATE --> MEMBER["Member agent thực thi<br/>trong session độc lập"]
-    MEMBER --> COMPLETE["2. Task tự động hoàn thành<br/>với kết quả delegation"]
-    COMPLETE --> ANNOUNCE["3. Kết quả được thông báo<br/>lại cho lead"]
+    LEAD["Lead nhận yêu cầu người dùng"] --> CREATE["1. Tạo task trên board<br/>team_tasks(action=create,<br/>assignee=member)"]
+    CREATE --> DISPATCH["2. Hệ thống auto-dispatch<br/>đến member được giao"]
+    DISPATCH --> MEMBER["Member agent thực thi<br/>trong session độc lập"]
+    MEMBER --> COMPLETE["3. Task tự động hoàn thành<br/>với kết quả"]
+    COMPLETE --> ANNOUNCE["4. Kết quả được thông báo<br/>lại cho lead"]
 
     subgraph "Delegation Song song"
-        DELEGATE2["spawn member_A"] --> RUNA["Member A làm việc"]
-        DELEGATE3["spawn member_B"] --> RUNB["Member B làm việc"]
+        CREATE2["tạo task → member_A"] --> RUNA["Member A làm việc"]
+        CREATE3["tạo task → member_B"] --> RUNB["Member B làm việc"]
         RUNA --> COLLECT["Kết quả tích lũy"]
         RUNB --> COLLECT
         COLLECT --> ANNOUNCE2["Một thông báo kết hợp<br/>duy nhất đến lead"]
     end
 ```
 
-## Liên kết Task
+> **Lưu ý**: Tool `spawn` chỉ dùng cho **self-clone subagent** — không nhận tham số `agent`. Để delegate cho team member, luôn dùng `team_tasks(action="create", assignee=...)`.
 
-Delegation có thể tùy chọn liên kết với một team task qua `team_task_id`. Với v2 teams, **nếu bỏ qua `team_task_id`, hệ thống tự động tạo task** — bạn không cần bước tạo riêng:
+## Tạo Delegation Task
 
-```json
-{
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Phân tích xu hướng thị trường trong báo cáo Q1"
-}
-```
-
-Hệ thống tự tạo task và liên kết delegation. Bạn cũng có thể cung cấp task ID cụ thể:
+Dùng tool `team_tasks` với `action: "create"` và `assignee` bắt buộc:
 
 ```json
 {
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Phân tích xu hướng thị trường trong báo cáo Q1",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000"
+  "action": "create",
+  "subject": "Phân tích xu hướng thị trường trong báo cáo Q1",
+  "description": "Tập trung vào dữ liệu doanh thu Q1 và phân tích đối thủ",
+  "assignee": "analyst_agent"
 }
 ```
 
-**Nếu `team_task_id` không hợp lệ** hoặc thuộc team khác:
-- Delegation bị từ chối kèm thông báo lỗi hữu ích
-- Lỗi bao gồm hướng dẫn bỏ qua `team_task_id` để hệ thống tự tạo
+Hệ thống validate và auto-dispatch:
+- **`assignee` là bắt buộc** — mỗi task phải được giao cho một team member
+- **Assignee phải là team member** — non-member bị từ chối
+- **Lead không thể tự giao cho mình** — tránh vòng lặp dual-session
+- **Auto-dispatch**: sau khi turn của lead kết thúc, task pending được dispatch đến agent được giao
 
 **Các guard được áp dụng**:
-- Không thể tái sử dụng task ID đã completed hoặc cancelled
-- Không thể tái sử dụng task ID đang in-progress (mỗi spawn cần task riêng)
+- Tối đa **3 lần dispatch** mỗi task — auto-fail sau 3 lần để tránh vòng lặp vô hạn
+- Task dispatch đến lead agent bị chặn và auto-fail
+- Member request (non-lead) có thể yêu cầu leader phê duyệt trước khi dispatch
 
-Điều này đảm bảo mọi công việc đều được theo dõi trên task board.
+## Delegation Song song
 
-## Delegation Đồng bộ và Bất đồng bộ
-
-### Delegation Đồng bộ (Mặc định)
-
-Parent chờ kết quả trước khi tiếp tục:
+Tạo nhiều task trong cùng một turn — chúng dispatch đồng thời sau turn:
 
 ```json
-{
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Phân tích nhanh",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "mode": "sync"
-}
+// Lead tạo 2 task trong một turn
+{"action": "create", "subject": "Trích xuất sự kiện", "assignee": "analyst1"}
+{"action": "create", "subject": "Trích xuất ý kiến", "assignee": "analyst2"}
 ```
 
-- Lead bị chặn cho đến khi member hoàn thành
-- Kết quả trả về trực tiếp cho lead
-- Phù hợp nhất cho task nhanh (< 2 phút)
-- Task tự động nhận và tự động hoàn thành khi thành công
-
-### Delegation Bất đồng bộ
-
-Parent tạo công việc nền và nhận kết quả qua thông báo hệ thống khi hoàn thành:
-
-```json
-{
-  "action": "spawn",
-  "agent": "analyst_agent",
-  "task": "Nghiên cứu sâu về xu hướng thị trường",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "mode": "async"
-}
-```
-
-- Lead nhận delegation ID ngay lập tức
-- Lead có thể tiếp tục công việc khác
-- Thông báo tiến độ định kỳ gửi đến chat (mỗi 30 giây, nếu được bật)
-- Kết quả được thông báo khi hoàn thành qua tin nhắn hệ thống đến lead
-
-**Phản hồi** (delegation ID để theo dõi):
-```json
-{
-  "delegation_id": "abc123def456",
-  "team_task_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-## Xử lý Song song Delegation
-
-Khi lead delegate cho nhiều member đồng thời, kết quả được thu thập và thông báo cùng nhau:
-
-1. Mỗi delegation chạy độc lập
-2. Các kết quả trung gian tích lũy (artifacts)
-3. Khi **sibling cuối cùng** hoàn thành, tất cả kết quả được thu thập
-4. Một thông báo kết hợp duy nhất được gửi đến lead
-
-**Ví dụ**:
-
-```json
-// Lead delegate cho 2 member đồng thời
-{"action": "spawn", "agent": "analyst1", "task": "Trích xuất sự kiện"}
-{"action": "spawn", "agent": "analyst2", "task": "Trích xuất ý kiến"}
-
-// Kết quả thông báo cùng nhau:
-// "analyst1 (trích xuất sự kiện): ..."
-// "analyst2 (trích xuất ý kiến): ..."
-```
+Kết quả được thu thập và thông báo cùng nhau khi tất cả hoàn thành.
 
 ## Tự động Hoàn thành & Artifacts
 
@@ -254,24 +193,14 @@ Please greet the user and continue the conversation.
 
 ## Vòng lặp Đánh giá (Generator-Evaluator)
 
-Với công việc lặp đi lặp lại, dùng mẫu evaluate:
+Với công việc lặp đi lặp lại, dùng mẫu evaluate với task creation:
 
 ```json
-{
-  "action": "spawn",
-  "agent": "generator_agent",
-  "task": "Tạo đề xuất ban đầu",
-  "mode": "async"
-}
+{"action": "create", "subject": "Tạo đề xuất ban đầu", "assignee": "generator_agent"}
 
 // Chờ kết quả, sau đó:
 
-{
-  "action": "spawn",
-  "agent": "evaluator_agent",
-  "task": "Xem xét đề xuất và cung cấp phản hồi",
-  "context": "[kết quả trước từ generator]"
-}
+{"action": "create", "subject": "Xem xét đề xuất và cung cấp phản hồi", "assignee": "evaluator_agent"}
 
 // Generator tinh chỉnh dựa trên phản hồi...
 ```
@@ -292,12 +221,12 @@ Với delegation bất đồng bộ, lead nhận cập nhật nhóm định kỳ
 
 ## Thực hành Tốt nhất
 
-1. **Bỏ qua `team_task_id` để đơn giản hóa**: v2 teams tự tạo task khi delegation
-2. **Dùng sync cho task nhanh**: < 2 phút
-3. **Dùng async cho task dài**: > 2 phút, công việc song song
-4. **Gộp công việc song song**: Delegate cho nhiều member đồng thời
+1. **Dùng `team_tasks` để delegate**: tạo task với `assignee` — hệ thống auto-dispatch
+2. **Không dùng `spawn` để delegation**: `spawn` chỉ dùng cho self-clone, không dùng cho team member
+3. **Tạo nhiều task trong một turn**: chúng dispatch song song sau turn
+4. **Dùng `blocked_by`**: phối hợp thứ tự task với dependency
 5. **Liên kết phụ thuộc**: Dùng `blocked_by` trên task board để phối hợp thứ tự
 6. **Xử lý handoff khéo léo**: Thông báo người dùng về việc chuyển giao; truyền context
 7. **Đặt giới hạn vòng lặp trong hướng dẫn**: Tránh vòng lặp evaluate vô hạn
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 0dab087f | cập nhật: 2026-03-27 -->

@@ -436,7 +436,24 @@ Get an MCP server.
 
 ### `PUT /v1/mcp/servers/{id}`
 
-Update an MCP server.
+Update an MCP server. Updatable fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Server display name |
+| `transport` | string | `"stdio"`, `"sse"`, `"streamable-http"` |
+| `command` | string | Command to run (stdio) |
+| `args` | string[] | Command arguments |
+| `url` | string | Server URL (sse/streamable-http) |
+| `api_key` | string | API key for the server |
+| `env` | object | Environment variables |
+| `headers` | object | HTTP headers |
+| `enabled` | boolean | Enable/disable |
+| `tool_prefix` | string | Prefix for tool names |
+| `timeout_sec` | integer | Request timeout in seconds |
+| `agent_id` | string | Bind to specific agent |
+| `config` | object | Additional configuration |
+| `settings` | object | Server settings |
 
 ### `DELETE /v1/mcp/servers/{id}`
 
@@ -502,7 +519,20 @@ Get a channel instance.
 
 ### `PUT /v1/channels/instances/{id}`
 
-Update a channel instance.
+Update a channel instance. Updatable fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `channel_type` | string | Channel type |
+| `credentials` | object | Channel credentials |
+| `agent_id` | string | Bound agent UUID |
+| `enabled` | boolean | Enable/disable |
+| `display_name` | string | Human-readable name |
+| `group_policy` | string | Group message policy |
+| `allow_from` | string[] | Allowed sender IDs |
+| `metadata` | object | Custom metadata |
+| `webhook_secret` | string | Webhook verification secret |
+| `config` | object | Additional configuration |
 
 ### `DELETE /v1/channels/instances/{id}`
 
@@ -782,4 +812,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](#config-reference) — full `config.json` schema
 - [Database Schema](#database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->
+<!-- goclaw-source: 9168e4b4 | updated: 2026-03-26 -->

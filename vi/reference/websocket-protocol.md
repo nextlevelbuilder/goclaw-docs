@@ -147,7 +147,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 
 | Method | Params | Mô tả |
 |--------|--------|-------|
-| `connect` | `{token, protocol}` | Xác thực. Phải là request đầu tiên |
+| `connect` | `{token, user_id, sender_id?, locale?}` | Xác thực. Phải là request đầu tiên |
 | `health` | — | Ping / health check |
 | `status` | — | Trạng thái gateway |
 | `providers.models` | — | Liệt kê model khả dụng từ tất cả LLM provider đã cấu hình |
@@ -349,7 +349,7 @@ const ws = new WebSocket("ws://localhost:18790/ws");
 ws.onopen = () => {
   ws.send(JSON.stringify({
     type: "req", id: "1", method: "connect",
-    params: { token: "YOUR_TOKEN", protocol: 3 }
+    params: { token: "YOUR_TOKEN", user_id: "user-123", protocol: 3 }
   }));
 };
 

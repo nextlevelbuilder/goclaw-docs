@@ -40,6 +40,7 @@ All config keys are in `channels.telegram`:
 | `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
 | `group_policy` | string | `"open"` | `open`, `allowlist`, `disabled` |
 | `require_mention` | bool | true | Require @bot mention in groups |
+| `mention_mode` | string | `"strict"` | `strict` = only respond when @mentioned; `yield` = respond unless another bot is @mentioned (multi-bot groups) |
 | `history_limit` | int | 50 | Pending messages per group (0=disabled) |
 | `dm_stream` | bool | false | Enable streaming for DMs (edits placeholder) |
 | `group_stream` | bool | false | Enable streaming for groups (new message) |
@@ -94,6 +95,7 @@ Group config keys:
 - `group_policy` — Override group-level policy
 - `allow_from` — Override allowlist
 - `require_mention` — Override mention requirement
+- `mention_mode` — Override mention mode (`strict` or `yield`)
 - `skills` — Whitelist skills (nil=all, []=none)
 - `tools` — Whitelist tools (supports `group:xxx` syntax)
 - `system_prompt` — Extra system prompt for this group
@@ -105,9 +107,37 @@ Group config keys:
 
 In groups, bot responds only to messages that mention it (default `require_mention: true`). When not mentioned, messages are stored in a pending history buffer (default 50 messages) and included as context when the bot is mentioned. Replying to a bot message counts as mentioning it.
 
+#### Mention Modes
+
+| Mode | Behavior | Use case |
+|------|----------|----------|
+| `strict` (default) | Only respond when @mentioned or replied to | Single-bot groups |
+| `yield` | Respond to all messages UNLESS another bot/user is @mentioned | Multi-bot shared groups |
+
+**Yield mode** enables multiple bots to coexist in one group without conflicts:
+- Bot responds to all messages where no specific @mention targets another bot
+- If a user @mentions a different bot, this bot stays silent (yields)
+- Messages from other bots are automatically skipped to prevent infinite cross-bot loops
+- Cross-bot @commands still work (e.g., `@my_bot help` sent by another bot)
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "mention_mode": "yield",
+      "require_mention": false
+    }
+  }
+}
+```
+
 ```mermaid
 flowchart TD
-    MSG["User posts in group"] --> MENTION{"Bot @mentioned<br/>or reply?"}
+    MSG["User posts in group"] --> MODE{"mention_mode?"}
+    MODE -->|strict| MENTION{"Bot @mentioned<br/>or reply?"}
+    MODE -->|yield| OTHER{"Another bot/user<br/>@mentioned?"}
+    OTHER -->|Yes| YIELD["Yield — stay silent"]
+    OTHER -->|No| PROCESS
     MENTION -->|No| BUFFER["Add to pending history<br/>(max 50 messages)"]
     MENTION -->|Yes| PROCESS["Process now<br/>Include history as context"]
     BUFFER --> NEXT["Next mention:<br/>history included"]
@@ -232,7 +262,7 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 
 | Issue | Solution |
 |-------|----------|
-| Bot not responding in groups | Ensure privacy mode is disabled via @BotFather (`/setprivacy` → Disable). Then check `require_mention=true` (default) — mention bot or reply to its message. |
+| Bot not responding in groups | Ensure privacy mode is disabled via @BotFather (`/setprivacy` → Disable). Then check `require_mention=true` (default) — mention bot or reply to its message. For multi-bot groups, try `mention_mode: "yield"`. |
 | Media downloads fail | Verify bot has `Can read all group messages` in @BotFather (`/setprivacy` → Disable). Check `media_max_bytes` limit. |
 | STT transcription missing | Verify STT proxy URL and API key. Check logs for timeout. |
 | Streaming not working | Enable `dm_stream` or `group_stream`. Ensure provider supports streaming. |
@@ -245,4 +275,4 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 - [Browser Pairing](#channel-browser-pairing) — Pairing flow
 - [Sessions & History](#sessions-and-history) — Conversation history
 
-<!-- goclaw-source: eab3766c | updated: 2026-03-24 -->
+<!-- goclaw-source: 0dab087f | updated: 2026-03-26 -->

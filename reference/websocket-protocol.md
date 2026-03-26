@@ -145,7 +145,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 
 | Method | Params | Description |
 |--------|--------|-------------|
-| `connect` | `{token, protocol}` | Authenticate. Must be first request |
+| `connect` | `{token, user_id, sender_id?, locale?}` | Authenticate. Must be first request |
 | `health` | — | Ping / health check |
 | `status` | — | Gateway status |
 | `providers.models` | — | List available models from all configured LLM providers |
@@ -347,7 +347,7 @@ const ws = new WebSocket("ws://localhost:18790/ws");
 ws.onopen = () => {
   ws.send(JSON.stringify({
     type: "req", id: "1", method: "connect",
-    params: { token: "YOUR_TOKEN", protocol: 3 }
+    params: { token: "YOUR_TOKEN", user_id: "user-123", protocol: 3 }
   }));
 };
 
