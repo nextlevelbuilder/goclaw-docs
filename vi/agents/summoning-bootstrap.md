@@ -337,7 +337,7 @@ Cả summoning và bootstrap đều dựa vào `SeedUserFiles()` và `SeedToStor
 
 **Khi user đầu tiên chat:**
 - Open: Tất cả 7 template → user_context_files
-- Predefined: USER.md, BOOTSTRAP.md (biến thể) → user_context_files
+- Predefined: USER.md, `BOOTSTRAP_PREDEFINED.md` (biến thể hướng người dùng, khác với BOOTSTRAP.md của open agent) → user_context_files
 - File cấp agent (SOUL.md, IDENTITY.md) đã được load từ agent_context_files
 
 **Predefined với USER.md đã cấu hình sẵn:**
@@ -359,4 +359,4 @@ Nếu bạn đặt thủ công USER.md ở cấp agent trước khi user đầu 
 - [Open vs. Predefined](#open-vs-predefined) — hiểu khi nào dùng loại nào
 - [Creating Agents](#creating-agents) — hướng dẫn tạo agent từng bước
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

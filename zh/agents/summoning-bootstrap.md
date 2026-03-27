@@ -337,7 +337,7 @@ Summoning 和 bootstrap 都依赖 `SeedUserFiles()` 和 `SeedToStore()`：
 
 **用户首次对话时：**
 - Open：所有 7 个模板 → user_context_files
-- Predefined：USER.md、BOOTSTRAP.md（变体）→ user_context_files
+- Predefined：USER.md、`BOOTSTRAP_PREDEFINED.md`（面向用户的变体，与 open agent 的 BOOTSTRAP.md 不同）→ user_context_files
 - Agent 级文件（SOUL.md、IDENTITY.md）已从 agent_context_files 加载
 
 **Predefined 带预配置 USER.md：**
@@ -359,4 +359,4 @@ Summoning 和 bootstrap 都依赖 `SeedUserFiles()` 和 `SeedToStore()`：
 - [Open vs. Predefined](#open-vs-predefined) — 了解何时使用每种类型
 - [Creating Agents](#creating-agents) — 分步创建 agent
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 6551c2d1 | 更新: 2026-03-27 -->

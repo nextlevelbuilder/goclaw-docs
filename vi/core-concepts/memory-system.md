@@ -71,7 +71,7 @@ Memory dành cho những thứ đáng nhớ mãi mãi. Session dành cho luồng
 
 Trong quá trình [auto-compaction](#sessions-and-history), GoClaw trích xuất thông tin quan trọng từ cuộc hội thoại và lưu vào memory trước khi tóm tắt history.
 
-- **Trigger**: >50 tin nhắn HOẶC >75% context window (một trong hai điều kiện kích hoạt compaction)
+- **Trigger**: >50 tin nhắn HOẶC >85% context window (một trong hai điều kiện kích hoạt compaction)
 - **Quy trình**: Flush đồng bộ, tối đa 5 lần lặp, timeout 90 giây
 - **Những gì được lưu**: Thông tin quan trọng, tùy chọn người dùng, quyết định, action item
 - **Thứ tự**: Memory flush chạy **trước** khi compaction history — thông tin được lưu bền vững trước, sau đó history mới được tóm tắt và rút gọn
@@ -105,6 +105,16 @@ Memory cần:
 
 Đặt `memory: false` trong config của agent để tắt hoàn toàn memory cho agent đó — không đọc, không ghi, không auto-flush.
 
+## Chia sẻ Memory trong Team
+
+Khi các agent làm việc theo [team](#agent-teams), thành viên có thể **đọc memory của leader** dưới dạng fallback:
+
+- **`memory_search`**: Tìm trong memory riêng của thành viên trước. Nếu không có kết quả, tự động fallback sang memory của leader và merge kết quả.
+- **`memory_get`**: Đọc từ memory riêng trước. Nếu file không tìm thấy, fallback sang memory của leader.
+- **Ghi bị chặn**: Thành viên team không thể lưu hoặc sửa memory — chỉ leader mới có quyền ghi. Thành viên cố ghi sẽ nhận: *"memory is read-only for team members"*.
+
+Điều này cho phép chia sẻ kiến thức trong team mà không cần sao chép. Leader tích lũy kiến thức chung, và tất cả thành viên tự động hưởng lợi.
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Giải pháp |
@@ -119,4 +129,4 @@ Memory cần:
 - [Sessions and History](#sessions-and-history) — Lịch sử hội thoại hoạt động như thế nào
 - [Agents Explained](#agents-explained) — Loại agent và context file
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

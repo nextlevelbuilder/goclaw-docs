@@ -35,7 +35,7 @@ Two **prompt modes** exist:
 | 12 | Silent Replies | ✓ | ✗ | NO_REPLY instruction |
 | 13 | Sub-Agent Spawning | ✓ | ✓ | spawn tool guidance (skipped for team agents with TEAM.md) |
 | 13.5 | Team Workspace | ✓ | ✓ | TEAM.md dynamically injected for team agents |
-| 15 | Runtime | ✓ | ✓ | Agent ID, channel info |
+| 15 | Runtime | ✓ | ✓ | Agent ID, channel info, group chat title |
 | 16 | Recency Reinforcements | ✓ | ✓ | Persona reminder + memory reminder at end (combats "lost in the middle") |
 
 ## Primacy and Recency Strategy
@@ -277,7 +277,9 @@ When you have nothing to say, respond with ONLY: NO_REPLY
 To delegate work, use the spawn tool with action=list|steer|kill.
 
 ## Runtime
-agent=default | channel=my-telegram-bot
+agent=default | channel=my-telegram-bot | group chat "Team Engineering"
+
+In group chats, the agent receives the group's display name (chat title) for better context awareness. Titles are sanitized to prevent prompt injection and truncated to 100 characters.
 
 Reminder: Stay in character as defined by SOUL.md + IDENTITY.md above. Never break persona.
 Reminder: Before answering questions about prior work, decisions, or preferences, always run memory_search first.
@@ -380,4 +382,4 @@ This agent will:
 - [Context Files — Add project-specific context](#context-files)
 - [Creating Agents — Set up system prompt configuration](#creating-agents)
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

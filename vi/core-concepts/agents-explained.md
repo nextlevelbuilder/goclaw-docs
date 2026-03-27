@@ -157,13 +157,13 @@ Agent có thể trả về `NO_REPLY` trong phản hồi cuối để ngăn gử
 
 ## Mid-Loop Compaction
 
-Trong các task chạy dài, GoClaw kích hoạt context compaction **ngay giữa vòng lặp** — không chỉ sau khi run hoàn tất. Khi prompt token vượt 75% context window (cấu hình qua `MaxHistoryShare`), agent tóm tắt ~70% đầu tiên của các message trong bộ nhớ, giữ lại ~30% cuối, rồi tiếp tục lặp. Điều này ngăn tràn context mà không cần hủy task hiện tại.
+Trong các task chạy dài, GoClaw kích hoạt context compaction **ngay giữa vòng lặp** — không chỉ sau khi run hoàn tất. Khi prompt token vượt 85% context window (cấu hình qua `MaxHistoryShare`, mặc định `0.85`), agent tóm tắt ~70% đầu tiên của các message trong bộ nhớ, giữ lại ~30% cuối, rồi tiếp tục lặp. Điều này ngăn tràn context mà không cần hủy task hiện tại.
 
 ## Tự động tóm tắt và Memory Flush
 
 Sau mỗi lần chạy, GoClaw đánh giá có cần compact session history không:
 
-- **Trigger**: history vượt 50 message HOẶC token ước tính vượt 75% context window
+- **Trigger**: history vượt 50 message HOẶC token ước tính vượt 85% context window
 - **Memory flush trước** (đồng bộ): agent ghi thông tin quan trọng vào file `memory/YYYY-MM-DD.md` trước khi lịch sử bị truncate
 - **Tóm tắt** (background): LLM tóm tắt các message cũ; history được truncate còn 4 message cuối; bản tóm tắt được lưu cho session tiếp theo
 
@@ -177,4 +177,4 @@ Predefined agent có cơ chế bảo vệ tích hợp chống lại social engin
 - [Tools Overview](#tools-overview) — Tool agent có thể dùng
 - [Memory System](#memory-system) — Memory dài hạn và tìm kiếm
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

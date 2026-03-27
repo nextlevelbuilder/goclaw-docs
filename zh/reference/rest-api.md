@@ -836,8 +836,15 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 
 **错误：**
 ```json
-{ "error": "agent not found" }
+{
+  "error": {
+    "code": "ERR_AGENT_NOT_FOUND",
+    "message": "Agent not found. Verify the agent ID and try again."
+  }
+}
 ```
+
+错误响应使用标准化的 envelope 结构，包含 `code`（机器可读错误类型）和 `message`（人类可读，支持 i18n 翻译）。
 
 | 状态码 | 含义 |
 |------|---------|
@@ -871,4 +878,4 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 - [配置参考](#config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](#database-schema) — 表定义和关系
 
-<!-- goclaw-source: 231bc968 | 更新: 2026-03-27 -->
+<!-- goclaw-source: 6551c2d1 | 更新: 2026-03-27 -->

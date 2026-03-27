@@ -155,13 +155,13 @@ Agents can signal `NO_REPLY` in their final response to suppress sending a visib
 
 ## Mid-Loop Compaction
 
-During long-running tasks, GoClaw triggers context compaction **mid-loop** — not just after a run completes. When prompt tokens exceed 75% of the context window (configurable via `MaxHistoryShare`), the agent summarizes the first ~70% of in-memory messages, keeping the last ~30%, then continues iterating. This prevents context overflow without aborting the current task.
+During long-running tasks, GoClaw triggers context compaction **mid-loop** — not just after a run completes. When prompt tokens exceed 85% of the context window (configurable via `MaxHistoryShare`, default `0.85`), the agent summarizes the first ~70% of in-memory messages, keeping the last ~30%, then continues iterating. This prevents context overflow without aborting the current task.
 
 ## Auto-Summarization and Memory Flush
 
 After each conversation run, GoClaw evaluates whether to compact session history:
 
-- **Trigger**: history exceeds 50 messages OR estimated tokens exceed 75% of context window
+- **Trigger**: history exceeds 50 messages OR estimated tokens exceed 85% of context window
 - **Memory flush first** (synchronous): agent writes important facts to `memory/YYYY-MM-DD.md` files before history is truncated
 - **Summarize** (background): LLM summarizes older messages; history is truncated to the last 4 messages; summary is saved for the next session
 
@@ -175,4 +175,4 @@ Predefined agents have built-in protection against social engineering. If a user
 - [Tools Overview](#tools-overview) — What tools agents can use
 - [Memory System](#memory-system) — Long-term memory and search
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

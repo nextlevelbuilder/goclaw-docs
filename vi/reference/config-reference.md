@@ -105,7 +105,7 @@ Compaction kích hoạt khi lịch sử session vượt `maxHistoryShare` của 
 | Field | Type | Mặc định | Mô tả |
 |-------|------|----------|-------|
 | `reserveTokensFloor` | integer | `20000` | Min tokens giữ lại sau compaction |
-| `maxHistoryShare` | float | `0.75` | Trigger khi history > tỷ lệ này của context window |
+| `maxHistoryShare` | float | `0.85` | Trigger khi history > tỷ lệ này của context window |
 | `minMessages` | integer | `50` | Min messages trước khi compaction có thể kích hoạt |
 | `keepLastMessages` | integer | `4` | Messages giữ lại sau compaction |
 | `memoryFlush` | object | — | Cấu hình memory flush trước compaction |
@@ -612,4 +612,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](#cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](#database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 941a965 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

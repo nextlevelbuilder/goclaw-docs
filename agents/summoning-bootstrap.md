@@ -335,7 +335,7 @@ Both summoning and bootstrap rely on `SeedUserFiles()` and `SeedToStore()`:
 
 **On first user chat:**
 - Open: All 7 templates → user_context_files
-- Predefined: USER.md, BOOTSTRAP.md (variant) → user_context_files
+- Predefined: USER.md, `BOOTSTRAP_PREDEFINED.md` (user-focused variant, different from open agent's BOOTSTRAP.md) → user_context_files
 - Agent-level files (SOUL.md, IDENTITY.md) already loaded from agent_context_files
 
 **Predefined with pre-configured USER.md:**
@@ -357,4 +357,4 @@ If you manually set USER.md at agent level before the first user chats, it's use
 - [Open vs. Predefined](#open-vs-predefined) — understand when to use each type
 - [Creating Agents](#creating-agents) — step-by-step agent creation
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

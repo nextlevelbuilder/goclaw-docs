@@ -69,7 +69,7 @@ Memory is for things worth remembering forever. Sessions are for conversation fl
 
 During [auto-compaction](#sessions-and-history), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
 
-- **Trigger**: >50 messages OR >75% context window (either condition triggers compaction)
+- **Trigger**: >50 messages OR >85% context window (either condition triggers compaction)
 - **Process**: Synchronous flush, max 5 iterations, 90-second timeout
 - **What's saved**: Key facts, user preferences, decisions, action items
 - **Order**: Memory flush runs **before** history compaction — facts are persisted first, then history is summarized and truncated
@@ -103,6 +103,16 @@ Memory requires:
 
 Set `memory: false` in an agent's config to disable memory entirely for that agent — no reads, no writes, no auto-flush.
 
+## Team Memory Sharing
+
+When agents work as a [team](#agent-teams), team members can **read the leader's memory** as a fallback:
+
+- **`memory_search`**: Searches the member's own memory first. If no results, automatically falls back to the leader's memory and merges results.
+- **`memory_get`**: Reads from the member's own memory first. If the file isn't found, falls back to the leader's memory.
+- **Writes are blocked**: Team members cannot save or modify memory files — only the team leader can write memory. Members attempting to write receive: *"memory is read-only for team members"*.
+
+This allows knowledge sharing within a team without duplication. The leader accumulates shared knowledge, and all members benefit from it automatically.
+
 ## Common Issues
 
 | Problem | Solution |
@@ -117,4 +127,4 @@ Set `memory: false` in an agent's config to disable memory entirely for that age
 - [Sessions and History](#sessions-and-history) — How conversation history works
 - [Agents Explained](#agents-explained) — Agent types and context files
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

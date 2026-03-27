@@ -834,8 +834,15 @@ Per-tenant key-value configuration store. Read access for all authenticated user
 
 **Error:**
 ```json
-{ "error": "agent not found" }
+{
+  "error": {
+    "code": "ERR_AGENT_NOT_FOUND",
+    "message": "Agent not found. Verify the agent ID and try again."
+  }
+}
 ```
+
+Error responses use a structured envelope with `code` (machine-readable error type) and `message` (human-readable, i18n-translated).
 
 | Code | Meaning |
 |------|---------|
@@ -869,4 +876,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](#config-reference) — full `config.json` schema
 - [Database Schema](#database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->
+<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

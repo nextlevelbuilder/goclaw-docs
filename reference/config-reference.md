@@ -103,7 +103,7 @@ Compaction triggers when session history exceeds `maxHistoryShare` of the contex
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `reserveTokensFloor` | integer | `20000` | Min tokens to reserve after compaction |
-| `maxHistoryShare` | float | `0.75` | Trigger when history > this fraction of context window |
+| `maxHistoryShare` | float | `0.85` | Trigger when history > this fraction of context window |
 | `minMessages` | integer | `50` | Min messages before compaction can trigger |
 | `keepLastMessages` | integer | `4` | Messages to keep after compaction |
 | `memoryFlush` | object | — | Pre-compaction memory flush config |
@@ -610,4 +610,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](#cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](#database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

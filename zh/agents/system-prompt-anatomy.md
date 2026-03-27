@@ -37,7 +37,7 @@
 | 12 | Silent Replies | ✓ | ✗ | NO_REPLY 指令 |
 | 13 | Sub-Agent Spawning | ✓ | ✓ | spawn tool 引导（团队 agent 有 TEAM.md 时跳过） |
 | 13.5 | Team Workspace | ✓ | ✓ | 团队 agent 的 TEAM.md 动态注入 |
-| 15 | Runtime | ✓ | ✓ | Agent ID、channel 信息 |
+| 15 | Runtime | ✓ | ✓ | Agent ID、channel 信息、群聊标题 |
 | 16 | Recency Reinforcements | ✓ | ✓ | Persona 提醒 + 记忆提醒（对抗"中间遗忘"） |
 
 ## 首因与近因策略
@@ -279,7 +279,9 @@ When you have nothing to say, respond with ONLY: NO_REPLY
 To delegate work, use the spawn tool with action=list|steer|kill.
 
 ## Runtime
-agent=default | channel=my-telegram-bot
+agent=default | channel=my-telegram-bot | group chat "Team Engineering"
+
+在群聊中，agent 接收群组显示名称（chat title）以更好地理解对话上下文。标题经过清理以防止 prompt 注入，最长截断为 100 个字符。
 
 Reminder: Stay in character as defined by SOUL.md + IDENTITY.md above. Never break persona.
 Reminder: Before answering questions about prior work, decisions, or preferences, always run memory_search first.
@@ -382,4 +384,4 @@ Reminder: Before answering questions about prior work, decisions, or preferences
 - [Context Files — 添加项目专属 context](#context-files)
 - [Creating Agents — 设置 system prompt 配置](#creating-agents)
 
-<!-- goclaw-source: 120fc2d | 更新: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | 更新: 2026-03-27 -->

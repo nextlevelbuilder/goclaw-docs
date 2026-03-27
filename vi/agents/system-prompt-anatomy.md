@@ -37,7 +37,7 @@ Có hai **prompt mode**:
 | 12 | Silent Replies | ✓ | ✗ | Hướng dẫn NO_REPLY |
 | 13 | Sub-Agent Spawning | ✓ | ✓ | Hướng dẫn tool spawn (bỏ qua cho team agent có TEAM.md) |
 | 13.5 | Team Workspace | ✓ | ✓ | TEAM.md được inject động cho team agent |
-| 15 | Runtime | ✓ | ✓ | Agent ID, thông tin channel |
+| 15 | Runtime | ✓ | ✓ | Agent ID, thông tin channel, tên group chat |
 | 16 | Recency Reinforcements | ✓ | ✓ | Nhắc nhở persona + memory ở cuối (chống "lost in the middle") |
 
 ## Chiến lược Primacy và Recency
@@ -279,7 +279,9 @@ When you have nothing to say, respond with ONLY: NO_REPLY
 To delegate work, use the spawn tool with action=list|steer|kill.
 
 ## Runtime
-agent=default | channel=my-telegram-bot
+agent=default | channel=my-telegram-bot | group chat "Team Engineering"
+
+Trong group chat, agent nhận tên nhóm (chat title) để hiểu rõ hơn ngữ cảnh. Title được sanitize để chống prompt injection và cắt ngắn tối đa 100 ký tự.
 
 Reminder: Stay in character as defined by SOUL.md + IDENTITY.md above. Never break persona.
 Reminder: Before answering questions about prior work, decisions, or preferences, always run memory_search first.
@@ -382,4 +384,4 @@ Agent này sẽ:
 - [Context Files — Thêm context dành riêng cho dự án](#context-files)
 - [Creating Agents — Thiết lập cấu hình system prompt](#creating-agents)
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->
