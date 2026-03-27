@@ -61,6 +61,7 @@
       <div class="lang-toggle">
         <button class="lang-btn active" data-lang-btn="en" aria-pressed="true">EN</button>
         <button class="lang-btn" data-lang-btn="vi" aria-pressed="false">VI</button>
+        <button class="lang-btn" data-lang-btn="zh" aria-pressed="false">ZH</button>
       </div>
       <a href="https://goclaw.sh" class="nav-link" target="_blank" rel="noopener">Home</a>
       <div class="copy-ai-dropdown">
@@ -109,7 +110,7 @@
        ============================================================ -->
   <aside id="sidebar">
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Getting Started</div>
+      <div class="sidebar-section-title" data-i18n="nav.getting-started">Getting Started</div>
       <a class="sidebar-link" data-doc="what-is-goclaw">What is GoClaw?</a>
       <a class="sidebar-link" data-doc="installation">Installation</a>
       <a class="sidebar-link" data-doc="quick-start">Quick Start</a>
@@ -119,7 +120,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Core Concepts</div>
+      <div class="sidebar-section-title" data-i18n="nav.core-concepts">Core Concepts</div>
       <a class="sidebar-link" data-doc="how-goclaw-works">How GoClaw Works</a>
       <a class="sidebar-link" data-doc="agents-explained">Agents Explained</a>
       <a class="sidebar-link" data-doc="sessions-and-history">Sessions & History</a>
@@ -129,7 +130,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Agents</div>
+      <div class="sidebar-section-title" data-i18n="nav.agents">Agents</div>
       <a class="sidebar-link" data-doc="creating-agents">Creating Agents</a>
       <a class="sidebar-link" data-doc="open-vs-predefined">Open vs Predefined</a>
       <a class="sidebar-link" data-doc="context-files">Context Files</a>
@@ -141,7 +142,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Providers</div>
+      <div class="sidebar-section-title" data-i18n="nav.providers">Providers</div>
       <a class="sidebar-link" data-doc="providers-overview">Overview</a>
       <a class="sidebar-link" data-doc="provider-anthropic">Anthropic</a>
       <a class="sidebar-link" data-doc="provider-openai">OpenAI / Azure</a>
@@ -168,7 +169,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Channels</div>
+      <div class="sidebar-section-title" data-i18n="nav.channels">Channels</div>
       <a class="sidebar-link" data-doc="channels-overview">Overview</a>
       <a class="sidebar-link" data-doc="channel-telegram">Telegram</a>
       <a class="sidebar-link" data-doc="channel-discord">Discord</a>
@@ -183,7 +184,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Agent Teams</div>
+      <div class="sidebar-section-title" data-i18n="nav.agent-teams">Agent Teams</div>
       <a class="sidebar-link" data-doc="teams-what-are-teams">What Are Teams?</a>
       <a class="sidebar-link" data-doc="teams-creating">Creating & Managing</a>
       <a class="sidebar-link" data-doc="teams-task-board">Task Board</a>
@@ -192,7 +193,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Advanced</div>
+      <div class="sidebar-section-title" data-i18n="nav.advanced">Advanced</div>
       <a class="sidebar-link" data-doc="custom-tools">Custom Tools</a>
       <a class="sidebar-link" data-doc="mcp-integration">MCP Integration</a>
       <a class="sidebar-link" data-doc="skills">Skills</a>
@@ -219,7 +220,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Deployment</div>
+      <div class="sidebar-section-title" data-i18n="nav.deployment">Deployment</div>
       <a class="sidebar-link" data-doc="deploy-docker-compose">Docker Compose</a>
       <a class="sidebar-link" data-doc="deploy-database">Database Setup</a>
       <a class="sidebar-link" data-doc="deploy-security">Security Hardening</a>
@@ -230,7 +231,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Recipes</div>
+      <div class="sidebar-section-title" data-i18n="nav.recipes">Recipes</div>
       <a class="sidebar-link" data-doc="recipe-personal-assistant">Personal Assistant</a>
       <a class="sidebar-link" data-doc="recipe-team-chatbot">Team Chatbot</a>
       <a class="sidebar-link" data-doc="recipe-customer-support">Customer Support</a>
@@ -239,12 +240,12 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Showcases</div>
+      <div class="sidebar-section-title" data-i18n="nav.showcases">Showcases</div>
       <a class="sidebar-link" data-doc="gallery">Gallery</a>
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Reference</div>
+      <div class="sidebar-section-title" data-i18n="nav.reference">Reference</div>
       <a class="sidebar-link" data-doc="cli-commands">CLI Commands</a>
       <a class="sidebar-link" data-doc="websocket-protocol">WebSocket Protocol</a>
       <a class="sidebar-link" data-doc="rest-api">REST API</a>
@@ -253,7 +254,7 @@
       <a class="sidebar-link" data-doc="database-schema">Database Schema</a>
       <a class="sidebar-link" data-doc="glossary">Glossary</a>
 
-      <div class="sidebar-subsection-title">Templates</div>
+      <div class="sidebar-subsection-title" data-i18n="nav.templates">Templates</div>
       <a class="sidebar-link sidebar-link-nested" data-doc="template-agents">AGENTS.md</a>
       <a class="sidebar-link sidebar-link-nested" data-doc="template-soul">SOUL.md</a>
       <a class="sidebar-link sidebar-link-nested" data-doc="template-identity">IDENTITY.md</a>
@@ -265,7 +266,7 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">Troubleshooting</div>
+      <div class="sidebar-section-title" data-i18n="nav.troubleshooting">Troubleshooting</div>
       <a class="sidebar-link" data-doc="troubleshoot-common">Common Issues</a>
       <a class="sidebar-link" data-doc="troubleshoot-channels">Channels</a>
       <a class="sidebar-link" data-doc="troubleshoot-providers">Providers</a>
@@ -277,7 +278,7 @@
 
     <div style="padding: 20px; margin-top: 12px; border-top: 1px solid var(--color-border);">
       <div style="font-size:0.72rem; color:var(--color-text-dim);">
-        All docs available as<br/>
+        <span data-i18n="sidebar.llms">All docs available as</span><br/>
         <a href="llms.txt" target="_blank" style="color:var(--color-primary); text-decoration:none;">llms.txt</a>
         &middot;
         <a href="llms-full.txt" target="_blank" style="color:var(--color-primary); text-decoration:none;">llms-full.txt</a>

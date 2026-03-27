@@ -14,6 +14,7 @@ const UI_STRINGS = {
     'footer.text': 'GoClaw — Enterprise AI Agent Platform',
     'notfound': 'Document not found.',
     'loadfailed': 'Failed to load document',
+    'sidebar.llms': 'All docs available as',
   },
   vi: {
     'search.placeholder': 'Tìm kiếm tài liệu...',
@@ -22,6 +23,42 @@ const UI_STRINGS = {
     'footer.text': 'GoClaw — Nền Tảng AI Agent Doanh Nghiệp',
     'notfound': 'Không tìm thấy tài liệu.',
     'loadfailed': 'Không thể tải tài liệu',
+    'sidebar.llms': 'Tất cả tài liệu có sẵn dạng',
+    'nav.getting-started': 'Bắt đầu',
+    'nav.core-concepts': 'Khái niệm cốt lõi',
+    'nav.agents': 'Agent',
+    'nav.providers': 'Provider',
+    'nav.channels': 'Channel',
+    'nav.agent-teams': 'Agent Team',
+    'nav.advanced': 'Nâng cao',
+    'nav.deployment': 'Triển khai',
+    'nav.recipes': 'Recipes',
+    'nav.showcases': 'Showcases',
+    'nav.reference': 'Tham khảo',
+    'nav.troubleshooting': 'Xử lý sự cố',
+    'nav.templates': 'Template',
+  },
+  zh: {
+    'search.placeholder': '搜索文档...',
+    'toc.title': '本页目录',
+    'loading': '加载中...',
+    'footer.text': 'GoClaw — 企业级 AI Agent 平台',
+    'notfound': '未找到文档。',
+    'loadfailed': '加载文档失败',
+    'sidebar.llms': '所有文档可用格式',
+    'nav.getting-started': '快速入门',
+    'nav.core-concepts': '核心概念',
+    'nav.agents': 'Agent',
+    'nav.providers': 'Provider',
+    'nav.channels': 'Channel',
+    'nav.agent-teams': 'Agent Team',
+    'nav.advanced': '高级功能',
+    'nav.deployment': '部署',
+    'nav.recipes': '实战方案',
+    'nav.showcases': '展示',
+    'nav.reference': '参考',
+    'nav.troubleshooting': '故障排除',
+    'nav.templates': 'Template',
   }
 };
 
@@ -37,47 +74,47 @@ function t(key) {
 /* ============================================================
    DOCUMENT MAP — hash -> file paths per language
    ============================================================ */
-/* Helper: generate EN/VI file paths from section + filename */
-function docEntry(section, file, titleEn, titleVi) {
+/* Helper: generate EN/VI/ZH file paths from section + filename */
+function docEntry(section, file, titleEn, titleVi, titleZh) {
   return {
-    file: { en: `${section}/${file}.md`, vi: `vi/${section}/${file}.md` },
-    title: { en: titleEn, vi: titleVi || titleEn },
+    file: { en: `${section}/${file}.md`, vi: `vi/${section}/${file}.md`, zh: `zh/${section}/${file}.md` },
+    title: { en: titleEn, vi: titleVi || titleEn, zh: titleZh || titleEn },
   };
 }
 
 const DOC_MAP = {
   // Getting Started
-  'what-is-goclaw': docEntry('getting-started', 'what-is-goclaw', 'What is GoClaw?', 'GoClaw là gì?'),
-  'installation': docEntry('getting-started', 'installation', 'Installation', 'Cài đặt'),
-  'quick-start': docEntry('getting-started', 'quick-start', 'Quick Start', 'Bắt đầu nhanh'),
-  'configuration': docEntry('getting-started', 'configuration', 'Configuration', 'Cấu hình'),
-  'dashboard-tour': docEntry('getting-started', 'web-dashboard-tour', 'Dashboard Tour', 'Web Dashboard Tour'),
-  'migrating-from-openclaw': docEntry('getting-started', 'migrating-from-openclaw', 'Migrating from OpenClaw', 'Chuyển từ OpenClaw sang GoClaw'),
+  'what-is-goclaw': docEntry('getting-started', 'what-is-goclaw', 'What is GoClaw?', 'GoClaw là gì?', '什么是 GoClaw？'),
+  'installation': docEntry('getting-started', 'installation', 'Installation', 'Cài đặt', '安装'),
+  'quick-start': docEntry('getting-started', 'quick-start', 'Quick Start', 'Bắt đầu nhanh', '快速开始'),
+  'configuration': docEntry('getting-started', 'configuration', 'Configuration', 'Cấu hình', '配置'),
+  'dashboard-tour': docEntry('getting-started', 'web-dashboard-tour', 'Dashboard Tour', 'Web Dashboard Tour', 'Web Dashboard 导览'),
+  'migrating-from-openclaw': docEntry('getting-started', 'migrating-from-openclaw', 'Migrating from OpenClaw', 'Chuyển từ OpenClaw sang GoClaw', '从 OpenClaw 迁移'),
 
   // Core Concepts
-  'how-goclaw-works': docEntry('core-concepts', 'how-goclaw-works', 'How GoClaw Works', 'GoClaw hoạt động như thế nào'),
-  'agents-explained': docEntry('core-concepts', 'agents-explained', 'Agents Explained', 'Agents Explained'),
-  'sessions-and-history': docEntry('core-concepts', 'sessions-and-history', 'Sessions & History', 'Sessions và History'),
-  'tools-overview': docEntry('core-concepts', 'tools-overview', 'Tools Overview', 'Tools Overview'),
-  'memory-system': docEntry('core-concepts', 'memory-system', 'Memory System', 'Memory System'),
-  'multi-tenancy': docEntry('core-concepts', 'multi-tenancy', 'Multi-Tenancy', 'Multi-Tenancy'),
+  'how-goclaw-works': docEntry('core-concepts', 'how-goclaw-works', 'How GoClaw Works', 'GoClaw hoạt động như thế nào', 'GoClaw 工作原理'),
+  'agents-explained': docEntry('core-concepts', 'agents-explained', 'Agents Explained', 'Agents Explained', 'Agent 详解'),
+  'sessions-and-history': docEntry('core-concepts', 'sessions-and-history', 'Sessions & History', 'Sessions và History', 'Session 与历史记录'),
+  'tools-overview': docEntry('core-concepts', 'tools-overview', 'Tools Overview', 'Tools Overview', 'Tools 概览'),
+  'memory-system': docEntry('core-concepts', 'memory-system', 'Memory System', 'Memory System', 'Memory 系统'),
+  'multi-tenancy': docEntry('core-concepts', 'multi-tenancy', 'Multi-Tenancy', 'Multi-Tenancy', '多租户'),
 
   // Agents
-  'creating-agents': docEntry('agents', 'creating-agents', 'Creating Agents', 'Tạo Agent'),
-  'open-vs-predefined': docEntry('agents', 'open-vs-predefined', 'Open vs Predefined', 'Open vs. Predefined Agent'),
-  'context-files': docEntry('agents', 'context-files', 'Context Files', 'Context Files'),
-  'summoning-bootstrap': docEntry('agents', 'summoning-bootstrap', 'Summoning & Bootstrap', 'Summoning & Bootstrap'),
-  'editing-personality': docEntry('agents', 'editing-personality', 'Editing Personality', 'Chỉnh sửa Personality của Agent'),
-  'sharing-and-access': docEntry('agents', 'sharing-and-access', 'Sharing & Access Control', 'Chia sẻ và Kiểm soát Truy cập'),
-  'user-overrides': docEntry('agents', 'user-overrides', 'User Overrides', 'User Overrides'),
-  'system-prompt-anatomy': docEntry('agents', 'system-prompt-anatomy', 'System Prompt Anatomy', 'Cấu trúc System Prompt'),
+  'creating-agents': docEntry('agents', 'creating-agents', 'Creating Agents', 'Tạo Agent', '创建 Agent'),
+  'open-vs-predefined': docEntry('agents', 'open-vs-predefined', 'Open vs Predefined', 'Open vs. Predefined Agent', 'Open vs. Predefined Agent'),
+  'context-files': docEntry('agents', 'context-files', 'Context Files', 'Context Files', 'Context 文件'),
+  'summoning-bootstrap': docEntry('agents', 'summoning-bootstrap', 'Summoning & Bootstrap', 'Summoning & Bootstrap', 'Summoning 与 Bootstrap'),
+  'editing-personality': docEntry('agents', 'editing-personality', 'Editing Personality', 'Chỉnh sửa Personality của Agent', '编辑 Agent Personality'),
+  'sharing-and-access': docEntry('agents', 'sharing-and-access', 'Sharing & Access Control', 'Chia sẻ và Kiểm soát Truy cập', '共享与访问控制'),
+  'user-overrides': docEntry('agents', 'user-overrides', 'User Overrides', 'User Overrides', '用户覆盖'),
+  'system-prompt-anatomy': docEntry('agents', 'system-prompt-anatomy', 'System Prompt Anatomy', 'Cấu trúc System Prompt', 'System Prompt 结构'),
 
   // Providers
-  'providers-overview': docEntry('providers', 'overview', 'Provider Overview', 'Tổng quan về Providers'),
-  'provider-anthropic': docEntry('providers', 'anthropic', 'Anthropic (Claude)', 'Anthropic'),
-  'provider-openai': docEntry('providers', 'openai', 'OpenAI / Azure OpenAI', 'OpenAI'),
+  'providers-overview': docEntry('providers', 'overview', 'Provider Overview', 'Tổng quan về Providers', 'Provider 概览'),
+  'provider-anthropic': docEntry('providers', 'anthropic', 'Anthropic (Claude)', 'Anthropic', 'Anthropic (Claude)'),
+  'provider-openai': docEntry('providers', 'openai', 'OpenAI / Azure OpenAI', 'OpenAI', 'OpenAI / Azure OpenAI'),
   'provider-openrouter': docEntry('providers', 'openrouter', 'OpenRouter'),
-  'provider-gemini': docEntry('providers', 'gemini', 'Google Gemini', 'Gemini'),
+  'provider-gemini': docEntry('providers', 'gemini', 'Google Gemini', 'Gemini', 'Google Gemini'),
   'provider-deepseek': docEntry('providers', 'deepseek', 'DeepSeek'),
   'provider-groq': docEntry('providers', 'groq', 'Groq'),
   'provider-mistral': docEntry('providers', 'mistral', 'Mistral'),
@@ -85,90 +122,90 @@ const DOC_MAP = {
   'provider-minimax': docEntry('providers', 'minimax', 'MiniMax'),
   'provider-cohere': docEntry('providers', 'cohere', 'Cohere'),
   'provider-perplexity': docEntry('providers', 'perplexity', 'Perplexity'),
-  'provider-dashscope': docEntry('providers', 'dashscope', 'DashScope (Qwen)', 'DashScope (Alibaba Qwen)'),
-  'provider-bailian': docEntry('providers', 'bailian', 'Bailian'),
+  'provider-dashscope': docEntry('providers', 'dashscope', 'DashScope (Qwen)', 'DashScope (Alibaba Qwen)', 'DashScope (阿里通义千问)'),
+  'provider-bailian': docEntry('providers', 'bailian', 'Bailian', 'Bailian', '百炼'),
   'provider-zai': docEntry('providers', 'zai', 'Zai'),
   'provider-claude-cli': docEntry('providers', 'claude-cli', 'Claude CLI'),
-  'provider-codex': docEntry('providers', 'codex-chatgpt', 'Codex / ChatGPT', 'Codex / ChatGPT (OAuth)'),
-  'provider-acp': docEntry('providers', 'acp', 'ACP (Agent Client Protocol)', 'ACP (Agent Client Protocol)'),
+  'provider-codex': docEntry('providers', 'codex-chatgpt', 'Codex / ChatGPT', 'Codex / ChatGPT (OAuth)', 'Codex / ChatGPT (OAuth)'),
+  'provider-acp': docEntry('providers', 'acp', 'ACP (Agent Client Protocol)', 'ACP (Agent Client Protocol)', 'ACP (Agent Client Protocol)'),
   'provider-ollama': docEntry('providers', 'ollama', 'Ollama'),
   'provider-ollama-cloud': docEntry('providers', 'ollama-cloud', 'Ollama Cloud'),
   'provider-suno': docEntry('providers', 'suno', 'Suno'),
   'provider-yescale': docEntry('providers', 'yescale', 'YesScale'),
-  'provider-custom': docEntry('providers', 'custom-provider', 'Custom / OpenAI-Compatible', 'Custom Provider'),
+  'provider-custom': docEntry('providers', 'custom-provider', 'Custom / OpenAI-Compatible', 'Custom Provider', '自定义 Provider'),
 
   // Channels
-  'channels-overview': docEntry('channels', 'overview', 'Channel Overview', 'Tổng quan về Channel'),
-  'channel-telegram': docEntry('channels', 'telegram', 'Telegram', 'Channel Telegram'),
-  'channel-discord': docEntry('channels', 'discord', 'Discord', 'Channel Discord'),
-  'channel-feishu': docEntry('channels', 'feishu', 'Feishu / Lark', 'Kênh Feishu'),
-  'channel-larksuite': docEntry('channels', 'larksuite', 'Larksuite', 'Channel Larksuite'),
-  'channel-zalo-oa': docEntry('channels', 'zalo-oa', 'Zalo OA', 'Channel Zalo OA'),
-  'channel-zalo-personal': docEntry('channels', 'zalo-personal', 'Zalo Personal', 'Channel Zalo Personal'),
-  'channel-slack': docEntry('channels', 'slack', 'Slack', 'Channel Slack'),
-  'channel-whatsapp': docEntry('channels', 'whatsapp', 'WhatsApp', 'Channel WhatsApp'),
-  'channel-websocket': docEntry('channels', 'websocket', 'WebSocket', 'Channel WebSocket'),
-  'channel-browser-pairing': docEntry('channels', 'browser-pairing', 'Browser Pairing', 'Browser Pairing'),
+  'channels-overview': docEntry('channels', 'overview', 'Channel Overview', 'Tổng quan về Channel', 'Channel 概览'),
+  'channel-telegram': docEntry('channels', 'telegram', 'Telegram', 'Channel Telegram', 'Telegram 频道'),
+  'channel-discord': docEntry('channels', 'discord', 'Discord', 'Channel Discord', 'Discord 频道'),
+  'channel-feishu': docEntry('channels', 'feishu', 'Feishu / Lark', 'Channel Feishu', '飞书 / Lark'),
+  'channel-larksuite': docEntry('channels', 'larksuite', 'Larksuite', 'Channel Larksuite', 'Larksuite 频道'),
+  'channel-zalo-oa': docEntry('channels', 'zalo-oa', 'Zalo OA', 'Channel Zalo OA', 'Zalo OA 频道'),
+  'channel-zalo-personal': docEntry('channels', 'zalo-personal', 'Zalo Personal', 'Channel Zalo Personal', 'Zalo Personal 频道'),
+  'channel-slack': docEntry('channels', 'slack', 'Slack', 'Channel Slack', 'Slack 频道'),
+  'channel-whatsapp': docEntry('channels', 'whatsapp', 'WhatsApp', 'Channel WhatsApp', 'WhatsApp 频道'),
+  'channel-websocket': docEntry('channels', 'websocket', 'WebSocket', 'Channel WebSocket', 'WebSocket 频道'),
+  'channel-browser-pairing': docEntry('channels', 'browser-pairing', 'Browser Pairing', 'Browser Pairing', '浏览器配对'),
 
   // Agent Teams
-  'teams-what-are-teams': docEntry('agent-teams', 'what-are-teams', 'What Are Teams?', 'Agent Team là gì?'),
-  'teams-creating': docEntry('agent-teams', 'creating-managing-teams', 'Creating & Managing Teams', 'Tạo & Quản lý Team'),
-  'teams-task-board': docEntry('agent-teams', 'task-board', 'Task Board', 'Task Board'),
-  'teams-messaging': docEntry('agent-teams', 'team-messaging', 'Team Messaging', 'Team Messaging'),
-  'teams-delegation': docEntry('agent-teams', 'delegation-and-handoff', 'Delegation & Handoff', 'Delegation & Handoff'),
+  'teams-what-are-teams': docEntry('agent-teams', 'what-are-teams', 'What Are Teams?', 'Agent Team là gì?', '什么是 Agent Team？'),
+  'teams-creating': docEntry('agent-teams', 'creating-managing-teams', 'Creating & Managing Teams', 'Tạo & Quản lý Team', '创建与管理 Team'),
+  'teams-task-board': docEntry('agent-teams', 'task-board', 'Task Board', 'Task Board', '任务看板'),
+  'teams-messaging': docEntry('agent-teams', 'team-messaging', 'Team Messaging', 'Team Messaging', 'Team 消息'),
+  'teams-delegation': docEntry('agent-teams', 'delegation-and-handoff', 'Delegation & Handoff', 'Delegation & Handoff', '委派与交接'),
 
   // Advanced
-  'custom-tools': docEntry('advanced', 'custom-tools', 'Custom Tools', 'Custom Tools'),
-  'mcp-integration': docEntry('advanced', 'mcp-integration', 'MCP Integration', 'MCP Integration'),
-  'skills': docEntry('advanced', 'skills', 'Skills', 'Skills'),
-  'scheduling-cron': docEntry('advanced', 'scheduling-cron', 'Scheduling & Cron', 'Scheduling & Cron'),
-  'heartbeat': docEntry('advanced', 'heartbeat', 'Heartbeat', 'Heartbeat'),
-  'sandbox': docEntry('advanced', 'sandbox', 'Sandbox', 'Sandbox'),
-  'media-generation': docEntry('advanced', 'media-generation', 'Media Generation', 'Tạo Media'),
-  'tts-voice': docEntry('advanced', 'tts-voice', 'TTS & Voice', 'Chuyển văn bản thành giọng nói'),
-  'knowledge-graph': docEntry('advanced', 'knowledge-graph', 'Knowledge Graph', 'Knowledge Graph'),
-  'caching': docEntry('advanced', 'caching', 'Caching', 'Caching'),
-  'browser-automation': docEntry('advanced', 'browser-automation', 'Browser Automation', 'Browser Automation'),
-  'extended-thinking': docEntry('advanced', 'extended-thinking', 'Extended Thinking', 'Extended Thinking'),
-  'hooks-quality-gates': docEntry('advanced', 'hooks-quality-gates', 'Hooks & Quality Gates', 'Hooks & Quality Gates'),
-  'authentication': docEntry('advanced', 'authentication', 'Authentication & OAuth', 'Authentication'),
-  'api-keys-rbac': docEntry('advanced', 'api-keys-rbac', 'API Keys & RBAC', 'API Keys & RBAC'),
-  'cli-credentials': docEntry('advanced', 'cli-credentials', 'CLI Credentials', 'CLI Credentials'),
-  'exec-approval': docEntry('advanced', 'exec-approval', 'Exec Approval', 'Exec Approval (Human-in-the-Loop)'),
-  'context-pruning': docEntry('advanced', 'context-pruning', 'Context Pruning', 'Context Pruning'),
-  'channel-instances': docEntry('advanced', 'channel-instances', 'Channel Instances', 'Channel Instances'),
-  'usage-quota': docEntry('advanced', 'usage-quota', 'Usage & Quota', 'Usage & Quota'),
-  'cost-tracking': docEntry('advanced', 'cost-tracking', 'Cost Tracking', 'Theo Dõi Chi Phí'),
-  'model-steering': docEntry('advanced', 'model-steering', 'Model Steering', 'Điều hướng mô hình'),
-  'agent-evolution': docEntry('advanced', 'agent-evolution', 'Agent Evolution', 'Tiến Hóa Agent'),
+  'custom-tools': docEntry('advanced', 'custom-tools', 'Custom Tools', 'Custom Tools', '自定义 Tools'),
+  'mcp-integration': docEntry('advanced', 'mcp-integration', 'MCP Integration', 'MCP Integration', 'MCP 集成'),
+  'skills': docEntry('advanced', 'skills', 'Skills', 'Skills', 'Skills 系统'),
+  'scheduling-cron': docEntry('advanced', 'scheduling-cron', 'Scheduling & Cron', 'Scheduling & Cron', '定时任务与 Cron'),
+  'heartbeat': docEntry('advanced', 'heartbeat', 'Heartbeat', 'Heartbeat', '心跳检测'),
+  'sandbox': docEntry('advanced', 'sandbox', 'Sandbox', 'Sandbox', '沙箱'),
+  'media-generation': docEntry('advanced', 'media-generation', 'Media Generation', 'Tạo Media', '媒体生成'),
+  'tts-voice': docEntry('advanced', 'tts-voice', 'TTS & Voice', 'Chuyển văn bản thành giọng nói', 'TTS 与语音'),
+  'knowledge-graph': docEntry('advanced', 'knowledge-graph', 'Knowledge Graph', 'Knowledge Graph', '知识图谱'),
+  'caching': docEntry('advanced', 'caching', 'Caching', 'Caching', '缓存'),
+  'browser-automation': docEntry('advanced', 'browser-automation', 'Browser Automation', 'Browser Automation', '浏览器自动化'),
+  'extended-thinking': docEntry('advanced', 'extended-thinking', 'Extended Thinking', 'Extended Thinking', '扩展思考'),
+  'hooks-quality-gates': docEntry('advanced', 'hooks-quality-gates', 'Hooks & Quality Gates', 'Hooks & Quality Gates', 'Hooks 与质量门控'),
+  'authentication': docEntry('advanced', 'authentication', 'Authentication & OAuth', 'Authentication', '认证与 OAuth'),
+  'api-keys-rbac': docEntry('advanced', 'api-keys-rbac', 'API Keys & RBAC', 'API Keys & RBAC', 'API Keys 与 RBAC'),
+  'cli-credentials': docEntry('advanced', 'cli-credentials', 'CLI Credentials', 'CLI Credentials', 'CLI 凭证'),
+  'exec-approval': docEntry('advanced', 'exec-approval', 'Exec Approval', 'Exec Approval (Human-in-the-Loop)', '执行审批 (Human-in-the-Loop)'),
+  'context-pruning': docEntry('advanced', 'context-pruning', 'Context Pruning', 'Context Pruning', 'Context 裁剪'),
+  'channel-instances': docEntry('advanced', 'channel-instances', 'Channel Instances', 'Channel Instances', 'Channel 实例'),
+  'usage-quota': docEntry('advanced', 'usage-quota', 'Usage & Quota', 'Usage & Quota', '用量与配额'),
+  'cost-tracking': docEntry('advanced', 'cost-tracking', 'Cost Tracking', 'Theo Dõi Chi Phí', '成本追踪'),
+  'model-steering': docEntry('advanced', 'model-steering', 'Model Steering', 'Điều hướng mô hình', '模型引导'),
+  'agent-evolution': docEntry('advanced', 'agent-evolution', 'Agent Evolution', 'Tiến Hóa Agent', 'Agent 进化'),
 
   // Deployment
-  'deploy-docker-compose': docEntry('deployment', 'docker-compose', 'Docker Compose', 'Docker Compose Deployment'),
-  'deploy-database': docEntry('deployment', 'database-setup', 'Database Setup', 'Thiết lập Database'),
-  'deploy-security': docEntry('deployment', 'security-hardening', 'Security Hardening', 'Tăng cường bảo mật'),
-  'deploy-observability': docEntry('deployment', 'observability', 'Observability', 'Observability'),
-  'deploy-tailscale': docEntry('deployment', 'tailscale', 'Tailscale', 'Tailscale Integration'),
-  'deploy-checklist': docEntry('deployment', 'production-checklist', 'Production Checklist', 'Production Checklist'),
-  'deploy-upgrading': docEntry('deployment', 'upgrading', 'Upgrading', 'Upgrading'),
+  'deploy-docker-compose': docEntry('deployment', 'docker-compose', 'Docker Compose', 'Docker Compose Deployment', 'Docker Compose 部署'),
+  'deploy-database': docEntry('deployment', 'database-setup', 'Database Setup', 'Thiết lập Database', '数据库设置'),
+  'deploy-security': docEntry('deployment', 'security-hardening', 'Security Hardening', 'Tăng cường bảo mật', '安全加固'),
+  'deploy-observability': docEntry('deployment', 'observability', 'Observability', 'Observability', '可观测性'),
+  'deploy-tailscale': docEntry('deployment', 'tailscale', 'Tailscale', 'Tailscale Integration', 'Tailscale 集成'),
+  'deploy-checklist': docEntry('deployment', 'production-checklist', 'Production Checklist', 'Production Checklist', '生产环境清单'),
+  'deploy-upgrading': docEntry('deployment', 'upgrading', 'Upgrading', 'Upgrading', '升级'),
 
   // Recipes
-  'recipe-personal-assistant': docEntry('recipes', 'personal-assistant', 'Personal Assistant', 'Trợ lý Cá nhân'),
-  'recipe-team-chatbot': docEntry('recipes', 'team-chatbot', 'Team Chatbot', 'Team Chatbot'),
-  'recipe-customer-support': docEntry('recipes', 'customer-support', 'Customer Support', 'Customer Support'),
-  'recipe-code-review': docEntry('recipes', 'code-review-agent', 'Code Review Agent', 'Agent Review Code'),
-  'recipe-multi-channel': docEntry('recipes', 'multi-channel-setup', 'Multi-Channel Setup', 'Multi-Channel Setup'),
+  'recipe-personal-assistant': docEntry('recipes', 'personal-assistant', 'Personal Assistant', 'Trợ lý Cá nhân', '个人助手'),
+  'recipe-team-chatbot': docEntry('recipes', 'team-chatbot', 'Team Chatbot', 'Team Chatbot', '团队聊天机器人'),
+  'recipe-customer-support': docEntry('recipes', 'customer-support', 'Customer Support', 'Customer Support', '客户支持'),
+  'recipe-code-review': docEntry('recipes', 'code-review-agent', 'Code Review Agent', 'Agent Review Code', '代码审查 Agent'),
+  'recipe-multi-channel': docEntry('recipes', 'multi-channel-setup', 'Multi-Channel Setup', 'Multi-Channel Setup', '多频道设置'),
 
   // Showcases
-  'gallery': docEntry('showcases', 'gallery', 'Gallery', 'Thư viện'),
+  'gallery': docEntry('showcases', 'gallery', 'Gallery', 'Thư viện', '展示'),
 
   // Reference
-  'cli-commands': docEntry('reference', 'cli-commands', 'CLI Commands', 'CLI Commands'),
-  'websocket-protocol': docEntry('reference', 'websocket-protocol', 'WebSocket Protocol', 'WebSocket Protocol'),
-  'rest-api': docEntry('reference', 'rest-api', 'REST API', 'REST API'),
-  'config-reference': docEntry('reference', 'config-reference', 'Configuration Reference', 'Config Reference'),
-  'env-vars': docEntry('reference', 'environment-variables', 'Environment Variables', 'Environment Variables'),
-  'database-schema': docEntry('reference', 'database-schema', 'Database Schema', 'Database Schema'),
-  'glossary': docEntry('reference', 'glossary', 'Glossary', 'Glossary'),
+  'cli-commands': docEntry('reference', 'cli-commands', 'CLI Commands', 'CLI Commands', 'CLI 命令'),
+  'websocket-protocol': docEntry('reference', 'websocket-protocol', 'WebSocket Protocol', 'WebSocket Protocol', 'WebSocket 协议'),
+  'rest-api': docEntry('reference', 'rest-api', 'REST API', 'REST API', 'REST API'),
+  'config-reference': docEntry('reference', 'config-reference', 'Configuration Reference', 'Config Reference', '配置参考'),
+  'env-vars': docEntry('reference', 'environment-variables', 'Environment Variables', 'Environment Variables', '环境变量'),
+  'database-schema': docEntry('reference', 'database-schema', 'Database Schema', 'Database Schema', '数据库 Schema'),
+  'glossary': docEntry('reference', 'glossary', 'Glossary', 'Glossary', '术语表'),
   'template-agents': docEntry('reference/templates', 'agents', 'AGENTS.md Template'),
   'template-soul': docEntry('reference/templates', 'soul', 'SOUL.md Template'),
   'template-identity': docEntry('reference/templates', 'identity', 'IDENTITY.md Template'),
@@ -176,16 +213,16 @@ const DOC_MAP = {
   'template-user': docEntry('reference/templates', 'user', 'USER.md Template'),
   'template-user-predefined': docEntry('reference/templates', 'user-predefined', 'USER_PREDEFINED.md Template'),
   'template-bootstrap': docEntry('reference/templates', 'bootstrap', 'BOOTSTRAP.md Template'),
-  'template-team': docEntry('reference/templates', 'team', 'TEAM.md Template', 'TEAM.md (System-Generated)'),
+  'template-team': docEntry('reference/templates', 'team', 'TEAM.md Template', 'TEAM.md (System-Generated)', 'TEAM.md (系统生成)'),
 
   // Troubleshooting
-  'troubleshoot-common': docEntry('troubleshooting', 'common-issues', 'Common Issues', 'Các vấn đề thường gặp'),
-  'troubleshoot-channels': docEntry('troubleshooting', 'channels', 'Channels', 'Vấn đề Channel'),
-  'troubleshoot-providers': docEntry('troubleshooting', 'providers', 'Providers', 'Vấn đề Provider'),
-  'troubleshoot-websocket': docEntry('troubleshooting', 'websocket', 'WebSocket', 'Vấn Đề WebSocket'),
-  'troubleshoot-mcp': docEntry('troubleshooting', 'mcp', 'MCP', 'Sự cố MCP'),
-  'troubleshoot-database': docEntry('troubleshooting', 'database', 'Database', 'Vấn đề Database'),
-  'troubleshoot-agent-teams': docEntry('troubleshooting', 'agent-teams', 'Agent Teams', 'Sự Cố Agent Team'),
+  'troubleshoot-common': docEntry('troubleshooting', 'common-issues', 'Common Issues', 'Các vấn đề thường gặp', '常见问题'),
+  'troubleshoot-channels': docEntry('troubleshooting', 'channels', 'Channels', 'Vấn đề Channel', 'Channel 问题'),
+  'troubleshoot-providers': docEntry('troubleshooting', 'providers', 'Providers', 'Vấn đề Provider', 'Provider 问题'),
+  'troubleshoot-websocket': docEntry('troubleshooting', 'websocket', 'WebSocket', 'Vấn Đề WebSocket', 'WebSocket 问题'),
+  'troubleshoot-mcp': docEntry('troubleshooting', 'mcp', 'MCP', 'Sự cố MCP', 'MCP 问题'),
+  'troubleshoot-database': docEntry('troubleshooting', 'database', 'Database', 'Vấn đề Database', '数据库问题'),
+  'troubleshoot-agent-teams': docEntry('troubleshooting', 'agent-teams', 'Agent Teams', 'Sự Cố Agent Team', 'Agent Team 问题'),
 };
 
 const DEFAULT_DOC = 'what-is-goclaw';
@@ -215,7 +252,8 @@ function initMarked() {
     const external = href && href.startsWith('http') ? ' target="_blank" rel="noopener"' : '';
     /* "English version" / "Phiên bản tiếng Việt" links should switch language */
     const langSwitch = /English version/i.test(text) ? ' data-switch-lang="en"'
-      : /ti[ếe]ng Vi[ệe]t/i.test(text) ? ' data-switch-lang="vi"' : '';
+      : /ti[ếe]ng Vi[ệe]t/i.test(text) ? ' data-switch-lang="vi"'
+      : /中文版/i.test(text) ? ' data-switch-lang="zh"' : '';
     return `<a href="${href}"${titleAttr}${external}${langSwitch}>${text}</a>`;
   };
 
@@ -264,15 +302,15 @@ async function loadDoc(key) {
     }
 
     /* Extract source metadata from HTML comment */
-    const metaMatch = md.match(/<!--\s*goclaw-source:\s*(\S+)\s*\|\s*(?:updated|cập nhật):\s*(\S+)\s*-->/);
+    const metaMatch = md.match(/<!--\s*goclaw-source:\s*(\S+)\s*\|\s*(?:updated|cập nhật|更新):\s*(\S+)\s*-->/);
     const html = marked.parse(md);
-    const isVI = currentLang === 'vi';
+    const lastUpdatedLabel = { en: 'Last updated at', vi: 'Cập nhật lần cuối', zh: '最后更新于' };
     const metaBadge = metaMatch
       ? `<div class="doc-source-meta">
            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
            <a href="https://github.com/nextlevelbuilder/goclaw/commit/${metaMatch[1]}" target="_blank" rel="noopener" title="View source commit on GitHub"><code>${metaMatch[1]}</code></a>
            <span class="doc-source-sep">·</span>
-           <span>${isVI ? 'Cập nhật lần cuối' : 'Last updated at'} ${metaMatch[2]}</span>
+           <span>${lastUpdatedLabel[currentLang] || lastUpdatedLabel.en} ${metaMatch[2]}</span>
          </div>`
       : '';
     document.getElementById('doc-content').innerHTML =
@@ -483,6 +521,15 @@ function applyUITranslations() {
     const span = footer.querySelector('span:first-child');
     if (span) span.innerHTML = t('footer.text');
   }
+
+  /* Update sidebar link texts from DOC_MAP titles */
+  document.querySelectorAll('.sidebar-link[data-doc]').forEach(link => {
+    const key = link.dataset.doc;
+    const entry = DOC_MAP[key];
+    if (entry) {
+      link.textContent = entry.title[currentLang] || entry.title.en;
+    }
+  });
 
   document.documentElement.setAttribute('lang', currentLang);
 }

@@ -1,0 +1,997 @@
+> 翻译自 [English version](#database-schema)
+
+# 数据库 Schema
+
+> 所有迁移版本中的 PostgreSQL 表、列、类型和约束。
+
+## 概览
+
+GoClaw 需要 **PostgreSQL 15+** 以及两个扩展：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";  -- UUID v7 生成
+CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector 用于 embedding
+```
+
+自定义 `uuid_generate_v7()` 函数提供时序有序的 UUID。所有主键默认使用此函数。
+
+Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。
+
+---
+
+## ER 图
+
+```mermaid
+erDiagram
+    agents ||--o{ agent_shares : "shared with"
+    agents ||--o{ agent_context_files : "has"
+    agents ||--o{ user_context_files : "has"
+    agents ||--o{ user_agent_profiles : "tracks"
+    agents ||--o{ sessions : "owns"
+    agents ||--o{ memory_documents : "stores"
+    agents ||--o{ memory_chunks : "stores"
+    agents ||--o{ skills : "owns"
+    agents ||--o{ cron_jobs : "schedules"
+    agents ||--o{ channel_instances : "bound to"
+    agents ||--o{ agent_links : "links"
+    agents ||--o{ agent_teams : "leads"
+    agents ||--o{ agent_team_members : "member of"
+    agents ||--o{ kg_entities : "has"
+    agents ||--o{ kg_relations : "has"
+    agents ||--o{ usage_snapshots : "measured in"
+    agent_teams ||--o{ team_tasks : "has"
+    agent_teams ||--o{ team_messages : "has"
+    agent_teams ||--o{ team_workspace_files : "stores"
+    memory_documents ||--o{ memory_chunks : "split into"
+    cron_jobs ||--o{ cron_run_logs : "logs"
+    traces ||--o{ spans : "contains"
+    mcp_servers ||--o{ mcp_agent_grants : "granted to"
+    mcp_servers ||--o{ mcp_user_grants : "granted to"
+    skills ||--o{ skill_agent_grants : "granted to"
+    skills ||--o{ skill_user_grants : "granted to"
+    kg_entities ||--o{ kg_relations : "source of"
+    team_tasks ||--o{ team_task_comments : "has"
+    team_tasks ||--o{ team_task_events : "logs"
+    team_workspace_files ||--o{ team_workspace_file_versions : "versioned by"
+    team_workspace_files ||--o{ team_workspace_comments : "commented on"
+    agents ||--o| agent_heartbeats : "has"
+    agent_heartbeats ||--o{ heartbeat_run_logs : "logs"
+    agents ||--o{ agent_config_permissions : "has"
+    tenants ||--o{ system_configs : "has"
+```
+
+---
+
+## 表
+
+### `llm_providers`
+
+已注册的 LLM provider。API key 使用 AES-256-GCM 加密。
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `name` | VARCHAR(50) | UNIQUE NOT NULL | 标识符（如 `openrouter`）|
+| `display_name` | VARCHAR(255) | | 人类可读名称 |
+| `provider_type` | VARCHAR(30) | NOT NULL DEFAULT `openai_compat` | `openai_compat` 或 `anthropic` |
+| `api_base` | TEXT | | 自定义端点 URL |
+| `api_key` | TEXT | | 加密的 API key |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `settings` | JSONB | NOT NULL DEFAULT `{}` | 额外的 provider 特定配置 |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+---
+
+### `agents`
+
+Agent 核心记录。每个 agent 有自己的 context、工具和模型配置。
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_key` | VARCHAR(100) | UNIQUE NOT NULL | Slug 标识符（如 `researcher`）|
+| `display_name` | VARCHAR(255) | | UI 显示名称 |
+| `owner_id` | VARCHAR(255) | NOT NULL | 创建者用户 ID |
+| `provider` | VARCHAR(50) | NOT NULL DEFAULT `openrouter` | LLM provider |
+| `model` | VARCHAR(200) | NOT NULL | 模型 ID |
+| `context_window` | INT | NOT NULL DEFAULT 200000 | 上下文窗口（token）|
+| `max_tool_iterations` | INT | NOT NULL DEFAULT 20 | 每次运行最大工具轮数 |
+| `workspace` | TEXT | NOT NULL DEFAULT `.` | 工作区目录路径 |
+| `restrict_to_workspace` | BOOLEAN | NOT NULL DEFAULT true | 将文件访问限制在工作区内 |
+| `tools_config` | JSONB | NOT NULL DEFAULT `{}` | 工具策略覆盖 |
+| `sandbox_config` | JSONB | | Docker 沙箱配置 |
+| `subagents_config` | JSONB | | 子 agent 并发配置 |
+| `memory_config` | JSONB | | 记忆系统配置 |
+| `compaction_config` | JSONB | | 会话压缩配置 |
+| `context_pruning` | JSONB | | Context 剪枝配置 |
+| `other_config` | JSONB | NOT NULL DEFAULT `{}` | 杂项配置（如 summoning 的 `description`）|
+| `is_default` | BOOLEAN | NOT NULL DEFAULT false | 标记为默认 agent |
+| `agent_type` | VARCHAR(20) | NOT NULL DEFAULT `open` | `open` 或 `predefined` |
+| `status` | VARCHAR(20) | DEFAULT `active` | `active`、`inactive`、`summoning` |
+| `frontmatter` | TEXT | | 用于委派和 UI 的简短专长摘要 |
+| `tsv` | tsvector | GENERATED ALWAYS | 全文搜索向量（display_name + frontmatter）|
+| `embedding` | vector(1536) | | 语义搜索 embedding |
+| `budget_monthly_cents` | INTEGER | | 月度消费上限（美分）；NULL = 无限制（迁移 015）|
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `deleted_at` | TIMESTAMPTZ | | 软删除时间戳 |
+
+**索引：** `owner_id`、`status`（部分，非已删除）、`tsv`（GIN）、`embedding`（HNSW 余弦）
+
+---
+
+### `agent_shares`
+
+向其他用户授予 agent 访问权限。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `user_id` | VARCHAR(255) | 被授权方 |
+| `role` | VARCHAR(20) DEFAULT `user` | `user`、`operator`、`admin` |
+| `granted_by` | VARCHAR(255) | 授权人 |
+| `created_at` | TIMESTAMPTZ | |
+
+---
+
+### `agent_context_files`
+
+按 agent 的 context 文件（SOUL.md、IDENTITY.md 等）。对该 agent 的所有用户共享。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `file_name` | VARCHAR(255) | 文件名（如 `SOUL.md`）|
+| `content` | TEXT | 文件内容 |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | |
+
+**唯一约束：** `(agent_id, file_name)`
+
+---
+
+### `user_context_files`
+
+按用户、按 agent 的 context 文件（USER.md 等）。对每个用户私有。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `user_id` | VARCHAR(255) | |
+| `file_name` | VARCHAR(255) | |
+| `content` | TEXT | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+**唯一约束：** `(agent_id, user_id, file_name)`
+
+---
+
+### `user_agent_profiles`
+
+跟踪每个用户在每个 agent 上的首次/最后访问时间戳。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `agent_id` | UUID FK → agents | |
+| `user_id` | VARCHAR(255) | |
+| `workspace` | TEXT | 按用户的工作区覆盖 |
+| `first_seen_at` | TIMESTAMPTZ | |
+| `last_seen_at` | TIMESTAMPTZ | |
+| `metadata` | JSONB DEFAULT `{}` | 任意 profile 元数据（迁移 011）|
+
+**主键：** `(agent_id, user_id)`
+
+---
+
+### `user_agent_overrides`
+
+特定 agent 的按用户模型/provider 覆盖。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `user_id` | VARCHAR(255) | |
+| `provider` | VARCHAR(50) | 覆盖 provider |
+| `model` | VARCHAR(200) | 覆盖模型 |
+| `settings` | JSONB | 额外设置 |
+
+---
+
+### `sessions`
+
+聊天会话。每个 channel/用户/agent 组合对应一个会话。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `session_key` | VARCHAR(500) UNIQUE | 复合键（如 `telegram:123456789`）|
+| `agent_id` | UUID FK → agents | |
+| `user_id` | VARCHAR(255) | |
+| `messages` | JSONB DEFAULT `[]` | 完整消息历史 |
+| `summary` | TEXT | 压缩摘要 |
+| `model` | VARCHAR(200) | 此会话的活跃模型 |
+| `provider` | VARCHAR(50) | 活跃 provider |
+| `channel` | VARCHAR(50) | 来源 channel |
+| `input_tokens` | BIGINT DEFAULT 0 | 累计输入 token 数 |
+| `output_tokens` | BIGINT DEFAULT 0 | 累计输出 token 数 |
+| `compaction_count` | INT DEFAULT 0 | 已执行的压缩次数 |
+| `memory_flush_compaction_count` | INT DEFAULT 0 | 含记忆刷新的压缩次数 |
+| `label` | VARCHAR(500) | 人类可读的会话标签 |
+| `spawned_by` | VARCHAR(200) | 父会话 key（用于子 agent）|
+| `spawn_depth` | INT DEFAULT 0 | 嵌套深度 |
+| `metadata` | JSONB DEFAULT `{}` | 任意会话元数据（迁移 011）|
+| `team_id` | UUID FK → agent_teams（可空）| 团队范围会话时设置（迁移 019）|
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+**索引：** `agent_id`、`user_id`、`updated_at DESC`、`team_id`（部分）
+
+---
+
+### `memory_documents` 和 `memory_chunks`
+
+BM25 + 向量混合记忆系统。
+
+**`memory_documents`** — 顶层索引文档：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `user_id` | VARCHAR(255) | 为 null 时为全局（共享）|
+| `path` | VARCHAR(500) | 逻辑文档路径/标题 |
+| `content` | TEXT | 完整文档内容 |
+| `hash` | VARCHAR(64) | 内容的 SHA-256，用于变更检测 |
+| `team_id` | UUID FK → agent_teams（可空）| 团队范围；NULL = 个人（迁移 019）|
+
+**`memory_chunks`** — 文档的可搜索片段：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `document_id` | UUID FK → memory_documents | |
+| `user_id` | VARCHAR(255) | |
+| `path` | TEXT | 来源路径 |
+| `start_line` / `end_line` | INT | 来源行范围 |
+| `hash` | VARCHAR(64) | chunk 内容哈希 |
+| `text` | TEXT | chunk 内容 |
+| `embedding` | vector(1536) | 语义 embedding |
+| `tsv` | tsvector GENERATED | 全文搜索（simple 配置，多语言）|
+| `team_id` | UUID FK → agent_teams（可空）| 团队范围；NULL = 个人（迁移 019）|
+
+**索引：** agent+user（标准 + 全局的部分索引）、document、tsv GIN、embedding HNSW 余弦、`team_id`（部分）
+
+**`embedding_cache`** — 对 embedding API 调用去重：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `hash` | VARCHAR(64) | 内容哈希 |
+| `provider` | VARCHAR(50) | Embedding provider |
+| `model` | VARCHAR(200) | Embedding 模型 |
+| `embedding` | vector(1536) | 缓存向量 |
+| `dims` | INT | Embedding 维度 |
+
+**主键：** `(hash, provider, model)`
+
+---
+
+### `skills`
+
+已上传的 skill 包，支持 BM25 + 语义搜索。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `name` | VARCHAR(255) | 显示名称 |
+| `slug` | VARCHAR(255) UNIQUE | URL 友好的标识符 |
+| `description` | TEXT | 简短描述 |
+| `owner_id` | VARCHAR(255) | 创建者用户 ID |
+| `visibility` | VARCHAR(10) DEFAULT `private` | `private` 或 `public` |
+| `version` | INT DEFAULT 1 | 版本计数器 |
+| `status` | VARCHAR(20) DEFAULT `active` | `active` 或 `archived` |
+| `frontmatter` | JSONB | 来自 SKILL.md 的 skill 元数据 |
+| `file_path` | TEXT | skill 内容的文件系统路径 |
+| `file_size` | BIGINT | 文件大小（字节）|
+| `file_hash` | VARCHAR(64) | 内容哈希 |
+| `embedding` | vector(1536) | 语义搜索 embedding |
+| `tags` | TEXT[] | 标签列表 |
+| `is_system` | BOOLEAN DEFAULT false | 内置系统 skill；用户不可删除（迁移 017）|
+| `deps` | JSONB DEFAULT `{}` | Skill 依赖声明（迁移 017）|
+| `enabled` | BOOLEAN DEFAULT true | skill 是否激活（迁移 017）|
+
+**索引：** owner、visibility（部分 active）、slug、HNSW embedding、GIN tags、`is_system`（部分 true）、`enabled`（部分 false）
+
+**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。
+
+---
+
+### `cron_jobs`
+
+定时 agent 任务。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID FK → agents | |
+| `user_id` | TEXT | 所有者用户 |
+| `name` | VARCHAR(255) | 人类可读的任务名称 |
+| `enabled` | BOOLEAN DEFAULT true | |
+| `schedule_kind` | VARCHAR(10) | `at`、`every` 或 `cron` |
+| `cron_expression` | VARCHAR(100) | Cron 表达式（kind=`cron` 时）|
+| `interval_ms` | BIGINT | 间隔（毫秒，kind=`every` 时）|
+| `run_at` | TIMESTAMPTZ | 单次运行时间（kind=`at` 时）|
+| `timezone` | VARCHAR(50) | Cron 表达式的时区 |
+| `payload` | JSONB | 发送给 agent 的消息 payload |
+| `delete_after_run` | BOOLEAN DEFAULT false | 首次成功运行后自删除 |
+| `next_run_at` | TIMESTAMPTZ | 下次执行时间 |
+| `last_run_at` | TIMESTAMPTZ | 上次执行时间 |
+| `last_status` | VARCHAR(20) | `ok`、`error`、`running` |
+| `last_error` | TEXT | 上次错误消息 |
+| `team_id` | UUID FK → agent_teams（可空）| 团队范围；NULL = 个人（迁移 019）|
+
+**`cron_run_logs`** — 含 token 数和持续时间的按运行历史记录。`team_id` 列也在迁移 019 中添加。
+
+---
+
+### `pairing_requests` 和 `paired_devices`
+
+设备配对流程（channel 用户请求访问权限）。
+
+**`pairing_requests`** — 待处理的 8 字符配对码：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `code` | VARCHAR(8) UNIQUE | 向用户显示的配对码 |
+| `sender_id` | VARCHAR(200) | Channel 用户 ID |
+| `channel` | VARCHAR(255) | Channel 名称 |
+| `chat_id` | VARCHAR(200) | 聊天 ID |
+| `expires_at` | TIMESTAMPTZ | 配对码过期时间 |
+
+**`paired_devices`** — 已批准的配对：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `sender_id` | VARCHAR(200) | |
+| `channel` | VARCHAR(255) | |
+| `chat_id` | VARCHAR(200) | |
+| `paired_by` | VARCHAR(100) | 审批人 |
+| `paired_at` | TIMESTAMPTZ | |
+| `metadata` | JSONB DEFAULT `{}` | 任意配对元数据（迁移 011）|
+| `expires_at` | TIMESTAMPTZ | 配对过期时间；NULL = 不过期（迁移 021）|
+
+**唯一约束：** `(sender_id, channel)`
+
+> `pairing_requests` 也在迁移 011 中新增了 `metadata JSONB DEFAULT '{}'`。
+
+---
+
+### `traces` 和 `spans`
+
+LLM 调用追踪。
+
+**`traces`** — 每次 agent 运行一条记录：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `agent_id` | UUID | |
+| `user_id` | VARCHAR(255) | |
+| `session_key` | TEXT | |
+| `run_id` | TEXT | |
+| `parent_trace_id` | UUID | 委派场景——链接到父运行的 trace |
+| `status` | VARCHAR(20) | `running`、`ok`、`error` |
+| `total_input_tokens` | INT | |
+| `total_output_tokens` | INT | |
+| `total_cost` | NUMERIC(12,6) | 估算成本 |
+| `span_count` / `llm_call_count` / `tool_call_count` | INT | 汇总计数器 |
+| `input_preview` / `output_preview` | TEXT | 截断的首/末消息 |
+| `tags` | TEXT[] | 可搜索标签 |
+| `metadata` | JSONB | |
+
+**`spans`** — trace 内的单次 LLM 调用和工具调用：
+
+主要列：`trace_id`、`parent_span_id`、`span_type`（`llm`、`tool`、`agent`）、`model`、`provider`、`input_tokens`、`output_tokens`、`total_cost`、`tool_name`、`finish_reason`。
+
+**索引：** 针对 agent+时间、用户+时间、session、status=error 优化。`idx_traces_quota` 部分索引在 `(user_id, created_at DESC)` 上过滤 `parent_trace_id IS NULL` 用于配额计数。`traces` 和 `spans` 均有 `team_id UUID FK → agent_teams`（可空，迁移 019）和部分索引。`traces` 还有 `idx_traces_start_root` 在 `(start_time DESC) WHERE parent_trace_id IS NULL` 上；`spans` 有 `idx_spans_trace_type` 在 `(trace_id, span_type)` 上（迁移 016）。
+
+---
+
+### `mcp_servers`
+
+外部 MCP（Model Context Protocol）工具 provider。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `name` | VARCHAR(255) UNIQUE | Server 名称 |
+| `transport` | VARCHAR(50) | `stdio`、`sse`、`streamable-http` |
+| `command` | TEXT | Stdio：要执行的命令 |
+| `args` | JSONB | Stdio：参数 |
+| `url` | TEXT | SSE/HTTP：server URL |
+| `headers` | JSONB | SSE/HTTP：HTTP 请求头 |
+| `env` | JSONB | Stdio：环境变量 |
+| `api_key` | TEXT | 加密的 API key |
+| `tool_prefix` | VARCHAR(50) | 可选的工具名称前缀 |
+| `timeout_sec` | INT DEFAULT 60 | |
+| `enabled` | BOOLEAN DEFAULT true | |
+
+**`mcp_agent_grants`** / **`mcp_user_grants`** — 按 agent 和按用户的访问授权，支持可选的工具白名单/黑名单。
+
+**`mcp_access_requests`** — agent 请求 MCP 访问权限的审批工作流。
+
+---
+
+### `custom_tools`
+
+通过 API 管理的动态 shell 命令驱动工具。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `name` | VARCHAR(100) | 工具名称 |
+| `description` | TEXT | 向 LLM 显示的描述 |
+| `parameters` | JSONB | 工具参数的 JSON Schema |
+| `command` | TEXT | 要执行的 shell 命令 |
+| `working_dir` | TEXT | 工作目录 |
+| `timeout_seconds` | INT DEFAULT 60 | |
+| `env` | BYTEA | 加密的环境变量 |
+| `agent_id` | UUID FK → agents（可空）| 为 null 时为全局工具 |
+| `enabled` | BOOLEAN DEFAULT true | |
+
+**唯一约束：** 全局名称（`agent_id IS NULL` 时），`(name, agent_id)` 按 agent。
+
+---
+
+### `channel_instances`
+
+数据库管理的 channel 连接（替代静态配置文件 channel 设置）。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `name` | VARCHAR(100) UNIQUE | 实例名称 |
+| `channel_type` | VARCHAR(50) | `telegram`、`discord`、`feishu`、`zalo_oa`、`zalo_personal`、`whatsapp` |
+| `agent_id` | UUID FK → agents | 绑定的 agent |
+| `credentials` | BYTEA | 加密的 channel 凭证 |
+| `config` | JSONB | Channel 特定配置 |
+| `enabled` | BOOLEAN DEFAULT true | |
+
+---
+
+### `agent_links`
+
+Agent 间委派权限。源 agent 可以将任务委派给目标 agent。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `source_agent_id` | UUID FK → agents | 委派方 agent |
+| `target_agent_id` | UUID FK → agents | 被委派 agent |
+| `direction` | VARCHAR(20) DEFAULT `outbound` | |
+| `description` | TEXT | 委派时显示的链接描述 |
+| `max_concurrent` | INT DEFAULT 3 | 最大并发委派数 |
+| `team_id` | UUID FK → agent_teams（可空）| 由团队创建链接时设置 |
+| `status` | VARCHAR(20) DEFAULT `active` | |
+
+---
+
+### `agent_teams`、`agent_team_members`、`team_tasks`、`team_messages`
+
+多 agent 协同工作。
+
+**`agent_teams`** — 团队记录，包含 lead agent。
+
+**`agent_team_members`** — 多对多 `(team_id, agent_id)`，含角色（`lead`、`member`）。
+
+**`team_tasks`** — 共享任务列表：
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `subject` | VARCHAR(500) | 任务标题 |
+| `description` | TEXT | 完整任务描述 |
+| `status` | VARCHAR(20) DEFAULT `pending` | `pending`、`in_progress`、`completed`、`cancelled` |
+| `owner_agent_id` | UUID | 认领任务的 agent |
+| `blocked_by` | UUID[] DEFAULT `{}` | 阻塞此任务的任务 ID |
+| `priority` | INT DEFAULT 0 | 越高优先级越高 |
+| `result` | TEXT | 任务输出 |
+| `task_type` | VARCHAR(30) DEFAULT `general` | 任务类别（迁移 018）|
+| `task_number` | INT DEFAULT 0 | 每个团队的序列号（迁移 018）|
+| `identifier` | VARCHAR(20) | 人类可读 ID，如 `TSK-1`（迁移 018）|
+| `created_by_agent_id` | UUID FK → agents | 创建任务的 agent（迁移 018）|
+| `assignee_user_id` | VARCHAR(255) | 人工用户受托人（迁移 018）|
+| `parent_id` | UUID FK → team_tasks | 子任务的父任务（迁移 018）|
+| `chat_id` | VARCHAR(255) DEFAULT `''` | 来源聊天（迁移 018）|
+| `locked_at` | TIMESTAMPTZ | 任务锁获取时间（迁移 018）|
+| `lock_expires_at` | TIMESTAMPTZ | 锁 TTL（迁移 018）|
+| `progress_percent` | INT DEFAULT 0 | 0–100 完成度（迁移 018）|
+| `progress_step` | TEXT | 当前进度描述（迁移 018）|
+| `followup_at` | TIMESTAMPTZ | 下次跟进提醒时间（迁移 018）|
+| `followup_count` | INT DEFAULT 0 | 已发送跟进次数（迁移 018）|
+| `followup_max` | INT DEFAULT 0 | 最大跟进次数（迁移 018）|
+| `followup_message` | TEXT | 跟进时发送的消息（迁移 018）|
+| `followup_channel` | VARCHAR(60) | 跟进传递的 channel（迁移 018）|
+| `followup_chat_id` | VARCHAR(255) | 跟进传递的聊天 ID（迁移 018）|
+| `confidence_score` | FLOAT | Agent 自我评估分数（迁移 021）|
+
+**索引：** `parent_id`（部分）、`(team_id, channel, chat_id)`、`(team_id, task_type)`、`lock_expires_at`（部分 in_progress）、`(team_id, identifier)`（唯一部分）、`followup_at`（部分 in_progress）、`blocked_by`（GIN）、`(team_id, owner_agent_id, status)`
+
+**`team_messages`** — 团队内 agent 间的点对点邮箱。迁移 021 中新增了 `confidence_score FLOAT`。
+
+---
+
+### `builtin_tools`
+
+内置 gateway 工具注册表，支持启用/禁用控制。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `name` | VARCHAR(100) PK | 工具名称（如 `exec`、`read_file`）|
+| `display_name` | VARCHAR(255) | |
+| `description` | TEXT | |
+| `category` | VARCHAR(50) DEFAULT `general` | 工具类别 |
+| `enabled` | BOOLEAN DEFAULT true | 全局启用/禁用 |
+| `settings` | JSONB | 工具特定设置 |
+| `requires` | TEXT[] | 所需外部依赖 |
+
+---
+
+### `config_secrets`
+
+用于覆盖 `config.json` 值的加密键值存储（通过 Web UI 管理）。
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `key` | VARCHAR(100) PK | 密钥名称 |
+| `value` | BYTEA | AES-256-GCM 加密值 |
+
+---
+
+### `group_file_writers`
+
+> **已在迁移 023 中移除。** 数据已迁移到 `agent_config_permissions`（`config_type = 'file_writer'`）。
+
+---
+
+### `channel_pending_messages`
+
+群聊消息缓冲区。当 bot 未被提及时持久化消息，以便被提及时提供完整对话上下文。支持基于 LLM 的压缩（`is_summary` 行）和 7 天 TTL 清理。（迁移 012）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `channel_name` | VARCHAR(100) | NOT NULL | Channel 实例名称 |
+| `history_key` | VARCHAR(200) | NOT NULL | 限定对话缓冲区范围的复合键 |
+| `sender` | VARCHAR(255) | NOT NULL | 发送者显示名称 |
+| `sender_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | 平台用户 ID |
+| `body` | TEXT | NOT NULL | 原始消息文本 |
+| `platform_msg_id` | VARCHAR(100) | NOT NULL DEFAULT `''` | 原生平台消息 ID |
+| `is_summary` | BOOLEAN | NOT NULL DEFAULT false | 为 true 时此行为压缩摘要 |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**索引：** `(channel_name, history_key, created_at)`
+
+---
+
+### `kg_entities`
+
+按 agent 和用户范围的知识图谱实体节点。（迁移 013）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `agent_id` | UUID FK → agents | NOT NULL | 所有者 agent（级联删除）|
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | 用户范围；空 = agent 全局 |
+| `external_id` | VARCHAR(255) | NOT NULL | 调用方提供的实体标识符 |
+| `name` | TEXT | NOT NULL | 实体显示名称 |
+| `entity_type` | VARCHAR(100) | NOT NULL | 如 `person`、`company`、`concept` |
+| `description` | TEXT | DEFAULT `''` | 自由文本描述 |
+| `properties` | JSONB | DEFAULT `{}` | 结构化实体属性 |
+| `source_id` | VARCHAR(255) | DEFAULT `''` | 来源文档/chunk 引用 |
+| `confidence` | FLOAT | NOT NULL DEFAULT 1.0 | 提取置信度分数 |
+| `team_id` | UUID FK → agent_teams（可空）| | 团队范围；NULL = 个人（迁移 019）|
+| `created_at` / `updated_at` | TIMESTAMPTZ | | |
+
+**唯一约束：** `(agent_id, user_id, external_id)`
+
+**索引：** `(agent_id, user_id)`、`(agent_id, user_id, entity_type)`、`team_id`（部分）
+
+---
+
+### `kg_relations`
+
+知识图谱实体间的边。（迁移 013）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `agent_id` | UUID FK → agents | NOT NULL | 所有者 agent（级联删除）|
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | 用户范围 |
+| `source_entity_id` | UUID FK → kg_entities | NOT NULL | 源节点（级联删除）|
+| `relation_type` | VARCHAR(200) | NOT NULL | 关系标签，如 `works_at`、`knows` |
+| `target_entity_id` | UUID FK → kg_entities | NOT NULL | 目标节点（级联删除）|
+| `confidence` | FLOAT | NOT NULL DEFAULT 1.0 | 提取置信度分数 |
+| `properties` | JSONB | DEFAULT `{}` | 关系属性 |
+| `team_id` | UUID FK → agent_teams（可空）| | 团队范围；NULL = 个人（迁移 019）|
+| `created_at` | TIMESTAMPTZ | | |
+
+**唯一约束：** `(agent_id, user_id, source_entity_id, relation_type, target_entity_id)`
+
+**索引：** `(source_entity_id, relation_type)`、`target_entity_id`、`team_id`（部分）
+
+---
+
+### `channel_contacts`
+
+从所有 channel 交互中自动收集的全局统一联系人目录。非按 agent。用于联系人选择器、分析和未来 RBAC。（迁移 014）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `channel_type` | VARCHAR(50) | NOT NULL | 如 `telegram`、`discord` |
+| `channel_instance` | VARCHAR(255) | | 实例名称（可空）|
+| `sender_id` | VARCHAR(255) | NOT NULL | 平台原生用户 ID |
+| `user_id` | VARCHAR(255) | | 匹配的 GoClaw 用户 ID |
+| `display_name` | VARCHAR(255) | | 解析后的显示名称 |
+| `username` | VARCHAR(255) | | 平台用户名/handle |
+| `avatar_url` | TEXT | | 头像 URL |
+| `peer_kind` | VARCHAR(20) | | 如 `user`、`bot`、`group` |
+| `metadata` | JSONB | DEFAULT `{}` | 额外的平台特定数据 |
+| `merged_id` | UUID | | 去重后的规范联系人 |
+| `first_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `last_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**唯一约束：** `(channel_type, sender_id)`
+
+**索引：** `channel_instance`（部分非空）、`merged_id`（部分非空）、`(display_name, username)`
+
+---
+
+### `activity_logs`
+
+用户和系统操作的不可变审计记录。（迁移 015）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `actor_type` | VARCHAR(20) | NOT NULL | `user`、`agent`、`system` |
+| `actor_id` | VARCHAR(255) | NOT NULL | 用户或 agent ID |
+| `action` | VARCHAR(100) | NOT NULL | 如 `agent.create`、`skill.delete` |
+| `entity_type` | VARCHAR(50) | | 受影响实体的类型 |
+| `entity_id` | VARCHAR(255) | | 受影响实体的 ID |
+| `details` | JSONB | | 操作特定上下文 |
+| `ip_address` | VARCHAR(45) | | 客户端 IP（IPv4 或 IPv6）|
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**索引：** `(actor_type, actor_id)`、`action`、`(entity_type, entity_id)`、`created_at DESC`
+
+---
+
+### `usage_snapshots`
+
+按 agent/provider/model/channel 组合的每小时预聚合指标。由读取 `traces` 和 `spans` 的后台快照 worker 填充。（迁移 016）
+
+| 列 | 类型 | 说明 |
+|--------|------|-------------|
+| `id` | UUID PK | UUID v7 |
+| `bucket_hour` | TIMESTAMPTZ | 小时桶（截断到小时）|
+| `agent_id` | UUID（可空）| Agent 范围；NULL = 全系统 |
+| `provider` | VARCHAR(50) DEFAULT `''` | LLM provider |
+| `model` | VARCHAR(200) DEFAULT `''` | 模型 ID |
+| `channel` | VARCHAR(50) DEFAULT `''` | Channel 名称 |
+| `input_tokens` | BIGINT DEFAULT 0 | |
+| `output_tokens` | BIGINT DEFAULT 0 | |
+| `cache_read_tokens` | BIGINT DEFAULT 0 | |
+| `cache_create_tokens` | BIGINT DEFAULT 0 | |
+| `thinking_tokens` | BIGINT DEFAULT 0 | |
+| `total_cost` | NUMERIC(12,6) DEFAULT 0 | 估算 USD 成本 |
+| `request_count` | INT DEFAULT 0 | |
+| `llm_call_count` | INT DEFAULT 0 | |
+| `tool_call_count` | INT DEFAULT 0 | |
+| `error_count` | INT DEFAULT 0 | |
+| `unique_users` | INT DEFAULT 0 | 桶内不重复用户数 |
+| `avg_duration_ms` | INT DEFAULT 0 | 平均请求时长 |
+| `memory_docs` | INT DEFAULT 0 | 时间点记忆文档数 |
+| `memory_chunks` | INT DEFAULT 0 | 时间点记忆 chunk 数 |
+| `kg_entities` | INT DEFAULT 0 | 时间点知识图谱实体数 |
+| `kg_relations` | INT DEFAULT 0 | 时间点知识图谱关系数 |
+| `created_at` | TIMESTAMPTZ | |
+
+**唯一约束：** `(bucket_hour, COALESCE(agent_id, '00000000...'), provider, model, channel)` — 支持安全的 upsert。
+
+**索引：** `bucket_hour DESC`、`(agent_id, bucket_hour DESC)`、`(provider, bucket_hour DESC)`（部分非空）、`(channel, bucket_hour DESC)`（部分非空）
+
+---
+
+### `team_workspace_files`
+
+按 `(team_id, chat_id)` 范围的共享文件存储。支持置顶、打标签和软归档。（迁移 018）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `team_id` | UUID FK → agent_teams | NOT NULL | 所属团队 |
+| `channel` | VARCHAR(50) DEFAULT `''` | | Channel 上下文 |
+| `chat_id` | VARCHAR(255) DEFAULT `''` | | 系统派生的用户/聊天 ID |
+| `file_name` | VARCHAR(255) | NOT NULL | 显示文件名 |
+| `mime_type` | VARCHAR(100) | | MIME 类型 |
+| `file_path` | TEXT | NOT NULL | 存储路径 |
+| `size_bytes` | BIGINT DEFAULT 0 | | 文件大小 |
+| `uploaded_by` | UUID FK → agents | NOT NULL | 上传者 agent |
+| `task_id` | UUID FK → team_tasks（可空）| | 关联任务 |
+| `pinned` | BOOLEAN DEFAULT false | | 置顶到工作区 |
+| `tags` | TEXT[] DEFAULT `{}` | | 可搜索标签 |
+| `metadata` | JSONB | | 额外元数据 |
+| `archived_at` | TIMESTAMPTZ | | 软删除时间戳 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | | |
+
+**唯一约束：** `(team_id, chat_id, file_name)`
+
+**索引：** `(team_id, chat_id)`、`uploaded_by`、`task_id`（部分）、`archived_at`（部分）、`(team_id, pinned)`（部分 true）、`tags`（GIN）
+
+---
+
+### `team_workspace_file_versions`
+
+工作区文件的版本历史。每次上传新版本创建一行。（迁移 018）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `file_id` | UUID FK → team_workspace_files | NOT NULL | 父文件 |
+| `version` | INT | NOT NULL | 版本号 |
+| `file_path` | TEXT | NOT NULL | 此版本的存储路径 |
+| `size_bytes` | BIGINT DEFAULT 0 | | |
+| `uploaded_by` | UUID FK → agents | NOT NULL | |
+| `created_at` | TIMESTAMPTZ | NOT NULL | |
+
+**唯一约束：** `(file_id, version)`
+
+---
+
+### `team_workspace_comments`
+
+工作区文件上的注释。（迁移 018）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `file_id` | UUID FK → team_workspace_files | NOT NULL | 被注释的文件 |
+| `agent_id` | UUID FK → agents | NOT NULL | 注释者 agent |
+| `content` | TEXT | NOT NULL | 注释文本 |
+| `created_at` | TIMESTAMPTZ | NOT NULL | |
+
+**索引：** `file_id`
+
+---
+
+### `team_task_comments`
+
+任务上的讨论线程。（迁移 018）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `task_id` | UUID FK → team_tasks | NOT NULL | 父任务 |
+| `agent_id` | UUID FK → agents（可空）| | 注释者 agent |
+| `user_id` | VARCHAR(255) | | 注释的人工用户 |
+| `content` | TEXT | NOT NULL | 评论正文 |
+| `metadata` | JSONB DEFAULT `{}` | | |
+| `confidence_score` | FLOAT | | Agent 自我评估（迁移 021）|
+| `created_at` | TIMESTAMPTZ | NOT NULL | |
+
+**索引：** `task_id`
+
+---
+
+### `team_task_events`
+
+任务状态变更的不可变审计日志。（迁移 018）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `task_id` | UUID FK → team_tasks | NOT NULL | 父任务 |
+| `event_type` | VARCHAR(30) | NOT NULL | 如 `status_change`、`assigned`、`locked` |
+| `actor_type` | VARCHAR(10) | NOT NULL | `agent` 或 `user` |
+| `actor_id` | VARCHAR(255) | NOT NULL | 操作实体 ID |
+| `data` | JSONB | | 事件 payload |
+| `created_at` | TIMESTAMPTZ | NOT NULL | |
+
+**索引：** `task_id`
+
+---
+
+### `secure_cli_binaries`
+
+Exec 工具的凭证注入配置（Direct Exec Mode）。管理员将二进制名称映射到加密的环境变量；GoClaw 自动注入到子进程。（迁移 020）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `binary_name` | TEXT | NOT NULL | 显示名称（如 `gh`、`gcloud`）|
+| `binary_path` | TEXT | | 绝对路径；NULL = 运行时自动解析 |
+| `description` | TEXT | NOT NULL DEFAULT `''` | 管理员可见描述 |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM 加密的 JSON 环境映射 |
+| `deny_args` | JSONB DEFAULT `[]` | | 禁止参数前缀的正则模式 |
+| `deny_verbose` | JSONB DEFAULT `[]` | | 要剥离的详细标志模式 |
+| `timeout_seconds` | INT DEFAULT 30 | | 进程超时 |
+| `tips` | TEXT DEFAULT `''` | | 注入 TOOLS.md context 的提示 |
+| `agent_id` | UUID FK → agents（可空）| | NULL = 全局（所有 agent）|
+| `enabled` | BOOLEAN DEFAULT true | | |
+| `created_by` | TEXT DEFAULT `''` | | 创建此条目的管理员用户 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | | |
+
+**唯一约束：** `(binary_name, COALESCE(agent_id, '00000000...'))` — 每个范围每个二进制一个配置。
+
+**索引：** `binary_name`、`agent_id`（部分非空）
+
+---
+
+### `api_keys`
+
+基于范围访问控制的细粒度 API key 管理。（迁移 020）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `name` | VARCHAR(100) | NOT NULL | 人类可读的 key 名称 |
+| `prefix` | VARCHAR(8) | NOT NULL | 前 8 个字符，用于显示/搜索 |
+| `key_hash` | VARCHAR(64) | NOT NULL UNIQUE | 完整 key 的 SHA-256 十六进制摘要 |
+| `scopes` | TEXT[] DEFAULT `{}` | | 如 `{'operator.admin','operator.read'}` |
+| `expires_at` | TIMESTAMPTZ | | NULL = 永不过期 |
+| `last_used_at` | TIMESTAMPTZ | | |
+| `revoked` | BOOLEAN DEFAULT false | | |
+| `created_by` | VARCHAR(255) | | 创建 key 的用户 ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | | |
+
+**索引：** `key_hash`（部分 `NOT revoked`）、`prefix`
+
+---
+
+### `agent_heartbeats`
+
+按 agent 的心跳配置，用于定期主动签到。（迁移 022）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL UNIQUE ON DELETE CASCADE | 每个 agent 一个配置 |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | 心跳是否激活 |
+| `interval_sec` | INT | NOT NULL DEFAULT 1800 | 运行间隔（秒）|
+| `prompt` | TEXT | | 每次心跳发送给 agent 的消息 |
+| `provider_id` | UUID FK → llm_providers（可空）| | 覆盖 LLM provider |
+| `model` | VARCHAR(200) | | 覆盖模型 |
+| `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | 在专用会话中运行 |
+| `light_context` | BOOLEAN | NOT NULL DEFAULT false | 注入最少 context |
+| `ack_max_chars` | INT | NOT NULL DEFAULT 300 | 确认响应的最大字符数 |
+| `max_retries` | INT | NOT NULL DEFAULT 2 | 失败时最大重试次数 |
+| `active_hours_start` | VARCHAR(5) | | 活跃窗口开始（HH:MM）|
+| `active_hours_end` | VARCHAR(5) | | 活跃窗口结束（HH:MM）|
+| `timezone` | TEXT | | 活跃时间的时区 |
+| `channel` | VARCHAR(50) | | 传递 channel |
+| `chat_id` | TEXT | | 传递聊天 ID |
+| `next_run_at` | TIMESTAMPTZ | | 计划下次执行时间 |
+| `last_run_at` | TIMESTAMPTZ | | 上次执行时间 |
+| `last_status` | VARCHAR(20) | | 上次运行状态 |
+| `last_error` | TEXT | | 上次运行错误 |
+| `run_count` | INT | NOT NULL DEFAULT 0 | 总运行次数 |
+| `suppress_count` | INT | NOT NULL DEFAULT 0 | 总抑制运行次数 |
+| `metadata` | JSONB | DEFAULT `{}` | 额外元数据 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**索引：** `idx_heartbeats_due` 在 `(next_run_at) WHERE enabled = true AND next_run_at IS NOT NULL` 上——调度器轮询的部分索引。
+
+---
+
+### `heartbeat_run_logs`
+
+每次心跳运行的执行日志。（迁移 022）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `heartbeat_id` | UUID FK → agent_heartbeats | NOT NULL ON DELETE CASCADE | 父心跳配置 |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | 所有者 agent |
+| `status` | VARCHAR(20) | NOT NULL | `ok`、`error`、`skipped` |
+| `summary` | TEXT | | 简短运行摘要 |
+| `error` | TEXT | | 失败时的错误消息 |
+| `duration_ms` | INT | | 运行时长（毫秒）|
+| `input_tokens` | INT | DEFAULT 0 | |
+| `output_tokens` | INT | DEFAULT 0 | |
+| `skip_reason` | VARCHAR(50) | | 跳过运行的原因 |
+| `metadata` | JSONB | DEFAULT `{}` | 额外元数据 |
+| `ran_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**索引：** `idx_hb_logs_heartbeat` 在 `(heartbeat_id, ran_at DESC)` 上，`idx_hb_logs_agent` 在 `(agent_id, ran_at DESC)` 上
+
+---
+
+### `agent_config_permissions`
+
+Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 `group_file_writers`。（迁移 022）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | 所有者 agent |
+| `scope` | VARCHAR(255) | NOT NULL | 群组/聊天 ID 范围 |
+| `config_type` | VARCHAR(50) | NOT NULL | 如 `file_writer`、`heartbeat` |
+| `user_id` | VARCHAR(255) | NOT NULL | 被授权用户 ID |
+| `permission` | VARCHAR(10) | NOT NULL | `allow` 或 `deny` |
+| `granted_by` | VARCHAR(255) | | 授权人 |
+| `metadata` | JSONB | DEFAULT `{}` | 额外元数据（如 displayName、username）|
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**唯一约束：** `(agent_id, scope, config_type, user_id)`
+
+**索引：** `idx_acp_lookup` 在 `(agent_id, scope, config_type)` 上
+
+---
+
+### `system_configs`
+
+按租户的集中式键值配置存储。应用层回退到 master 租户。（迁移 029）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `key` | VARCHAR(100) | PK（复合）| 配置键 |
+| `value` | TEXT | NOT NULL | 配置值（明文，非加密）|
+| `tenant_id` | UUID FK → tenants | PK（复合），ON DELETE CASCADE | 所属租户 |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | 最后更新时间 |
+
+**主键：** `(key, tenant_id)`
+
+**索引：** `idx_system_configs_tenant` 在 `(tenant_id)` 上
+
+---
+
+## 迁移历史
+
+| 版本 | 说明 |
+|---------|-------------|
+| 1 | 初始 schema——provider、agent、会话、记忆、skill、cron、配对、trace、MCP、自定义工具、channel、config_secrets、group_file_writers |
+| 2 | Agent link、agent frontmatter、agent FTS + embedding、traces 上的 parent_trace_id |
+| 3 | Agent team、team task、team message、agent_links 上的 team_id |
+| 4 | Teams v2 优化 |
+| 5 | Phase 4 新增 |
+| 6 | 内置工具注册表、custom_tools 的 metadata 列 |
+| 7 | 团队元数据 |
+| 8 | 团队任务用户范围 |
+| 9 | 配额索引——traces 上用于按用户配额计数的部分索引 |
+| 10 | Agents markdown v2 |
+| 11 | sessions、user_agent_profiles、pairing_requests、paired_devices 上的 `metadata JSONB` |
+| 12 | `channel_pending_messages`——群聊消息缓冲区 |
+| 13 | `kg_entities` 和 `kg_relations`——知识图谱表 |
+| 14 | `channel_contacts`——全局统一联系人目录 |
+| 15 | agents 上的 `budget_monthly_cents`；`activity_logs` 审计表 |
+| 16 | 每小时指标的 `usage_snapshots`；traces 和 spans 的性能索引 |
+| 17 | skills 上的 `is_system`、`deps`、`enabled` |
+| 18 | 团队工作区文件/版本/注释、任务评论/事件、任务 v2 列（锁定、进度、跟进、标识符）、handoff_routes 上的 `team_id` |
+| 19 | memory_documents、memory_chunks、kg_entities、kg_relations、traces、spans、cron_jobs、cron_run_logs、sessions 上的 `team_id` FK |
+| 20 | `secure_cli_binaries` 和 `api_keys` 表 |
+| 21 | paired_devices 上的 `expires_at`；team_tasks、team_messages、team_task_comments 上的 `confidence_score` |
+| 22 | 心跳监控的 `agent_heartbeats` 和 `heartbeat_run_logs` 表；通用权限表 `agent_config_permissions` |
+| 23 | Agent 硬删除支持（级联 FK 约束、活跃 agent 的唯一索引）；将 `group_file_writers` 合并到 `agent_config_permissions` |
+| 24 | 团队附件重构——删除 `team_workspace_files`、`team_workspace_file_versions`、`team_workspace_comments` 和 `team_messages`；新增基于路径的 `team_task_attachments` 表与任务关联；在 `team_tasks` 上新增 `comment_count` 和 `attachment_count` 反规范化列；在 `team_tasks` 上新增 `embedding vector(1536)` 用于语义任务搜索 |
+| 25 | 在 `kg_entities` 上新增 `embedding vector(1536)` 列和 HNSW 索引，支持基于 pgvector 的语义实体搜索 |
+| 26 | 在 `api_keys` 上新增 `owner_id VARCHAR(255)`——设置后通过此 key 认证时强制 `user_id = owner_id`（用户绑定 API key）；新增 `team_user_grants` 表用于团队级访问控制；删除旧版 `handoff_routes` 和 `delegation_history` 表 |
+| 27 | 租户基础——创建 `tenants` 和 `tenant_users` 表；种子 master 租户（`0193a5b0-7000-7000-8000-000000000001`）；在 40+ 个表上添加 `tenant_id` 列实现多租户隔离；删除全局唯一约束并以按租户复合索引替代；新增 `builtin_tool_tenant_configs`、`skill_tenant_configs` 和 `mcp_user_credentials` 表；删除 `custom_tools` 表（死代码）；将剩余 UUID v4 默认值迁移到 v7 |
+| 28 | 在 `team_task_comments` 上新增 `comment_type VARCHAR(20) DEFAULT 'note'`——支持触发任务自动失败和 lead 上报的 `"blocker"` 类型 |
+| 29 | `system_configs`——按租户的集中式键值配置存储；复合主键 `(key, tenant_id)` 含级联删除 |
+
+---
+
+## 下一步
+
+- [环境变量](#env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
+- [配置参考](#config-reference) — 数据库配置与 `config.json` 的对应关系
+- [词汇表](#glossary) — Session、Compaction、Lane 等核心术语
+
+<!-- goclaw-source: 19eef35 | 更新: 2026-03-25 -->
