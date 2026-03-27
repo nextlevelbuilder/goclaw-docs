@@ -149,6 +149,63 @@ Re-trigger LLM-based summoning for predefined agents.
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user file (USER.md only) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata |
 
+### `GET /v1/agents/{id}/codex-pool-activity`
+
+Returns routing activity and per-account health for agents using a [Codex OAuth pool](../providers/codex-chatgpt.md). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
+
+**Auth:** Bearer token required. The requesting user must have access to the agent.
+
+**Query parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | integer | `18` | Number of recent requests to return (max 50) |
+
+**Response:**
+
+```json
+{
+  "strategy": "round_robin",
+  "pool_providers": ["openai-codex", "codex-work"],
+  "stats_sample_size": 24,
+  "provider_counts": [
+    {
+      "provider_name": "openai-codex",
+      "request_count": 14,
+      "direct_selection_count": 10,
+      "failover_serve_count": 4,
+      "success_count": 13,
+      "failure_count": 1,
+      "consecutive_failures": 0,
+      "success_rate": 92,
+      "health_score": 88,
+      "health_state": "healthy",
+      "last_used_at": "2026-03-27T08:00:00Z"
+    }
+  ],
+  "recent_requests": [
+    {
+      "span_id": "uuid",
+      "trace_id": "uuid",
+      "started_at": "2026-03-27T08:00:00Z",
+      "status": "success",
+      "duration_ms": 1240,
+      "provider_name": "openai-codex",
+      "selected_provider": "openai-codex",
+      "model": "gpt-5.4",
+      "attempt_count": 1,
+      "used_failover": false
+    }
+  ]
+}
+```
+
+If the agent does not use a `chatgpt_oauth` provider or the pool is not configured, `pool_providers` is an empty array and `provider_counts`/`recent_requests` are empty.
+
+Returns `503` if the tracing store is unavailable.
+
+---
+
 ### Wake (External Trigger)
 
 ```
@@ -812,4 +869,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](#config-reference) — full `config.json` schema
 - [Database Schema](#database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 9168e4b4 | updated: 2026-03-26 -->
+<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->

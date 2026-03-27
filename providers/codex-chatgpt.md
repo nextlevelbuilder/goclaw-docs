@@ -115,6 +115,83 @@ This conversion is transparent — you interact with GoClaw the same way regardl
 }
 ```
 
+## Codex OAuth Pool
+
+If you have multiple ChatGPT accounts (e.g., a personal account and a work account), you can pool them together so GoClaw distributes requests across all of them. This is useful for spreading usage across accounts or providing automatic failover when one account hits a limit.
+
+### How it works
+
+You connect each ChatGPT account as a separate `chatgpt_oauth` provider. One provider is the **pool owner** — it holds the routing configuration. The other providers are **pool members** listed in `extra_provider_names`.
+
+### Provider-level config (pool owner)
+
+When creating or updating a provider via `POST /v1/providers`, set the `settings` field:
+
+```json
+{
+  "name": "openai-codex",
+  "provider_type": "chatgpt_oauth",
+  "settings": {
+    "codex_pool": {
+      "strategy": "round_robin",
+      "extra_provider_names": ["codex-work", "codex-shared"]
+    }
+  }
+}
+```
+
+`strategy` controls how requests are distributed across the pool:
+
+| Strategy | Behavior |
+|----------|----------|
+| `primary_first` | Always use the primary account; extras are only tried on retryable failures (default) |
+| `round_robin` | Rotate requests across the primary + all extra providers |
+| `priority_order` | Try providers in order — primary first, then extras in sequence |
+
+`extra_provider_names` is the authoritative membership list. A provider listed in another pool's `extra_provider_names` cannot manage its own pool.
+
+### Agent-level override
+
+Individual agents can override the pool behavior via `chatgpt_oauth_routing` in their `other_config`:
+
+```json
+{
+  "other_config": {
+    "chatgpt_oauth_routing": {
+      "override_mode": "custom",
+      "strategy": "priority_order"
+    }
+  }
+}
+```
+
+`override_mode` options:
+
+| Value | Behavior |
+|-------|----------|
+| `inherit` | Use the primary provider's `codex_pool` settings (default when not set) |
+| `custom` | Apply this agent's own strategy override |
+
+Setting `override_mode: "custom"` with no `extra_provider_names` and strategy `primary_first` disables the pool for that agent — it will only use the primary account.
+
+### Routing notes
+
+- Retryable upstream failures (HTTP 429, 5xx) automatically fall through to the next eligible account in the same request.
+- OAuth login and logout are per-provider — each account authenticates independently.
+- The pool is only active when the agent's provider is a `chatgpt_oauth` type. Non-Codex providers are unaffected.
+
+### Pool activity endpoint
+
+To inspect routing decisions and per-account health for an agent, call:
+
+```
+GET /v1/agents/{id}/codex-pool-activity
+```
+
+See [REST API](../reference/rest-api.md) for the response shape.
+
+---
+
 ## Common Issues
 
 | Problem | Cause | Fix |
@@ -130,4 +207,4 @@ This conversion is transparent — you interact with GoClaw the same way regardl
 - [Custom Provider](#provider-custom) — connect any OpenAI-compatible API including local models
 - [Claude CLI](#provider-claude-cli) — use your Claude subscription instead
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->

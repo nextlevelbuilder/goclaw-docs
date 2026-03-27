@@ -222,6 +222,77 @@ Manage API keys for programmatic access — create, revoke, and assign roles to 
 
 Manage tenants in SaaS deployment mode — create tenants, assign users, configure per-tenant overrides for providers, tools, skills, and MCP servers. Only visible when running in multi-tenant mode.
 
+## Desktop Edition
+
+The Desktop Edition is a native app (built with Wails) that wraps the full dashboard in a standalone window. It includes additional features not available in the web-only dashboard.
+
+### Version Display
+
+The sidebar header shows the current app version next to the GoClaw logo in monospace font (e.g., `v1.2.3`). Click the **Lite** badge to open an edition comparison modal.
+
+### Check for Updates
+
+Next to the version number, there is a refresh button (↻):
+
+- Click it to check if a newer version is available
+- While checking, the button shows `...`
+- If an update is found, it shows the new version number (e.g., `v1.3.0`)
+- If already up to date, it shows `✓`
+- If the check fails, it shows `✗`
+
+The Lite edition supports up to 5 agents. When the limit is reached, the "New agent" button is disabled.
+
+### Update Banner
+
+When a new version is detected automatically (via background event), a banner appears at the top of the app:
+
+- **Available** — shows the new version with an "Update Now" button. Click it to download and install.
+- **Downloading** — shows a spinner while the update is downloading.
+- **Done** — shows a "Restart Now" button. Click to apply the update.
+- **Error** — shows a "Retry" button. The banner can be dismissed with the X button.
+
+### Team Settings Modal
+
+Open Team Settings from the Agent Teams view. The modal has three sections:
+
+**Team Info**
+- Edit team name and description
+- View current status and lead agent
+
+**Members**
+- List of all team members with their roles (lead, reviewer, member)
+- Add new members by searching agents in a combobox
+- Remove non-lead members (hover to reveal the remove button)
+
+**Notifications**
+Toggle per-event notifications on or off:
+- `dispatched` — task dispatched to an agent
+- `progress` — task progress updates
+- `failed` — task failed
+- `completed` — task completed
+- `new_task` — new task added to the team
+
+Notification mode:
+- **Direct** — all team members receive notifications
+- **Leader** — only the lead agent receives notifications
+
+### Task Detail Modal
+
+Click any task card to open the Task Detail modal. It shows:
+
+- **Identifier** — short task ID (monospace badge)
+- **Status badge** — current status with color coding; shows an animated "Running" badge if actively executing
+- **Progress bar** — shows percentage and current step (when task is in progress)
+- **Metadata grid** — priority, owner agent, task type, created/updated timestamps
+- **Blocked by** — list of blocking task IDs shown as amber badges
+- **Description** — collapsible section with markdown rendering
+- **Result** — collapsible section with markdown rendering (when task completes)
+- **Attachments** — collapsible section listing files attached to the task; each entry shows file name, size, and a Download button
+
+Footer actions:
+- **Assign to** — combobox to reassign the task to another team member (only shown for non-terminal tasks)
+- **Delete** — shown only for completed/failed/cancelled tasks; triggers a confirmation dialog before deletion
+
 ## Common Issues
 
 | Problem | Solution |
@@ -236,7 +307,7 @@ Manage tenants in SaaS deployment mode — create tenants, assign users, configu
 - [How GoClaw Works](#how-goclaw-works) — Understand the architecture
 - [Agents Explained](#agents-explained) — Learn about agent types
 
-<!-- goclaw-source: b9d87547 | updated: 2026-03-23 -->
+<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->
 <!-- TODO: Screenshots needed for v2.x UI — run a GoClaw instance and capture:
   1. Team kanban board with task cards in columns
   2. Cron detail page with markdown rendering

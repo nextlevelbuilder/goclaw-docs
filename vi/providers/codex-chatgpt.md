@@ -117,6 +117,83 @@ Sự chuyển đổi này hoàn toàn trong suốt — bạn tương tác với 
 }
 ```
 
+## Codex OAuth Pool
+
+Nếu bạn có nhiều tài khoản ChatGPT (ví dụ tài khoản cá nhân và tài khoản công việc), bạn có thể gộp chúng vào một pool để GoClaw phân phối request qua tất cả. Điều này hữu ích để trải đều usage hoặc tự động chuyển sang tài khoản khác khi một tài khoản đạt giới hạn.
+
+### Cách hoạt động
+
+Bạn kết nối mỗi tài khoản ChatGPT như một provider `chatgpt_oauth` riêng biệt. Một provider là **pool owner** — nó chứa cấu hình routing. Các provider còn lại là **pool member** được liệt kê trong `extra_provider_names`.
+
+### Cấu hình ở cấp provider (pool owner)
+
+Khi tạo hoặc cập nhật provider qua `POST /v1/providers`, đặt field `settings`:
+
+```json
+{
+  "name": "openai-codex",
+  "provider_type": "chatgpt_oauth",
+  "settings": {
+    "codex_pool": {
+      "strategy": "round_robin",
+      "extra_provider_names": ["codex-work", "codex-shared"]
+    }
+  }
+}
+```
+
+`strategy` điều khiển cách phân phối request qua pool:
+
+| Strategy | Hành vi |
+|----------|---------|
+| `primary_first` | Luôn dùng tài khoản chính; extras chỉ được thử khi có lỗi có thể retry (mặc định) |
+| `round_robin` | Luân phiên request qua tài khoản chính và tất cả extra provider |
+| `priority_order` | Thử provider theo thứ tự — chính trước, sau đó extra theo thứ tự |
+
+`extra_provider_names` là danh sách thành viên chính thức của pool. Provider đã được liệt kê trong `extra_provider_names` của pool khác không thể tự quản lý pool của mình.
+
+### Override ở cấp agent
+
+Từng agent có thể override hành vi pool qua `chatgpt_oauth_routing` trong `other_config`:
+
+```json
+{
+  "other_config": {
+    "chatgpt_oauth_routing": {
+      "override_mode": "custom",
+      "strategy": "priority_order"
+    }
+  }
+}
+```
+
+Các giá trị `override_mode`:
+
+| Giá trị | Hành vi |
+|---------|---------|
+| `inherit` | Dùng cấu hình `codex_pool` của primary provider (mặc định khi không đặt) |
+| `custom` | Áp dụng strategy override của agent này |
+
+Đặt `override_mode: "custom"` không có `extra_provider_names` và strategy `primary_first` sẽ tắt pool cho agent đó — chỉ dùng tài khoản chính.
+
+### Lưu ý về routing
+
+- Các lỗi upstream có thể retry (HTTP 429, 5xx) tự động chuyển sang tài khoản tiếp theo trong cùng một request.
+- OAuth login và logout theo từng provider — mỗi tài khoản xác thực độc lập.
+- Pool chỉ hoạt động khi provider của agent là kiểu `chatgpt_oauth`. Provider không phải Codex không bị ảnh hưởng.
+
+### Endpoint xem hoạt động pool
+
+Để kiểm tra quyết định routing và sức khỏe từng tài khoản cho một agent:
+
+```
+GET /v1/agents/{id}/codex-pool-activity
+```
+
+Xem [REST API](../../reference/rest-api.md) để biết cấu trúc response.
+
+---
+
 ## Lỗi thường gặp
 
 | Vấn đề | Nguyên nhân | Cách xử lý |
@@ -132,4 +209,4 @@ Sự chuyển đổi này hoàn toàn trong suốt — bạn tương tác với 
 - [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
 - [Claude CLI](#provider-claude-cli) — dùng subscription Claude thay thế
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->

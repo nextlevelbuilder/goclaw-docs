@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **28**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **30**.
 
 ```mermaid
 graph LR
@@ -208,7 +208,7 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v2.x Migrations (024–028)
+### v2.x Migrations (024–030)
 
 These five migrations are auto-applied on startup when upgrading to v2.x. No manual steps are needed for standard upgrades — run `./goclaw upgrade` as usual. Manual migration is only required for major version jumps where a backup-and-restore approach is recommended.
 
@@ -221,6 +221,8 @@ These five migrations are auto-applied on startup when upgrading to v2.x. No man
 | 026 | Binds API keys to specific users via `owner_id` column; adds `team_user_grants` access control table; drops legacy `handoff_routes` and `delegation_history` tables |
 | 027 | Tenant foundation — adds `tenants`, `tenant_users`, and per-tenant config tables; backfills `tenant_id` on 40+ tables with master tenant UUID; updates unique constraints to be tenant-scoped |
 | 028 | Adds `comment_type` to `team_task_comments` for blocker escalation support |
+| 029 | Adds `system_configs` table — per-tenant key-value store for system settings (plain text; use `config_secrets` for secrets) |
+| 030 | Adds GIN indexes on `spans.metadata` (partial, `span_type = 'llm_call'`) and `sessions.metadata` JSONB columns for query performance |
 
 ### Breaking Changes in v2.x
 
@@ -273,4 +275,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](#deploy-database) — PostgreSQL and pgvector setup
 - [Observability](#deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->

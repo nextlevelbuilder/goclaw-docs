@@ -151,6 +151,63 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Cập nhật user file (chỉ USER.md) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Cập nhật instance metadata |
 
+### `GET /v1/agents/{id}/codex-pool-activity`
+
+Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](../../providers/codex-chatgpt.md). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
+
+**Xác thực:** Cần Bearer token. Người dùng phải có quyền truy cập agent.
+
+**Query parameter:**
+
+| Param | Kiểu | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `limit` | integer | `18` | Số request gần đây trả về (tối đa 50) |
+
+**Response:**
+
+```json
+{
+  "strategy": "round_robin",
+  "pool_providers": ["openai-codex", "codex-work"],
+  "stats_sample_size": 24,
+  "provider_counts": [
+    {
+      "provider_name": "openai-codex",
+      "request_count": 14,
+      "direct_selection_count": 10,
+      "failover_serve_count": 4,
+      "success_count": 13,
+      "failure_count": 1,
+      "consecutive_failures": 0,
+      "success_rate": 92,
+      "health_score": 88,
+      "health_state": "healthy",
+      "last_used_at": "2026-03-27T08:00:00Z"
+    }
+  ],
+  "recent_requests": [
+    {
+      "span_id": "uuid",
+      "trace_id": "uuid",
+      "started_at": "2026-03-27T08:00:00Z",
+      "status": "success",
+      "duration_ms": 1240,
+      "provider_name": "openai-codex",
+      "selected_provider": "openai-codex",
+      "model": "gpt-5.4",
+      "attempt_count": 1,
+      "used_failover": false
+    }
+  ]
+}
+```
+
+Nếu agent không dùng provider `chatgpt_oauth` hoặc pool chưa được cấu hình, `pool_providers` là mảng rỗng và `provider_counts`/`recent_requests` cũng rỗng.
+
+Trả về `503` nếu tracing store không khả dụng.
+
+---
+
 ### Wake (External Trigger)
 
 ```
@@ -814,4 +871,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](#config-reference) — schema đầy đủ `config.json`
 - [Database Schema](#database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 9168e4b4 | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->

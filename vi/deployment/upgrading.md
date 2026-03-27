@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **28**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **30**.
 
 ```mermaid
 graph LR
@@ -210,7 +210,7 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ## Migration gần đây
 
-### Migration v2.x (024–028)
+### Migration v2.x (024–030)
 
 Năm migration này được tự động áp dụng khi khởi động khi nâng cấp lên v2.x. Không cần bước thủ công cho upgrade thông thường — chạy `./goclaw upgrade` như bình thường. Chỉ cần migration thủ công cho các bước nhảy phiên bản lớn nơi nên backup-and-restore.
 
@@ -223,6 +223,8 @@ Năm migration này được tự động áp dụng khi khởi động khi nân
 | 026 | Gắn API key với user cụ thể qua cột `owner_id`; thêm bảng kiểm soát truy cập `team_user_grants`; xóa bảng `handoff_routes` và `delegation_history` cũ |
 | 027 | Tenant foundation — thêm bảng `tenants`, `tenant_users` và các bảng config per-tenant; backfill `tenant_id` vào 40+ bảng với master tenant UUID; cập nhật unique constraint theo tenant |
 | 028 | Thêm `comment_type` vào `team_task_comments` cho blocker escalation support |
+| 029 | Thêm bảng `system_configs` — key-value store per-tenant cho system settings (plain text; dùng `config_secrets` cho secrets) |
+| 030 | Thêm GIN index trên cột JSONB `spans.metadata` (partial, `span_type = 'llm_call'`) và `sessions.metadata` để cải thiện query performance |
 
 ### Breaking Changes trong v2.x
 
@@ -275,4 +277,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](#deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](#deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: 941a965 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->

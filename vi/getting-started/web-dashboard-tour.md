@@ -224,6 +224,77 @@ Quản lý API key cho truy cập lập trình — tạo, thu hồi và gán rol
 
 Quản lý tenant trong chế độ triển khai SaaS — tạo tenant, gán user, cấu hình ghi đè riêng theo tenant cho provider, tool, skill, và MCP server. Chỉ hiển thị khi chạy ở chế độ multi-tenant.
 
+## Desktop Edition
+
+Desktop Edition là ứng dụng native (xây dựng bằng Wails) bao bọc toàn bộ dashboard trong một cửa sổ độc lập. Nó có thêm các tính năng không có trong web dashboard thông thường.
+
+### Hiển thị phiên bản
+
+Phần header của sidebar hiển thị phiên bản ứng dụng hiện tại bên cạnh logo GoClaw theo định dạng monospace (ví dụ: `v1.2.3`). Nhấn badge **Lite** để mở modal so sánh các edition.
+
+### Kiểm tra cập nhật
+
+Cạnh số phiên bản có một nút làm mới (↻):
+
+- Nhấn để kiểm tra xem có phiên bản mới hơn không
+- Khi đang kiểm tra, nút hiển thị `...`
+- Nếu tìm thấy bản cập nhật, hiện số phiên bản mới (ví dụ: `v1.3.0`)
+- Nếu đã dùng bản mới nhất, hiện `✓`
+- Nếu kiểm tra thất bại, hiện `✗`
+
+Edition Lite hỗ trợ tối đa 5 agent. Khi đạt giới hạn, nút "New agent" bị vô hiệu hóa.
+
+### Update Banner
+
+Khi phát hiện phiên bản mới tự động (qua sự kiện nền), một banner xuất hiện ở đầu ứng dụng:
+
+- **Available** — hiển thị phiên bản mới kèm nút "Update Now". Nhấn để tải xuống và cài đặt.
+- **Downloading** — hiển thị spinner trong khi đang tải bản cập nhật.
+- **Done** — hiển thị nút "Restart Now". Nhấn để áp dụng bản cập nhật.
+- **Error** — hiển thị nút "Retry". Banner có thể đóng bằng nút X.
+
+### Modal Cài đặt Team
+
+Mở Team Settings từ giao diện Agent Teams. Modal có ba phần:
+
+**Thông tin Team**
+- Sửa tên và mô tả team
+- Xem trạng thái hiện tại và lead agent
+
+**Thành viên**
+- Danh sách tất cả thành viên team với role của họ (lead, reviewer, member)
+- Thêm thành viên mới bằng cách tìm kiếm agent trong combobox
+- Xóa thành viên không phải lead (di chuột để hiện nút xóa)
+
+**Thông báo**
+Bật/tắt thông báo theo từng loại sự kiện:
+- `dispatched` — task được giao cho agent
+- `progress` — cập nhật tiến độ task
+- `failed` — task thất bại
+- `completed` — task hoàn thành
+- `new_task` — task mới được thêm vào team
+
+Chế độ thông báo:
+- **Direct** — tất cả thành viên team nhận thông báo
+- **Leader** — chỉ lead agent nhận thông báo
+
+### Modal Chi tiết Task
+
+Nhấn vào bất kỳ task card nào để mở modal Task Detail. Modal hiển thị:
+
+- **Identifier** — ID ngắn của task (badge monospace)
+- **Badge trạng thái** — trạng thái hiện tại với màu sắc tương ứng; hiện badge "Running" có animation nếu đang thực thi
+- **Thanh tiến độ** — hiển thị phần trăm và bước hiện tại (khi task đang chạy)
+- **Metadata grid** — độ ưu tiên, agent được giao, loại task, thời gian tạo/cập nhật
+- **Blocked by** — danh sách ID task đang chặn, hiển thị dưới dạng badge màu vàng
+- **Description** — phần có thể thu gọn với markdown rendering
+- **Result** — phần có thể thu gọn với markdown rendering (khi task hoàn thành)
+- **Attachments** — phần có thể thu gọn liệt kê các file đính kèm; mỗi mục hiện tên file, dung lượng và nút Download
+
+Hành động ở footer:
+- **Assign to** — combobox để giao lại task cho thành viên khác trong team (chỉ hiện với task chưa kết thúc)
+- **Delete** — chỉ hiện với task đã completed/failed/cancelled; hiện hộp thoại xác nhận trước khi xóa
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Giải pháp |
@@ -238,7 +309,7 @@ Quản lý tenant trong chế độ triển khai SaaS — tạo tenant, gán use
 - [GoClaw hoạt động như thế nào](#how-goclaw-works) — Hiểu về kiến trúc
 - [Agents Explained](#agents-explained) — Tìm hiểu về loại agent
 
-<!-- goclaw-source: b9d87547 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->
 <!-- TODO: Screenshots cần cho v2.x UI — chạy instance GoClaw và chụp:
   1. Team kanban board với task card trong các cột
   2. Trang chi tiết cron với markdown rendering
