@@ -188,7 +188,7 @@ To inspect routing decisions and per-account health for an agent, call:
 GET /v1/agents/{id}/codex-pool-activity
 ```
 
-See [REST API](../reference/rest-api.md) for the response shape.
+See [REST API](#rest-api) for the response shape.
 
 ---
 

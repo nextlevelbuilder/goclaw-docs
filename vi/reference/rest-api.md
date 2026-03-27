@@ -153,7 +153,7 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
-Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](../../providers/codex-chatgpt.md). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
+Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](#provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
 
 **Xác thực:** Cần Bearer token. Người dùng phải có quyền truy cập agent.
 

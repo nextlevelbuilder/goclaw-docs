@@ -190,7 +190,7 @@ Các giá trị `override_mode`:
 GET /v1/agents/{id}/codex-pool-activity
 ```
 
-Xem [REST API](../../reference/rest-api.md) để biết cấu trúc response.
+Xem [REST API](#rest-api) để biết cấu trúc response.
 
 ---
 

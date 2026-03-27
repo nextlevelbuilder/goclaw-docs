@@ -151,7 +151,7 @@ Re-trigger LLM-based summoning for predefined agents.
 
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
-Returns routing activity and per-account health for agents using a [Codex OAuth pool](../providers/codex-chatgpt.md). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
+Returns routing activity and per-account health for agents using a [Codex OAuth pool](#provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
 
 **Auth:** Bearer token required. The requesting user must have access to the agent.
 
