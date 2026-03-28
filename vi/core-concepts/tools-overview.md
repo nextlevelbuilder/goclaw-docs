@@ -186,6 +186,15 @@ Admin có thể tắt nhóm cụ thể theo từng agent:
 
 Cài đặt `tools.exec_approval` thêm một lớp phê duyệt bổ sung (`full`, `light`, hoặc `none`).
 
+## Bảo mật Session Tool
+
+Các session tool (`sessions_list`, `sessions_history`, `sessions_send`) được gia cố với validation fail-closed:
+
+- **Ngăn phantom session**: tra cứu session dùng Get (chỉ đọc), không bao giờ dùng GetOrCreate, ngăn tạo session ngoài ý muốn
+- **Xác thực ownership**: session key phải khớp prefix của agent đang gọi (`agent:{agentID}:*`)
+- **Thiết kế fail-closed**: thiếu agentID hoặc ownership không hợp lệ sẽ trả lỗi ngay — không bao giờ cho qua
+- **Chặn tự gửi**: tool `message` chặn agent gửi tin nhắn đến channel/chat hiện tại của chính mình, ngăn gửi trùng media
+
 ## Adaptive Tool Timing
 
 GoClaw theo dõi thời gian thực thi per-tool trong mỗi session. Nếu một lần gọi tool mất hơn 2× giá trị tối đa lịch sử (với ít nhất 3 mẫu trước), một thông báo slow-tool được phát ra. Ngưỡng mặc định cho tool chưa có lịch sử là 120 giây.
@@ -227,4 +236,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](#multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-28 -->

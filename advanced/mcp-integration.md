@@ -239,6 +239,16 @@ The LLM is instructed to treat anything inside these markers as **data**, not as
 
 No configuration is required — this protection is always active for all MCP tool calls.
 
+### Tenant Isolation in MCP Bridge
+
+MCP servers run in isolated tenant contexts. The bridge enforces tenant_id propagation automatically:
+
+- **Tenant context extraction**: tenant_id is extracted from context at server connection time
+- **Pool-keyed connections**: shared connection pools key servers by `(tenantID, serverName)` — no cross-tenant access
+- **Per-agent access grants**: DB-backed servers enforce per-agent grants scoped to the tenant level
+
+No configuration required — tenant isolation is automatic for all MCP connections.
+
 ## Admin User Credentials
 
 Admins can set MCP user credentials on behalf of any user. This is useful for pre-configuring OAuth tokens or API keys for MCP servers that require per-user authentication.
@@ -267,4 +277,4 @@ Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPT
 - [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
 - [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->
+<!-- goclaw-source: 19eef35 | updated: 2026-03-28 -->

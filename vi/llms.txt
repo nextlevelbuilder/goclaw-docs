@@ -15,9 +15,9 @@
 - [How GoClaw Works](vi/core-concepts/how-goclaw-works.md): Kiến trúc đằng sau AI agent gateway của GoClaw.
 - [Agents Explained](vi/core-concepts/agents-explained.md): Agent là gì, hoạt động như thế nào, và sự khác biệt giữa open và predefined.
 - [Sessions & History](vi/core-concepts/sessions-and-history.md): Cách GoClaw theo dõi cuộc hội thoại và quản lý lịch sử tin nhắn.
-- [Tools Overview](vi/core-concepts/tools-overview.md): 50+ tool tích hợp sẵn mà agent có thể dùng, với tool groups và 7-step policy engine.
-- [Memory System](vi/core-concepts/memory-system.md): Cách agent ghi nhớ thông tin qua hybrid search, extractive memory fallback và embedding cache.
-- [Multi-Tenancy](vi/core-concepts/multi-tenancy.md): Cách GoClaw cách ly dữ liệu — từ single user đến SaaS platform với tenant-scoped API key, per-tenant overrides, và cross-tenant security.
+- [Tools Overview](vi/core-concepts/tools-overview.md): 50+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
+- [Memory System](vi/core-concepts/memory-system.md): Cách agent ghi nhớ thông tin qua các cuộc hội thoại bằng hybrid search.
+- [Multi-Tenancy](vi/core-concepts/multi-tenancy.md): Cách GoClaw cô lập dữ liệu — từ một người dùng đơn lẻ đến một nền tảng SaaS với nhiều khách hàng.
 
 ## Agents
 - [Creating Agents](vi/agents/creating-agents.md): Thiết lập agent AI mới qua CLI, dashboard, hoặc managed API.
@@ -51,13 +51,14 @@
 - [YesScale](vi/providers/yescale.md): Chạy các mô hình AI ở quy mô lớn với nền tảng AI đám mây YesScale.
 - [Claude CLI](vi/providers/claude-cli.md): Chạy Claude Code (binary `claude` CLI) như một GoClaw provider — cấp cho agent của bạn khả năng sử dụng tool agentic đầy đủ, được cung cấp bởi subscription Claude của Anthropic.
 - [Codex / ChatGPT](vi/providers/codex-chatgpt.md): Dùng subscription ChatGPT của bạn để chạy GoClaw agent qua OpenAI Responses API với xác thực OAuth.
-- [ACP (Agent Client Protocol)](vi/providers/acp.md): Điều phối coding agent bên ngoài (Claude Code, Codex CLI, Gemini CLI) như subprocess JSON-RPC với ProcessPool, ToolBridge, và workspace sandboxing.
+- [ACP (Agent Client Protocol)](vi/providers/acp.md): Sử dụng Claude Code, Codex CLI, hoặc Gemini CLI làm LLM provider thông qua Agent Client Protocol — được điều phối như JSON-RPC subprocess.
 - [Custom / OpenAI-Compatible](vi/providers/custom-provider.md): Kết nối GoClaw với bất kỳ API nào tương thích OpenAI — model local, inference server tự host, hoặc proxy bên thứ ba.
 
 ## Channels
 - [Channel Overview](vi/channels/overview.md): Channel kết nối các nền tảng nhắn tin (Telegram, Discord, Larksuite, v.v.) với agent runtime của GoClaw thông qua một message bus thống nhất. Mỗi channel dịch các sự kiện đặc thù của nền tảng thành object `InboundMessage` chuẩn hoá và chuyển đổi phản hồi của agent thành output phù hợp với nền tảng đó.
 - [Telegram](vi/channels/telegram.md): Tích hợp Telegram bot qua long polling (Bot API). Hỗ trợ DM, nhóm, forum topic, chuyển giọng nói thành văn bản, và phản hồi streaming.
 - [Discord](vi/channels/discord.md): Tích hợp Discord bot qua Discord Gateway API. Hỗ trợ DM, server, thread, và phản hồi streaming qua chỉnh sửa tin nhắn.
+- [Feishu / Lark](vi/channels/feishu.md): Tích hợp nhắn tin [Feishu](https://www.feishu.cn/) (飞书) dành cho người dùng tại Trung Quốc — hỗ trợ DM, nhóm, streaming card và cập nhật thời gian thực qua WebSocket hoặc webhook.
 - [Larksuite](vi/channels/larksuite.md): Tích hợp nhắn tin [Larksuite](https://www.larksuite.com/) hỗ trợ DM, nhóm, streaming card, và cập nhật theo thời gian thực qua WebSocket hoặc webhook.
 - [Zalo OA](vi/channels/zalo-oa.md): Tích hợp Zalo Official Account (OA). Chỉ hỗ trợ DM với kiểm soát truy cập dựa trên pairing và hỗ trợ hình ảnh.
 - [Zalo Personal](vi/channels/zalo-personal.md): Tích hợp tài khoản Zalo cá nhân không chính thức sử dụng giao thức được dịch ngược (zcago). Hỗ trợ DM và nhóm với kiểm soát truy cập hạn chế.
@@ -67,11 +68,11 @@
 - [Browser Pairing](vi/channels/browser-pairing.md): Luồng xác thực bảo mật cho client WebSocket tuỳ chỉnh sử dụng mã pairing 8 ký tự. Lý tưởng cho web app riêng tư và desktop client cần xác minh danh tính thiết bị.
 
 ## Agent Teams
-- [What Are Teams?](vi/agent-teams/what-are-teams.md): Agent team cho phép nhiều agent cộng tác. Chỉ lead nhận TEAM.md; member khám phá ngữ cảnh qua tool. Task tracking bắt buộc, blocker escalation, và auto-completion.
-- [Creating & Managing Teams](vi/agent-teams/creating-managing-teams.md): Tạo team qua API, Dashboard, hoặc CLI. Cấu hình blocker escalation, workspace scope, và access control. Khả năng lead vs member được định nghĩa rõ.
-- [Task Board](vi/agent-teams/task-board.md): Công cụ theo dõi công việc chung với 8 trạng thái vòng đời (pending, in_progress, in_review, completed, failed, cancelled, blocked, stale), blocker escalation, review workflow, và progress tracking.
-- [Team Messaging](vi/agent-teams/team-messaging.md): Thành viên team giao tiếp qua mailbox tích hợp với tin nhắn trực tiếp, broadcast, và phân phối real-time qua message bus.
-- [Delegation & Handoff](vi/agent-teams/delegation-and-handoff.md): Delegation cho phép lead tạo công việc trên các member agent. Handoff chuyển giao quyền kiểm soát hội thoại giữa các agent mà không làm gián đoạn session của người dùng.
+- [What Are Teams?](vi/agent-teams/what-are-teams.md): Agent team cho phép nhiều agent cùng cộng tác trên các task chung. Một agent **lead** điều phối công việc, trong khi các **member** thực thi task độc lập và báo cáo kết quả lại.
+- [Creating & Managing Teams](vi/agent-teams/creating-managing-teams.md): Tạo team qua API, Dashboard, hoặc CLI. Hệ thống tự động thiết lập delegation link giữa lead và tất cả member, đưa `TEAM.md` vào system prompt của lead, và kết nối quyền truy cập task board cho tất cả thành viên.
+- [Task Board](vi/agent-teams/task-board.md): Task board là công cụ theo dõi công việc chung mà tất cả thành viên team đều có thể truy cập. Task có thể được tạo với mức độ ưu tiên, phụ thuộc, và ràng buộc blocking. Member nhận task đang chờ, làm việc độc lập, và đánh dấu hoàn thành kèm kết quả.
+- [Team Messaging](vi/agent-teams/team-messaging.md): Các thành viên team giao tiếp qua hệ thống mailbox tích hợp sẵn. Member có thể gửi tin nhắn trực tiếp và đọc tin nhắn chưa đọc. Lead agent không có tool `team_message` — nó bị xóa khỏi danh sách tool của lead theo policy. Tin nhắn chạy qua message bus với phân phối theo thời gian thực.
+- [Delegation & Handoff](vi/agent-teams/delegation-and-handoff.md): Delegation cho phép lead giao việc cho member agent thông qua task board. Handoff chuyển giao quyền kiểm soát hội thoại giữa các agent mà không làm gián đoạn session của người dùng.
 
 ## Advanced
 - [Custom Tools](vi/advanced/custom-tools.md): Thêm khả năng mới cho agent bằng lệnh shell — không cần biên dịch lại, không cần khởi động lại.
@@ -95,8 +96,8 @@
 - [Channel Instances](vi/advanced/channel-instances.md): Chạy nhiều tài khoản trên cùng loại channel — mỗi tài khoản có thông tin xác thực, agent binding, và quyền writer riêng.
 - [Usage & Quota](vi/advanced/usage-quota.md): Theo dõi lượng token tiêu thụ theo agent và session, và thực thi giới hạn request theo người dùng cho các cửa sổ giờ, ngày, và tuần.
 - [Cost Tracking](vi/advanced/cost-tracking.md): Giám sát chi phí token theo agent và provider bằng bảng giá per-model có thể cấu hình.
-- [Model Steering](vi/advanced/model-steering.md): Cách GoClaw hướng dẫn model nhỏ qua 3 lớp điều khiển: Track (lập lịch lane), Hint (gợi ý ngữ cảnh), và Guard (ranh giới an toàn).
-- [Agent Evolution](vi/advanced/agent-evolution.md): Cho phép predefined agent tinh chỉnh phong cách giao tiếp qua SOUL.md và xây dựng skill tái sử dụng với budget nudge và skill_manage tool.
+- [Model Steering](vi/advanced/model-steering.md): Cách GoClaw dẫn dắt các model nhỏ qua 3 tầng kiểm soát: Track (lập lịch), Hint (gợi ý theo ngữ cảnh) và Guard (ranh giới an toàn).
+- [Agent Evolution](vi/advanced/agent-evolution.md): Cho phép predefined agents tinh chỉnh phong cách giao tiếp và xây dựng các skill có thể tái sử dụng theo thời gian — tự động, với sự đồng ý của bạn.
 
 ## Deployment
 - [Docker Compose](vi/deployment/docker-compose.md): GoClaw cung cấp 9 file compose — một file base và 8 overlay để bạn kết hợp linh hoạt tùy theo stack cần triển khai.

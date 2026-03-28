@@ -241,6 +241,16 @@ LLM được hướng dẫn xử lý mọi nội dung bên trong các marker nà
 
 Không cần cấu hình — tính năng bảo vệ này luôn hoạt động cho tất cả các lần gọi MCP tool.
 
+### Cách ly Tenant trong MCP Bridge
+
+Các MCP server chạy trong context tenant cách ly. Bridge tự động enforce việc truyền tenant_id:
+
+- **Trích xuất tenant context**: tenant_id được trích từ context khi kết nối server
+- **Connection pool theo tenant**: pool dùng key `(tenantID, serverName)` — không có truy cập chéo tenant
+- **Quyền truy cập theo agent**: server từ DB enforce quyền per-agent trong phạm vi tenant
+
+Không cần cấu hình — cách ly tenant tự động cho mọi kết nối MCP.
+
 ## Admin User Credentials
 
 Admin có thể đặt MCP user credential thay mặt bất kỳ user nào. Hữu ích để cấu hình trước OAuth token hoặc API key cho các MCP server yêu cầu xác thực per-user.
@@ -269,4 +279,4 @@ Yêu cầu quyền admin. Credential được mã hóa khi lưu trữ bằng `GO
 - [Custom Tools](../advanced/custom-tools.md) — tạo tool shell mà không cần MCP server
 - [Skills](../advanced/skills.md) — inject kiến thức tái sử dụng vào system prompt của agent
 
-<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-25 -->
+<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-28 -->

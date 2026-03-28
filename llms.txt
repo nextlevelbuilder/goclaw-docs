@@ -15,9 +15,9 @@
 - [How GoClaw Works](core-concepts/how-goclaw-works.md): The architecture behind GoClaw's AI agent gateway.
 - [Agents Explained](core-concepts/agents-explained.md): What agents are, how they work, and the difference between open and predefined.
 - [Sessions & History](core-concepts/sessions-and-history.md): How GoClaw tracks conversations and manages message history.
-- [Tools Overview](core-concepts/tools-overview.md): The 50+ built-in tools agents can use, organized by category with tool groups and a 7-step policy engine.
-- [Memory System](core-concepts/memory-system.md): How agents remember facts across conversations using hybrid search, with extractive memory fallback and embedding cache.
-- [Multi-Tenancy](core-concepts/multi-tenancy.md): How GoClaw isolates data — from single user to full SaaS platform with tenant-scoped API keys, per-tenant overrides, and cross-tenant security.
+- [Tools Overview](core-concepts/tools-overview.md): The 50+ built-in tools agents can use, organized by category.
+- [Memory System](core-concepts/memory-system.md): How agents remember facts across conversations using hybrid search.
+- [Multi-Tenancy](core-concepts/multi-tenancy.md): How GoClaw isolates data — from a single user to a full SaaS platform with many customers.
 
 ## Agents
 - [Creating Agents](agents/creating-agents.md): Set up a new AI agent via CLI, dashboard, or managed API.
@@ -51,13 +51,14 @@
 - [YesScale](providers/yescale.md): Run AI models at scale with YesScale's cloud AI platform.
 - [Claude CLI](providers/claude-cli.md): Run Claude Code (the `claude` CLI binary) as a GoClaw provider — giving your agents full agentic tool use powered by Anthropic's Claude subscription.
 - [Codex / ChatGPT](providers/codex-chatgpt.md): Use your ChatGPT subscription to power GoClaw agents via the OpenAI Responses API and OAuth authentication.
-- [ACP (Agent Client Protocol)](providers/acp.md): Orchestrate external coding agents (Claude Code, Codex CLI, Gemini CLI) as JSON-RPC subprocesses with ProcessPool, ToolBridge, and workspace sandboxing.
+- [ACP (Agent Client Protocol)](providers/acp.md): Use Claude Code, Codex CLI, or Gemini CLI as LLM providers through the Agent Client Protocol — orchestrated as JSON-RPC subprocesses.
 - [Custom / OpenAI-Compatible](providers/custom-provider.md): Connect GoClaw to any OpenAI-compatible API — local models, self-hosted inference servers, or third-party proxies.
 
 ## Channels
 - [Channel Overview](channels/overview.md): Channels connect messaging platforms (Telegram, Discord, Larksuite, etc.) to the GoClaw agent runtime via a unified message bus. Each channel translates platform-specific events into standardized `InboundMessage` objects and converts agent responses into platform-appropriate output.
 - [Telegram](channels/telegram.md): Telegram bot integration via long polling (Bot API). Supports DMs, groups, forum topics, speech-to-text, and streaming responses.
 - [Discord](channels/discord.md): Discord bot integration via the Discord Gateway API. Supports DMs, servers, threads, and streaming responses via message editing.
+- [Feishu / Lark](channels/feishu.md): **Create Feishu App:**
 - [Larksuite](channels/larksuite.md): **Create Larksuite App:**
 - [Zalo OA](channels/zalo-oa.md): Zalo Official Account (OA) integration. DM-only with pairing-based access control and image support.
 - [Zalo Personal](channels/zalo-personal.md): Unofficial personal Zalo account integration using reverse-engineered protocol (zcago). Supports DMs and groups with restrictive access control.
@@ -67,11 +68,11 @@
 - [Browser Pairing](channels/browser-pairing.md): Secure authentication flow for custom WebSocket clients using 8-character pairing codes. Ideal for private web apps and desktop clients that need to verify device identity.
 
 ## Agent Teams
-- [What Are Teams?](agent-teams/what-are-teams.md): Agent teams enable multiple agents to collaborate. Only the lead receives TEAM.md; members discover context via tools. Mandatory task tracking, blocker escalation, and auto-completion.
-- [Creating & Managing Teams](agent-teams/creating-managing-teams.md): Create teams via API, Dashboard, or CLI. Configure blocker escalation, workspace scope, and access control. Lead vs member capabilities defined.
-- [Task Board](agent-teams/task-board.md): Shared work tracker with 8 lifecycle states (pending, in_progress, in_review, completed, failed, cancelled, blocked, stale), blocker escalation, review workflow, and progress tracking.
-- [Team Messaging](agent-teams/team-messaging.md): Team members communicate via a built-in mailbox system with direct messages, broadcasts, and real-time delivery via message bus.
-- [Delegation & Handoff](agent-teams/delegation-and-handoff.md): Delegation allows the lead to spawn work on member agents. Handoff transfers conversation control between agents without interrupting the user's session.
+- [What Are Teams?](agent-teams/what-are-teams.md): Agent teams enable multiple agents to collaborate on shared tasks. A **lead** agent orchestrates work, while **members** execute tasks independently and report results back.
+- [Creating & Managing Teams](agent-teams/creating-managing-teams.md): Create teams via API, Dashboard, or CLI. The system automatically establishes delegation links between the lead and all members, injects `TEAM.md` into the lead's system prompt, and wires up task board access for all members.
+- [Task Board](agent-teams/task-board.md): The task board is a shared work tracker accessible to all team members. Tasks can be created with priorities, dependencies, and blocking constraints. Members claim pending tasks, work independently, and mark them complete with results.
+- [Team Messaging](agent-teams/team-messaging.md): Team members communicate via a built-in mailbox system. Members can send direct messages and read unread messages. The lead agent does not have access to the `team_message` tool — it is removed from the lead's tool list by policy. Messages flow through the message bus with real-time delivery.
+- [Delegation & Handoff](agent-teams/delegation-and-handoff.md): Delegation allows the lead to assign work to member agents via the task board. Handoff transfers conversation control between agents without interrupting the user's session.
 
 ## Advanced
 - [Custom Tools](advanced/custom-tools.md): Give your agents new shell-backed capabilities at runtime — no recompile, no restart.
@@ -95,8 +96,8 @@
 - [Channel Instances](advanced/channel-instances.md): Run multiple accounts per channel type — each with its own credentials, agent binding, and writer permissions.
 - [Usage & Quota](advanced/usage-quota.md): Track token consumption per agent and session, and enforce per-user request limits across hour, day, and week windows.
 - [Cost Tracking](advanced/cost-tracking.md): Monitor token costs per agent and provider using configurable per-model pricing.
-- [Model Steering](advanced/model-steering.md): How GoClaw guides small models through 3 control layers: Track (lane scheduling), Hint (contextual nudges), and Guard (safety boundaries).
-- [Agent Evolution](advanced/agent-evolution.md): Let predefined agents refine their communication style via SOUL.md and build reusable skills over time with budget nudges and skill_manage tool.
+- [Model Steering](advanced/model-steering.md): How GoClaw guides small models through 3 control layers: Track (scheduling), Hint (contextual nudges), and Guard (safety boundaries).
+- [Agent Evolution](advanced/agent-evolution.md): Let predefined agents refine their communication style and build reusable skills over time — automatically, with your consent.
 
 ## Deployment
 - [Docker Compose](deployment/docker-compose.md): GoClaw ships 9 compose files — a base plus 8 overlays you mix and match to build the exact stack you need.

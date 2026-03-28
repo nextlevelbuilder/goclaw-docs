@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# generate-llms-txt.sh — Generate llms.txt and llms-full.txt for EN and VI
-# Output: llms.txt, llms-full.txt, vi/llms.txt, vi/llms-full.txt
+# generate-llms-txt.sh — Generate llms.txt and llms-full.txt for EN, VI, and ZH
+# Output: llms.txt, llms-full.txt, vi/llms.txt, vi/llms-full.txt, zh/llms.txt, zh/llms-full.txt
 # Follows llmstxt.org spec
 
 set -euo pipefail
@@ -48,9 +48,12 @@ generate_index() {
   local out_full="$3"
   local project_desc="Enterprise AI Agent Platform — multi-tenant gateway for AI agents"
 
-  if [[ -n "$prefix" ]]; then
+  if [[ "$prefix" == "vi/" ]]; then
     printf "# GoClaw (Tiếng Việt)\n\n> %s\n\n" "$project_desc" > "$out_index"
     printf "# GoClaw — Tài liệu đầy đủ (Tiếng Việt)\n\n> %s\n\n" "$project_desc" > "$out_full"
+  elif [[ "$prefix" == "zh/" ]]; then
+    printf "# GoClaw（简体中文）\n\n> %s\n\n" "$project_desc" > "$out_index"
+    printf "# GoClaw — 完整文档（简体中文）\n\n> %s\n\n" "$project_desc" > "$out_full"
   else
     printf "# GoClaw\n\n> %s\n\n" "$project_desc" > "$out_index"
     printf "# GoClaw — Full Documentation\n\n> %s\n\n" "$project_desc" > "$out_full"
@@ -107,5 +110,11 @@ mkdir -p "$DOCS_DIR/vi"
 generate_index "vi/" "$DOCS_DIR/vi/llms.txt" "$DOCS_DIR/vi/llms-full.txt"
 echo "  ✓ vi/llms.txt ($(wc -l < "$DOCS_DIR/vi/llms.txt" | tr -d ' ') lines)"
 echo "  ✓ vi/llms-full.txt ($(wc -l < "$DOCS_DIR/vi/llms-full.txt" | tr -d ' ') lines)"
+
+# ZH
+mkdir -p "$DOCS_DIR/zh"
+generate_index "zh/" "$DOCS_DIR/zh/llms.txt" "$DOCS_DIR/zh/llms-full.txt"
+echo "  ✓ zh/llms.txt ($(wc -l < "$DOCS_DIR/zh/llms.txt" | tr -d ' ') lines)"
+echo "  ✓ zh/llms-full.txt ($(wc -l < "$DOCS_DIR/zh/llms-full.txt" | tr -d ' ') lines)"
 
 echo "Done."

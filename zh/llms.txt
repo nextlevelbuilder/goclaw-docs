@@ -1,0 +1,145 @@
+# GoClaw（简体中文）
+
+> Enterprise AI Agent Platform — multi-tenant gateway for AI agents
+
+
+## Getting Started
+- [What is GoClaw?](zh/getting-started/what-is-goclaw.md): 一个多租户 AI agent gateway，将 LLM 连接到消息渠道、工具和团队。
+- [Installation](zh/getting-started/installation.md): 几分钟内在你的机器上运行 GoClaw。四种方式：快速二进制安装、裸机安装、Docker（本地）或 VPS 上的 Docker。
+- [Quick Start](zh/getting-started/quick-start.md): 5 分钟内完成你的第一次 AI agent 对话。
+- [Configuration](zh/getting-started/configuration.md): 如何通过 config.json 和环境变量配置 GoClaw。
+- [Web Dashboard Tour](zh/getting-started/web-dashboard-tour.md): GoClaw 管理 dashboard 的可视化指南。
+- [Migrating from OpenClaw](zh/getting-started/migrating-from-openclaw.md): GoClaw 的变化以及如何迁移你的配置。
+
+## Core Concepts
+- [How GoClaw Works](zh/core-concepts/how-goclaw-works.md): GoClaw AI agent gateway 背后的架构。
+- [Agents Explained](zh/core-concepts/agents-explained.md): Agent 是什么、如何工作，以及开放型与预定义型的区别。
+- [Sessions & History](zh/core-concepts/sessions-and-history.md): GoClaw 如何追踪对话并管理消息历史。
+- [Tools Overview](zh/core-concepts/tools-overview.md): Agent 可以使用的 50+ 内置工具，按类别组织。
+- [Memory System](zh/core-concepts/memory-system.md): Agent 如何通过混合搜索跨对话记住事实。
+- [Multi-Tenancy](zh/core-concepts/multi-tenancy.md): GoClaw 如何隔离数据——从单用户到拥有众多客户的完整 SaaS 平台。
+
+## Agents
+- [Creating Agents](zh/agents/creating-agents.md): 通过 CLI、Dashboard 或 HTTP API 创建新的 AI agent。
+- [Open vs Predefined Agents](zh/agents/open-vs-predefined.md): 两种 agent 架构：每用户独立隔离（open）与共享 context（predefined）。
+- [Context Files](zh/agents/context-files.md): 定义 agent personality、知识和行为的 7 个 markdown 文件。
+- [Summoning & Bootstrap](zh/agents/summoning-bootstrap.md): Agent 创建和首次使用时如何自动生成 personality 文件。
+- [Editing Personality](zh/agents/editing-personality.md): 通过两个核心文件修改 agent 的语调、身份和边界：SOUL.md（personality 与风格）和 IDENTITY.md（名称、emoji、形态）。
+- [Sharing & Access Control](zh/agents/sharing-and-access.md): 控制谁可以使用你的 agent。访问权限通过所有者与非所有者的区分来执行；角色标签存储供未来使用。
+- [User Overrides](zh/agents/user-overrides.md): **部分实现的功能。** 数据库 schema 和 store API 已存在，但运行时尚未应用覆盖配置。本页记录计划中的行为和当前的 store API。
+- [System Prompt Anatomy](zh/agents/system-prompt-anatomy.md): 了解 GoClaw 如何构建 system prompt：19+ 个部分，动态组装，智能截断以适应 context。
+
+## Providers
+- [Provider Overview](zh/providers/overview.md): Provider 是 GoClaw 与 LLM API 之间的接口——配置一个（或多个），所有 agent 即可使用。
+- [Anthropic (Claude)](zh/providers/anthropic.md): GoClaw 原生 Claude 集成——直接基于 Anthropic HTTP+SSE API 构建，完整支持扩展思考和 prompt 缓存。
+- [OpenAI / Azure OpenAI](zh/providers/openai.md): 通过标准 OpenAI API 将 GoClaw 连接到 OpenAI 的 GPT-4o 和 o 系列推理模型。
+- [OpenRouter](zh/providers/openrouter.md): 通过一个 API key 访问来自 Anthropic、Google、Meta、Mistral 等的 100+ 模型。
+- [Google Gemini](zh/providers/gemini.md): 通过 OpenAI 兼容端点在 GoClaw 中使用 Google Gemini 模型。
+- [DeepSeek](zh/providers/deepseek.md): 在 GoClaw 中运行 DeepSeek 强大的推理模型，完整支持 reasoning_content 流式传输。
+- [Groq](zh/providers/groq.md): 使用 Groq 的 LPU 推理硬件以极高速度运行开源模型。
+- [Mistral](zh/providers/mistral.md): 通过 OpenAI 兼容 API 在 GoClaw 中使用 Mistral AI 模型。
+- [xAI (Grok)](zh/providers/xai.md): 通过 OpenAI 兼容 API 将 GoClaw 连接到 xAI 的 Grok 模型。
+- [MiniMax](zh/providers/minimax.md): 通过 OpenAI 兼容 API 将 GoClaw 连接到 MiniMax 模型，使用自定义 chat 端点。
+- [Cohere](zh/providers/cohere.md): 通过 OpenAI 兼容 API 将 GoClaw 连接到 Cohere 的 Command 模型。
+- [Ollama](zh/providers/ollama.md): 使用 Ollama 在本地运行开源模型——无需云服务。
+- [Ollama Cloud](zh/providers/ollama-cloud.md): 通过云端托管使用 Ollama 兼容模型——享受托管推理的便利与 Ollama 开放模型生态系统。
+- [Perplexity](zh/providers/perplexity.md): 通过 OpenAI 兼容 API 将 GoClaw 连接到 Perplexity 的搜索增强 AI 模型。
+- [DashScope (Qwen)](zh/providers/dashscope.md): 通过 DashScope OpenAI 兼容 API 将 GoClaw 连接到阿里巴巴的 Qwen 模型。
+- [Bailian](zh/providers/bailian.md): 连接阿里云百炼模型。
+- [Suno](zh/providers/suno.md): 使用 Suno 的 AI 音乐生成平台创作音乐和音频。
+- [Zai](zh/providers/zai.md): 连接 Zai 和 Zai Coding provider（OpenAI 兼容）。
+- [YesScale](zh/providers/yescale.md): 通过 YesScale 的云 AI 平台大规模运行 AI 模型。
+- [Claude CLI](zh/providers/claude-cli.md): 将 Claude Code（`claude` CLI 二进制文件）作为 GoClaw provider 运行——通过 Anthropic 的 Claude 订阅为 agent 提供完整的 agentic 工具调用能力。
+- [Codex / ChatGPT](zh/providers/codex-chatgpt.md): 通过 OpenAI Responses API 和 OAuth 认证，使用 ChatGPT 订阅驱动 GoClaw agent。
+- [ACP (Agent Client Protocol)](zh/providers/acp.md): 通过 Agent Client Protocol 将 Claude Code、Codex CLI 或 Gemini CLI 作为 LLM provider 使用——以 JSON-RPC 子进程方式编排。
+- [Custom / OpenAI-Compatible](zh/providers/custom-provider.md): 将 GoClaw 连接到任意 OpenAI 兼容 API——本地模型、自托管推理服务器或第三方代理。
+
+## Channels
+- [Channel Overview](zh/channels/overview.md): Channels 将消息平台（Telegram、Discord、Larksuite 等）通过统一消息总线连接到 GoClaw agent 运行时。每个 channel 将平台特定事件转换为标准化的 `InboundMessage` 对象，并将 agent 响应转换为平台适配的输出格式。
+- [Telegram](zh/channels/telegram.md): 通过长轮询（Bot API）集成 Telegram bot。支持 DM、群组、论坛话题、语音转文字和流式响应。
+- [Discord](zh/channels/discord.md): 通过 Discord Gateway API 集成 Discord bot。支持 DM、服务器、线程和通过消息编辑实现的流式响应。
+- [Feishu / Lark](zh/channels/feishu.md): **创建飞书应用：**
+- [Larksuite](zh/channels/larksuite.md): **创建 Larksuite 应用：**
+- [Zalo OA](zh/channels/zalo-oa.md): Zalo 官方账号（OA）集成。仅支持 DM，基于配对的访问控制，支持图片。
+- [Zalo Personal](zh/channels/zalo-personal.md): 使用逆向工程协议（zcago）的非官方个人 Zalo 账号集成。支持 DM 和群组，采用严格访问控制。
+- [Slack](zh/channels/slack.md): 通过 Socket Mode（WebSocket）集成 Slack。支持 DM、channel @提及、线程回复、流式输出、表情回应、媒体和消息防抖。
+- [WhatsApp](zh/channels/whatsapp.md): 通过外部 WebSocket 桥接集成 WhatsApp。GoClaw 连接到处理 WhatsApp 协议的桥接服务（如 whatsapp-web.js）。
+- [WebSocket](zh/channels/websocket.md): 通过 WebSocket 与 GoClaw gateway 直接 RPC 通信。无需中间消息平台——非常适合自定义客户端、Web 应用和测试。
+- [Browser Pairing](zh/channels/browser-pairing.md): 使用 8 位配对码为自定义 WebSocket 客户端提供安全认证流程。适用于需要验证设备身份的私有 Web 应用和桌面客户端。
+
+## Agent Teams
+- [What Are Teams?](zh/agent-teams/what-are-teams.md): Agent 团队让多个 agent 协作完成共享任务。**Lead** agent 负责编排工作，**member** agent 独立执行任务并将结果汇报回来。
+- [Creating & Managing Teams](zh/agent-teams/creating-managing-teams.md): 通过 API、Dashboard 或 CLI 创建团队。系统自动建立 lead 与所有成员之间的委派链接，将 `TEAM.md` 注入 lead 的 system prompt，并为所有成员开启任务板访问权限。
+- [Task Board](zh/agent-teams/task-board.md): 任务板是所有团队成员均可访问的共享工作跟踪器。任务可设置优先级、依赖关系和阻塞约束。成员认领待处理任务，独立工作，并标记完成并附上结果。
+- [Team Messaging](zh/agent-teams/team-messaging.md): 团队成员通过内置 mailbox 系统进行通信。成员可发送直接消息和读取未读消息。根据策略，lead agent 没有 `team_message` 工具的访问权限——该工具已从 lead 的工具列表中移除。消息通过消息总线实时投递。
+- [Delegation & Handoff](zh/agent-teams/delegation-and-handoff.md): 委派（Delegation）允许 lead 通过任务板向成员 agent 分配工作。交接（Handoff）在不中断用户会话的情况下，将对话控制权转移给另一个 agent。
+
+## Advanced
+- [Custom Tools](zh/advanced/custom-tools.md): 在运行时为你的 agent 添加基于 shell 的新能力 — 无需重新编译，无需重启。
+- [MCP Integration](zh/advanced/mcp-integration.md): 将任意 Model Context Protocol 服务器连接到 GoClaw，立即为你的 agent 提供其完整工具目录。
+- [Skills](zh/advanced/skills.md): 将可复用知识打包成 Markdown 文件，自动注入到任意 agent 的上下文中。
+- [Scheduling & Cron](zh/advanced/scheduling-cron.md): 自动触发 agent 执行 — 单次、按固定间隔或按 cron 表达式。
+- [Heartbeat](zh/advanced/heartbeat.md): 主动定期检查 — agent 按计时器执行可配置的检查清单，并将结果报告到你的 channel。
+- [Sandbox](zh/advanced/sandbox.md): 在隔离的 Docker 容器中运行 agent shell 命令，让不受信任的代码永远无法接触宿主机。
+- [Media Generation](zh/advanced/media-generation.md): 直接从 agent 生成图片、视频和音频 — 支持自动 provider 故障转移链。
+- [TTS & Voice](zh/advanced/tts-voice.md): 为 agent 添加语音回复 — 从四个 provider 中选择，精确控制音频触发时机。
+- [Knowledge Graph](zh/advanced/knowledge-graph.md): Agent 自动从对话中提取实体和关系，构建一个可搜索的人物、项目和概念图谱。
+- [Caching](zh/advanced/caching.md): 使用内存或 Redis 缓存频繁访问的数据，减少数据库查询。
+- [Browser Automation](zh/advanced/browser-automation.md): 为 agent 提供真实浏览器 — 导航页面、截图、抓取内容、填写表单。
+- [Extended Thinking](zh/advanced/extended-thinking.md): 让 agent 在回答前"大声思考" — 在复杂任务上获得更好的结果，代价是额外的 token 和延迟。
+- [Hooks & Quality Gates](zh/advanced/hooks-quality-gates.md): 在 agent 操作前后自动运行检查 — 拦截不良输出、要求审批或触发自定义验证逻辑。
+- [Authentication & OAuth](zh/advanced/authentication.md): 通过 OAuth 将 GoClaw 连接到 ChatGPT — 无需 API key，使用你现有的 OpenAI 账号。
+- [API Keys & RBAC](zh/advanced/api-keys-rbac.md): 为多用户和程序化访问部署管理带角色权限控制的 API key。
+- [CLI Credentials](zh/advanced/cli-credentials.md): 安全存储和管理用于 shell 工具执行的命名凭据集。
+- [Exec Approval](zh/advanced/exec-approval.md): 在 agent shell 命令运行前暂停等待人工审阅 — 从 Dashboard 批准、拒绝或永久允许。
+- [Context Pruning](zh/advanced/context-pruning.md): 自动修剪旧的工具结果，将 agent 上下文保持在 token 限制内。
+- [Channel Instances](zh/advanced/channel-instances.md): 每种 channel 类型运行多个账号 — 各自拥有独立的凭据、agent 绑定和写入权限。
+- [Usage & Quota](zh/advanced/usage-quota.md): 追踪每个 agent 和会话的 token 消耗，并在小时、天、周窗口内对每用户请求数量执行限制。
+- [Cost Tracking](zh/advanced/cost-tracking.md): 使用可配置的按模型定价监控每个 agent 和 provider 的 token 成本。
+- [Model Steering](zh/advanced/model-steering.md): GoClaw 如何通过 3 个控制层引导小型模型：Track（调度）、Hint（上下文提示）和 Guard（安全边界）。
+- [Agent Evolution](zh/advanced/agent-evolution.md): 让预定义 agent 随时间精炼其沟通风格并构建可复用 skill — 自动完成，经过你的授权。
+
+## Deployment
+- [Docker Compose](zh/deployment/docker-compose.md): GoClaw 提供 9 个 compose 文件——一个基础文件加 8 个可按需组合的 overlay。
+- [Database Setup](zh/deployment/database-setup.md): GoClaw 需要 PostgreSQL 15+ 并安装 `pgvector` 扩展，用于多租户存储、语义记忆搜索和用量统计。
+- [Security Hardening](zh/deployment/security-hardening.md): GoClaw 采用五层独立防御——传输、输入、工具、输出和隔离——一层被突破不会危及其余层。
+- [Observability](zh/deployment/observability.md): 监控每一次 LLM 调用、工具使用和 agent 运行——从内置仪表盘到 Jaeger 及更多。
+- [Tailscale](zh/deployment/tailscale.md): 在 Tailscale 网络上安全暴露 GoClaw gateway——无需端口转发，无需公网 IP。
+- [Production Checklist](zh/deployment/production-checklist.md): 将 GoClaw 从开发环境迁移到生产环境前需要验证的所有事项。
+- [Upgrading](zh/deployment/upgrading.md): 如何安全升级 GoClaw——二进制、数据库 schema 和数据迁移，不出意外。
+
+## Recipes
+- [Personal Assistant](zh/recipes/personal-assistant.md): 在 Telegram 上搭建一个带记忆和自定义个性的单用户 AI 助理。
+- [Team Chatbot](zh/recipes/team-chatbot.md): 由一个 lead 协调 agent 和多个专家子 agent 组成的多 agent 团队。
+- [Customer Support](zh/recipes/customer-support.md): 一个为所有用户提供一致服务的预定义 agent，支持专家升级路径。
+- [Code Review Agent](zh/recipes/code-review-agent.md): 使用 Docker 沙盒安全执行代码和自定义 shell 工具的代码审查 agent。
+- [Multi-Channel Setup](zh/recipes/multi-channel-setup.md): 同时将同一 agent 部署在 Telegram、Discord 和 WebSocket 上。
+
+## Showcases
+- [Gallery](zh/showcases/gallery.md): GoClaw 的真实应用场景和部署示例。
+
+## Reference
+- [CLI Commands](zh/reference/cli-commands.md): `goclaw` 每个命令、子命令和标志的完整参考。
+- [WebSocket Protocol](zh/reference/websocket-protocol.md): GoClaw gateway WebSocket RPC 接口的协议 v3 规范。
+- [REST API](zh/reference/rest-api.md): agent 管理、provider、skill、traces 等所有 `/v1` HTTP 端点。
+- [Configuration Reference](zh/reference/config-reference.md): 完整的 `config.json` schema——每个字段、类型和默认值。
+- [Environment Variables](zh/reference/environment-variables.md): GoClaw 识别的所有环境变量，按类别组织。
+- [Database Schema](zh/reference/database-schema.md): 所有迁移版本中的 PostgreSQL 表、列、类型和约束。
+- [Glossary](zh/reference/glossary.md): GoClaw 文档中使用的专有术语定义。
+- [AGENTS.md](zh/reference/templates/agents.md): 注入每个 agent 系统提示的默认操作指令——涵盖对话风格、记忆、群聊行为和平台格式。
+- [SOUL.md](zh/reference/templates/soul.md): 个性文件——定义你的 agent 是谁、其语气、观点、边界和专业知识。
+- [IDENTITY.md](zh/reference/templates/identity.md): 一个简短的结构化文件，告诉 GoClaw（以及 agent 自身）其名称、性质、emoji 和头像。
+- [TOOLS.md](zh/reference/templates/tools.md): 用于环境特定工具详情的本地笔记文件——摄像头名称、SSH 主机、TTS 声音、设备昵称。
+- [USER.md](zh/reference/templates/user.md): 按用户的档案文件——agent 关于它所服务的人类的笔记。
+- [USER_PREDEFINED.md](zh/reference/templates/user-predefined.md): 预定义 agent 的 agent 级用户处理规则——对所有用户共享。
+- [BOOTSTRAP.md](zh/reference/templates/bootstrap.md): 首次运行仪式文件——引导新 agent 探索自己的身份并了解用户。
+- [TEAM.md](zh/reference/templates/team.md): 为团队中的 agent 注入的动态上下文文件——在运行时生成，永远不会手动创建或存储在磁盘上。
+
+## Troubleshooting
+- [Common Issues](zh/troubleshooting/common-issues.md): 运行 GoClaw 时最常见问题的修复方法。
+- [WebSocket Issues](zh/troubleshooting/websocket.md): GoClaw 中 WebSocket 连接、认证和消息处理的故障排除。
+- [Channels](zh/troubleshooting/channels.md): Telegram、Discord、Feishu、Zalo 和 WhatsApp 的按 channel 故障排除。
+- [Providers](zh/troubleshooting/providers.md): API key 错误、速率限制、模型不匹配和 schema 验证失败的修复方法。
+- [MCP](zh/troubleshooting/mcp.md): MCP（Model Context Protocol）server 连接、工具注册和执行的故障排除。
+- [Database](zh/troubleshooting/database.md): PostgreSQL 迁移、pgvector、连接池和慢查询的故障排除。
+- [Agent Teams](zh/troubleshooting/agent-teams.md): 团队创建、委派、任务路由和 agent 间通信的故障排除。

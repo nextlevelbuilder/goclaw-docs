@@ -241,6 +241,16 @@ LLM 被指示将这些标记内的内容视为**数据**而非指令，防止恶
 
 无需任何配置 — 此保护对所有 MCP 工具调用始终有效。
 
+### MCP Bridge 中的租户隔离
+
+MCP 服务器在隔离的租户上下文中运行。Bridge 自动强制执行 tenant_id 传播：
+
+- **租户上下文提取**：连接服务器时从上下文中提取 tenant_id
+- **按租户的连接池**：共享连接池以 `(tenantID, serverName)` 为 key——禁止跨租户访问
+- **按 agent 的访问授权**：数据库管理的服务器在租户级别强制执行按 agent 的授权
+
+无需配置——所有 MCP 连接自动实现租户隔离。
+
 ## 管理员用户凭据
 
 管理员可以代表任意用户设置 MCP 用户凭据，适用于需要按用户认证的 MCP 服务器（如预配置 OAuth token 或 API key）。
@@ -269,4 +279,4 @@ curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{us
 - [自定义工具](../advanced/custom-tools.md) — 无需 MCP 服务器即可构建基于 shell 的工具
 - [Skills](../advanced/skills.md) — 将可复用知识注入 agent 系统提示词
 
-<!-- goclaw-source: 19eef35 | 更新: 2026-03-25 -->
+<!-- goclaw-source: 19eef35 | 更新: 2026-03-28 -->

@@ -184,6 +184,15 @@ Admins can disable specific groups per agent:
 
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
 
+## Session Tool Security
+
+Session tools (`sessions_list`, `sessions_history`, `sessions_send`) are hardened with fail-closed validation:
+
+- **Phantom session prevention**: session lookups use read-only Get, never GetOrCreate, preventing accidental session creation
+- **Ownership validation**: session keys must match the calling agent's prefix (`agent:{agentID}:*`)
+- **Fail-closed design**: missing agentID or invalid ownership immediately returns an error — never falls through
+- **Self-send blocking**: the `message` tool blocks agents from sending to their own current channel/chat, preventing duplicate media delivery
+
 ## Adaptive Tool Timing
 
 GoClaw tracks execution time per tool in each session. If a tool call takes longer than 2× its historical maximum (with at least 3 prior samples), a slow-tool notification is emitted. The default threshold for tools without history is 120 seconds.
@@ -225,4 +234,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](#multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](#custom-tools) — Build your own tools
 
-<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->
+<!-- goclaw-source: 4d31fe0 | updated: 2026-03-28 -->

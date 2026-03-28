@@ -146,6 +146,18 @@ Khi tin nhắn được gửi, sự kiện thời gian thực được broadcast
 
 > **Lưu ý**: Lead điều phối qua `team_tasks`, không qua `team_message`. Dùng `team_tasks(action="progress")` để báo cáo trạng thái thay vì tin nhắn trực tiếp.
 
+## Tự động Fail khi Loop Kill
+
+### Tự động Fail khi Loop Kill
+
+Nếu run của agent thành viên bị loop detector terminate (loop vô hạn hoặc bị kẹt), task tự động chuyển sang `failed`:
+
+- Loop detector nhận diện pattern bị kẹt — cùng tool call với cùng args và result lặp lại, hoặc chuỗi read-only không có tiến triển
+- Khi trigger mức critical, run bị kill và team task manager đánh dấu task là `failed`
+- Agent lead được thông báo và có thể giao lại hoặc retry với hướng dẫn mới
+
+Điều này ngăn vòng lặp vô hạn chặn tiến trình team — agent có thể an toàn thử các task thăm dò mà không lo bị kẹt vĩnh viễn.
+
 ## Thực hành Tốt nhất
 
 1. **Ngắn gọn**: Giữ tin nhắn tập trung và có thể hành động được
@@ -162,4 +174,4 @@ Tất cả tin nhắn được lưu vào database:
 - Timestamps và trạng thái đọc được theo dõi
 - Toàn bộ lịch sử tin nhắn có sẵn để kiểm tra/xem xét
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-28 -->

@@ -144,6 +144,18 @@ When messages are sent, real-time events are broadcast to UI:
 
 > **Note**: Leads coordinate via `team_tasks`, not `team_message`. Use `team_tasks(action="progress")` to report status updates instead of direct messages.
 
+## Auto-Fail on Loop Kill
+
+### Auto-Fail on Loop Kill
+
+If a member agent's run is terminated by the loop detector (stuck or infinite loop), the task automatically transitions to `failed`:
+
+- The loop detector identifies stuck patterns — same tool calls with same args and results repeated, or read-only streaks without progress
+- When critical level triggers, the run is killed and the team task manager marks the task as `failed`
+- The lead agent is notified and can reassign or retry with updated instructions
+
+This prevents infinite loops from blocking team progress — agents can safely attempt exploratory tasks without risk of permanent stall.
+
 ## Best Practices
 
 1. **Be concise**: Keep messages focused and actionable
@@ -160,4 +172,4 @@ All messages are persisted to the database:
 - Timestamps and read status tracked
 - Full message history available for audit/review
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 941a965 | updated: 2026-03-28 -->
