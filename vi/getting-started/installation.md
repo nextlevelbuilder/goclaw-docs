@@ -459,6 +459,84 @@ sudo mkdir -p /backup
 
 ---
 
+## Cập nhật lên phiên bản mới nhất
+
+Đã cài GoClaw rồi và muốn nâng cấp? Làm theo hướng dẫn cho cách cài đặt của bạn.
+
+### Cách 1: Cài nhanh (Binary)
+
+Chạy lại script cài đặt — nó tải bản mới nhất và ghi đè binary cũ:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash
+```
+
+Sau đó nâng cấp database schema:
+
+```bash
+source .env.local && goclaw upgrade
+```
+
+> **Mẹo:** Chạy `goclaw upgrade --status` trước để kiểm tra xem có cần nâng cấp schema không, hoặc `goclaw upgrade --dry-run` để xem trước thay đổi.
+
+### Cách 2: Cài trực tiếp
+
+```bash
+cd goclaw
+git pull origin main
+go build -o goclaw .
+./goclaw upgrade
+```
+
+Lệnh `goclaw upgrade` chạy các SQL migration đang chờ và data hooks. An toàn khi chạy nhiều lần (idempotent).
+
+### Cách 3 & 4: Docker (Local / VPS)
+
+```bash
+cd /path/to/goclaw     # hoặc /opt/goclaw trên VPS
+git pull origin main
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  -f docker-compose.selfservice.yml \
+  up -d --build
+```
+
+GoClaw tự động chạy migration đang chờ khi khởi động — không cần chạy `goclaw upgrade` thủ công.
+
+**Cách khác: dùng upgrade overlay** để nâng cấp database một lần mà không cần restart gateway:
+
+```bash
+# Xem trước thay đổi
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade --dry-run
+
+# Chạy nâng cấp
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade
+```
+
+### Tự động nâng cấp khi khởi động
+
+Đặt biến môi trường `GOCLAW_AUTO_UPGRADE` để tự động chạy migration khi gateway khởi động — hữu ích cho CI/CD và Docker:
+
+```bash
+# .env hoặc .env.local
+GOCLAW_AUTO_UPGRADE=true
+```
+
+Khi bật, GoClaw chạy SQL migration và data hooks đang chờ trong quá trình khởi động. Nếu muốn kiểm soát thủ công, không đặt biến này và chạy `goclaw upgrade` riêng.
+
+### Xử lý lỗi khi nâng cấp
+
+| Vấn đề | Giải pháp |
+|--------|-----------|
+| `database schema is dirty` | Migration trước đó thất bại. Chạy `goclaw migrate force <version-1>` rồi `goclaw upgrade` |
+| `schema is newer than this binary` | Binary cũ hơn database. Cập nhật binary trước |
+| `UPGRADE NEEDED` khi khởi động gateway | Chạy `goclaw upgrade` hoặc đặt `GOCLAW_AUTO_UPGRADE=true` |
+
+---
+
 ## Kiểm tra cài đặt
 
 Áp dụng cho cả ba cách:
@@ -493,4 +571,4 @@ docker compose logs goclaw
 - [Quick Start](#quick-start) — Chạy agent đầu tiên của bạn
 - [Configuration](#configuration) — Tùy chỉnh cài đặt GoClaw
 
-<!-- goclaw-source: 0bce640 | cập nhật: 2026-03-24 -->
+<!-- goclaw-source: 175e052 | cập nhật: 2026-03-29 -->

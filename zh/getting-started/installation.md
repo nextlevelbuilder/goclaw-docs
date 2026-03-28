@@ -459,6 +459,84 @@ sudo mkdir -p /backup
 
 ---
 
+## 更新到最新版本
+
+已经在运行 GoClaw 并想升级？按照你的安装方式执行相应步骤。
+
+### 方式一：快速安装（二进制）
+
+重新运行安装脚本——它会下载最新版本并覆盖现有二进制文件：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash
+```
+
+然后升级数据库 schema：
+
+```bash
+source .env.local && goclaw upgrade
+```
+
+> **提示：** 先运行 `goclaw upgrade --status` 检查是否需要升级 schema，或 `goclaw upgrade --dry-run` 预览变更。
+
+### 方式二：裸机安装
+
+```bash
+cd goclaw
+git pull origin main
+go build -o goclaw .
+./goclaw upgrade
+```
+
+`goclaw upgrade` 命令执行待处理的 SQL 迁移和 data hooks。可安全多次运行（幂等）。
+
+### 方式三和四：Docker（本地 / VPS）
+
+```bash
+cd /path/to/goclaw     # VPS 上为 /opt/goclaw
+git pull origin main
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  -f docker-compose.selfservice.yml \
+  up -d --build
+```
+
+GoClaw 启动时自动运行待处理的迁移——无需手动执行 `goclaw upgrade`。
+
+**替代方案：使用 upgrade overlay** 在不重启 gateway 的情况下一次性升级数据库：
+
+```bash
+# 预览变更
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade --dry-run
+
+# 执行升级
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade
+```
+
+### 启动时自动升级
+
+设置 `GOCLAW_AUTO_UPGRADE` 环境变量，在 gateway 启动时自动运行迁移——适用于 CI/CD 和 Docker 部署：
+
+```bash
+# .env 或 .env.local
+GOCLAW_AUTO_UPGRADE=true
+```
+
+启用后，GoClaw 在启动过程中自动执行待处理的 SQL 迁移和 data hooks。如果你希望手动控制，不设置此变量，自行运行 `goclaw upgrade`。
+
+### 升级故障排除
+
+| 问题 | 解决方案 |
+|------|----------|
+| `database schema is dirty` | 之前的迁移失败。运行 `goclaw migrate force <version-1>` 然后 `goclaw upgrade` |
+| `schema is newer than this binary` | 二进制文件比数据库旧，先更新二进制文件 |
+| 启动 gateway 时显示 `UPGRADE NEEDED` | 运行 `goclaw upgrade` 或设置 `GOCLAW_AUTO_UPGRADE=true` |
+
+---
+
 ## 验证安装
 
 适用于所有方式：
@@ -493,4 +571,4 @@ docker compose logs goclaw
 - [快速开始](#quick-start) — 运行你的第一个 agent
 - [配置](#configuration) — 自定义 GoClaw 设置
 
-<!-- goclaw-source: 0bce640 | 更新: 2026-03-24 -->
+<!-- goclaw-source: 175e052 | 更新: 2026-03-29 -->

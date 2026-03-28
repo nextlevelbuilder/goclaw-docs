@@ -457,6 +457,84 @@ sudo mkdir -p /backup
 
 ---
 
+## Updating to Latest Version
+
+Already running GoClaw and want to upgrade? Follow the steps for your installation path.
+
+### Path 1: Quick Install (Binary)
+
+Re-run the install script — it downloads the latest release and overwrites the existing binary:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash
+```
+
+Then upgrade the database schema:
+
+```bash
+source .env.local && goclaw upgrade
+```
+
+> **Tip:** Run `goclaw upgrade --status` first to check if a schema upgrade is needed, or `goclaw upgrade --dry-run` to preview changes.
+
+### Path 2: Bare Metal
+
+```bash
+cd goclaw
+git pull origin main
+go build -o goclaw .
+./goclaw upgrade
+```
+
+The `goclaw upgrade` command applies pending SQL migrations and runs data hooks. It is safe to run multiple times (idempotent).
+
+### Path 3 & 4: Docker (Local / VPS)
+
+```bash
+cd /path/to/goclaw     # or /opt/goclaw on VPS
+git pull origin main
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  -f docker-compose.selfservice.yml \
+  up -d --build
+```
+
+GoClaw automatically runs pending migrations on startup — no manual `goclaw upgrade` needed.
+
+**Alternative: use the upgrade overlay** for a one-shot database upgrade without restarting the gateway:
+
+```bash
+# Preview changes
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade --dry-run
+
+# Apply upgrade
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade
+```
+
+### Auto-upgrade on Startup
+
+Set the `GOCLAW_AUTO_UPGRADE` environment variable to automatically run migrations when the gateway starts — useful for CI/CD and Docker deployments:
+
+```bash
+# .env or .env.local
+GOCLAW_AUTO_UPGRADE=true
+```
+
+When enabled, GoClaw applies pending SQL migrations and data hooks inline during startup. If you prefer manual control, leave this unset and run `goclaw upgrade` yourself.
+
+### Troubleshooting Upgrades
+
+| Problem | Solution |
+|---------|----------|
+| `database schema is dirty` | A previous migration failed. Run `goclaw migrate force <version-1>` then `goclaw upgrade` |
+| `schema is newer than this binary` | Your binary is older than your database. Update the binary first |
+| `UPGRADE NEEDED` on gateway start | Run `goclaw upgrade` or set `GOCLAW_AUTO_UPGRADE=true` |
+
+---
+
 ## Verify Installation
 
 Works for all three paths:
@@ -491,4 +569,4 @@ docker compose logs goclaw
 - [Quick Start](#quick-start) — Run your first agent
 - [Configuration](#configuration) — Customize GoClaw settings
 
-<!-- goclaw-source: 0bce640 | updated: 2026-03-24 -->
+<!-- goclaw-source: 175e052 | updated: 2026-03-29 -->
