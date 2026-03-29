@@ -1,4 +1,4 @@
-> 翻译自 [English version](#deploy-security)
+> 翻译自 [English version](/deploy-security)
 
 # 安全加固
 
@@ -163,7 +163,7 @@ GoClaw 在所有 XML 处理路径中将标准库 `xml.etree.ElementTree` XML 解
 
 ### 执行审批
 
-完整的交互式审批流程参见[执行审批](#exec-approval)。至少启用 `ask: "on-miss"` 以在网络和基础设施工具运行前提示：
+完整的交互式审批流程参见[执行审批](/exec-approval)。至少启用 `ask: "on-miss"` 以在网络和基础设施工具运行前提示：
 
 ```json
 {

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#quick-start)
+> Bản dịch từ [English version](/quick-start)
 
 # Bắt đầu nhanh
 
@@ -6,7 +6,7 @@
 
 ## Điều kiện tiên quyết
 
-Bạn đã hoàn thành [Cài đặt](#installation) và gateway đang chạy tại `http://localhost:18790`.
+Bạn đã hoàn thành [Cài đặt](/installation) và gateway đang chạy tại `http://localhost:18790`.
 
 ## Bước 1: Mở Dashboard & Hoàn tất Setup
 
@@ -43,7 +43,7 @@ Sau khi hoàn tất wizard, bạn đã sẵn sàng chat.
 
 Vào **Chat** (mục **CORE** trên sidebar) và chọn agent bạn đã tạo trong bước setup.
 
-Để tạo thêm agent, vào **Agents** (cũng trong mục **CORE**) và nhấn **Create Agent**. Xem [Creating Agents](#creating-agents) để biết chi tiết.
+Để tạo thêm agent, vào **Agents** (cũng trong mục **CORE**) và nhấn **Create Agent**. Xem [Creating Agents](/creating-agents) để biết chi tiết.
 
 ### Dùng HTTP API
 
@@ -114,8 +114,8 @@ Trường `media` chỉ xuất hiện trong payload khi agent trả về file me
 
 ## Tiếp theo
 
-- [Configuration](#configuration) — Tinh chỉnh cài đặt của bạn
-- [Dashboard Tour](#dashboard-tour) — Khám phá giao diện trực quan
-- [Agents Explained](#agents-explained) — Hiểu về loại agent và context
+- [Configuration](/configuration) — Tinh chỉnh cài đặt của bạn
+- [Dashboard Tour](/dashboard-tour) — Khám phá giao diện trực quan
+- [Agents Explained](/agents-explained) — Hiểu về loại agent và context
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

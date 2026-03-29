@@ -143,8 +143,8 @@ Ask your admin if you're unsure which are enabled.
 
 ## What's Next
 
-- [System Prompt Anatomy — How model choice affects system prompt size](#system-prompt-anatomy)
-- [Sharing and Access — Control who can access agents](#sharing-and-access)
-- [Creating Agents — Set default provider/model when creating an agent](#creating-agents)
+- [System Prompt Anatomy — How model choice affects system prompt size](/system-prompt-anatomy)
+- [Sharing and Access — Control who can access agents](/sharing-and-access)
+- [Creating Agents — Set default provider/model when creating an agent](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

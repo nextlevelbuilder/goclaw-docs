@@ -4,7 +4,7 @@
 
 ## Overview
 
-Each channel has its own connection mode, permission model, and message format quirks. This page covers the most common failure patterns for each channel. For gateway-level issues (startup, WebSocket, rate limiting) see [Common Issues](#troubleshoot-common).
+Each channel has its own connection mode, permission model, and message format quirks. This page covers the most common failure patterns for each channel. For gateway-level issues (startup, WebSocket, rate limiting) see [Common Issues](/troubleshoot-common).
 
 ## General Channel Tips
 
@@ -113,8 +113,8 @@ The bridge must be separately authenticated with WhatsApp (QR scan via bridge UI
 
 ## What's Next
 
-- [Provider-specific issues](#troubleshoot-providers)
-- [Database issues](#troubleshoot-database)
-- [Common Issues](#troubleshoot-common)
+- [Provider-specific issues](/troubleshoot-providers)
+- [Database issues](/troubleshoot-database)
+- [Common Issues](/troubleshoot-common)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

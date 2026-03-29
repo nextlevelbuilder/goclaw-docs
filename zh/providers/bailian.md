@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-bailian)
+> 翻译自 [English version](/provider-bailian)
 
 # 百炼
 
@@ -12,7 +12,7 @@
 
 ## 下一步
 
-- [Provider 概览](#providers-overview)
-- [DashScope（通义千问）](#provider-dashscope)
+- [Provider 概览](/providers-overview)
+- [DashScope（通义千问）](/provider-dashscope)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

@@ -39,7 +39,11 @@
     {"pattern": "internal/knowledgegraph/*", "docs": ["advanced/knowledge-graph.md"], "priority": "medium"},
     {"pattern": "internal/i18n/*", "docs": ["core-concepts/multi-tenancy.md"], "priority": "low"},
     {"pattern": "internal/upgrade/*", "docs": ["deployment/upgrading.md"], "priority": "medium"},
-    {"pattern": "internal/http/*", "docs": ["reference/rest-api.md", "advanced/api-keys-rbac.md"], "priority": "medium"}
+    {"pattern": "internal/http/*", "docs": ["reference/rest-api.md", "advanced/api-keys-rbac.md"], "priority": "medium"},
+    {"pattern": "internal/providerresolve/*", "docs": ["providers/overview.md", "core-concepts/how-goclaw-works.md"], "priority": "medium"},
+    {"pattern": "internal/edition/*", "docs": ["core-concepts/multi-tenancy.md"], "priority": "low"},
+    {"pattern": "internal/heartbeat/*", "docs": ["advanced/heartbeat.md"], "priority": "low"},
+    {"pattern": "internal/channels/websocket/*", "docs": ["channels/websocket.md", "channels/browser-pairing.md"], "priority": "medium"}
   ],
   "source_of_truth": "docs/",
   "_source_of_truth_note": "Relative to $GOCLAW_SOURCE (resolved from GOCLAW_SOURCE_PATH env var or ../goclaw/ fallback)"

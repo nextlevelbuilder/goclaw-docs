@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-yescale)
+> 翻译自 [English version](/provider-yescale)
 
 # YesScale
 
@@ -26,8 +26,8 @@ YesScale 是一个云 AI 平台，通过 OpenAI 兼容 API 提供多种语言模
 
 ## 下一步
 
-- [Provider 概览](#providers-overview)
-- [自定义 / OpenAI 兼容](#provider-custom)
-- [OpenRouter](#provider-openrouter) — 另一个多模型平台
+- [Provider 概览](/providers-overview)
+- [自定义 / OpenAI 兼容](/provider-custom)
+- [OpenRouter](/provider-openrouter) — 另一个多模型平台
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

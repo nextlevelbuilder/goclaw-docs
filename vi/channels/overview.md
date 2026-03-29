@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#channels-overview)
+> Bản dịch từ [English version](/channels-overview)
 
 # Tổng quan về Channel
 
@@ -151,10 +151,10 @@ Channel có thể áp dụng giới hạn tốc độ theo từng user. Cấu h�
 
 ## Tiếp theo
 
-- [Telegram](#channel-telegram) — Hướng dẫn đầy đủ tích hợp Telegram
-- [Discord](#channel-discord) — Thiết lập Discord bot
-- [Larksuite](#channel-feishu) — Tích hợp Larksuite với streaming card
-- [WebSocket](#channel-websocket) — Agent API trực tiếp qua WS
-- [Browser Pairing](#channel-browser-pairing) — Luồng pairing bằng mã 8 ký tự
+- [Telegram](/channel-telegram) — Hướng dẫn đầy đủ tích hợp Telegram
+- [Discord](/channel-discord) — Thiết lập Discord bot
+- [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
+- [WebSocket](/channel-websocket) — Agent API trực tiếp qua WS
+- [Browser Pairing](/channel-browser-pairing) — Luồng pairing bằng mã 8 ký tự
 
 <!-- goclaw-source: 120fc2d | cập nhật: 2026-03-19 -->

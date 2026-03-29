@@ -338,8 +338,8 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 
 ## What's Next
 
-- [MCP Integration](#mcp-integration) — connect external tool servers
-- [Custom Tools](#custom-tools) — add shell-backed tools to your agents
-- [Scheduling & Cron](#scheduling-cron) — run agents on a schedule
+- [MCP Integration](/mcp-integration) — connect external tool servers
+- [Custom Tools](/custom-tools) — add shell-backed tools to your agents
+- [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
 <!-- goclaw-source: 941a965 | updated: 2026-03-23 -->

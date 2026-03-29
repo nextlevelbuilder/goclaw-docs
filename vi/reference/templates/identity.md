@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#template-identity)
+> Bản dịch từ [English version](/template-identity)
 
 # IDENTITY.md Template
 
@@ -102,8 +102,8 @@ Ví dụ khác — DevOps bot không vòng vo:
 
 ## Tiếp theo
 
-- [SOUL.md Template](#template-soul) — file personality cho identity thêm chiều sâu
-- [BOOTSTRAP.md Template](#template-bootstrap) — tên và emoji được chọn như thế nào trong lần đầu
-- [Context Files](#context-files) — danh sách đầy đủ context file và thứ tự load
+- [SOUL.md Template](/template-soul) — file personality cho identity thêm chiều sâu
+- [BOOTSTRAP.md Template](/template-bootstrap) — tên và emoji được chọn như thế nào trong lần đầu
+- [Context Files](/context-files) — danh sách đầy đủ context file và thứ tự load
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#sessions-and-history)
+> Bản dịch từ [English version](/sessions-and-history)
 
 # Sessions và History
 
@@ -126,8 +126,8 @@ Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị
 
 ## Tiếp theo
 
-- [Memory System](#memory-system) — Memory dài hạn hoạt động như thế nào
-- [Tools Overview](#tools-overview) — Tool có sẵn cho agent
-- [Multi-Tenancy](#multi-tenancy) — Cách ly session per-user
+- [Memory System](/memory-system) — Memory dài hạn hoạt động như thế nào
+- [Tools Overview](/tools-overview) — Tool có sẵn cho agent
+- [Multi-Tenancy](/multi-tenancy) — Cách ly session per-user
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

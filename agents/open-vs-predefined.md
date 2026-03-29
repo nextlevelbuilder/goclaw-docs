@@ -176,8 +176,8 @@ Or switch to **predefined** later if the agent outgrows single-user use.
 
 ## What's Next
 
-- [Context Files](#context-files) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
-- [Summoning & Bootstrap](#summoning-bootstrap) — how personality is generated for predefined agents
-- [Creating Agents](#creating-agents) — agent creation walkthrough
+- [Context Files](/context-files) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
+- [Summoning & Bootstrap](/summoning-bootstrap) — how personality is generated for predefined agents
+- [Creating Agents](/creating-agents) — agent creation walkthrough
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#custom-tools)
+> Bản dịch từ [English version](/custom-tools)
 
 # Custom Tools
 
@@ -189,8 +189,8 @@ Kiểm tra được thực hiện trên **lệnh đã render đầy đủ** sau 
 
 ## Tiếp theo
 
-- [MCP Integration](#mcp-integration) — kết nối server tool bên ngoài thay vì viết lệnh shell
-- [Exec Approval](#exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy
-- [Sandbox](#sandbox) — chạy lệnh trong Docker để tăng cô lập
+- [MCP Integration](/mcp-integration) — kết nối server tool bên ngoài thay vì viết lệnh shell
+- [Exec Approval](/exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy
+- [Sandbox](/sandbox) — chạy lệnh trong Docker để tăng cô lập
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

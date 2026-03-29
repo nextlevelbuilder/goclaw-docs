@@ -93,13 +93,13 @@ When a model rejects a request because `max_tokens` is too large, GoClaw automat
 
 ## What's Next
 
-- [Anthropic](#provider-anthropic) — native Claude integration with extended thinking
-- [OpenAI](#provider-openai) — GPT-4o, o-series reasoning models
-- [OpenRouter](#provider-openrouter) — access 100+ models through one API
-- [Gemini](#provider-gemini) — Google Gemini via OpenAI-compatible endpoint
-- [DeepSeek](#provider-deepseek) — DeepSeek with reasoning_content support
-- [Groq](#provider-groq) — ultra-fast inference
-- [Mistral](#provider-mistral) — Mistral AI models
+- [Anthropic](/provider-anthropic) — native Claude integration with extended thinking
+- [OpenAI](/provider-openai) — GPT-4o, o-series reasoning models
+- [OpenRouter](/provider-openrouter) — access 100+ models through one API
+- [Gemini](/provider-gemini) — Google Gemini via OpenAI-compatible endpoint
+- [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
+- [Groq](/provider-groq) — ultra-fast inference
+- [Mistral](/provider-mistral) — Mistral AI models
 
 <!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
 

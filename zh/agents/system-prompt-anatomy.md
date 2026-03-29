@@ -1,4 +1,4 @@
-> 翻译自 [English version](#system-prompt-anatomy)
+> 翻译自 [English version](/system-prompt-anatomy)
 
 # System Prompt 结构解析
 
@@ -380,8 +380,8 @@ Reminder: Before answering questions about prior work, decisions, or preferences
 
 ## 下一步
 
-- [Editing Personality — 自定义 SOUL.md 和 IDENTITY.md](#editing-personality)
-- [Context Files — 添加项目专属 context](#context-files)
-- [Creating Agents — 设置 system prompt 配置](#creating-agents)
+- [Editing Personality — 自定义 SOUL.md 和 IDENTITY.md](/editing-personality)
+- [Context Files — 添加项目专属 context](/context-files)
+- [Creating Agents — 设置 system prompt 配置](/creating-agents)
 
 <!-- goclaw-source: 6551c2d1 | 更新: 2026-03-27 -->

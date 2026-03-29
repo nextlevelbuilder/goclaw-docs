@@ -353,8 +353,8 @@ If you manually set USER.md at agent level before the first user chats, it's use
 
 ## What's Next
 
-- [Context Files](#context-files) — detailed reference for each file
-- [Open vs. Predefined](#open-vs-predefined) — understand when to use each type
-- [Creating Agents](#creating-agents) — step-by-step agent creation
+- [Context Files](/context-files) — detailed reference for each file
+- [Open vs. Predefined](/open-vs-predefined) — understand when to use each type
+- [Creating Agents](/creating-agents) — step-by-step agent creation
 
 <!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

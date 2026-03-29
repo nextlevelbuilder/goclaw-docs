@@ -151,7 +151,7 @@ Re-trigger LLM-based summoning for predefined agents.
 
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
-Returns routing activity and per-account health for agents using a [Codex OAuth pool](#provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
+Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
 
 **Auth:** Bearer token required. The requesting user must have access to the agent.
 
@@ -872,8 +872,8 @@ The following are **only available via WebSocket RPC**, not HTTP:
 
 ## What's Next
 
-- [WebSocket Protocol](#websocket-protocol) — real-time RPC for chat and agent events
-- [Config Reference](#config-reference) — full `config.json` schema
-- [Database Schema](#database-schema) — table definitions and relationships
+- [WebSocket Protocol](/websocket-protocol) — real-time RPC for chat and agent events
+- [Config Reference](/config-reference) — full `config.json` schema
+- [Database Schema](/database-schema) — table definitions and relationships
 
 <!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->

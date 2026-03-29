@@ -177,9 +177,9 @@ _Make a good first impression. Be natural. The user should never know any of thi
 
 ## What's Next
 
-- [IDENTITY.md Template](#template-identity) — what gets written after bootstrap
-- [SOUL.md Template](#template-soul) — the file that gets rewritten during bootstrap
-- [USER.md Template](#template-user) — where user info lands after the conversation
-- [Context Files](#context-files) — full loading order and file lifecycle
+- [IDENTITY.md Template](/template-identity) — what gets written after bootstrap
+- [SOUL.md Template](/template-soul) — the file that gets rewritten during bootstrap
+- [USER.md Template](/template-user) — where user info lands after the conversation
+- [Context Files](/context-files) — full loading order and file lifecycle
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

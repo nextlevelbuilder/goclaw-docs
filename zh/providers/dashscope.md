@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-dashscope)
+> 翻译自 [English version](/provider-dashscope)
 
 # DashScope（阿里通义千问）
 
@@ -117,7 +117,7 @@ GoClaw 将 `thinking_level` 映射到 DashScope 的 `thinking_budget`：
 
 ## 下一步
 
-- [Claude CLI](#provider-claude-cli) — 调用 Claude Code CLI 二进制文件的独特 provider
-- [自定义 Provider](#provider-custom) — 连接任意 OpenAI 兼容 API
+- [Claude CLI](/provider-claude-cli) — 调用 Claude Code CLI 二进制文件的独特 provider
+- [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#model-steering)
+> 翻译自 [English version](/model-steering)
 
 # 模型引导
 

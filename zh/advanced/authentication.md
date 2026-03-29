@@ -1,4 +1,4 @@
-> 翻译自 [English version](#authentication)
+> 翻译自 [English version](/authentication)
 
 # 身份认证
 
@@ -194,7 +194,7 @@ source .env.local
 
 ## 下一步
 
-- [Provider 概览](#providers-overview) — 所有支持的 LLM provider 及配置方式
-- [Hooks 与质量门控](#hooks-quality-gates) — 为 agent 输出添加验证
+- [Provider 概览](/providers-overview) — 所有支持的 LLM provider 及配置方式
+- [Hooks 与质量门控](/hooks-quality-gates) — 为 agent 输出添加验证
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

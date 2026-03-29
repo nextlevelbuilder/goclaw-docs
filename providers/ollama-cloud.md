@@ -24,8 +24,8 @@ Ollama Cloud provides hosted inference for Ollama-compatible models. GoClaw conn
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Ollama](#provider-ollama) — run models locally instead
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Ollama](/provider-ollama) — run models locally instead
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

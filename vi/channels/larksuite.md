@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#channel-feishu)
+> Bản dịch từ [English version](/channel-feishu)
 
 # Channel Larksuite
 

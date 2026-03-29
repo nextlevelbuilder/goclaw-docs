@@ -1,4 +1,4 @@
-> 翻译自 [English version](#troubleshoot-database)
+> 翻译自 [English version](/troubleshoot-database)
 
 # 数据库问题
 
@@ -176,8 +176,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## 下一步
 
-- [常见问题](#troubleshoot-common)
-- [Provider 问题](#troubleshoot-providers)
-- [Channel 问题](#troubleshoot-channels)
+- [常见问题](/troubleshoot-common)
+- [Provider 问题](/troubleshoot-providers)
+- [Channel 问题](/troubleshoot-channels)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#template-bootstrap)
+> 翻译自 [English version](/template-bootstrap)
 
 # BOOTSTRAP.md 模板
 
@@ -179,9 +179,9 @@ _Make a good first impression. Be natural. The user should never know any of thi
 
 ## 下一步
 
-- [IDENTITY.md 模板](#template-identity) — bootstrap 后写入的内容
-- [SOUL.md 模板](#template-soul) — bootstrap 期间被重写的文件
-- [USER.md 模板](#template-user) — 对话后用户信息的落脚点
-- [上下文文件](#context-files) — 完整加载顺序和文件生命周期
+- [IDENTITY.md 模板](/template-identity) — bootstrap 后写入的内容
+- [SOUL.md 模板](/template-soul) — bootstrap 期间被重写的文件
+- [USER.md 模板](/template-user) — 对话后用户信息的落脚点
+- [上下文文件](/context-files) — 完整加载顺序和文件生命周期
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

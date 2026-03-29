@@ -1,4 +1,4 @@
-> 翻译自 [English version](#recipe-customer-support)
+> 翻译自 [English version](/recipe-customer-support)
 
 # 客户支持
 
@@ -264,9 +264,9 @@ support（预定义）
 
 ## 下一步
 
-- [Open vs. Predefined](#open-vs-predefined) — 深入了解上下文隔离
-- [召唤与 Bootstrap](#summoning-bootstrap) — 个性如何自动生成
-- [团队聊天机器人](#recipe-team-chatbot) — 通过团队协调多个专家
-- [上下文文件](#context-files) — SOUL.md、USER.md 等文件的完整参考
+- [Open vs. Predefined](/open-vs-predefined) — 深入了解上下文隔离
+- [召唤与 Bootstrap](/summoning-bootstrap) — 个性如何自动生成
+- [团队聊天机器人](/recipe-team-chatbot) — 通过团队协调多个专家
+- [上下文文件](/context-files) — SOUL.md、USER.md 等文件的完整参考
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

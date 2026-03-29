@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#authentication)
+> Bản dịch từ [English version](/authentication)
 
 # Authentication
 
@@ -194,7 +194,7 @@ source .env.local
 
 ## Tiếp theo
 
-- [Providers Overview](#providers-overview) — tất cả provider LLM được hỗ trợ và cách cấu hình
-- [Hooks & Quality Gates](#hooks-quality-gates) — thêm validation cho đầu ra agent
+- [Providers Overview](/providers-overview) — tất cả provider LLM được hỗ trợ và cách cấu hình
+- [Hooks & Quality Gates](/hooks-quality-gates) — thêm validation cho đầu ra agent
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

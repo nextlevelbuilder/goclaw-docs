@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#gallery)
+> Bản dịch từ [English version](/gallery)
 
 # Thư viện
 
@@ -128,8 +128,8 @@ Bạn có một thiết lập GoClaw muốn giới thiệu? Mở pull request đ
 
 ## Tiếp theo
 
-- [What Is GoClaw](#what-is-goclaw) — Bắt đầu từ đầu
-- [Quick Start](#quick-start) — Chạy trong 5 phút
-- [Configuration](#configuration) — Tài liệu tham khảo config đầy đủ
+- [What Is GoClaw](/what-is-goclaw) — Bắt đầu từ đầu
+- [Quick Start](/quick-start) — Chạy trong 5 phút
+- [Configuration](/configuration) — Tài liệu tham khảo config đầy đủ
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -465,8 +465,8 @@ goclaw auth logout openai
 
 ## What's Next
 
-- [WebSocket Protocol](#websocket-protocol) — wire protocol reference for the gateway
-- [REST API](#rest-api) — HTTP API endpoint listing
-- [Config Reference](#config-reference) — full `config.json` schema
+- [WebSocket Protocol](/websocket-protocol) — wire protocol reference for the gateway
+- [REST API](/rest-api) — HTTP API endpoint listing
+- [Config Reference](/config-reference) — full `config.json` schema
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#custom-tools)
+> 翻译自 [English version](/custom-tools)
 
 # 自定义工具
 
@@ -189,8 +189,8 @@ DELETE /v1/tools/custom/{id}
 
 ## 下一步
 
-- [MCP 集成](#mcp-integration) — 连接外部工具服务器，而非编写 shell 命令
-- [Exec 审批](#exec-approval) — 在命令执行前要求人工审批
-- [Sandbox](#sandbox) — 在 Docker 中运行命令以获得额外隔离
+- [MCP 集成](/mcp-integration) — 连接外部工具服务器，而非编写 shell 命令
+- [Exec 审批](/exec-approval) — 在命令执行前要求人工审批
+- [Sandbox](/sandbox) — 在 Docker 中运行命令以获得额外隔离
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

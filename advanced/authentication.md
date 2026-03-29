@@ -192,7 +192,7 @@ source .env.local
 
 ## What's Next
 
-- [Providers Overview](#providers-overview) — all supported LLM providers and how to configure them
-- [Hooks & Quality Gates](#hooks-quality-gates) — add validation to agent outputs
+- [Providers Overview](/providers-overview) — all supported LLM providers and how to configure them
+- [Hooks & Quality Gates](/hooks-quality-gates) — add validation to agent outputs
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

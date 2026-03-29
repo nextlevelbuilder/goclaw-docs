@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-claude-cli)
+> 翻译自 [English version](/provider-claude-cli)
 
 # Claude CLI
 
@@ -179,7 +179,7 @@ GOCLAW_DEBUG=1 ./goclaw
 
 ## 下一步
 
-- [Codex / ChatGPT](#provider-codex) — 使用 ChatGPT 订阅的 OAuth provider
-- [自定义 Provider](#provider-custom) — 连接任意 OpenAI 兼容 API
+- [Codex / ChatGPT](/provider-codex) — 使用 ChatGPT 订阅的 OAuth provider
+- [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

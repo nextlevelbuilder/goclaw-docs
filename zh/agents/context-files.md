@@ -1,4 +1,4 @@
-> 翻译自 [English version](#context-files)
+> 翻译自 [English version](/context-files)
 
 # Context 文件
 
@@ -370,8 +370,8 @@ write_file("BOOTSTRAP.md", "")
 
 ## 下一步
 
-- [Open vs. Predefined](#open-vs-predefined) — 了解文件何时是每用户还是 agent 级
-- [Summoning & Bootstrap](#summoning-bootstrap) — SOUL.md 和 IDENTITY.md 如何由 LLM 生成
-- [Creating Agents](#creating-agents) — 分步创建 agent
+- [Open vs. Predefined](/open-vs-predefined) — 了解文件何时是每用户还是 agent 级
+- [Summoning & Bootstrap](/summoning-bootstrap) — SOUL.md 和 IDENTITY.md 如何由 LLM 生成
+- [Creating Agents](/creating-agents) — 分步创建 agent
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-23 -->

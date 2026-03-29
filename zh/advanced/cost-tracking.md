@@ -1,4 +1,4 @@
-> 翻译自 [English version](#cost-tracking)
+> 翻译自 [English version](/cost-tracking)
 
 # 成本追踪
 
@@ -237,8 +237,8 @@ monthly budget exceeded ($5.02 / $5.00)
 
 ## 下一步
 
-- [用量与配额](#usage-quota) — 每用户请求限制和 token 计数
-- [可观测性](#deploy-observability) — 包含成本字段的 OpenTelemetry span 导出
-- [配置参考](#config-reference) — 完整的 `telemetry` 配置选项
+- [用量与配额](/usage-quota) — 每用户请求限制和 token 计数
+- [可观测性](/deploy-observability) — 包含成本字段的 OpenTelemetry span 导出
+- [配置参考](/config-reference) — 完整的 `telemetry` 配置选项
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

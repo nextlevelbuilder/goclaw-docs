@@ -1,4 +1,4 @@
-> 翻译自 [English version](#extended-thinking)
+> 翻译自 [English version](/extended-thinking)
 
 # 扩展思维
 
@@ -201,7 +201,7 @@ flowchart TD
 
 ## 下一步
 
-- [Agent 概览](#agents-explained) — 按 agent 配置参考
-- [Hooks 与质量门控](#hooks-quality-gates) — 推理后验证 agent 输出
+- [Agent 概览](/agents-explained) — 按 agent 配置参考
+- [Hooks 与质量门控](/hooks-quality-gates) — 推理后验证 agent 输出
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

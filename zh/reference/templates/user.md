@@ -1,4 +1,4 @@
-> 翻译自 [English version](#template-user)
+> 翻译自 [English version](/template-user)
 
 # USER.md 模板
 
@@ -96,8 +96,8 @@ about a person, not building a dossier. Respect the difference.
 
 ## 下一步
 
-- [AGENTS.md 模板](#template-agents) — 管理 USER.md 内容使用方式的 MEMORY.md 隐私规则
-- [BOOTSTRAP.md 模板](#template-bootstrap) — 首次运行时 USER.md 如何获得初始内容
-- [上下文文件](#context-files) — 完整上下文文件列表和按用户 vs. agent 级别的范围
+- [AGENTS.md 模板](/template-agents) — 管理 USER.md 内容使用方式的 MEMORY.md 隐私规则
+- [BOOTSTRAP.md 模板](/template-bootstrap) — 首次运行时 USER.md 如何获得初始内容
+- [上下文文件](/context-files) — 完整上下文文件列表和按用户 vs. agent 级别的范围
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

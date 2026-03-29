@@ -1,4 +1,4 @@
-> 翻译自 [English version](#sandbox)
+> 翻译自 [English version](/sandbox)
 
 # Sandbox
 
@@ -243,8 +243,8 @@ docker ps --filter "label=goclaw.sandbox=true"
 
 ## 下一步
 
-- [自定义工具](#custom-tools) — 定义同样受益于 sandbox 隔离的 shell 工具
-- [Exec 审批](#exec-approval) — 在任何命令运行前要求人工审批，无论是否沙箱化
-- [定时任务与 Cron](#scheduling-cron) — 按计划运行沙箱化的 agent 轮次
+- [自定义工具](/custom-tools) — 定义同样受益于 sandbox 隔离的 shell 工具
+- [Exec 审批](/exec-approval) — 在任何命令运行前要求人工审批，无论是否沙箱化
+- [定时任务与 Cron](/scheduling-cron) — 按计划运行沙箱化的 agent 轮次
 
 <!-- goclaw-source: 941a965 | 更新: 2026-03-19 -->

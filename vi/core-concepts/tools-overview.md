@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#tools-overview)
+> Bản dịch từ [English version](/tools-overview)
 
 # Tools Overview
 
@@ -206,7 +206,7 @@ Ngoài tool tích hợp sẵn, bạn có thể mở rộng agent bằng:
 - **Custom Tool** — Định nghĩa tool qua dashboard hoặc API với input schema và handler
 - **MCP Server** — Kết nối Model Context Protocol server để đăng ký tool động
 
-Xem [Custom Tools](#custom-tools) và [MCP Integration](#mcp-integration) để biết chi tiết.
+Xem [Custom Tools](/custom-tools) và [MCP Integration](/mcp-integration) để biết chi tiết.
 
 ## Các vấn đề thường gặp
 
@@ -232,8 +232,8 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 
 ## Tiếp theo
 
-- [Memory System](#memory-system) — Memory dài hạn và tìm kiếm hoạt động như thế nào
-- [Multi-Tenancy](#multi-tenancy) — Truy cập tool per-user và cách ly
-- [Custom Tools](#custom-tools) — Xây dựng tool của riêng bạn
+- [Memory System](/memory-system) — Memory dài hạn và tìm kiếm hoạt động như thế nào
+- [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
+- [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
 <!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-28 -->

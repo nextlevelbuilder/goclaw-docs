@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-anthropic)
+> Bản dịch từ [English version](/provider-anthropic)
 
 # Anthropic
 
@@ -105,7 +105,7 @@ Anthropic dùng định dạng tool schema khác OpenAI. GoClaw tự động chu
 
 ## Tiếp theo
 
-- [OpenAI](#provider-openai) — GPT-4o và các model reasoning o-series
-- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
+- [OpenAI](/provider-openai) — GPT-4o và các model reasoning o-series
+- [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

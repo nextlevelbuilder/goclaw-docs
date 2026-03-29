@@ -1,4 +1,4 @@
-> 翻译自 [English version](#troubleshoot-agent-teams)
+> 翻译自 [English version](/troubleshoot-agent-teams)
 
 # Agent Team 问题
 
@@ -64,7 +64,7 @@ team_tasks(action="events", task_id="<uuid>")
 
 ## 下一步
 
-- [Agent Teams 指南](#teams-what-are-teams) — 团队设置、角色和任务板
-- [常见问题](#troubleshoot-common) — 通用 gateway 和 agent 故障排除
+- [Agent Teams 指南](/teams-what-are-teams) — 团队设置、角色和任务板
+- [常见问题](/troubleshoot-common) — 通用 gateway 和 agent 故障排除
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

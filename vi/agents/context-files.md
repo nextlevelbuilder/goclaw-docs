@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#context-files)
+> Bản dịch từ [English version](/context-files)
 
 # Context Files
 
@@ -370,8 +370,8 @@ Tạo FAQ bot với summoning:
 
 ## Tiếp theo
 
-- [Open vs. Predefined](#open-vs-predefined) — hiểu khi nào file là theo user hay cấp agent
-- [Summoning & Bootstrap](#summoning-bootstrap) — cách SOUL.md và IDENTITY.md được LLM tạo ra
-- [Creating Agents](#creating-agents) — hướng dẫn tạo agent từng bước
+- [Open vs. Predefined](/open-vs-predefined) — hiểu khi nào file là theo user hay cấp agent
+- [Summoning & Bootstrap](/summoning-bootstrap) — cách SOUL.md và IDENTITY.md được LLM tạo ra
+- [Creating Agents](/creating-agents) — hướng dẫn tạo agent từng bước
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->

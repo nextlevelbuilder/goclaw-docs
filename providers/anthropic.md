@@ -103,7 +103,7 @@ Anthropic uses a different tool schema format than OpenAI. GoClaw translates aut
 
 ## What's Next
 
-- [OpenAI](#provider-openai) — GPT-4o and o-series reasoning models
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [OpenAI](/provider-openai) — GPT-4o and o-series reasoning models
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

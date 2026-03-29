@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-suno)
+> 翻译自 [English version](/provider-suno)
 
 # Suno
 
@@ -25,8 +25,8 @@ Suno 是一个 AI 音乐生成 provider。GoClaw agent 可以使用 Suno 根据�
 
 ## 下一步
 
-- [Provider 概览](#providers-overview)
-- [媒体生成](#media-generation)
-- [MiniMax](#provider-minimax) — 另一个具有音频能力的 provider
+- [Provider 概览](/providers-overview)
+- [媒体生成](/media-generation)
+- [MiniMax](/provider-minimax) — 另一个具有音频能力的 provider
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

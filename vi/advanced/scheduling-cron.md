@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#scheduling-cron)
+> Bản dịch từ [English version](/scheduling-cron)
 
 # Scheduling & Cron
 

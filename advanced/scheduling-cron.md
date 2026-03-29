@@ -313,8 +313,8 @@ When a session's conversation history exceeds **60% of the context window**, the
 ## What's Next
 
 - [Heartbeat](heartbeat.md) — proactive periodic check-ins with smart suppression
-- [Custom Tools](#custom-tools) — give agents shell commands to run during scheduled turns
-- [Skills](#skills) — inject domain knowledge so scheduled agents are more effective
-- [Sandbox](#sandbox) — isolate code execution during scheduled agent runs
+- [Custom Tools](/custom-tools) — give agents shell commands to run during scheduled turns
+- [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
+- [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
 <!-- goclaw-source: 941a965 | updated: 2026-03-19 -->

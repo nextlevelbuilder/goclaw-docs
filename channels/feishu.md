@@ -202,9 +202,9 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Larksuite](#channel-larksuite) — Larksuite (international) setup
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Larksuite](/channel-larksuite) — Larksuite (international) setup
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 <!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->

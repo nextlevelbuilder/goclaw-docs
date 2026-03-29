@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#caching)
+> Bản dịch từ [English version](/caching)
 
 # Caching
 
@@ -90,7 +90,7 @@ Cả hai backend cùng implement một interface:
 
 ## Tiếp theo
 
-- [Cài đặt Database](#deploy-database) — Cấu hình PostgreSQL
-- [Production Checklist](#deploy-checklist) — Triển khai an toàn
+- [Cài đặt Database](/deploy-database) — Cấu hình PostgreSQL
+- [Production Checklist](/deploy-checklist) — Triển khai an toàn
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

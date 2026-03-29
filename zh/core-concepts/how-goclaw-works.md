@@ -1,4 +1,4 @@
-> 翻译自 [English version](#how-goclaw-works)
+> 翻译自 [English version](/how-goclaw-works)
 
 # GoClaw 工作原理
 
@@ -101,8 +101,8 @@ GoClaw 使用基于通道的调度器管理并发：
 
 ## 下一步
 
-- [Agent 详解](#agents-explained) — 深入了解 agent 类型和上下文文件
-- [工具概览](#tools-overview) — 完整工具目录
-- [Sessions 和历史](#sessions-and-history) — 对话如何持久化
+- [Agent 详解](/agents-explained) — 深入了解 agent 类型和上下文文件
+- [工具概览](/tools-overview) — 完整工具目录
+- [Sessions 和历史](/sessions-and-history) — 对话如何持久化
 
 <!-- goclaw-source: 9168e4b4 | 更新: 2026-03-26 -->

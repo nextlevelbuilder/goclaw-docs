@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#channel-browser-pairing)
+> Bản dịch từ [English version](/channel-browser-pairing)
 
 # Browser Pairing
 
@@ -240,9 +240,9 @@ class PairingClient {
 
 ## Tiếp theo
 
-- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
-- [WebSocket](#channel-websocket) — Giao tiếp RPC trực tiếp
-- [Telegram](#channel-telegram) — Thiết lập Telegram
-- [WebSocket Protocol](#websocket-protocol) — Tài liệu giao thức đầy đủ
+- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
+- [WebSocket](/channel-websocket) — Giao tiếp RPC trực tiếp
+- [Telegram](/channel-telegram) — Thiết lập Telegram
+- [WebSocket Protocol](/websocket-protocol) — Tài liệu giao thức đầy đủ
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

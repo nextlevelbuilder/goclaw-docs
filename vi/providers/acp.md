@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-acp)
+> Bản dịch từ [English version](/provider-acp)
 
 # ACP (Agent Client Protocol)
 
@@ -222,8 +222,8 @@ Với response, GoClaw:
 
 ## Tiếp theo
 
-- [Tổng quan Provider](#providers-overview)
-- [Claude CLI](#provider-claude-cli)
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Tổng quan Provider](/providers-overview)
+- [Claude CLI](/provider-claude-cli)
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 <!-- goclaw-source: 120fc2d | cập nhật: 2026-03-23 -->

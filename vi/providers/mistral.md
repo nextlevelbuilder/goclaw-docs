@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-mistral)
+> Bản dịch từ [English version](/provider-mistral)
 
 # Mistral
 
@@ -75,8 +75,8 @@ Với agent thiên về code, `codestral-latest` được tối ưu cho các tá
 
 ## Tiếp theo
 
-- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
-- [Groq](#provider-groq) — inference cực nhanh cho open model
-- [OpenRouter](#provider-openrouter) — truy cập Mistral và 100+ model khác qua một key
+- [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
+- [Groq](/provider-groq) — inference cực nhanh cho open model
+- [OpenRouter](/provider-openrouter) — truy cập Mistral và 100+ model khác qua một key
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#teams-what-are-teams)
+> 翻译自 [English version](/teams-what-are-teams)
 
 # 什么是 Agent 团队？
 

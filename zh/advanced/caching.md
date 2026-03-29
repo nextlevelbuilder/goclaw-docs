@@ -1,4 +1,4 @@
-> 翻译自 [English version](#caching)
+> 翻译自 [English version](/caching)
 
 # 缓存
 
@@ -90,7 +90,7 @@ redis://:password@redis.example.com:6379/1
 
 ## 下一步
 
-- [数据库设置](#deploy-database) — PostgreSQL 配置
-- [生产部署清单](#deploy-checklist) — 自信部署
+- [数据库设置](/deploy-database) — PostgreSQL 配置
+- [生产部署清单](/deploy-checklist) — 自信部署
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

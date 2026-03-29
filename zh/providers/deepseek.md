@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-deepseek)
+> 翻译自 [English version](/provider-deepseek)
 
 # DeepSeek
 
@@ -81,8 +81,8 @@ DeepSeek 支持标准 OpenAI 工具格式的 function calling。工具调用参�
 
 ## 下一步
 
-- [Groq](#provider-groq) — 开源模型的超快推理
-- [Gemini](#provider-gemini) — Google Gemini 模型
-- [概览](#providers-overview) — provider 架构和重试逻辑
+- [Groq](/provider-groq) — 开源模型的超快推理
+- [Gemini](/provider-gemini) — Google Gemini 模型
+- [概览](/providers-overview) — provider 架构和重试逻辑
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

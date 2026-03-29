@@ -236,7 +236,7 @@ These five migrations are auto-applied on startup when upgrading to v2.x. No man
 
 GoClaw v2.x includes an automatic version checker. After startup, the gateway polls GitHub releases in the background and shows a notification banner in the dashboard when a newer version is available. No configuration is needed — the check runs automatically and requires outbound HTTPS to `api.github.com`. The check runs periodically while the gateway is running; the result is cached and served to dashboard clients.
 
-For the full schema history see [Database Schema → Migration History](#database-schema).
+For the full schema history see [Database Schema → Migration History](/database-schema).
 
 ## Recently Removed Environment Variables
 
@@ -271,8 +271,8 @@ Before each upgrade, check the release notes for:
 
 ## What's Next
 
-- [Production Checklist](#deploy-checklist) — full pre-launch verification
-- [Database Setup](#deploy-database) — PostgreSQL and pgvector setup
-- [Observability](#deploy-observability) — monitor your gateway post-upgrade
+- [Production Checklist](/deploy-checklist) — full pre-launch verification
+- [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
+- [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
 <!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#summoning-bootstrap)
+> Bản dịch từ [English version](/summoning-bootstrap)
 
 # Summoning & Bootstrap
 
@@ -355,8 +355,8 @@ Nếu bạn đặt thủ công USER.md ở cấp agent trước khi user đầu 
 
 ## Tiếp theo
 
-- [Context Files](#context-files) — tham chiếu chi tiết cho từng file
-- [Open vs. Predefined](#open-vs-predefined) — hiểu khi nào dùng loại nào
-- [Creating Agents](#creating-agents) — hướng dẫn tạo agent từng bước
+- [Context Files](/context-files) — tham chiếu chi tiết cho từng file
+- [Open vs. Predefined](/open-vs-predefined) — hiểu khi nào dùng loại nào
+- [Creating Agents](/creating-agents) — hướng dẫn tạo agent từng bước
 
 <!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#user-overrides)
+> 翻译自 [English version](/user-overrides)
 
 # 用户覆盖（User Overrides）
 
@@ -145,8 +145,8 @@ err := agentStore.DeleteUserOverride(ctx, agentID, userID)
 
 ## 下一步
 
-- [System Prompt Anatomy — 模型选择如何影响 system prompt 大小](#system-prompt-anatomy)
-- [Sharing and Access — 控制谁可以访问 agent](#sharing-and-access)
-- [Creating Agents — 创建 agent 时设置默认 provider/model](#creating-agents)
+- [System Prompt Anatomy — 模型选择如何影响 system prompt 大小](/system-prompt-anatomy)
+- [Sharing and Access — 控制谁可以访问 agent](/sharing-and-access)
+- [Creating Agents — 创建 agent 时设置默认 provider/model](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

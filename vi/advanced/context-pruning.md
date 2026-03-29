@@ -11,7 +11,7 @@ Khi agent thực hiện các tác vụ dài, kết quả tool tích lũy dần t
 1. **Soft trim** — cắt ngắn kết quả tool quá dài, giữ phần đầu + đuôi, bỏ phần giữa.
 2. **Hard clear** — nếu context vẫn còn quá đầy, thay toàn bộ nội dung kết quả tool bằng một chuỗi placeholder ngắn.
 
-Context pruning khác với [session compaction](#sessions-and-history). Compaction tóm tắt và cắt ngắn lịch sử hội thoại vĩnh viễn. Pruning không phá hủy dữ liệu: kết quả tool gốc vẫn còn trong session store và không bao giờ bị sửa đổi — chỉ có slice message gửi lên LLM là được cắt tỉa.
+Context pruning khác với [session compaction](/sessions-and-history). Compaction tóm tắt và cắt ngắn lịch sử hội thoại vĩnh viễn. Pruning không phá hủy dữ liệu: kết quả tool gốc vẫn còn trong session store và không bao giờ bị sửa đổi — chỉ có slice message gửi lên LLM là được cắt tỉa.
 
 ---
 
@@ -210,14 +210,14 @@ Tăng `softTrim.headChars` và `softTrim.tailChars`, hoặc nâng `softTrim.maxC
 
 **Context vẫn tràn dù đã bật pruning**
 
-Pruning chỉ tác động lên kết quả tool. Nếu user message dài hoặc system prompt lớn chiếm phần lớn context, pruning sẽ không giúp được. Hãy xem xét [session compaction](#sessions-and-history) hoặc giảm kích thước system prompt.
+Pruning chỉ tác động lên kết quả tool. Nếu user message dài hoặc system prompt lớn chiếm phần lớn context, pruning sẽ không giúp được. Hãy xem xét [session compaction](/sessions-and-history) hoặc giảm kích thước system prompt.
 
 ---
 
 ## Tiếp Theo
 
-- [Sessions & History](#sessions-and-history) — session compaction, giới hạn lịch sử
-- [Memory System](#memory-system) — bộ nhớ bền vững giữa các session
-- [Configuration Reference](#config-reference) — tham chiếu cấu hình agent đầy đủ
+- [Sessions & History](/sessions-and-history) — session compaction, giới hạn lịch sử
+- [Memory System](/memory-system) — bộ nhớ bền vững giữa các session
+- [Configuration Reference](/config-reference) — tham chiếu cấu hình agent đầy đủ
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

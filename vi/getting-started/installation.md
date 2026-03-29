@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#installation)
+> Bản dịch từ [English version](/installation)
 
 # Cài đặt
 
@@ -78,7 +78,7 @@ Mở `http://localhost:5173` và đăng nhập:
 - **User ID:** `system`
 - **Gateway Token:** tìm trong `.env.local` (dòng `GOCLAW_GATEWAY_TOKEN`)
 
-Sau khi đăng nhập, làm theo hướng dẫn [Bắt đầu nhanh](#quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
+Sau khi đăng nhập, làm theo hướng dẫn [Bắt đầu nhanh](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
 
 <details>
 <summary><strong>Cách khác: chạy dashboard qua Docker</strong></summary>
@@ -220,7 +220,7 @@ Mở `http://localhost:5173` và đăng nhập:
 - **User ID:** `system`
 - **Gateway Token:** lấy từ file `.env.local` (dòng `GOCLAW_GATEWAY_TOKEN`)
 
-Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](#quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
+Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
 
 ---
 
@@ -279,7 +279,7 @@ Mở `http://localhost:3000` và đăng nhập:
 - **User ID:** `system`
 - **Gateway Token:** tìm trong `.env` (dòng `GOCLAW_GATEWAY_TOKEN`)
 
-Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](#quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
+Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
 
 ### Tiện ích mở rộng
 
@@ -568,7 +568,7 @@ docker compose logs goclaw
 
 ## Tiếp theo
 
-- [Quick Start](#quick-start) — Chạy agent đầu tiên của bạn
-- [Configuration](#configuration) — Tùy chỉnh cài đặt GoClaw
+- [Quick Start](/quick-start) — Chạy agent đầu tiên của bạn
+- [Configuration](/configuration) — Tùy chỉnh cài đặt GoClaw
 
 <!-- goclaw-source: 175e052 | cập nhật: 2026-03-29 -->

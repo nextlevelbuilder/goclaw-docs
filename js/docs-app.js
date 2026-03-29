@@ -259,7 +259,7 @@ function initMarked() {
       const hashKey = Object.keys(DOC_MAP).find(
         k => DOC_MAP[k].file.en.includes(name)
       );
-      if (hashKey) href = '#' + hashKey;
+      if (hashKey) href = '/' + hashKey;
     }
     const titleAttr = title ? ` title="${title}"` : '';
     const external = href && href.startsWith('http') ? ' target="_blank" rel="noopener"' : '';
@@ -399,7 +399,7 @@ function initSidebar() {
   document.querySelectorAll('.sidebar-link').forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
-      window.location.hash = link.dataset.doc;
+      navigateTo(link.dataset.doc);
       closeMobileSidebar();
     });
   });
@@ -469,7 +469,7 @@ function initSearch() {
 
     results.querySelectorAll('.search-result-item').forEach(item => {
       item.addEventListener('click', () => {
-        window.location.hash = item.dataset.doc;
+        navigateTo(item.dataset.doc);
         input.value = '';
         results.classList.remove('active');
       });
@@ -544,6 +544,13 @@ function applyUITranslations() {
     }
   });
 
+  /* Update llms.txt links to match current language */
+  const llmsPrefix = currentLang === 'en' ? '' : currentLang + '/';
+  const llmsLink = document.getElementById('llms-link');
+  const llmsFullLink = document.getElementById('llms-full-link');
+  if (llmsLink) llmsLink.href = llmsPrefix + 'llms.txt';
+  if (llmsFullLink) llmsFullLink.href = llmsPrefix + 'llms-full.txt';
+
   document.documentElement.setAttribute('lang', currentLang);
 }
 
@@ -566,7 +573,7 @@ function initLangSwitcher() {
       applyUITranslations();
 
       /* Reload current doc in new language */
-      loadDoc(getDocFromHash());
+      loadDoc(getDocFromPath());
     });
   });
 
@@ -661,7 +668,7 @@ function initCopyForAI() {
       e.preventDefault();
       dropdown.classList.remove('open');
       const action = item.dataset.action;
-      const docKey = getDocFromHash();
+      const docKey = getDocFromPath();
       const ck = cacheKey(docKey, currentLang);
       const md = docCache[ck] || docCache[cacheKey(docKey, 'en')] || '';
 
@@ -704,11 +711,52 @@ function showToast(msg) {
 }
 
 /* ============================================================
-   ROUTING
+   ROUTING — pathname-based (hash reserved for in-page anchors)
    ============================================================ */
-function getDocFromHash() {
+/* Section aliases: /section-name → first page in that section */
+const SECTION_ALIASES = {
+  'getting-started': 'what-is-goclaw',
+  'core-concepts': 'how-goclaw-works',
+  'agents': 'creating-agents',
+  'providers': 'providers-overview',
+  'channels': 'channels-overview',
+  'agent-teams': 'teams-what-are-teams',
+  'advanced': 'custom-tools',
+  'deployment': 'deploy-docker-compose',
+  'recipes': 'recipe-personal-assistant',
+  'showcases': 'gallery',
+  'reference': 'cli-commands',
+  'troubleshooting': 'troubleshoot-common',
+  'templates': 'template-agents',
+};
+
+function getDocFromPath() {
+  const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+  if (!path) return DEFAULT_DOC;
+  if (DOC_MAP[path]) return path;
+  /* Section alias: /getting-started → first page of section */
+  if (SECTION_ALIASES[path]) {
+    const target = SECTION_ALIASES[path];
+    history.replaceState({ doc: target }, '', '/' + target);
+    return target;
+  }
+  return DEFAULT_DOC;
+}
+
+/* Navigate to a doc page via pushState (SPA) */
+function navigateTo(key) {
+  history.pushState({ doc: key }, '', '/' + key);
+  loadDoc(key);
+}
+
+/* Backward compat: redirect old #hash URLs to pathname */
+function migrateHashURL() {
   const hash = window.location.hash.slice(1);
-  return DOC_MAP[hash] ? hash : DEFAULT_DOC;
+  if (hash && DOC_MAP[hash] && window.location.pathname === '/') {
+    history.replaceState({ doc: hash }, '', '/' + hash);
+    return hash;
+  }
+  return null;
 }
 
 /* ============================================================
@@ -740,12 +788,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  loadDoc(getDocFromHash());
+  /* Recover from 404.html redirect (Cloudflare fallback) */
+  const redirectPath = sessionStorage.getItem('redirect-path');
+  if (redirectPath) {
+    sessionStorage.removeItem('redirect-path');
+    history.replaceState(null, '', redirectPath);
+  }
+
+  /* Migrate old #hash URLs, then load current doc */
+  const migrated = migrateHashURL();
+  loadDoc(migrated || getDocFromPath());
   setTimeout(preloadDocs, 1500);
 });
 
-window.addEventListener('hashchange', () => {
-  loadDoc(getDocFromHash());
+/* Browser back/forward */
+window.addEventListener('popstate', () => {
+  loadDoc(getDocFromPath());
+});
+
+/* Intercept internal doc links rendered in content */
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('#doc-content a[href^="/"]');
+  if (!link) return;
+  const href = link.getAttribute('href');
+  const key = href.replace(/^\//, '').replace(/#.*$/, '');
+  if (!DOC_MAP[key]) return;
+  e.preventDefault();
+  navigateTo(key);
+  /* Scroll to anchor if present */
+  const anchor = href.includes('#') ? href.split('#')[1] : '';
+  if (anchor) {
+    setTimeout(() => {
+      document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
+    }, 150);
+  }
 });
 
 /* Language-switch links inside doc content (e.g. "English version") */
@@ -764,5 +840,5 @@ document.addEventListener('click', (e) => {
     b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
   applyUITranslations();
-  loadDoc(getDocFromHash());
+  loadDoc(getDocFromPath());
 });

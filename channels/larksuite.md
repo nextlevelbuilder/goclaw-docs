@@ -210,9 +210,9 @@ The `group:fs` prefix selects all tools in the `fs` (Feishu/Lark) tool group. Th
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Zalo OA](#channel-zalo-oa) — Zalo Official Account
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Zalo OA](/channel-zalo-oa) — Zalo Official Account
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 <!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->

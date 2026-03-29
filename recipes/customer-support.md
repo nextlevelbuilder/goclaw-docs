@@ -262,9 +262,9 @@ support (predefined)
 
 ## What's Next
 
-- [Open vs. Predefined](#open-vs-predefined) — deep dive on context isolation
-- [Summoning & Bootstrap](#summoning-bootstrap) — how personality is auto-generated
-- [Team Chatbot](#recipe-team-chatbot) — coordinate multiple specialists via a team
-- [Context Files](#context-files) — full reference for SOUL.md, USER.md, and friends
+- [Open vs. Predefined](/open-vs-predefined) — deep dive on context isolation
+- [Summoning & Bootstrap](/summoning-bootstrap) — how personality is auto-generated
+- [Team Chatbot](/recipe-team-chatbot) — coordinate multiple specialists via a team
+- [Context Files](/context-files) — full reference for SOUL.md, USER.md, and friends
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

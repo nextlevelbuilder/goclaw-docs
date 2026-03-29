@@ -78,8 +78,8 @@ GoClaw maps this to `reasoning_effort` on the request. Thinking tokens are track
 
 ## What's Next
 
-- [DeepSeek](#provider-deepseek) — DeepSeek models with reasoning_content support
-- [OpenRouter](#provider-openrouter) — access Gemini and 100+ other models through one key
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [DeepSeek](/provider-deepseek) — DeepSeek models with reasoning_content support
+- [OpenRouter](/provider-openrouter) — access Gemini and 100+ other models through one key
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

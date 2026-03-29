@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-codex)
+> Bản dịch từ [English version](/provider-codex)
 
 # Codex / ChatGPT (OAuth)
 
@@ -190,7 +190,7 @@ Các giá trị `override_mode`:
 GET /v1/agents/{id}/codex-pool-activity
 ```
 
-Xem [REST API](#rest-api) để biết cấu trúc response.
+Xem [REST API](/rest-api) để biết cấu trúc response.
 
 ---
 
@@ -206,7 +206,7 @@ Xem [REST API](#rest-api) để biết cấu trúc response.
 
 ## Tiếp theo
 
-- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
-- [Claude CLI](#provider-claude-cli) — dùng subscription Claude thay thế
+- [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
+- [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
 
 <!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->

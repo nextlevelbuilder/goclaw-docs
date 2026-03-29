@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#sharing-and-access)
+> Bản dịch từ [English version](/sharing-and-access)
 
 # Chia sẻ và Kiểm soát Truy cập
 
@@ -218,8 +218,8 @@ agents, err := agentStore.ListAccessible(ctx, userID)
 
 ## Tiếp theo
 
-- [User Overrides — Cho phép user tuỳ chỉnh LLM provider/model theo từng agent](#user-overrides)
-- [System Prompt Anatomy — Cách quyền hạn ảnh hưởng đến phần system prompt](#system-prompt-anatomy)
-- [Creating Agents — Tạo agent và chia sẻ ngay lập tức](#creating-agents)
+- [User Overrides — Cho phép user tuỳ chỉnh LLM provider/model theo từng agent](/user-overrides)
+- [System Prompt Anatomy — Cách quyền hạn ảnh hưởng đến phần system prompt](/system-prompt-anatomy)
+- [Creating Agents — Tạo agent và chia sẻ ngay lập tức](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

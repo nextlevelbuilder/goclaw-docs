@@ -1,4 +1,4 @@
-> 翻译自 [English version](#deploy-upgrading)
+> 翻译自 [English version](/deploy-upgrading)
 
 # 升级
 
@@ -238,7 +238,7 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 GitHub 发布，并在有新版本可用时在仪表盘中显示通知横幅。无需配置——检查自动运行，需要到 `api.github.com` 的出站 HTTPS。检查在 gateway 运行时定期执行；结果被缓存并提供给仪表盘客户端。
 
-完整 schema 历史参见[数据库 Schema → 迁移历史](#database-schema)。
+完整 schema 历史参见[数据库 Schema → 迁移历史](/database-schema)。
 
 ## 近期移除的环境变量
 
@@ -273,8 +273,8 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 
 ## 下一步
 
-- [生产检查清单](#deploy-checklist) — 完整的上线前验证
-- [数据库设置](#deploy-database) — PostgreSQL 和 pgvector 设置
-- [可观测性](#deploy-observability) — 升级后监控你的 gateway
+- [生产检查清单](/deploy-checklist) — 完整的上线前验证
+- [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
+- [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
 <!-- goclaw-source: 231bc968 | 更新: 2026-03-27 -->

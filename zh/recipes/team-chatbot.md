@@ -1,4 +1,4 @@
-> 翻译自 [English version](#recipe-team-chatbot)
+> 翻译自 [English version](/recipe-team-chatbot)
 
 # 团队聊天机器人
 
@@ -256,9 +256,9 @@ Lead 通过 `delegate` 工具进行委托。专家作为子会话运行并返回
 
 ## 下一步
 
-- [什么是团队？](#teams-what-are-teams) — 团队概念和架构
-- [任务看板](#teams-task-board) — 完整任务看板参考
-- [Open vs. Predefined](#open-vs-predefined) — 专家为何必须是预定义类型
-- [客户支持](#recipe-customer-support) — 服务多用户的预定义 agent
+- [什么是团队？](/teams-what-are-teams) — 团队概念和架构
+- [任务看板](/teams-task-board) — 完整任务看板参考
+- [Open vs. Predefined](/open-vs-predefined) — 专家为何必须是预定义类型
+- [客户支持](/recipe-customer-support) — 服务多用户的预定义 agent
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

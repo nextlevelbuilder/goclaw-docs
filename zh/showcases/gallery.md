@@ -128,8 +128,8 @@
 
 ## 下一步
 
-- [GoClaw 是什么](#what-is-goclaw) — 从头开始了解
-- [快速开始](#quick-start) — 5 分钟内跑起来
-- [配置](#configuration) — 完整配置参考
+- [GoClaw 是什么](/what-is-goclaw) — 从头开始了解
+- [快速开始](/quick-start) — 5 分钟内跑起来
+- [配置](/configuration) — 完整配置参考
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

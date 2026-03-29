@@ -10,7 +10,7 @@ Zai cung cấp hai biến thể: provider đa năng và biến thể chuyên cod
 
 ## Tiếp theo
 
-- [Tổng quan Provider](#providers-overview)
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Tổng quan Provider](/providers-overview)
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

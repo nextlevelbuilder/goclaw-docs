@@ -1,4 +1,4 @@
-> 翻译自 [English version](#what-is-goclaw)
+> 翻译自 [English version](/what-is-goclaw)
 
 # GoClaw 是什么
 
@@ -60,8 +60,8 @@ graph LR
 
 ## 下一步
 
-- [安装](#installation) — 在你的机器上运行 GoClaw
-- [快速开始](#quick-start) — 5 分钟创建你的第一个 agent
-- [GoClaw 工作原理](#how-goclaw-works) — 深入了解架构
+- [安装](/installation) — 在你的机器上运行 GoClaw
+- [快速开始](/quick-start) — 5 分钟创建你的第一个 agent
+- [GoClaw 工作原理](/how-goclaw-works) — 深入了解架构
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

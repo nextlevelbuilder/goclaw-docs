@@ -1,4 +1,4 @@
-> 翻译自 [English version](#browser-automation)
+> 翻译自 [English version](/browser-automation)
 
 # 浏览器自动化
 
@@ -255,7 +255,7 @@ Agent 调用：
 
 ## 下一步
 
-- [Exec 审批](#exec-approval) — 运行命令前要求人工确认
-- [Hooks 与质量门控](#hooks-quality-gates) — 为 agent 操作添加前/后检查
+- [Exec 审批](/exec-approval) — 运行命令前要求人工确认
+- [Hooks 与质量门控](/hooks-quality-gates) — 为 agent 操作添加前/后检查
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

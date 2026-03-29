@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-acp)
+> 翻译自 [English version](/provider-acp)
 
 # ACP（Agent Client Protocol）
 
@@ -222,8 +222,8 @@ type ContentBlock struct {
 
 ## 下一步
 
-- [Provider 概览](#providers-overview)
-- [Claude CLI](#provider-claude-cli)
-- [自定义 / OpenAI 兼容](#provider-custom)
+- [Provider 概览](/providers-overview)
+- [Claude CLI](/provider-claude-cli)
+- [自定义 / OpenAI 兼容](/provider-custom)
 
 <!-- goclaw-source: 120fc2d | 更新: 2026-03-23 -->

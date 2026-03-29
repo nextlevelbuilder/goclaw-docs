@@ -104,13 +104,14 @@ Source of truth mapping (`$GOCLAW_SOURCE/docs/`):
 | `19-websocket-rpc.md` | WebSocket RPC methods |
 | `20-api-keys-auth.md` | API keys, authentication |
 
-### Step 5: Check EN-VI Sync Status
+### Step 5: Check EN-VI-ZH Sync Status
 
 For each matched docs page in the goclaw-docs repo:
 - Get last modification date of the EN file (e.g., `getting-started/quick-start.md`)
 - Get last modification date of the VI file (e.g., `vi/getting-started/quick-start.md`)
-- If VI is older than EN, or VI doesn't exist: mark as "Outdated"
-- If VI is same date or newer: mark as "Synced"
+- Get last modification date of the ZH file (e.g., `zh/getting-started/quick-start.md`)
+- If VI/ZH is older than EN, or doesn't exist: mark as "Outdated"
+- If VI/ZH is same date or newer: mark as "Synced"
 
 Use `git log -1 --format=%cd --date=short -- <file>` to get last modification dates.
 
@@ -137,11 +138,11 @@ Create a markdown report with this format:
 | agents/creating-agents.md | 01-agent-loop.md | Accurate | — |
 | core-concepts/tools-overview.md | 03-tools-system.md | Discrepancy | Missing new tool type "x" |
 
-## EN-VI Sync Status
+## EN-VI-ZH Sync Status
 
-| EN Page | Last EN Update | Last VI Update | Status |
-|---|---|---|---|
-| getting-started/quick-start.md | 2026-03-07 | 2026-03-01 | Outdated |
+| EN Page | Last EN | Last VI | VI Status | Last ZH | ZH Status |
+|---|---|---|---|---|---|
+| getting-started/quick-start.md | 2026-03-07 | 2026-03-01 | Outdated | 2026-03-07 | Synced |
 
 ## Recommended Actions
 1. Review `agents/creating-agents.md` — agent creation flow changed

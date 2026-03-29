@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#media-generation)
+> Bản dịch từ [English version](/media-generation)
 
 # Tạo Media
 
@@ -178,8 +178,8 @@ File media tải về giới hạn tối đa **200 MB**. File vượt quá sẽ 
 
 ## Tiếp theo
 
-- [TTS & Voice](#tts-voice) — Chuyển văn bản thành giọng nói
-- [Custom Tools](#custom-tools) — Tạo công cụ riêng
-- [Tổng quan Provider](#providers-overview) — Cấu hình API key
+- [TTS & Voice](/tts-voice) — Chuyển văn bản thành giọng nói
+- [Custom Tools](/custom-tools) — Tạo công cụ riêng
+- [Tổng quan Provider](/providers-overview) — Cấu hình API key
 
 <!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

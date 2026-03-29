@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-custom)
+> 翻译自 [English version](/provider-custom)
 
 # 自定义 Provider
 
@@ -185,8 +185,8 @@ GoClaw 根据 provider 名称自动从工具定义中去除不支持的 JSON Sch
 
 ## 下一步
 
-- [概览](#providers-overview) — 并排比较所有 provider
-- [DashScope](#provider-dashscope) — 阿里巴巴的 Qwen 模型
-- [Perplexity](#provider-perplexity) — 搜索增强生成
+- [概览](/providers-overview) — 并排比较所有 provider
+- [DashScope](/provider-dashscope) — 阿里巴巴的 Qwen 模型
+- [Perplexity](/provider-perplexity) — 搜索增强生成
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

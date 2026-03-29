@@ -270,9 +270,9 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Discord](#channel-discord) — Discord bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
-- [Sessions & History](#sessions-and-history) — Conversation history
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Discord](/channel-discord) — Discord bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
+- [Sessions & History](/sessions-and-history) — Conversation history
 
 <!-- goclaw-source: 0dab087f | updated: 2026-03-26 -->

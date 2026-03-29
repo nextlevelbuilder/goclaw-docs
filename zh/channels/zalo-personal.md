@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-zalo-personal)
+> 翻译自 [English version](/channel-zalo-personal)
 
 # Zalo 个人 Channel
 
@@ -6,7 +6,7 @@
 
 ## 警告：使用风险自负
 
-Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Zalo 锁定、封禁或限制。**不建议**用于生产 bot。正式集成请使用 [Zalo OA](#channel-zalo-oa)。
+Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Zalo 锁定、封禁或限制。**不建议**用于生产 bot。正式集成请使用 [Zalo OA](/channel-zalo-oa)。
 
 启动时会记录安全警告：`security.unofficial_api`。
 
@@ -122,9 +122,9 @@ Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Z
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [Zalo OA](#channel-zalo-oa) — 官方 Zalo 集成（推荐）
-- [Telegram](#channel-telegram) — Telegram bot 设置
-- [Browser Pairing](#channel-browser-pairing) — 配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [Zalo OA](/channel-zalo-oa) — 官方 Zalo 集成（推荐）
+- [Telegram](/channel-telegram) — Telegram bot 设置
+- [Browser Pairing](/channel-browser-pairing) — 配对流程
 
 <!-- goclaw-source: 120fc2d | 更新: 2026-03-18 -->

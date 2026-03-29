@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-perplexity)
+> 翻译自 [English version](/provider-perplexity)
 
 # Perplexity
 
@@ -102,7 +102,7 @@ Perplexity 的 `sonar` 模型在回答前自动执行网络搜索，无需单独
 
 ## 下一步
 
-- [DashScope](#provider-dashscope) — 阿里巴巴通过 OpenAI 兼容 API 提供的 Qwen 模型
-- [自定义 Provider](#provider-custom) — 连接任意 OpenAI 兼容 API
+- [DashScope](/provider-dashscope) — 阿里巴巴通过 OpenAI 兼容 API 提供的 Qwen 模型
+- [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

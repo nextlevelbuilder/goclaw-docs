@@ -1,4 +1,4 @@
-> 翻译自 [English version](#agent-evolution)
+> 翻译自 [English version](/agent-evolution)
 
 # Agent 进化
 
@@ -349,7 +349,7 @@ skills-store/
 
 ## 下一步
 
-- [Skills](#skills) — skill 格式、层级结构和热重载
+- [Skills](/skills) — skill 格式、层级结构和热重载
 - [预定义 Agent](#predefined-agents) — 预定义 agent 与 open agent 的区别
 - [publish_skill](#skill-publishing) — 基于目录的 skill 发布
 

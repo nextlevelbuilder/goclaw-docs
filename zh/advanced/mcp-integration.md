@@ -1,4 +1,4 @@
-> 翻译自 [English version](#mcp-integration)
+> 翻译自 [English version](/mcp-integration)
 
 # MCP 集成
 

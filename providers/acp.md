@@ -220,8 +220,8 @@ On response, GoClaw:
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Claude CLI](#provider-claude-cli)
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Claude CLI](/provider-claude-cli)
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 <!-- goclaw-source: 120fc2d | updated: 2026-03-23 -->

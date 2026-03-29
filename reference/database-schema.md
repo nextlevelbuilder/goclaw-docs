@@ -988,8 +988,8 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 
 ## What's Next
 
-- [Environment Variables](#env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
-- [Config Reference](#config-reference) — how database config maps to `config.json`
-- [Glossary](#glossary) — Session, Compaction, Lane, and other key terms
+- [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
+- [Config Reference](/config-reference) — how database config maps to `config.json`
+- [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
 <!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#database-schema)
+> Bản dịch từ [English version](/database-schema)
 
 # Database Schema
 
@@ -990,8 +990,8 @@ Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback v�
 
 ## Tiếp theo
 
-- [Environment Variables](#env-vars) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
-- [Config Reference](#config-reference) — cấu hình database map sang `config.json` như thế nào
-- [Glossary](#glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
+- [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
+- [Config Reference](/config-reference) — cấu hình database map sang `config.json` như thế nào
+- [Glossary](/glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
 
 <!-- goclaw-source: 19eef35 | cập nhật: 2026-03-25 -->

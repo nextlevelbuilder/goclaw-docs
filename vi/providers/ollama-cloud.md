@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-ollama-cloud)
+> Bản dịch từ [English version](/provider-ollama-cloud)
 
 # Ollama Cloud
 
@@ -26,8 +26,8 @@ Ollama Cloud cung cấp inference hosted cho các mô hình tương thích Ollam
 
 ## Tiếp theo
 
-- [Tổng quan Provider](#providers-overview)
-- [Ollama](#provider-ollama) — chạy mô hình cục bộ thay thế
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Tổng quan Provider](/providers-overview)
+- [Ollama](/provider-ollama) — chạy mô hình cục bộ thay thế
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

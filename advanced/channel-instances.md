@@ -244,8 +244,8 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 
 ## What's Next
 
-- [Channel Overview](#channels-overview)
-- [Multi-Channel Setup](#recipe-multi-channel)
-- [Multi-Tenancy](#multi-tenancy)
+- [Channel Overview](/channels-overview)
+- [Multi-Channel Setup](/recipe-multi-channel)
+- [Multi-Tenancy](/multi-tenancy)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

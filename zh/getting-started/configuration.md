@@ -1,4 +1,4 @@
-> 翻译自 [English version](#configuration)
+> 翻译自 [English version](/configuration)
 
 # 配置
 
@@ -765,8 +765,8 @@ JSON key：`"feishu"`
 
 ## 下一步
 
-- [Web Dashboard 导览](#dashboard-tour) — 通过可视化界面配置，无需编辑 JSON
-- [Agent 详解](#agents-explained) — 深入了解 agent 配置
-- [Tools 概览](#tools-overview) — 可用的 tool 及其分类
+- [Web Dashboard 导览](/dashboard-tour) — 通过可视化界面配置，无需编辑 JSON
+- [Agent 详解](/agents-explained) — 深入了解 agent 配置
+- [Tools 概览](/tools-overview) — 可用的 tool 及其分类
 
 <!-- goclaw-source: 0bce640 | 更新: 2026-03-24 -->

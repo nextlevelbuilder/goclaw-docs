@@ -1,4 +1,4 @@
-> 翻译自 [English version](#teams-creating)
+> 翻译自 [English version](/teams-creating)
 
 # 创建与管理团队
 

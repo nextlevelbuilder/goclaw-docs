@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-discord)
+> 翻译自 [English version](/channel-discord)
 
 # Discord Channel
 
@@ -132,9 +132,9 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [Telegram](#channel-telegram) — Telegram bot 设置
-- [Larksuite](#channel-feishu) — Larksuite 流式卡片集成
-- [Browser Pairing](#channel-browser-pairing) — 配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [Telegram](/channel-telegram) — Telegram bot 设置
+- [Larksuite](/channel-feishu) — Larksuite 流式卡片集成
+- [Browser Pairing](/channel-browser-pairing) — 配对流程
 
 <!-- goclaw-source: 120fc2d | 更新: 2026-03-18 -->

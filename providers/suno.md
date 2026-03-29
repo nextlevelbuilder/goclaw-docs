@@ -23,8 +23,8 @@ Suno is an AI music generation provider. GoClaw agents can use Suno to compose s
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Media Generation](#media-generation)
-- [MiniMax](#provider-minimax) — another provider with audio capabilities
+- [Provider Overview](/providers-overview)
+- [Media Generation](/media-generation)
+- [MiniMax](/provider-minimax) — another provider with audio capabilities
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

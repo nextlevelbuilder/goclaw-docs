@@ -1,4 +1,4 @@
-> 翻译自 [English version](#dashboard-tour)
+> 翻译自 [English version](/dashboard-tour)
 
 # Web Dashboard 导览
 
@@ -305,8 +305,8 @@ Lite 版支持最多 5 个 agent。达到限制时，"New agent" 按钮禁用。
 
 ## 下一步
 
-- [配置](#configuration) — 通过配置文件编辑设置
-- [GoClaw 工作原理](#how-goclaw-works) — 了解架构
-- [Agent 详解](#agents-explained) — 了解 agent 类型
+- [配置](/configuration) — 通过配置文件编辑设置
+- [GoClaw 工作原理](/how-goclaw-works) — 了解架构
+- [Agent 详解](/agents-explained) — 了解 agent 类型
 
 <!-- goclaw-source: 231bc968 | 更新: 2026-03-27 -->

@@ -77,7 +77,7 @@ Tools are registered under the name `{prefix}__{tool_name}`. The prefix defaults
 
 ## What's Next
 
-- [Common Issues](#troubleshoot-common) — general startup and connectivity problems
-- [Dashboard Tour](#dashboard-tour) — manage MCP servers and grants in the UI
+- [Common Issues](/troubleshoot-common) — general startup and connectivity problems
+- [Dashboard Tour](/dashboard-tour) — manage MCP servers and grants in the UI
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

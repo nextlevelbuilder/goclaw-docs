@@ -87,7 +87,7 @@ The default API base is `https://api.cohere.com/compatibility/v1`. GoClaw sets t
 
 ## What's Next
 
-- [Perplexity](#provider-perplexity) — search-augmented AI via OpenAI-compatible API
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [Perplexity](/provider-perplexity) — search-augmented AI via OpenAI-compatible API
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

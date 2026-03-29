@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-minimax)
+> Bản dịch từ [English version](/provider-minimax)
 
 # MiniMax
 
@@ -92,7 +92,7 @@ Nếu bạn dùng endpoint quốc tế của MiniMax:
 
 ## Tiếp theo
 
-- [Cohere](#provider-cohere) — một provider tương thích OpenAI khác
-- [Custom Provider](#provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+- [Cohere](/provider-cohere) — một provider tương thích OpenAI khác
+- [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

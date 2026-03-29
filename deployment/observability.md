@@ -171,8 +171,8 @@ This means dashboard users see real-time logs without SSH access, and secrets ne
 
 ## What's Next
 
-- [Production Checklist](#deploy-checklist) — monitoring and alerting recommendations
-- [Docker Compose Setup](#deploy-docker-compose) — full compose file reference
-- [Security Hardening](#deploy-security) — securing your deployment
+- [Production Checklist](/deploy-checklist) — monitoring and alerting recommendations
+- [Docker Compose Setup](/deploy-docker-compose) — full compose file reference
+- [Security Hardening](/deploy-security) — securing your deployment
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

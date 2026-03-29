@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-groq)
+> Bản dịch từ [English version](/provider-groq)
 
 # Groq
 
@@ -51,7 +51,7 @@ Groq phù hợp nhất với workload nhạy cảm với latency:
 - **Pipeline throughput cao** xử lý nhiều request ngắn
 - **Prototyping** nơi vòng lặp nhanh quan trọng hơn chi phí token
 
-Với các tác vụ reasoning phức tạp hoặc context rất dài, hãy cân nhắc [Anthropic](#provider-anthropic) hoặc [OpenAI](#provider-openai).
+Với các tác vụ reasoning phức tạp hoặc context rất dài, hãy cân nhắc [Anthropic](/provider-anthropic) hoặc [OpenAI](/provider-openai).
 
 ## Tool Use
 
@@ -73,8 +73,8 @@ Streaming hoạt động qua SSE chuẩn OpenAI. GoClaw thêm `stream_options.in
 
 ## Tiếp theo
 
-- [Mistral](#provider-mistral) — các model Mistral AI
-- [DeepSeek](#provider-deepseek) — reasoning model với thinking content
-- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
+- [Mistral](/provider-mistral) — các model Mistral AI
+- [DeepSeek](/provider-deepseek) — reasoning model với thinking content
+- [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#template-identity)
+> 翻译自 [English version](/template-identity)
 
 # IDENTITY.md 模板
 
@@ -102,8 +102,8 @@ Notes:
 
 ## 下一步
 
-- [SOUL.md 模板](#template-soul) — 赋予身份深度的个性文件
-- [BOOTSTRAP.md 模板](#template-bootstrap) — 首次运行时如何选择名称和 emoji
-- [上下文文件](#context-files) — 完整上下文文件列表和加载顺序
+- [SOUL.md 模板](/template-soul) — 赋予身份深度的个性文件
+- [BOOTSTRAP.md 模板](/template-bootstrap) — 首次运行时如何选择名称和 emoji
+- [上下文文件](/context-files) — 完整上下文文件列表和加载顺序
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

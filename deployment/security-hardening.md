@@ -161,7 +161,7 @@ GoClaw replaced the stdlib `xml.etree.ElementTree` XML parser with `defusedxml` 
 
 ### Exec approval
 
-See [Exec Approval](#exec-approval) for the full interactive approval flow. At minimum, enable `ask: "on-miss"` to prompt before network and infrastructure tools run:
+See [Exec Approval](/exec-approval) for the full interactive approval flow. At minimum, enable `ask: "on-miss"` to prompt before network and infrastructure tools run:
 
 ```json
 {

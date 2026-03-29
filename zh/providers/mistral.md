@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-mistral)
+> 翻译自 [English version](/provider-mistral)
 
 # Mistral
 
@@ -75,8 +75,8 @@ Mistral 在 `mistral-large`、`mistral-small` 和 `codestral` 上支持 function
 
 ## 下一步
 
-- [概览](#providers-overview) — provider 架构和重试逻辑
-- [Groq](#provider-groq) — 开源模型的超快推理
-- [OpenRouter](#provider-openrouter) — 通过一个 key 访问 Mistral 和 100+ 其他模型
+- [概览](/providers-overview) — provider 架构和重试逻辑
+- [Groq](/provider-groq) — 开源模型的超快推理
+- [OpenRouter](/provider-openrouter) — 通过一个 key 访问 Mistral 和 100+ 其他模型
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

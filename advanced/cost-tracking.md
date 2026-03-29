@@ -235,8 +235,8 @@ The check runs once per request, before any LLM calls. Sub-agent delegations run
 
 ## What's Next
 
-- [Usage & Quota](#usage-quota) — per-user request limits and token counts
-- [Observability](#deploy-observability) — OpenTelemetry export for spans including cost fields
-- [Configuration Reference](#config-reference) — full `telemetry` config options
+- [Usage & Quota](/usage-quota) — per-user request limits and token counts
+- [Observability](/deploy-observability) — OpenTelemetry export for spans including cost fields
+- [Configuration Reference](/config-reference) — full `telemetry` config options
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

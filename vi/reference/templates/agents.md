@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#template-agents)
+> Bản dịch từ [English version](/template-agents)
 
 # AGENTS.md Template
 
@@ -171,8 +171,8 @@ Stay silent during off-topic discussions.
 
 ## Tiếp theo
 
-- [Context Files](#context-files) — giải thích đầy đủ 7 context file
-- [System Prompt Anatomy](#system-prompt-anatomy) — vị trí của AGENTS.md trong toàn bộ prompt
-- [SOUL.md Template](#template-soul) — file personality đi kèm với AGENTS.md
+- [Context Files](/context-files) — giải thích đầy đủ 7 context file
+- [System Prompt Anatomy](/system-prompt-anatomy) — vị trí của AGENTS.md trong toàn bộ prompt
+- [SOUL.md Template](/template-soul) — file personality đi kèm với AGENTS.md
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

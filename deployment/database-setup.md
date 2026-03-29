@@ -259,8 +259,8 @@ VACUUM ANALYZE traces, spans;
 
 ## What's Next
 
-- [Docker Compose](#deploy-docker-compose) — compose-based deployment with the postgres overlay
-- [Security Hardening](#deploy-security) — AES-256-GCM encryption for secrets in the database
-- [Observability](#deploy-observability) — querying traces and spans for LLM cost monitoring
+- [Docker Compose](/deploy-docker-compose) — compose-based deployment with the postgres overlay
+- [Security Hardening](/deploy-security) — AES-256-GCM encryption for secrets in the database
+- [Observability](/deploy-observability) — querying traces and spans for LLM cost monitoring
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

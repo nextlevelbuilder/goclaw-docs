@@ -1,4 +1,4 @@
-> 翻译自 [English version](#multi-tenancy)
+> 翻译自 [English version](/multi-tenancy)
 
 # 多租户
 

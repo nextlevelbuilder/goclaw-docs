@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#deploy-security)
+> Bản dịch từ [English version](/deploy-security)
 
 # Tăng cường bảo mật
 
@@ -163,7 +163,7 @@ GoClaw đã thay thế parser `xml.etree.ElementTree` của stdlib bằng `defus
 
 ### Exec approval
 
-Xem [Exec Approval](#exec-approval) để biết flow phê duyệt đầy đủ. Tối thiểu, bật `ask: "on-miss"` để hỏi trước khi chạy các network và infrastructure tool:
+Xem [Exec Approval](/exec-approval) để biết flow phê duyệt đầy đủ. Tối thiểu, bật `ask: "on-miss"` để hỏi trước khi chạy các network và infrastructure tool:
 
 ```json
 {

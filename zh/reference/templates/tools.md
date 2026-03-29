@@ -1,4 +1,4 @@
-> 翻译自 [English version](#template-tools)
+> 翻译自 [English version](/template-tools)
 
 # TOOLS.md 模板
 
@@ -117,8 +117,8 @@ Add whatever helps you do your job. This is your cheat sheet.
 
 ## 下一步
 
-- [上下文文件](#context-files) — 全部 7 个上下文文件及其加载顺序
-- [系统提示结构](#system-prompt-anatomy) — TOOLS.md 在提示中的位置（包含最小模式）
-- [AGENTS.md 模板](#template-agents) — 引用工具的操作指令
+- [上下文文件](/context-files) — 全部 7 个上下文文件及其加载顺序
+- [系统提示结构](/system-prompt-anatomy) — TOOLS.md 在提示中的位置（包含最小模式）
+- [AGENTS.md 模板](/template-agents) — 引用工具的操作指令
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

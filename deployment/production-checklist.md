@@ -125,7 +125,7 @@ If agents execute code, review the sandbox settings:
 - [ ] Alert on repeated `slog.Warn("security.*")` log entries — these indicate blocked attacks or anomalies
 - [ ] Alert on `tracing: span buffer full` — indicates the collector is falling behind under load
 - [ ] Uptime monitoring is configured (e.g. ping `/health` or the gateway port)
-- [ ] Consider enabling OTel export for trace-level visibility — see [Observability](#deploy-observability)
+- [ ] Consider enabling OTel export for trace-level visibility — see [Observability](/deploy-observability)
 - [ ] Interactive API documentation is available at `/docs` (Swagger UI) and `/v1/openapi.json` for integration testing
 
 ---
@@ -135,7 +135,7 @@ If agents execute code, review the sandbox settings:
 - [ ] Log rotation is configured if writing to files (use `logrotate` or your container runtime's log driver)
 - [ ] `GOCLAW_AUTO_UPGRADE=true` is set **only** if you accept automatic schema migrations on startup; otherwise upgrade explicitly with `./goclaw upgrade`
 - [ ] A runbook exists for: restart, rollback, DB restore, and encryption key rotation
-- [ ] Upgrade procedure is documented and tested — see [Upgrading](#deploy-upgrading)
+- [ ] Upgrade procedure is documented and tested — see [Upgrading](/deploy-upgrading)
 
 ---
 
@@ -234,9 +234,9 @@ curl http://localhost:18790/health
 
 ## What's Next
 
-- [Upgrading](#deploy-upgrading) — how to upgrade GoClaw safely
-- [Observability](#deploy-observability) — set up tracing and alerting
-- [Security Hardening](#deploy-security) — deeper security configuration
-- [Docker Compose Setup](#deploy-docker-compose) — production compose patterns
+- [Upgrading](/deploy-upgrading) — how to upgrade GoClaw safely
+- [Observability](/deploy-observability) — set up tracing and alerting
+- [Security Hardening](/deploy-security) — deeper security configuration
+- [Docker Compose Setup](/deploy-docker-compose) — production compose patterns
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

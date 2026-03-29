@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#teams-task-board)
+> Bản dịch từ [English version](/teams-task-board)
 
 # Task Board
 

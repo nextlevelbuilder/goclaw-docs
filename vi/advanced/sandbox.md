@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#sandbox)
+> Bản dịch từ [English version](/sandbox)
 
 # Sandbox
 

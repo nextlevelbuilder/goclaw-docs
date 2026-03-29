@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#dashboard-tour)
+> Bản dịch từ [English version](/dashboard-tour)
 
 # Web Dashboard Tour
 
@@ -305,9 +305,9 @@ Hành động ở footer:
 
 ## Tiếp theo
 
-- [Configuration](#configuration) — Sửa cài đặt qua file config thay thế
-- [GoClaw hoạt động như thế nào](#how-goclaw-works) — Hiểu về kiến trúc
-- [Agents Explained](#agents-explained) — Tìm hiểu về loại agent
+- [Configuration](/configuration) — Sửa cài đặt qua file config thay thế
+- [GoClaw hoạt động như thế nào](/how-goclaw-works) — Hiểu về kiến trúc
+- [Agents Explained](/agents-explained) — Tìm hiểu về loại agent
 
 <!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->
 <!-- TODO: Screenshots cần cho v2.x UI — chạy instance GoClaw và chụp:

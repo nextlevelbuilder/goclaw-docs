@@ -1,4 +1,4 @@
-> 翻译自 [English version](#deploy-database)
+> 翻译自 [English version](/deploy-database)
 
 # 数据库设置
 
@@ -261,8 +261,8 @@ VACUUM ANALYZE traces, spans;
 
 ## 下一步
 
-- [Docker Compose](#deploy-docker-compose) — 使用 postgres overlay 的 compose 部署
-- [安全加固](#deploy-security) — 数据库中密钥的 AES-256-GCM 加密
-- [可观测性](#deploy-observability) — 查询 LLM 费用监控的 traces 和 spans
+- [Docker Compose](/deploy-docker-compose) — 使用 postgres overlay 的 compose 部署
+- [安全加固](/deploy-security) — 数据库中密钥的 AES-256-GCM 加密
+- [可观测性](/deploy-observability) — 查询 LLM 费用监控的 traces 和 spans
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

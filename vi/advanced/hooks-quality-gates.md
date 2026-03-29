@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#hooks-quality-gates)
+> Bản dịch từ [English version](/hooks-quality-gates)
 
 # Hooks & Quality Gates
 
@@ -226,7 +226,7 @@ Respond with EXACTLY one of:
 
 ## Tiếp theo
 
-- [Extended Thinking](#extended-thinking) — suy luận sâu hơn trước khi tạo đầu ra
-- [Exec Approval](#exec-approval) — phê duyệt từ con người trước khi chạy lệnh shell
+- [Extended Thinking](/extended-thinking) — suy luận sâu hơn trước khi tạo đầu ra
+- [Exec Approval](/exec-approval) — phê duyệt từ con người trước khi chạy lệnh shell
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#template-user-predefined)
+> Bản dịch từ [English version](/template-user-predefined)
 
 # USER_PREDEFINED.md Template
 
@@ -112,9 +112,9 @@ File này áp dụng cho tất cả thành viên gia đình. Mỗi người cũn
 
 ## Xem thêm
 
-- [USER.md Template](#template-user) — context cá nhân per-user bổ sung vào file này
-- [SOUL.md Template](#template-soul) — personality và tone của agent (tách biệt khỏi user rules)
-- [AGENTS.md Template](#template-agents) — memory, privacy rules và quyền truy cập tool
-- [Context Files](#context-files) — danh sách đầy đủ các context file và thứ tự load
+- [USER.md Template](/template-user) — context cá nhân per-user bổ sung vào file này
+- [SOUL.md Template](/template-soul) — personality và tone của agent (tách biệt khỏi user rules)
+- [AGENTS.md Template](/template-agents) — memory, privacy rules và quyền truy cập tool
+- [Context Files](/context-files) — danh sách đầy đủ các context file và thứ tự load
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

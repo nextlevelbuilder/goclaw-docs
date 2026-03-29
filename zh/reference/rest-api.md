@@ -1,4 +1,4 @@
-> 翻译自 [English version](#rest-api)
+> 翻译自 [English version](/rest-api)
 
 # REST API
 
@@ -153,7 +153,7 @@ curl -X POST http://localhost:18790/v1/agents \
 
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
-返回使用 [Codex OAuth pool](#provider-codex) 的 agent 的路由活动和每账户健康状态。要求 agent 的 provider 为 `chatgpt_oauth` 类型并已配置 pool。
+返回使用 [Codex OAuth pool](/provider-codex) 的 agent 的路由活动和每账户健康状态。要求 agent 的 provider 为 `chatgpt_oauth` 类型并已配置 pool。
 
 **认证：** 需要 Bearer token。请求用户必须有权访问该 agent。
 
@@ -874,8 +874,8 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 
 ## 下一步
 
-- [WebSocket 协议](#websocket-protocol) — 聊天和 agent 事件的实时 RPC
-- [配置参考](#config-reference) — 完整的 `config.json` schema
-- [数据库 Schema](#database-schema) — 表定义和关系
+- [WebSocket 协议](/websocket-protocol) — 聊天和 agent 事件的实时 RPC
+- [配置参考](/config-reference) — 完整的 `config.json` schema
+- [数据库 Schema](/database-schema) — 表定义和关系
 
 <!-- goclaw-source: 6551c2d1 | 更新: 2026-03-27 -->

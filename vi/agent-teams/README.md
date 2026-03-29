@@ -4,11 +4,11 @@ Agent teams cho phép nhiều agent cộng tác với bảng công việc chung,
 
 ## Điều hướng nhanh
 
-1. **[Agent Teams là gì?](#teams-what-are-teams)** — Tổng quan mô hình team, nguyên tắc thiết kế, ví dụ thực tế
-2. **[Tạo & Quản lý Teams](#teams-creating)** — Tạo team qua API/CLI/Dashboard, quản lý thành viên, cài đặt
-3. **[Bảng công việc](#teams-task-board)** — Vòng đời task, trạng thái, các hành động core
-4. **[Nhắn tin Team](#teams-messaging)** — Tin nhắn trực tiếp, broadcast, định tuyến qua bus
-5. **[Ủy quyền & Chuyển giao](#teams-delegation)** — Liên kết task bắt buộc, sync/async, tìm kiếm
+1. **[Agent Teams là gì?](/teams-what-are-teams)** — Tổng quan mô hình team, nguyên tắc thiết kế, ví dụ thực tế
+2. **[Tạo & Quản lý Teams](/teams-creating)** — Tạo team qua API/CLI/Dashboard, quản lý thành viên, cài đặt
+3. **[Bảng công việc](/teams-task-board)** — Vòng đời task, trạng thái, các hành động core
+4. **[Nhắn tin Team](/teams-messaging)** — Tin nhắn trực tiếp, broadcast, định tuyến qua bus
+5. **[Ủy quyền & Chuyển giao](/teams-delegation)** — Liên kết task bắt buộc, sync/async, tìm kiếm
 
 ## Khái niệm chính
 
@@ -36,11 +36,11 @@ Agent teams cho phép nhiều agent cộng tác với bảng công việc chung,
 
 ## Bắt đầu
 
-1. Bắt đầu với [Agent Teams là gì?](#teams-what-are-teams) để hiểu tổng quan
-2. Đọc [Tạo & Quản lý Teams](#teams-creating) để thiết lập team đầu tiên
-3. Tìm hiểu [Bảng công việc](#teams-task-board) để tạo và quản lý công việc
-4. Đọc [Nhắn tin Team](#teams-messaging) cho các mẫu giao tiếp
-5. Nắm vững [Ủy quyền & Chuyển giao](#teams-delegation) cho phân phối công việc
+1. Bắt đầu với [Agent Teams là gì?](/teams-what-are-teams) để hiểu tổng quan
+2. Đọc [Tạo & Quản lý Teams](/teams-creating) để thiết lập team đầu tiên
+3. Tìm hiểu [Bảng công việc](/teams-task-board) để tạo và quản lý công việc
+4. Đọc [Nhắn tin Team](/teams-messaging) cho các mẫu giao tiếp
+5. Nắm vững [Ủy quyền & Chuyển giao](/teams-delegation) cho phân phối công việc
 
 ## Quy trình phổ biến
 

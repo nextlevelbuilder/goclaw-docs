@@ -1,4 +1,4 @@
-> 翻译自 [English version](#sharing-and-access)
+> 翻译自 [English version](/sharing-and-access)
 
 # 共享与访问控制
 
@@ -218,8 +218,8 @@ agents, err := agentStore.ListAccessible(ctx, userID)
 
 ## 下一步
 
-- [User Overrides — 让用户按 agent 自定义 LLM provider/model](#user-overrides)
-- [System Prompt Anatomy — 权限如何影响 system prompt 各部分](#system-prompt-anatomy)
-- [Creating Agents — 创建 agent 并立即共享](#creating-agents)
+- [User Overrides — 让用户按 agent 自定义 LLM provider/model](/user-overrides)
+- [System Prompt Anatomy — 权限如何影响 system prompt 各部分](/system-prompt-anatomy)
+- [Creating Agents — 创建 agent 并立即共享](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

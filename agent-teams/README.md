@@ -4,34 +4,34 @@ Agent teams enable multi-agent collaboration with a shared task board, mailbox, 
 
 ## Quick Navigation
 
-1. **[What Are Agent Teams?](#teams-what-are-teams)** (82 lines)
+1. **[What Are Agent Teams?](/teams-what-are-teams)** (82 lines)
    - Team model overview
    - Key design principles
    - Real-world example
    - Comparison with other delegation models
 
-2. **[Creating & Managing Teams](#teams-creating)** (169 lines)
+2. **[Creating & Managing Teams](/teams-creating)** (169 lines)
    - Create teams via API/CLI/Dashboard
    - Auto-delegation link creation
    - Manage membership
    - Team settings and access control
    - TEAM.md injection
 
-3. **[Task Board](#teams-task-board)** (218 lines)
+3. **[Task Board](/teams-task-board)** (218 lines)
    - Task lifecycle and states
    - Core `team_tasks` tool actions
    - Create, claim, complete, cancel
    - Task dependencies and auto-unblock
    - Pagination and user scoping
 
-4. **[Team Messaging](#teams-messaging)** (156 lines)
+4. **[Team Messaging](/teams-messaging)** (156 lines)
    - `team_message` tool actions
    - Direct messages and broadcasts
    - Message routing via bus
    - Event broadcasting
    - Best practices
 
-5. **[Delegation & Handoff](#teams-delegation)** (297 lines)
+5. **[Delegation & Handoff](/teams-delegation)** (297 lines)
    - Mandatory task linking
    - Sync vs async delegation
    - Parallel batching
@@ -77,11 +77,11 @@ GoClaw source files (read-only reference):
 
 ## Getting Started
 
-1. Start with [What Are Agent Teams?](#teams-what-are-teams) for conceptual overview
-2. Read [Creating & Managing Teams](#teams-creating) to set up your first team
-3. Learn [Task Board](#teams-task-board) to create and manage work
-4. Read [Team Messaging](#teams-messaging) for communication patterns
-5. Master [Delegation & Handoff](#teams-delegation) for work distribution
+1. Start with [What Are Agent Teams?](/teams-what-are-teams) for conceptual overview
+2. Read [Creating & Managing Teams](/teams-creating) to set up your first team
+3. Learn [Task Board](/teams-task-board) to create and manage work
+4. Read [Team Messaging](/teams-messaging) for communication patterns
+5. Master [Delegation & Handoff](/teams-delegation) for work distribution
 
 ## Common Workflows
 

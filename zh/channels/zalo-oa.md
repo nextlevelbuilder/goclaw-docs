@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-zalo-oa)
+> 翻译自 [English version](/channel-zalo-oa)
 
 # Zalo OA Channel
 
@@ -112,9 +112,9 @@ Bot 可以接收和发送图片（JPG、PNG）。默认最大 5 MB。
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [Zalo 个人](#channel-zalo-personal) — 个人 Zalo 账号集成
-- [Telegram](#channel-telegram) — Telegram bot 设置
-- [Browser Pairing](#channel-browser-pairing) — 配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [Zalo 个人](/channel-zalo-personal) — 个人 Zalo 账号集成
+- [Telegram](/channel-telegram) — Telegram bot 设置
+- [Browser Pairing](/channel-browser-pairing) — 配对流程
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

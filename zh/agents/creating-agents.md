@@ -1,4 +1,4 @@
-> 翻译自 [English version](#creating-agents)
+> 翻译自 [English version](/creating-agents)
 
 # 创建 Agent
 
@@ -177,8 +177,8 @@ curl -X POST http://localhost:8080/v1/agents \
 
 ## 下一步
 
-- [Open vs. Predefined](#open-vs-predefined) — 了解 context 隔离差异
-- [Context Files](#context-files) — 学习 SOUL.md、IDENTITY.md 等系统文件
-- [Summoning & Bootstrap](#summoning-bootstrap) — LLM 如何在首次使用时生成 personality 文件
+- [Open vs. Predefined](/open-vs-predefined) — 了解 context 隔离差异
+- [Context Files](/context-files) — 学习 SOUL.md、IDENTITY.md 等系统文件
+- [Summoning & Bootstrap](/summoning-bootstrap) — LLM 如何在首次使用时生成 personality 文件
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

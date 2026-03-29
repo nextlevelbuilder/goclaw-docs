@@ -253,7 +253,7 @@ Returns:
 
 ## What's Next
 
-- [Exec Approval](#exec-approval) — require human sign-off before running commands
-- [Hooks & Quality Gates](#hooks-quality-gates) — add pre/post checks to agent actions
+- [Exec Approval](/exec-approval) — require human sign-off before running commands
+- [Hooks & Quality Gates](/hooks-quality-gates) — add pre/post checks to agent actions
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -204,7 +204,7 @@ Beyond built-in tools, you can extend agents with:
 - **Custom Tools** — Define tools via the dashboard or API with input schemas and handlers
 - **MCP Servers** — Connect Model Context Protocol servers for dynamic tool registration
 
-See [Custom Tools](#custom-tools) and [MCP Integration](#mcp-integration) for details.
+See [Custom Tools](/custom-tools) and [MCP Integration](/mcp-integration) for details.
 
 ## Common Issues
 
@@ -230,8 +230,8 @@ All parameters are optional — defaults apply when not configured.
 
 ## What's Next
 
-- [Memory System](#memory-system) — How long-term memory and search work
-- [Multi-Tenancy](#multi-tenancy) — Per-user tool access and isolation
-- [Custom Tools](#custom-tools) — Build your own tools
+- [Memory System](/memory-system) — How long-term memory and search work
+- [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
+- [Custom Tools](/custom-tools) — Build your own tools
 
 <!-- goclaw-source: 4d31fe0 | updated: 2026-03-28 -->

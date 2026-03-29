@@ -1,4 +1,4 @@
-> 翻译自 [English version](#recipe-personal-assistant)
+> 翻译自 [English version](/recipe-personal-assistant)
 
 # 个人助理
 
@@ -113,7 +113,7 @@ EOF
 
 </details>
 
-完整 SOUL.md 参考参见[编辑个性](#editing-personality)。
+完整 SOUL.md 参考参见[编辑个性](/editing-personality)。
 
 ## 第 5 步：启用记忆
 
@@ -141,9 +141,9 @@ EOF
 
 ## 下一步
 
-- [编辑个性](#editing-personality) — 自定义 SOUL.md、IDENTITY.md、USER.md
-- [Telegram Channel](#channel-telegram) — 完整 Telegram 配置参考
-- [团队聊天机器人](#recipe-team-chatbot) — 为不同任务添加专家 agent
-- [多 Channel 设置](#recipe-multi-channel) — 同时在 Discord 和 WebSocket 上使用同一 agent
+- [编辑个性](/editing-personality) — 自定义 SOUL.md、IDENTITY.md、USER.md
+- [Telegram Channel](/channel-telegram) — 完整 Telegram 配置参考
+- [团队聊天机器人](/recipe-team-chatbot) — 为不同任务添加专家 agent
+- [多 Channel 设置](/recipe-multi-channel) — 同时在 Discord 和 WebSocket 上使用同一 agent
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

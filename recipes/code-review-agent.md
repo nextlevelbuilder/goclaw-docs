@@ -223,7 +223,7 @@ All `exec`, `read_file`, `write_file`, and `list_files` calls go through the con
 
 ## Alternative: ACP provider for external agents
 
-If your code review workflow uses an external coding agent (Claude Code, Codex, Gemini CLI), you can configure an [ACP (Agent Client Protocol)](#provider-acp) provider instead of OpenRouter. ACP connects to external agents via JSON-RPC 2.0, letting them serve as the LLM backend for your code-reviewer agent.
+If your code review workflow uses an external coding agent (Claude Code, Codex, Gemini CLI), you can configure an [ACP (Agent Client Protocol)](/provider-acp) provider instead of OpenRouter. ACP connects to external agents via JSON-RPC 2.0, letting them serve as the LLM backend for your code-reviewer agent.
 
 ## MCP tool performance
 
@@ -241,8 +241,8 @@ If your code-reviewer uses many MCP tools, GoClaw lazily activates deferred tool
 
 ## What's Next
 
-- [Multi-Channel Setup](#recipe-multi-channel) — expose this agent on Telegram and WebSocket
-- [Team Chatbot](#recipe-team-chatbot) — add the reviewer as a specialist in a team
-- [Tools Reference](#cli-commands) — full built-in tool list and policy options
+- [Multi-Channel Setup](/recipe-multi-channel) — expose this agent on Telegram and WebSocket
+- [Team Chatbot](/recipe-team-chatbot) — add the reviewer as a specialist in a team
+- [Tools Reference](/cli-commands) — full built-in tool list and policy options
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

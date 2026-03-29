@@ -9,7 +9,7 @@ Your agent's personality emerges from two primary configuration files:
 - **SOUL.md**: Defines tone, values, boundaries, expertise, and operational style. This is the "who you are" file.
 - **IDENTITY.md**: Contains metadata like name, emoji, creature type, and avatar. This is the "what you look like" file.
 
-**AGENTS.md** also contributes to the overall persona — it defines conversational rules, memory usage, and group chat behavior. While less about "personality," it shapes how the agent expresses itself in practice. See [Context Files](#context-files) for details.
+**AGENTS.md** also contributes to the overall persona — it defines conversational rules, memory usage, and group chat behavior. While less about "personality," it shapes how the agent expresses itself in practice. See [Context Files](/context-files) for details.
 
 You can edit these files three ways: via the Dashboard UI, the WebSocket API, or directly on disk. Edits made through the UI or API are stored in the database.
 
@@ -229,8 +229,8 @@ console.log(response.file.name, response.file.size, 'bytes');
 
 ## What's Next
 
-- [Context Files — Extending personality with per-user context](#context-files)
-- [System Prompt Anatomy — How personality gets injected into prompts](#system-prompt-anatomy)
-- [Creating Agents — Set up personality during agent creation](#creating-agents)
+- [Context Files — Extending personality with per-user context](/context-files)
+- [System Prompt Anatomy — How personality gets injected into prompts](/system-prompt-anatomy)
+- [Creating Agents — Set up personality during agent creation](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

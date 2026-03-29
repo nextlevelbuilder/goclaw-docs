@@ -115,7 +115,7 @@ GoClaw maps `thinking_level` to DashScope's `thinking_budget`:
 
 ## What's Next
 
-- [Claude CLI](#provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [Claude CLI](/provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

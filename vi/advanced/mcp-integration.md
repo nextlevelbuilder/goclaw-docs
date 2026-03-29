@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#mcp-integration)
+> Bản dịch từ [English version](/mcp-integration)
 
 # MCP Integration
 

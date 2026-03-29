@@ -79,8 +79,8 @@ DeepSeek supports function calling with the standard OpenAI tool format. Tool ca
 
 ## What's Next
 
-- [Groq](#provider-groq) — ultra-fast inference for open models
-- [Gemini](#provider-gemini) — Google Gemini models
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [Groq](/provider-groq) — ultra-fast inference for open models
+- [Gemini](/provider-gemini) — Google Gemini models
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

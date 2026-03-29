@@ -1,4 +1,4 @@
-> 翻译自 [English version](#database-schema)
+> 翻译自 [English version](/database-schema)
 
 # 数据库 Schema
 
@@ -990,8 +990,8 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 
 ## 下一步
 
-- [环境变量](#env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
-- [配置参考](#config-reference) — 数据库配置与 `config.json` 的对应关系
-- [词汇表](#glossary) — Session、Compaction、Lane 等核心术语
+- [环境变量](/env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
+- [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
+- [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
 <!-- goclaw-source: 19eef35 | 更新: 2026-03-25 -->

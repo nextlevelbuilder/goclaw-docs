@@ -49,7 +49,7 @@ Groq excels at latency-sensitive workloads:
 - **High-throughput pipelines** that process many short requests
 - **Prototyping** where fast iteration beats per-token cost
 
-For complex reasoning or very long contexts, consider [Anthropic](#provider-anthropic) or [OpenAI](#provider-openai) instead.
+For complex reasoning or very long contexts, consider [Anthropic](/provider-anthropic) or [OpenAI](/provider-openai) instead.
 
 ## Tool Use
 
@@ -71,8 +71,8 @@ Streaming works via standard OpenAI SSE. GoClaw includes `stream_options.include
 
 ## What's Next
 
-- [Mistral](#provider-mistral) — Mistral AI models
-- [DeepSeek](#provider-deepseek) — reasoning models with thinking content
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [Mistral](/provider-mistral) — Mistral AI models
+- [DeepSeek](/provider-deepseek) — reasoning models with thinking content
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

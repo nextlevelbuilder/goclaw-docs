@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#skills)
+> Bản dịch từ [English version](/skills)
 
 # Skills
 

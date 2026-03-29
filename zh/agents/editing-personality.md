@@ -1,4 +1,4 @@
-> 翻译自 [English version](#editing-personality)
+> 翻译自 [English version](/editing-personality)
 
 # 编辑 Agent Personality
 
@@ -11,7 +11,7 @@ Agent 的 personality 来自两个主要配置文件：
 - **SOUL.md**：定义语调、价值观、边界、专业能力和操作风格。这是"你是谁"的文件。
 - **IDENTITY.md**：包含名称、emoji、形态类型和头像等元数据。这是"你长什么样"的文件。
 
-**AGENTS.md** 也对整体 persona 有贡献——它定义对话规则、记忆使用和群聊行为。虽然不直接涉及"personality"，但它决定了 agent 在实践中如何表达自己。详见 [Context Files](#context-files)。
+**AGENTS.md** 也对整体 persona 有贡献——它定义对话规则、记忆使用和群聊行为。虽然不直接涉及"personality"，但它决定了 agent 在实践中如何表达自己。详见 [Context Files](/context-files)。
 
 你可以通过三种方式编辑这些文件：Dashboard UI、WebSocket API 或直接在磁盘上修改。通过 UI 或 API 所做的编辑存储在数据库中。
 
@@ -231,8 +231,8 @@ console.log(response.file.name, response.file.size, 'bytes');
 
 ## 下一步
 
-- [Context Files — 用每用户 context 扩展 personality](#context-files)
-- [System Prompt Anatomy — personality 如何注入到 prompt 中](#system-prompt-anatomy)
-- [Creating Agents — agent 创建时设置 personality](#creating-agents)
+- [Context Files — 用每用户 context 扩展 personality](/context-files)
+- [System Prompt Anatomy — personality 如何注入到 prompt 中](/system-prompt-anatomy)
+- [Creating Agents — agent 创建时设置 personality](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

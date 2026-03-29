@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#deploy-database)
+> Bản dịch từ [English version](/deploy-database)
 
 # Thiết lập Database
 
@@ -261,8 +261,8 @@ VACUUM ANALYZE traces, spans;
 
 ## Tiếp theo
 
-- [Docker Compose](#deploy-docker-compose) — deploy theo compose với postgres overlay
-- [Security Hardening](#deploy-security) — mã hóa AES-256-GCM cho secrets trong database
-- [Observability](#deploy-observability) — query traces và spans để theo dõi chi phí LLM
+- [Docker Compose](/deploy-docker-compose) — deploy theo compose với postgres overlay
+- [Security Hardening](/deploy-security) — mã hóa AES-256-GCM cho secrets trong database
+- [Observability](/deploy-observability) — query traces và spans để theo dõi chi phí LLM
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

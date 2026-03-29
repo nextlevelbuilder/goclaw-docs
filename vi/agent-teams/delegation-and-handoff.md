@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#teams-delegation)
+> Bản dịch từ [English version](/teams-delegation)
 
 # Delegation & Handoff
 

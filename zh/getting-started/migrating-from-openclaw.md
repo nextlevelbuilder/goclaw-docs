@@ -1,4 +1,4 @@
-> 翻译自 [English version](#migrating-from-openclaw)
+> 翻译自 [English version](/migrating-from-openclaw)
 
 # 从 OpenClaw 迁移
 
@@ -99,7 +99,7 @@ GoClaw 支持 agent 级别（共享）和每用户上下文文件覆盖。以上
 
 ## 迁移步骤
 
-1. **设置 GoClaw** — 按照[安装](#installation)和[快速开始](#quick-start)指南操作
+1. **设置 GoClaw** — 按照[安装](/installation)和[快速开始](/quick-start)指南操作
 2. **映射配置** — 使用上面的映射表翻译你的 OpenClaw 配置
 3. **迁移上下文文件** — 复制你的 `.md` 上下文文件（排除 `TOOLS.md`——GoClaw 不使用）；通过 dashboard 或 API 上传
 4. **更新 channel token** — 将 token 从配置文件移到环境变量
@@ -130,8 +130,8 @@ GoClaw 支持 agent 级别（共享）和每用户上下文文件覆盖。以上
 
 ## 下一步
 
-- [GoClaw 工作原理](#how-goclaw-works) — 了解新架构
-- [多租户](#multi-tenancy) — 了解每用户隔离
-- [配置](#configuration) — 完整配置参考
+- [GoClaw 工作原理](/how-goclaw-works) — 了解新架构
+- [多租户](/multi-tenancy) — 了解每用户隔离
+- [配置](/configuration) — 完整配置参考
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#cli-commands)
+> Bản dịch từ [English version](/cli-commands)
 
 # CLI Commands
 
@@ -467,8 +467,8 @@ goclaw auth logout openai
 
 ## Tiếp theo
 
-- [WebSocket Protocol](#websocket-protocol) — tham chiếu wire protocol của gateway
-- [REST API](#rest-api) — danh sách HTTP API endpoint
-- [Config Reference](#config-reference) — schema đầy đủ `config.json`
+- [WebSocket Protocol](/websocket-protocol) — tham chiếu wire protocol của gateway
+- [REST API](/rest-api) — danh sách HTTP API endpoint
+- [Config Reference](/config-reference) — schema đầy đủ `config.json`
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

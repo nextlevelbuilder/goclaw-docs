@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-You've completed [Installation](#installation) and the gateway is running on `http://localhost:18790`.
+You've completed [Installation](/installation) and the gateway is running on `http://localhost:18790`.
 
 ## Step 1: Open the Dashboard & Complete Setup
 
@@ -41,7 +41,7 @@ To add additional providers later:
 
 Go to **Chat** (under **CORE** in the sidebar) and select the agent you created during setup.
 
-To create additional agents, go to **Agents** (also under **CORE**) and click **Create Agent**. See [Creating Agents](#creating-agents) for details.
+To create additional agents, go to **Agents** (also under **CORE**) and click **Create Agent**. See [Creating Agents](/creating-agents) for details.
 
 ### Using the HTTP API
 
@@ -112,8 +112,8 @@ The `media` field appears in the payload only when the agent returns generated m
 
 ## What's Next
 
-- [Configuration](#configuration) — Fine-tune your setup
-- [Dashboard Tour](#dashboard-tour) — Explore the visual interface
-- [Agents Explained](#agents-explained) — Understand agent types and context
+- [Configuration](/configuration) — Fine-tune your setup
+- [Dashboard Tour](/dashboard-tour) — Explore the visual interface
+- [Agents Explained](/agents-explained) — Understand agent types and context
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

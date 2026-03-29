@@ -1,4 +1,4 @@
-> 翻译自 [English version](#env-vars)
+> 翻译自 [English version](/env-vars)
 
 # 环境变量
 
@@ -219,8 +219,8 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 
 ## 下一步
 
-- [配置参考](#config-reference) — 各类别对应的 `config.json` 字段
-- [CLI 命令](#cli-commands) — `goclaw onboard` 自动生成 `.env.local`
-- [数据库 Schema](#database-schema) — 密钥如何加密存储在 PostgreSQL 中
+- [配置参考](/config-reference) — 各类别对应的 `config.json` 字段
+- [CLI 命令](/cli-commands) — `goclaw onboard` 自动生成 `.env.local`
+- [数据库 Schema](/database-schema) — 密钥如何加密存储在 PostgreSQL 中
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

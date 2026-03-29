@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-feishu)
+> 翻译自 [English version](/channel-feishu)
 
 # 飞书 Channel
 
@@ -204,9 +204,9 @@ list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name 
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [Larksuite](#channel-larksuite) — Larksuite（国际版）设置
-- [Telegram](#channel-telegram) — Telegram bot 设置
-- [Browser Pairing](#channel-browser-pairing) — 配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [Larksuite](/channel-larksuite) — Larksuite（国际版）设置
+- [Telegram](/channel-telegram) — Telegram bot 设置
+- [Browser Pairing](/channel-browser-pairing) — 配对流程
 
 <!-- goclaw-source: 120fc2d | 更新: 2026-03-19 -->

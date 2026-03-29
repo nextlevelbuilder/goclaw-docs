@@ -65,9 +65,9 @@ graph LR
 
 ## What's Next
 
-- [Installation](#installation) — Get GoClaw running on your machine
-- [Quick Start](#quick-start) — Your first agent in 5 minutes
-- [How GoClaw Works](#how-goclaw-works) — Deep dive into the architecture
+- [Installation](/installation) — Get GoClaw running on your machine
+- [Quick Start](/quick-start) — Your first agent in 5 minutes
+- [How GoClaw Works](/how-goclaw-works) — Deep dive into the architecture
 
 
 
@@ -211,7 +211,7 @@ Open `http://localhost:5173` and log in:
 - **User ID:** `system`
 - **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
 
-After login, follow the [Quick Start](#quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
 ---
 
@@ -270,7 +270,7 @@ Open `http://localhost:3000` and log in:
 - **User ID:** `system`
 - **Gateway Token:** found in `.env` (look for `GOCLAW_GATEWAY_TOKEN`)
 
-After login, follow the [Quick Start](#quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
 ### Optional Add-ons
 
@@ -450,6 +450,84 @@ sudo mkdir -p /backup
 
 ---
 
+## Updating to Latest Version
+
+Already running GoClaw and want to upgrade? Follow the steps for your installation path.
+
+### Path 1: Quick Install (Binary)
+
+Re-run the install script — it downloads the latest release and overwrites the existing binary:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nextlevelbuilder/goclaw/main/scripts/install.sh | bash
+```
+
+Then upgrade the database schema:
+
+```bash
+source .env.local && goclaw upgrade
+```
+
+> **Tip:** Run `goclaw upgrade --status` first to check if a schema upgrade is needed, or `goclaw upgrade --dry-run` to preview changes.
+
+### Path 2: Bare Metal
+
+```bash
+cd goclaw
+git pull origin main
+go build -o goclaw .
+./goclaw upgrade
+```
+
+The `goclaw upgrade` command applies pending SQL migrations and runs data hooks. It is safe to run multiple times (idempotent).
+
+### Path 3 & 4: Docker (Local / VPS)
+
+```bash
+cd /path/to/goclaw     # or /opt/goclaw on VPS
+git pull origin main
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  -f docker-compose.selfservice.yml \
+  up -d --build
+```
+
+GoClaw automatically runs pending migrations on startup — no manual `goclaw upgrade` needed.
+
+**Alternative: use the upgrade overlay** for a one-shot database upgrade without restarting the gateway:
+
+```bash
+# Preview changes
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade --dry-run
+
+# Apply upgrade
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  -f docker-compose.upgrade.yml run --rm upgrade
+```
+
+### Auto-upgrade on Startup
+
+Set the `GOCLAW_AUTO_UPGRADE` environment variable to automatically run migrations when the gateway starts — useful for CI/CD and Docker deployments:
+
+```bash
+# .env or .env.local
+GOCLAW_AUTO_UPGRADE=true
+```
+
+When enabled, GoClaw applies pending SQL migrations and data hooks inline during startup. If you prefer manual control, leave this unset and run `goclaw upgrade` yourself.
+
+### Troubleshooting Upgrades
+
+| Problem | Solution |
+|---------|----------|
+| `database schema is dirty` | A previous migration failed. Run `goclaw migrate force <version-1>` then `goclaw upgrade` |
+| `schema is newer than this binary` | Your binary is older than your database. Update the binary first |
+| `UPGRADE NEEDED` on gateway start | Run `goclaw upgrade` or set `GOCLAW_AUTO_UPGRADE=true` |
+
+---
+
 ## Verify Installation
 
 Works for all three paths:
@@ -481,8 +559,8 @@ docker compose logs goclaw
 
 ## What's Next
 
-- [Quick Start](#quick-start) — Run your first agent
-- [Configuration](#configuration) — Customize GoClaw settings
+- [Quick Start](/quick-start) — Run your first agent
+- [Configuration](/configuration) — Customize GoClaw settings
 
 
 
@@ -494,7 +572,7 @@ docker compose logs goclaw
 
 ## Prerequisites
 
-You've completed [Installation](#installation) and the gateway is running on `http://localhost:18790`.
+You've completed [Installation](/installation) and the gateway is running on `http://localhost:18790`.
 
 ## Step 1: Open the Dashboard & Complete Setup
 
@@ -531,7 +609,7 @@ To add additional providers later:
 
 Go to **Chat** (under **CORE** in the sidebar) and select the agent you created during setup.
 
-To create additional agents, go to **Agents** (also under **CORE**) and click **Create Agent**. See [Creating Agents](#creating-agents) for details.
+To create additional agents, go to **Agents** (also under **CORE**) and click **Create Agent**. See [Creating Agents](/creating-agents) for details.
 
 ### Using the HTTP API
 
@@ -602,9 +680,9 @@ The `media` field appears in the payload only when the agent returns generated m
 
 ## What's Next
 
-- [Configuration](#configuration) — Fine-tune your setup
-- [Dashboard Tour](#dashboard-tour) — Explore the visual interface
-- [Agents Explained](#agents-explained) — Understand agent types and context
+- [Configuration](/configuration) — Fine-tune your setup
+- [Dashboard Tour](/dashboard-tour) — Explore the visual interface
+- [Agents Explained](/agents-explained) — Understand agent types and context
 
 
 
@@ -1638,9 +1716,9 @@ Expose GoClaw on a Tailscale network using tsnet.
 
 ## What's Next
 
-- [Web Dashboard Tour](#dashboard-tour) — Configure visually instead of editing JSON
-- [Agents Explained](#agents-explained) — Deep dive into agent configuration
-- [Tools Overview](#tools-overview) — Available tools and categories
+- [Web Dashboard Tour](/dashboard-tour) — Configure visually instead of editing JSON
+- [Agents Explained](/agents-explained) — Deep dive into agent configuration
+- [Tools Overview](/tools-overview) — Available tools and categories
 
 
 
@@ -1859,9 +1937,9 @@ Footer actions:
 
 ## What's Next
 
-- [Configuration](#configuration) — Edit settings via config file instead
-- [How GoClaw Works](#how-goclaw-works) — Understand the architecture
-- [Agents Explained](#agents-explained) — Learn about agent types
+- [Configuration](/configuration) — Edit settings via config file instead
+- [How GoClaw Works](/how-goclaw-works) — Understand the architecture
+- [Agents Explained](/agents-explained) — Learn about agent types
 
 
 
@@ -1966,7 +2044,7 @@ GoClaw supports both agent-level (shared) and per-user context file overrides. T
 
 ## Migration Steps
 
-1. **Set up GoClaw** — Follow the [Installation](#installation) and [Quick Start](#quick-start) guides
+1. **Set up GoClaw** — Follow the [Installation](/installation) and [Quick Start](/quick-start) guides
 2. **Map your config** — Translate your OpenClaw config using the mapping table above
 3. **Move context files** — Copy your `.md` context files (excluding `TOOLS.md` — not used in GoClaw); upload via the dashboard or API
 4. **Update channel tokens** — Move tokens from config to environment variables
@@ -1997,9 +2075,9 @@ Features you gain after migrating:
 
 ## What's Next
 
-- [How GoClaw Works](#how-goclaw-works) — Understand the new architecture
-- [Multi-Tenancy](#multi-tenancy) — Learn about per-user isolation
-- [Configuration](#configuration) — Full config reference
+- [How GoClaw Works](/how-goclaw-works) — Understand the new architecture
+- [Multi-Tenancy](/multi-tenancy) — Learn about per-user isolation
+- [Configuration](/configuration) — Full config reference
 
 
 
@@ -2106,9 +2184,9 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 
 ## What's Next
 
-- [Agents Explained](#agents-explained) — Deep dive into agent types and context files
-- [Tools Overview](#tools-overview) — The full tool catalog
-- [Sessions and History](#sessions-and-history) — How conversations persist
+- [Agents Explained](/agents-explained) — Deep dive into agent types and context files
+- [Tools Overview](/tools-overview) — The full tool catalog
+- [Sessions and History](/sessions-and-history) — How conversations persist
 
 
 
@@ -2287,9 +2365,9 @@ Predefined agents have built-in protection against social engineering. If a user
 
 ## What's Next
 
-- [Sessions and History](#sessions-and-history) — How conversations persist
-- [Tools Overview](#tools-overview) — What tools agents can use
-- [Memory System](#memory-system) — Long-term memory and search
+- [Sessions and History](/sessions-and-history) — How conversations persist
+- [Tools Overview](/tools-overview) — What tools agents can use
+- [Memory System](/memory-system) — Long-term memory and search
 
 
 
@@ -2421,9 +2499,9 @@ Queue capacity is 10 by default. When full, the oldest message is dropped (drop 
 
 ## What's Next
 
-- [Memory System](#memory-system) — How long-term memory works
-- [Tools Overview](#tools-overview) — Available tools for agents
-- [Multi-Tenancy](#multi-tenancy) — Per-user session isolation
+- [Memory System](/memory-system) — How long-term memory works
+- [Tools Overview](/tools-overview) — Available tools for agents
+- [Multi-Tenancy](/multi-tenancy) — Per-user session isolation
 
 
 
@@ -2635,7 +2713,7 @@ Beyond built-in tools, you can extend agents with:
 - **Custom Tools** — Define tools via the dashboard or API with input schemas and handlers
 - **MCP Servers** — Connect Model Context Protocol servers for dynamic tool registration
 
-See [Custom Tools](#custom-tools) and [MCP Integration](#mcp-integration) for details.
+See [Custom Tools](/custom-tools) and [MCP Integration](/mcp-integration) for details.
 
 ## Common Issues
 
@@ -2661,9 +2739,9 @@ All parameters are optional — defaults apply when not configured.
 
 ## What's Next
 
-- [Memory System](#memory-system) — How long-term memory and search work
-- [Multi-Tenancy](#multi-tenancy) — Per-user tool access and isolation
-- [Custom Tools](#custom-tools) — Build your own tools
+- [Memory System](/memory-system) — How long-term memory and search work
+- [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
+- [Custom Tools](/custom-tools) — Build your own tools
 
 
 
@@ -2738,7 +2816,7 @@ Memory is for things worth remembering forever. Sessions are for conversation fl
 
 ## Auto Memory Flush
 
-During [auto-compaction](#sessions-and-history), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
+During [auto-compaction](/sessions-and-history), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
 
 - **Trigger**: >50 messages OR >85% context window (either condition triggers compaction)
 - **Process**: Synchronous flush, max 5 iterations, 90-second timeout
@@ -2794,9 +2872,9 @@ This allows knowledge sharing within a team without duplication. The leader accu
 
 ## What's Next
 
-- [Multi-Tenancy](#multi-tenancy) — Per-user memory isolation
-- [Sessions and History](#sessions-and-history) — How conversation history works
-- [Agents Explained](#agents-explained) — Agent types and context files
+- [Multi-Tenancy](/multi-tenancy) — Per-user memory isolation
+- [Sessions and History](/sessions-and-history) — How conversation history works
+- [Agents Explained](/agents-explained) — Agent types and context files
 
 
 
@@ -3225,9 +3303,9 @@ The system will trigger background LLM summoning to generate personality files. 
 
 ## What's Next
 
-- [Open vs. Predefined](#open-vs-predefined) — understand context isolation differences
-- [Context Files](#context-files) — learn about SOUL.md, IDENTITY.md, and other system files
-- [Summoning & Bootstrap](#summoning-bootstrap) — how LLM generates personality files on first use
+- [Open vs. Predefined](/open-vs-predefined) — understand context isolation differences
+- [Context Files](/context-files) — learn about SOUL.md, IDENTITY.md, and other system files
+- [Summoning & Bootstrap](/summoning-bootstrap) — how LLM generates personality files on first use
 
 
 
@@ -3411,9 +3489,9 @@ Or switch to **predefined** later if the agent outgrows single-user use.
 
 ## What's Next
 
-- [Context Files](#context-files) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
-- [Summoning & Bootstrap](#summoning-bootstrap) — how personality is generated for predefined agents
-- [Creating Agents](#creating-agents) — agent creation walkthrough
+- [Context Files](/context-files) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
+- [Summoning & Bootstrap](/summoning-bootstrap) — how personality is generated for predefined agents
+- [Creating Agents](/creating-agents) — agent creation walkthrough
 
 
 
@@ -3789,9 +3867,9 @@ FAQ bot creation with summoning:
 
 ## What's Next
 
-- [Open vs. Predefined](#open-vs-predefined) — understand when files are per-user vs. agent-level
-- [Summoning & Bootstrap](#summoning-bootstrap) — how SOUL.md and IDENTITY.md are LLM-generated
-- [Creating Agents](#creating-agents) — step-by-step agent creation
+- [Open vs. Predefined](/open-vs-predefined) — understand when files are per-user vs. agent-level
+- [Summoning & Bootstrap](/summoning-bootstrap) — how SOUL.md and IDENTITY.md are LLM-generated
+- [Creating Agents](/creating-agents) — step-by-step agent creation
 
 
 
@@ -4152,9 +4230,9 @@ If you manually set USER.md at agent level before the first user chats, it's use
 
 ## What's Next
 
-- [Context Files](#context-files) — detailed reference for each file
-- [Open vs. Predefined](#open-vs-predefined) — understand when to use each type
-- [Creating Agents](#creating-agents) — step-by-step agent creation
+- [Context Files](/context-files) — detailed reference for each file
+- [Open vs. Predefined](/open-vs-predefined) — understand when to use each type
+- [Creating Agents](/creating-agents) — step-by-step agent creation
 
 
 
@@ -4171,7 +4249,7 @@ Your agent's personality emerges from two primary configuration files:
 - **SOUL.md**: Defines tone, values, boundaries, expertise, and operational style. This is the "who you are" file.
 - **IDENTITY.md**: Contains metadata like name, emoji, creature type, and avatar. This is the "what you look like" file.
 
-**AGENTS.md** also contributes to the overall persona — it defines conversational rules, memory usage, and group chat behavior. While less about "personality," it shapes how the agent expresses itself in practice. See [Context Files](#context-files) for details.
+**AGENTS.md** also contributes to the overall persona — it defines conversational rules, memory usage, and group chat behavior. While less about "personality," it shapes how the agent expresses itself in practice. See [Context Files](/context-files) for details.
 
 You can edit these files three ways: via the Dashboard UI, the WebSocket API, or directly on disk. Edits made through the UI or API are stored in the database.
 
@@ -4391,9 +4469,9 @@ console.log(response.file.name, response.file.size, 'bytes');
 
 ## What's Next
 
-- [Context Files — Extending personality with per-user context](#context-files)
-- [System Prompt Anatomy — How personality gets injected into prompts](#system-prompt-anatomy)
-- [Creating Agents — Set up personality during agent creation](#creating-agents)
+- [Context Files — Extending personality with per-user context](/context-files)
+- [System Prompt Anatomy — How personality gets injected into prompts](/system-prompt-anatomy)
+- [Creating Agents — Set up personality during agent creation](/creating-agents)
 
 
 
@@ -4617,9 +4695,9 @@ This powers the "My Agents" list in the Dashboard.
 
 ## What's Next
 
-- [User Overrides — Let users customize LLM provider/model per-agent](#user-overrides)
-- [System Prompt Anatomy — How permissions affect system prompt sections](#system-prompt-anatomy)
-- [Creating Agents — Create an agent and immediately share it](#creating-agents)
+- [User Overrides — Let users customize LLM provider/model per-agent](/user-overrides)
+- [System Prompt Anatomy — How permissions affect system prompt sections](/system-prompt-anatomy)
+- [Creating Agents — Create an agent and immediately share it](/creating-agents)
 
 
 
@@ -4765,9 +4843,9 @@ Ask your admin if you're unsure which are enabled.
 
 ## What's Next
 
-- [System Prompt Anatomy — How model choice affects system prompt size](#system-prompt-anatomy)
-- [Sharing and Access — Control who can access agents](#sharing-and-access)
-- [Creating Agents — Set default provider/model when creating an agent](#creating-agents)
+- [System Prompt Anatomy — How model choice affects system prompt size](/system-prompt-anatomy)
+- [Sharing and Access — Control who can access agents](/sharing-and-access)
+- [Creating Agents — Set default provider/model when creating an agent](/creating-agents)
 
 
 
@@ -5153,9 +5231,9 @@ This agent will:
 
 ## What's Next
 
-- [Editing Personality — Customize SOUL.md and IDENTITY.md](#editing-personality)
-- [Context Files — Add project-specific context](#context-files)
-- [Creating Agents — Set up system prompt configuration](#creating-agents)
+- [Editing Personality — Customize SOUL.md and IDENTITY.md](/editing-personality)
+- [Context Files — Add project-specific context](/context-files)
+- [Creating Agents — Set up system prompt configuration](/creating-agents)
 
 
 
@@ -5256,13 +5334,13 @@ When a model rejects a request because `max_tokens` is too large, GoClaw automat
 
 ## What's Next
 
-- [Anthropic](#provider-anthropic) — native Claude integration with extended thinking
-- [OpenAI](#provider-openai) — GPT-4o, o-series reasoning models
-- [OpenRouter](#provider-openrouter) — access 100+ models through one API
-- [Gemini](#provider-gemini) — Google Gemini via OpenAI-compatible endpoint
-- [DeepSeek](#provider-deepseek) — DeepSeek with reasoning_content support
-- [Groq](#provider-groq) — ultra-fast inference
-- [Mistral](#provider-mistral) — Mistral AI models
+- [Anthropic](/provider-anthropic) — native Claude integration with extended thinking
+- [OpenAI](/provider-openai) — GPT-4o, o-series reasoning models
+- [OpenRouter](/provider-openrouter) — access 100+ models through one API
+- [Gemini](/provider-gemini) — Google Gemini via OpenAI-compatible endpoint
+- [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
+- [Groq](/provider-groq) — ultra-fast inference
+- [Mistral](/provider-mistral) — Mistral AI models
 
 
 
@@ -5373,8 +5451,8 @@ Anthropic uses a different tool schema format than OpenAI. GoClaw translates aut
 
 ## What's Next
 
-- [OpenAI](#provider-openai) — GPT-4o and o-series reasoning models
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [OpenAI](/provider-openai) — GPT-4o and o-series reasoning models
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 
 
@@ -5479,9 +5557,9 @@ OpenAI function calling works out of the box. GoClaw converts internal tool defi
 
 ## What's Next
 
-- [OpenRouter](#provider-openrouter) — access 100+ models through one API key
-- [Anthropic](#provider-anthropic) — native Claude integration
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [OpenRouter](/provider-openrouter) — access 100+ models through one API key
+- [Anthropic](/provider-anthropic) — native Claude integration
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 
 
@@ -5575,9 +5653,9 @@ OpenRouter passes through most features to the underlying model provider. Availa
 
 ## What's Next
 
-- [Gemini](#provider-gemini) — Google Gemini directly via OpenAI-compatible endpoint
-- [OpenAI](#provider-openai) — direct OpenAI integration
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [Gemini](/provider-gemini) — Google Gemini directly via OpenAI-compatible endpoint
+- [OpenAI](/provider-openai) — direct OpenAI integration
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 
 
@@ -5663,9 +5741,9 @@ GoClaw maps this to `reasoning_effort` on the request. Thinking tokens are track
 
 ## What's Next
 
-- [DeepSeek](#provider-deepseek) — DeepSeek models with reasoning_content support
-- [OpenRouter](#provider-openrouter) — access Gemini and 100+ other models through one key
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [DeepSeek](/provider-deepseek) — DeepSeek models with reasoning_content support
+- [OpenRouter](/provider-openrouter) — access Gemini and 100+ other models through one key
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 
 
@@ -5752,9 +5830,9 @@ DeepSeek supports function calling with the standard OpenAI tool format. Tool ca
 
 ## What's Next
 
-- [Groq](#provider-groq) — ultra-fast inference for open models
-- [Gemini](#provider-gemini) — Google Gemini models
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [Groq](/provider-groq) — ultra-fast inference for open models
+- [Gemini](/provider-gemini) — Google Gemini models
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 
 
@@ -5811,7 +5889,7 @@ Groq excels at latency-sensitive workloads:
 - **High-throughput pipelines** that process many short requests
 - **Prototyping** where fast iteration beats per-token cost
 
-For complex reasoning or very long contexts, consider [Anthropic](#provider-anthropic) or [OpenAI](#provider-openai) instead.
+For complex reasoning or very long contexts, consider [Anthropic](/provider-anthropic) or [OpenAI](/provider-openai) instead.
 
 ## Tool Use
 
@@ -5833,9 +5911,9 @@ Streaming works via standard OpenAI SSE. GoClaw includes `stream_options.include
 
 ## What's Next
 
-- [Mistral](#provider-mistral) — Mistral AI models
-- [DeepSeek](#provider-deepseek) — reasoning models with thinking content
-- [Overview](#providers-overview) — provider architecture and retry logic
+- [Mistral](/provider-mistral) — Mistral AI models
+- [DeepSeek](/provider-deepseek) — reasoning models with thinking content
+- [Overview](/providers-overview) — provider architecture and retry logic
 
 
 
@@ -5916,9 +5994,9 @@ For code-heavy agents, `codestral-latest` is optimized for programming tasks and
 
 ## What's Next
 
-- [Overview](#providers-overview) — provider architecture and retry logic
-- [Groq](#provider-groq) — ultra-fast inference for open models
-- [OpenRouter](#provider-openrouter) — access Mistral and 100+ other models through one key
+- [Overview](/providers-overview) — provider architecture and retry logic
+- [Groq](/provider-groq) — ultra-fast inference for open models
+- [OpenRouter](/provider-openrouter) — access Mistral and 100+ other models through one key
 
 
 
@@ -6016,8 +6094,8 @@ Set the default in `agents.defaults.model`, or pass `model` per-request via the 
 
 ## What's Next
 
-- [MiniMax](#provider-minimax) — another OpenAI-compatible provider with a custom chat path
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [MiniMax](/provider-minimax) — another OpenAI-compatible provider with a custom chat path
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 
 
@@ -6115,8 +6193,8 @@ If you use MiniMax's international endpoint:
 
 ## What's Next
 
-- [Cohere](#provider-cohere) — another OpenAI-compatible provider
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [Cohere](/provider-cohere) — another OpenAI-compatible provider
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 
 
@@ -6211,8 +6289,8 @@ The default API base is `https://api.cohere.com/compatibility/v1`. GoClaw sets t
 
 ## What's Next
 
-- [Perplexity](#provider-perplexity) — search-augmented AI via OpenAI-compatible API
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [Perplexity](/provider-perplexity) — search-augmented AI via OpenAI-compatible API
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 
 
@@ -6260,9 +6338,9 @@ If Ollama is running on a different host, set the full URL explicitly:
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Ollama Cloud](#provider-ollama-cloud) — hosted Ollama option
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Ollama Cloud](/provider-ollama-cloud) — hosted Ollama option
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 
 
@@ -6294,9 +6372,9 @@ Ollama Cloud provides hosted inference for Ollama-compatible models. GoClaw conn
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Ollama](#provider-ollama) — run models locally instead
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Ollama](/provider-ollama) — run models locally instead
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 
 
@@ -6404,8 +6482,8 @@ Perplexity's `sonar` models automatically perform web searches before answering.
 
 ## What's Next
 
-- [DashScope](#provider-dashscope) — Alibaba's Qwen models via OpenAI-compatible API
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [DashScope](/provider-dashscope) — Alibaba's Qwen models via OpenAI-compatible API
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 
 
@@ -6528,8 +6606,8 @@ GoClaw maps `thinking_level` to DashScope's `thinking_budget`:
 
 ## What's Next
 
-- [Claude CLI](#provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [Claude CLI](/provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 
 
@@ -6547,8 +6625,8 @@ Bailian is Alibaba Cloud's AI model platform. GoClaw connects to it using the Op
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [DashScope (Qwen)](#provider-dashscope)
+- [Provider Overview](/providers-overview)
+- [DashScope (Qwen)](/provider-dashscope)
 
 
 
@@ -6579,9 +6657,9 @@ Suno is an AI music generation provider. GoClaw agents can use Suno to compose s
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Media Generation](#media-generation)
-- [MiniMax](#provider-minimax) — another provider with audio capabilities
+- [Provider Overview](/providers-overview)
+- [Media Generation](/media-generation)
+- [MiniMax](/provider-minimax) — another provider with audio capabilities
 
 
 
@@ -6599,8 +6677,8 @@ Zai provides two variants: a general-purpose provider and a coding-specialized v
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 
 
@@ -6632,9 +6710,9 @@ YesScale is a cloud AI platform providing access to a wide range of language mod
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Custom / OpenAI-Compatible](#provider-custom)
-- [OpenRouter](#provider-openrouter) — another multi-model platform
+- [Provider Overview](/providers-overview)
+- [Custom / OpenAI-Compatible](/provider-custom)
+- [OpenRouter](/provider-openrouter) — another multi-model platform
 
 
 
@@ -6819,8 +6897,8 @@ This writes a `cli-debug.log` file in each session's workspace directory with th
 
 ## What's Next
 
-- [Codex / ChatGPT](#provider-codex) — OAuth-based provider using your ChatGPT subscription
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API
+- [Codex / ChatGPT](/provider-codex) — OAuth-based provider using your ChatGPT subscription
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
 
 
@@ -7016,7 +7094,7 @@ To inspect routing decisions and per-account health for an agent, call:
 GET /v1/agents/{id}/codex-pool-activity
 ```
 
-See [REST API](#rest-api) for the response shape.
+See [REST API](/rest-api) for the response shape.
 
 
 
@@ -7201,9 +7279,9 @@ On response, GoClaw:
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Claude CLI](#provider-claude-cli)
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Claude CLI](/provider-claude-cli)
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 
 
@@ -7394,9 +7472,9 @@ If tool calls fail, try disabling tools for that provider and falling back to pl
 
 ## What's Next
 
-- [Overview](#providers-overview) — compare all providers side by side
-- [DashScope](#provider-dashscope) — Alibaba's Qwen models
-- [Perplexity](#provider-perplexity) — search-augmented generation
+- [Overview](/providers-overview) — compare all providers side by side
+- [DashScope](/provider-dashscope) — Alibaba's Qwen models
+- [Perplexity](/provider-perplexity) — search-augmented generation
 
 
 
@@ -7553,12 +7631,12 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 
 ## Next Steps
 
-- [Telegram](#channel-telegram) — Full guide for Telegram integration
-- [Discord](#channel-discord) — Discord bot setup
-- [Slack](#channel-slack) — Slack Socket Mode integration
-- [Larksuite](#channel-feishu) — Larksuite integration with streaming cards
-- [WebSocket](#channel-websocket) — Direct agent API via WS
-- [Browser Pairing](#channel-browser-pairing) — 8-char code pairing flow
+- [Telegram](/channel-telegram) — Full guide for Telegram integration
+- [Discord](/channel-discord) — Discord bot setup
+- [Slack](/channel-slack) — Slack Socket Mode integration
+- [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
+- [WebSocket](/channel-websocket) — Direct agent API via WS
+- [Browser Pairing](/channel-browser-pairing) — 8-char code pairing flow
 
 
 
@@ -7836,10 +7914,10 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Discord](#channel-discord) — Discord bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
-- [Sessions & History](#sessions-and-history) — Conversation history
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Discord](/channel-discord) — Discord bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
+- [Sessions & History](/sessions-and-history) — Conversation history
 
 
 
@@ -7977,10 +8055,10 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Larksuite](#channel-feishu) — Larksuite integration with streaming cards
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -8190,10 +8268,10 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Larksuite](#channel-larksuite) — Larksuite (international) setup
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Larksuite](/channel-larksuite) — Larksuite (international) setup
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -8411,10 +8489,10 @@ The `group:fs` prefix selects all tools in the `fs` (Feishu/Lark) tool group. Th
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Zalo OA](#channel-zalo-oa) — Zalo Official Account
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Zalo OA](/channel-zalo-oa) — Zalo Official Account
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -8532,10 +8610,10 @@ Default DM policy is `"pairing"`. New users see pairing code instructions with 6
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Zalo Personal](#channel-zalo-personal) — Personal Zalo account integration
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Zalo Personal](/channel-zalo-personal) — Personal Zalo account integration
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -8547,7 +8625,7 @@ Unofficial personal Zalo account integration using reverse-engineered protocol (
 
 ## Warning: Use at Your Own Risk
 
-Zalo Personal uses an **unofficial, reverse-engineered protocol**. Your account may be locked, banned, or restricted by Zalo at any time. This is NOT recommended for production bots. Use [Zalo OA](#channel-zalo-oa) for official integrations.
+Zalo Personal uses an **unofficial, reverse-engineered protocol**. Your account may be locked, banned, or restricted by Zalo at any time. This is NOT recommended for production bots. Use [Zalo OA](/channel-zalo-oa) for official integrations.
 
 A security warning is logged on startup: `security.unofficial_api`.
 
@@ -8663,10 +8741,10 @@ On connection failure:
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Zalo OA](#channel-zalo-oa) — Official Zalo integration (recommended)
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Zalo OA](/channel-zalo-oa) — Official Zalo integration (recommended)
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -8903,10 +8981,10 @@ The `allow_from` list supports both user IDs and Slack channel IDs for group-lev
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Discord](#channel-discord) — Discord bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Discord](/channel-discord) — Discord bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -9051,10 +9129,10 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Larksuite](#channel-feishu) — Larksuite integration
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Larksuite](/channel-feishu) — Larksuite integration
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -9314,9 +9392,9 @@ Failed requests include error details:
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [WebSocket Protocol](#websocket-protocol) — Full protocol documentation
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow for custom clients
+- [Overview](/channels-overview) — Channel concepts and policies
+- [WebSocket Protocol](/websocket-protocol) — Full protocol documentation
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow for custom clients
 
 
 
@@ -9562,10 +9640,10 @@ class PairingClient {
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [WebSocket](#channel-websocket) — Direct RPC communication
-- [Telegram](#channel-telegram) — Telegram setup
-- [WebSocket Protocol](#websocket-protocol) — Full protocol reference
+- [Overview](/channels-overview) — Channel concepts and policies
+- [WebSocket](/channel-websocket) — Direct RPC communication
+- [Telegram](/channel-telegram) — Telegram setup
+- [WebSocket Protocol](/websocket-protocol) — Full protocol reference
 
 
 
@@ -10825,9 +10903,9 @@ The check runs on the **fully rendered command** after all `{{.param}}` substitu
 
 ## What's Next
 
-- [MCP Integration](#mcp-integration) — connect external tool servers instead of writing shell commands
-- [Exec Approval](#exec-approval) — require human approval before commands run
-- [Sandbox](#sandbox) — run commands inside Docker for extra isolation
+- [MCP Integration](/mcp-integration) — connect external tool servers instead of writing shell commands
+- [Exec Approval](/exec-approval) — require human approval before commands run
+- [Sandbox](/sandbox) — run commands inside Docker for extra isolation
 
 
 
@@ -11404,9 +11482,9 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 
 ## What's Next
 
-- [MCP Integration](#mcp-integration) — connect external tool servers
-- [Custom Tools](#custom-tools) — add shell-backed tools to your agents
-- [Scheduling & Cron](#scheduling-cron) — run agents on a schedule
+- [MCP Integration](/mcp-integration) — connect external tool servers
+- [Custom Tools](/custom-tools) — add shell-backed tools to your agents
+- [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
 
 
@@ -11727,9 +11805,9 @@ When a session's conversation history exceeds **60% of the context window**, the
 ## What's Next
 
 - [Heartbeat](heartbeat.md) — proactive periodic check-ins with smart suppression
-- [Custom Tools](#custom-tools) — give agents shell commands to run during scheduled turns
-- [Skills](#skills) — inject domain knowledge so scheduled agents are more effective
-- [Sandbox](#sandbox) — isolate code execution during scheduled agent runs
+- [Custom Tools](/custom-tools) — give agents shell commands to run during scheduled turns
+- [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
+- [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
 
 
@@ -12226,9 +12304,9 @@ docker ps --filter "label=goclaw.sandbox=true"
 
 ## What's Next
 
-- [Custom Tools](#custom-tools) — define shell tools that also benefit from sandbox isolation
-- [Exec Approval](#exec-approval) — require human approval before any command runs, sandboxed or not
-- [Scheduling & Cron](#scheduling-cron) — run sandboxed agent turns on a schedule
+- [Custom Tools](/custom-tools) — define shell tools that also benefit from sandbox isolation
+- [Exec Approval](/exec-approval) — require human approval before any command runs, sandboxed or not
+- [Scheduling & Cron](/scheduling-cron) — run sandboxed agent turns on a schedule
 
 
 
@@ -12390,9 +12468,9 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 
 ## What's Next
 
-- [TTS & Voice](#tts-voice) — Text-to-speech for agent replies
-- [Custom Tools](#custom-tools) — Build your own tools
-- [Provider Overview](#providers-overview) — Configure API keys
+- [TTS & Voice](/tts-voice) — Text-to-speech for agent replies
+- [Custom Tools](/custom-tools) — Build your own tools
+- [Provider Overview](/providers-overview) — Configure API keys
 
 
 
@@ -12613,8 +12691,8 @@ pip install edge-tts
 
 ## What's Next
 
-- [Scheduling & Cron](#scheduling-cron) — trigger agents on a schedule
-- [Extended Thinking](#extended-thinking) — deeper reasoning for complex replies
+- [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
+- [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
 
 
@@ -12705,8 +12783,8 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 
 ## What's Next
 
-- [Memory System](#memory-system) — Vector-based long-term memory
-- [Sessions & History](#sessions-and-history) — Conversation storage
+- [Memory System](/memory-system) — Vector-based long-term memory
+- [Sessions & History](/sessions-and-history) — Conversation storage
 
 
 
@@ -12789,8 +12867,8 @@ Both backends implement the same interface:
 
 ## What's Next
 
-- [Database Setup](#deploy-database) — PostgreSQL configuration
-- [Production Checklist](#deploy-checklist) — Deploy with confidence
+- [Database Setup](/deploy-database) — PostgreSQL configuration
+- [Production Checklist](/deploy-checklist) — Deploy with confidence
 
 
 
@@ -12997,8 +13075,8 @@ Returns:
 
 ## What's Next
 
-- [Exec Approval](#exec-approval) — require human sign-off before running commands
-- [Hooks & Quality Gates](#hooks-quality-gates) — add pre/post checks to agent actions
+- [Exec Approval](/exec-approval) — require human sign-off before running commands
+- [Hooks & Quality Gates](/hooks-quality-gates) — add pre/post checks to agent actions
 
 
 
@@ -13189,8 +13267,8 @@ Maps to `reasoning_effort: "low"` on the OpenAI API.
 
 ## What's Next
 
-- [Agents Overview](#agents-explained) — per-agent configuration reference
-- [Hooks & Quality Gates](#hooks-quality-gates) — validate agent outputs after reasoning
+- [Agents Overview](/agents-explained) — per-agent configuration reference
+- [Hooks & Quality Gates](/hooks-quality-gates) — validate agent outputs after reasoning
 
 
 
@@ -13390,8 +13468,8 @@ Respond with EXACTLY one of:
 
 ## What's Next
 
-- [Extended Thinking](#extended-thinking) — deeper reasoning before producing output
-- [Exec Approval](#exec-approval) — human-in-the-loop approval for shell commands
+- [Extended Thinking](/extended-thinking) — deeper reasoning before producing output
+- [Exec Approval](/exec-approval) — human-in-the-loop approval for shell commands
 
 
 
@@ -13570,8 +13648,8 @@ source .env.local
 
 ## What's Next
 
-- [Providers Overview](#providers-overview) — all supported LLM providers and how to configure them
-- [Hooks & Quality Gates](#hooks-quality-gates) — add validation to agent outputs
+- [Providers Overview](/providers-overview) — all supported LLM providers and how to configure them
+- [Hooks & Quality Gates](/hooks-quality-gates) — add validation to agent outputs
 
 
 
@@ -13809,9 +13887,9 @@ When a key is created or revoked, a `cache.invalidate` event is broadcast on the
 
 ## What's Next
 
-- [Authentication & OAuth](#authentication) — gateway token and OAuth flow
-- [Exec Approval](#exec-approval) — require `operator.approvals` scope
-- [Security Hardening](#deploy-security) — full 5-layer permission overview
+- [Authentication & OAuth](/authentication) — gateway token and OAuth flow
+- [Exec Approval](/exec-approval) — require `operator.approvals` scope
+- [Security Hardening](/deploy-security) — full 5-layer permission overview
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials into CLI tools (gh, aws, gcloud) without exposing secrets to the agent
 
 
@@ -13830,9 +13908,9 @@ CLI Credentials let you define named credential sets (API keys, tokens, connecti
 
 ## What's Next
 
-- [Exec Approval](#exec-approval)
-- [API Keys & RBAC](#api-keys-rbac)
-- [Security Hardening](#deploy-security)
+- [Exec Approval](/exec-approval)
+- [API Keys & RBAC](/api-keys-rbac)
+- [Security Hardening](/deploy-security)
 
 
 
@@ -14003,9 +14081,9 @@ Set `"always": true` to permanently allow this binary for the lifetime of the pr
 
 ## What's Next
 
-- [Sandbox](#sandbox) — run exec commands inside an isolated Docker container
-- [Custom Tools](#custom-tools) — define tools backed by shell commands
-- [Security Hardening](#deploy-security) — full five-layer security overview
+- [Sandbox](/sandbox) — run exec commands inside an isolated Docker container
+- [Custom Tools](/custom-tools) — define tools backed by shell commands
+- [Security Hardening](/deploy-security) — full five-layer security overview
 
 
 
@@ -14024,7 +14102,7 @@ As agents run long tasks, tool results accumulate in the conversation history. L
 1. **Soft trim** — truncate oversized tool results to head + tail, dropping the middle.
 2. **Hard clear** — if the context is still too full, replace entire tool results with a short placeholder.
 
-Context pruning is distinct from [session compaction](#sessions-and-history). Compaction permanently summarizes and truncates conversation history. Pruning is non-destructive: the original tool results remain in the session store and are never modified — only the message slice sent to the LLM is trimmed.
+Context pruning is distinct from [session compaction](/sessions-and-history). Compaction permanently summarizes and truncates conversation history. Pruning is non-destructive: the original tool results remain in the session store and are never modified — only the message slice sent to the LLM is trimmed.
 
 
 ## Soft Trim
@@ -14202,15 +14280,15 @@ Increase `softTrim.headChars` and `softTrim.tailChars`, or raise `softTrim.maxCh
 
 **Context still overflows despite pruning**
 
-Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](#sessions-and-history) or reduce the system prompt size.
+Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](/sessions-and-history) or reduce the system prompt size.
 
 ---
 
 ## What's Next
 
-- [Sessions & History](#sessions-and-history) — session compaction, history limits
-- [Memory System](#memory-system) — persistent memory across sessions
-- [Configuration Reference](#config-reference) — full agent config reference
+- [Sessions & History](/sessions-and-history) — session compaction, history limits
+- [Memory System](/memory-system) — persistent memory across sessions
+- [Configuration Reference](/config-reference) — full agent config reference
 
 
 
@@ -14447,9 +14525,9 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 
 ## What's Next
 
-- [Channel Overview](#channels-overview)
-- [Multi-Channel Setup](#recipe-multi-channel)
-- [Multi-Tenancy](#multi-tenancy)
+- [Channel Overview](/channels-overview)
+- [Multi-Channel Setup](/recipe-multi-channel)
+- [Multi-Tenancy](/multi-tenancy)
 
 
 
@@ -14585,9 +14663,9 @@ This index covers 89% of traces (top-level only) and makes hourly/daily/weekly w
 
 ## What's Next
 
-- [Observability](#deploy-observability) — OpenTelemetry tracing and Jaeger integration
-- [Security Hardening](#deploy-security) — rate limiting at the gateway level
-- [Database Setup](#deploy-database) — PostgreSQL setup including the quota index
+- [Observability](/deploy-observability) — OpenTelemetry tracing and Jaeger integration
+- [Security Hardening](/deploy-security) — rate limiting at the gateway level
+- [Database Setup](/deploy-database) — PostgreSQL setup including the quota index
 
 
 
@@ -14787,9 +14865,9 @@ The check runs once per request, before any LLM calls. Sub-agent delegations run
 
 ## What's Next
 
-- [Usage & Quota](#usage-quota) — per-user request limits and token counts
-- [Observability](#deploy-observability) — OpenTelemetry export for spans including cost fields
-- [Configuration Reference](#config-reference) — full `telemetry` config options
+- [Usage & Quota](/usage-quota) — per-user request limits and token counts
+- [Observability](/deploy-observability) — OpenTelemetry export for spans including cost fields
+- [Configuration Reference](/config-reference) — full `telemetry` config options
 
 
 
@@ -15763,10 +15841,10 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 
 ## What's Next
 
-- [Database Setup](#deploy-database) — manual PostgreSQL setup and migrations
-- [Security Hardening](#deploy-security) — five-layer security overview
-- [Observability](#deploy-observability) — OpenTelemetry and Jaeger configuration
-- [Tailscale](#deploy-tailscale) — secure remote access via Tailscale
+- [Database Setup](/deploy-database) — manual PostgreSQL setup and migrations
+- [Security Hardening](/deploy-security) — five-layer security overview
+- [Observability](/deploy-observability) — OpenTelemetry and Jaeger configuration
+- [Tailscale](/deploy-tailscale) — secure remote access via Tailscale
 
 
 
@@ -16017,9 +16095,9 @@ VACUUM ANALYZE traces, spans;
 
 ## What's Next
 
-- [Docker Compose](#deploy-docker-compose) — compose-based deployment with the postgres overlay
-- [Security Hardening](#deploy-security) — AES-256-GCM encryption for secrets in the database
-- [Observability](#deploy-observability) — querying traces and spans for LLM cost monitoring
+- [Docker Compose](/deploy-docker-compose) — compose-based deployment with the postgres overlay
+- [Security Hardening](/deploy-security) — AES-256-GCM encryption for secrets in the database
+- [Observability](/deploy-observability) — querying traces and spans for LLM cost monitoring
 
 
 
@@ -16160,7 +16238,7 @@ GoClaw replaced the stdlib `xml.etree.ElementTree` XML parser with `defusedxml` 
 
 ### Exec approval
 
-See [Exec Approval](#exec-approval) for the full interactive approval flow. At minimum, enable `ask: "on-miss"` to prompt before network and infrastructure tools run:
+See [Exec Approval](/exec-approval) for the full interactive approval flow. At minimum, enable `ask: "on-miss"` to prompt before network and infrastructure tools run:
 
 ```json
 {
@@ -16664,9 +16742,9 @@ This means dashboard users see real-time logs without SSH access, and secrets ne
 
 ## What's Next
 
-- [Production Checklist](#deploy-checklist) — monitoring and alerting recommendations
-- [Docker Compose Setup](#deploy-docker-compose) — full compose file reference
-- [Security Hardening](#deploy-security) — securing your deployment
+- [Production Checklist](/deploy-checklist) — monitoring and alerting recommendations
+- [Docker Compose Setup](/deploy-docker-compose) — full compose file reference
+- [Security Hardening](/deploy-security) — securing your deployment
 
 
 
@@ -16812,9 +16890,9 @@ You can find the full hostname in your [Tailscale admin console](https://login.t
 
 ## What's Next
 
-- [Production Checklist](#deploy-checklist) — secure your deployment end to end
-- [Security Hardening](#deploy-security) — CORS, rate limits, and token auth
-- [Docker Compose Setup](#deploy-docker-compose) — full compose overlay reference
+- [Production Checklist](/deploy-checklist) — secure your deployment end to end
+- [Security Hardening](/deploy-security) — CORS, rate limits, and token auth
+- [Docker Compose Setup](/deploy-docker-compose) — full compose overlay reference
 
 
 
@@ -16927,7 +17005,7 @@ If agents execute code, review the sandbox settings:
 - [ ] Alert on repeated `slog.Warn("security.*")` log entries — these indicate blocked attacks or anomalies
 - [ ] Alert on `tracing: span buffer full` — indicates the collector is falling behind under load
 - [ ] Uptime monitoring is configured (e.g. ping `/health` or the gateway port)
-- [ ] Consider enabling OTel export for trace-level visibility — see [Observability](#deploy-observability)
+- [ ] Consider enabling OTel export for trace-level visibility — see [Observability](/deploy-observability)
 - [ ] Interactive API documentation is available at `/docs` (Swagger UI) and `/v1/openapi.json` for integration testing
 
 ---
@@ -16937,7 +17015,7 @@ If agents execute code, review the sandbox settings:
 - [ ] Log rotation is configured if writing to files (use `logrotate` or your container runtime's log driver)
 - [ ] `GOCLAW_AUTO_UPGRADE=true` is set **only** if you accept automatic schema migrations on startup; otherwise upgrade explicitly with `./goclaw upgrade`
 - [ ] A runbook exists for: restart, rollback, DB restore, and encryption key rotation
-- [ ] Upgrade procedure is documented and tested — see [Upgrading](#deploy-upgrading)
+- [ ] Upgrade procedure is documented and tested — see [Upgrading](/deploy-upgrading)
 
 ---
 
@@ -17036,10 +17114,10 @@ curl http://localhost:18790/health
 
 ## What's Next
 
-- [Upgrading](#deploy-upgrading) — how to upgrade GoClaw safely
-- [Observability](#deploy-observability) — set up tracing and alerting
-- [Security Hardening](#deploy-security) — deeper security configuration
-- [Docker Compose Setup](#deploy-docker-compose) — production compose patterns
+- [Upgrading](/deploy-upgrading) — how to upgrade GoClaw safely
+- [Observability](/deploy-observability) — set up tracing and alerting
+- [Security Hardening](/deploy-security) — deeper security configuration
+- [Docker Compose Setup](/deploy-docker-compose) — production compose patterns
 
 
 
@@ -17283,7 +17361,7 @@ These five migrations are auto-applied on startup when upgrading to v2.x. No man
 
 GoClaw v2.x includes an automatic version checker. After startup, the gateway polls GitHub releases in the background and shows a notification banner in the dashboard when a newer version is available. No configuration is needed — the check runs automatically and requires outbound HTTPS to `api.github.com`. The check runs periodically while the gateway is running; the result is cached and served to dashboard clients.
 
-For the full schema history see [Database Schema → Migration History](#database-schema).
+For the full schema history see [Database Schema → Migration History](/database-schema).
 
 ## Recently Removed Environment Variables
 
@@ -17318,9 +17396,9 @@ Before each upgrade, check the release notes for:
 
 ## What's Next
 
-- [Production Checklist](#deploy-checklist) — full pre-launch verification
-- [Database Setup](#deploy-database) — PostgreSQL and pgvector setup
-- [Observability](#deploy-observability) — monitor your gateway post-upgrade
+- [Production Checklist](/deploy-checklist) — full pre-launch verification
+- [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
+- [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
 
 
@@ -17439,7 +17517,7 @@ EOF
 
 </details>
 
-See [Editing Personality](#editing-personality) for full SOUL.md reference.
+See [Editing Personality](/editing-personality) for full SOUL.md reference.
 
 ## Step 5: Enable memory
 
@@ -17467,10 +17545,10 @@ A few extra touches you can configure in the dashboard under **Agents → your a
 
 ## What's Next
 
-- [Editing Personality](#editing-personality) — customize SOUL.md, IDENTITY.md, USER.md
-- [Telegram Channel](#channel-telegram) — full Telegram configuration reference
-- [Team Chatbot](#recipe-team-chatbot) — add specialist agents for different tasks
-- [Multi-Channel Setup](#recipe-multi-channel) — put the same agent on Discord and WebSocket too
+- [Editing Personality](/editing-personality) — customize SOUL.md, IDENTITY.md, USER.md
+- [Telegram Channel](/channel-telegram) — full Telegram configuration reference
+- [Team Chatbot](/recipe-team-chatbot) — add specialist agents for different tasks
+- [Multi-Channel Setup](/recipe-multi-channel) — put the same agent on Discord and WebSocket too
 
 
 
@@ -17732,10 +17810,10 @@ The lead delegates via the `delegate` tool. Specialists run as sub-sessions and 
 
 ## What's Next
 
-- [What Are Teams?](#teams-what-are-teams) — team concepts and architecture
-- [Task Board](#teams-task-board) — full task board reference
-- [Open vs. Predefined](#open-vs-predefined) — why specialists must be predefined
-- [Customer Support](#recipe-customer-support) — predefined agent handling many users
+- [What Are Teams?](/teams-what-are-teams) — team concepts and architecture
+- [Task Board](/teams-task-board) — full task board reference
+- [Open vs. Predefined](/open-vs-predefined) — why specialists must be predefined
+- [Customer Support](/recipe-customer-support) — predefined agent handling many users
 
 
 
@@ -18005,10 +18083,10 @@ support (predefined)
 
 ## What's Next
 
-- [Open vs. Predefined](#open-vs-predefined) — deep dive on context isolation
-- [Summoning & Bootstrap](#summoning-bootstrap) — how personality is auto-generated
-- [Team Chatbot](#recipe-team-chatbot) — coordinate multiple specialists via a team
-- [Context Files](#context-files) — full reference for SOUL.md, USER.md, and friends
+- [Open vs. Predefined](/open-vs-predefined) — deep dive on context isolation
+- [Summoning & Bootstrap](/summoning-bootstrap) — how personality is auto-generated
+- [Team Chatbot](/recipe-team-chatbot) — coordinate multiple specialists via a team
+- [Context Files](/context-files) — full reference for SOUL.md, USER.md, and friends
 
 
 
@@ -18239,7 +18317,7 @@ All `exec`, `read_file`, `write_file`, and `list_files` calls go through the con
 
 ## Alternative: ACP provider for external agents
 
-If your code review workflow uses an external coding agent (Claude Code, Codex, Gemini CLI), you can configure an [ACP (Agent Client Protocol)](#provider-acp) provider instead of OpenRouter. ACP connects to external agents via JSON-RPC 2.0, letting them serve as the LLM backend for your code-reviewer agent.
+If your code review workflow uses an external coding agent (Claude Code, Codex, Gemini CLI), you can configure an [ACP (Agent Client Protocol)](/provider-acp) provider instead of OpenRouter. ACP connects to external agents via JSON-RPC 2.0, letting them serve as the LLM backend for your code-reviewer agent.
 
 ## MCP tool performance
 
@@ -18257,9 +18335,9 @@ If your code-reviewer uses many MCP tools, GoClaw lazily activates deferred tool
 
 ## What's Next
 
-- [Multi-Channel Setup](#recipe-multi-channel) — expose this agent on Telegram and WebSocket
-- [Team Chatbot](#recipe-team-chatbot) — add the reviewer as a specialist in a team
-- [Tools Reference](#cli-commands) — full built-in tool list and policy options
+- [Multi-Channel Setup](/recipe-multi-channel) — expose this agent on Telegram and WebSocket
+- [Team Chatbot](/recipe-team-chatbot) — add the reviewer as a specialist in a team
+- [Tools Reference](/cli-commands) — full built-in tool list and policy options
 
 
 
@@ -18432,7 +18510,7 @@ ws.onmessage = (e) => {
 };
 ```
 
-See [WebSocket Channel](#channel-websocket) for the full protocol reference.
+See [WebSocket Channel](/channel-websocket) for the full protocol reference.
 
 ## Step 4: Verify cross-channel isolation
 
@@ -18518,10 +18596,10 @@ When the agent uses `write_file` to generate a file, it is automatically deliver
 
 ## What's Next
 
-- [Telegram Channel](#channel-telegram) — full Telegram config reference including groups, topics, and STT
-- [Discord Channel](#channel-discord) — Discord gateway intents and streaming setup
-- [WebSocket Channel](#channel-websocket) — full RPC protocol reference
-- [Personal Assistant](#recipe-personal-assistant) — single-channel starting point
+- [Telegram Channel](/channel-telegram) — full Telegram config reference including groups, topics, and STT
+- [Discord Channel](/channel-discord) — Discord gateway intents and streaming setup
+- [WebSocket Channel](/channel-websocket) — full RPC protocol reference
+- [Personal Assistant](/recipe-personal-assistant) — single-channel starting point
 
 
 
@@ -18655,9 +18733,9 @@ Have a GoClaw deployment you'd like to showcase? Open a pull request to add it h
 
 ## What's Next
 
-- [What Is GoClaw](#what-is-goclaw) — Start from the beginning
-- [Quick Start](#quick-start) — Get running in 5 minutes
-- [Configuration](#configuration) — Full config reference
+- [What Is GoClaw](/what-is-goclaw) — Start from the beginning
+- [Quick Start](/quick-start) — Get running in 5 minutes
+- [Configuration](/configuration) — Full config reference
 
 
 
@@ -19115,9 +19193,9 @@ goclaw auth logout openai
 
 ## What's Next
 
-- [WebSocket Protocol](#websocket-protocol) — wire protocol reference for the gateway
-- [REST API](#rest-api) — HTTP API endpoint listing
-- [Config Reference](#config-reference) — full `config.json` schema
+- [WebSocket Protocol](/websocket-protocol) — wire protocol reference for the gateway
+- [REST API](/rest-api) — HTTP API endpoint listing
+- [Config Reference](/config-reference) — full `config.json` schema
 
 
 
@@ -19487,9 +19565,9 @@ ws.onmessage = (e) => {
 
 ## What's Next
 
-- [REST API](#rest-api) — HTTP endpoints for agent CRUD, skill uploads, traces
-- [CLI Commands](#cli-commands) — pairing and session management from the terminal
-- [Glossary](#glossary) — Session, Lane, Compaction, and other key terms
+- [REST API](/rest-api) — HTTP endpoints for agent CRUD, skill uploads, traces
+- [CLI Commands](/cli-commands) — pairing and session management from the terminal
+- [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
 
 
@@ -19611,7 +19689,7 @@ Re-trigger LLM-based summoning for predefined agents.
 
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
-Returns routing activity and per-account health for agents using a [Codex OAuth pool](#provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
+Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
 
 **Auth:** Bearer token required. The requesting user must have access to the agent.
 
@@ -20332,9 +20410,9 @@ The following are **only available via WebSocket RPC**, not HTTP:
 
 ## What's Next
 
-- [WebSocket Protocol](#websocket-protocol) — real-time RPC for chat and agent events
-- [Config Reference](#config-reference) — full `config.json` schema
-- [Database Schema](#database-schema) — table definitions and relationships
+- [WebSocket Protocol](/websocket-protocol) — real-time RPC for chat and agent events
+- [Config Reference](/config-reference) — full `config.json` schema
+- [Database Schema](/database-schema) — table definitions and relationships
 
 
 
@@ -20926,9 +21004,9 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 
 ## What's Next
 
-- [Environment Variables](#env-vars) — full env var reference
-- [CLI Commands](#cli-commands) — `goclaw onboard` to generate this file interactively
-- [Database Schema](#database-schema) — how agents and providers are stored in PostgreSQL
+- [Environment Variables](/env-vars) — full env var reference
+- [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
+- [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
 
 
@@ -21135,9 +21213,9 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 
 ## What's Next
 
-- [Config Reference](#config-reference) — corresponding `config.json` fields for each category
-- [CLI Commands](#cli-commands) — `goclaw onboard` generates `.env.local` automatically
-- [Database Schema](#database-schema) — how secrets are stored encrypted in PostgreSQL
+- [Config Reference](/config-reference) — corresponding `config.json` fields for each category
+- [CLI Commands](/cli-commands) — `goclaw onboard` generates `.env.local` automatically
+- [Database Schema](/database-schema) — how secrets are stored encrypted in PostgreSQL
 
 
 
@@ -22089,9 +22167,9 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 
 ## What's Next
 
-- [Environment Variables](#env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
-- [Config Reference](#config-reference) — how database config maps to `config.json`
-- [Glossary](#glossary) — Session, Compaction, Lane, and other key terms
+- [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
+- [Config Reference](/config-reference) — how database config maps to `config.json`
+- [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
 
 
@@ -22107,7 +22185,7 @@ An AI assistant instance with its own identity, LLM configuration, workspace, an
 
 Agents are stored in the `agents` table. At runtime, the gateway resolves agent configuration by merging `agents.defaults` with per-agent overrides from `agents.list` in `config.json`, then applying any database-level overrides.
 
-See: [Open vs Predefined Agents](#open-vs-predefined)
+See: [Open vs Predefined Agents](/open-vs-predefined)
 
 
 ## Predefined Agent
@@ -22124,7 +22202,7 @@ The process of using an LLM to **auto-generate** an agent's personality files (S
 
 Summoning only runs once per agent, or when you trigger `POST /v1/agents/{id}/resummon`.
 
-See: [Summoning & Bootstrap](#summoning-bootstrap)
+See: [Summoning & Bootstrap](/summoning-bootstrap)
 
 ---
 
@@ -22290,9 +22368,9 @@ MCP servers are managed via the `mcp_servers` table and `POST /v1/mcp/servers`. 
 
 ## What's Next
 
-- [Config Reference](#config-reference) — configure agents, compaction, context pruning, sandbox
-- [WebSocket Protocol](#websocket-protocol) — event names for delegation, handoff, and team activity
-- [Database Schema](#database-schema) — table definitions for sessions, traces, teams, and more
+- [Config Reference](/config-reference) — configure agents, compaction, context pruning, sandbox
+- [WebSocket Protocol](/websocket-protocol) — event names for delegation, handoff, and team activity
+- [Database Schema](/database-schema) — table definitions for sessions, traces, teams, and more
 
 
 
@@ -22345,9 +22423,9 @@ Stay silent during off-topic discussions.
 
 ## What's Next
 
-- [Context Files](#context-files) — all 7 context files explained
-- [System Prompt Anatomy](#system-prompt-anatomy) — where AGENTS.md fits in the full prompt
-- [SOUL.md Template](#template-soul) — the personality file that pairs with AGENTS.md
+- [Context Files](/context-files) — all 7 context files explained
+- [System Prompt Anatomy](/system-prompt-anatomy) — where AGENTS.md fits in the full prompt
+- [SOUL.md Template](/template-soul) — the personality file that pairs with AGENTS.md
 
 
 
@@ -22425,9 +22503,9 @@ Docker, Go services. Ưu tiên giải pháp đơn giản, có thể maintain lâ
 
 ## What's Next
 
-- [IDENTITY.md Template](#template-identity) — name, emoji, creature type
-- [Context Files](#context-files) — how all 7 files work together
-- [Summoning & Bootstrap](#summoning-bootstrap) — how SOUL.md is generated for predefined agents
+- [IDENTITY.md Template](/template-identity) — name, emoji, creature type
+- [Context Files](/context-files) — how all 7 files work together
+- [Summoning & Bootstrap](/summoning-bootstrap) — how SOUL.md is generated for predefined agents
 
 
 
@@ -22512,9 +22590,9 @@ Another example — a no-nonsense DevOps bot:
 
 ## What's Next
 
-- [SOUL.md Template](#template-soul) — the personality file that gives identity its depth
-- [BOOTSTRAP.md Template](#template-bootstrap) — how name and emoji are chosen during first-run
-- [Context Files](#context-files) — full list of context files and loading order
+- [SOUL.md Template](/template-soul) — the personality file that gives identity its depth
+- [BOOTSTRAP.md Template](/template-bootstrap) — how name and emoji are chosen during first-run
+- [Context Files](/context-files) — full list of context files and loading order
 
 
 
@@ -22593,9 +22671,9 @@ A TOOLS.md for a home automation agent:
 
 ## What's Next
 
-- [Context Files](#context-files) — all 7 context files and their loading order
-- [System Prompt Anatomy](#system-prompt-anatomy) — where TOOLS.md fits in the prompt (minimal mode included)
-- [AGENTS.md Template](#template-agents) — operating instructions that reference tools
+- [Context Files](/context-files) — all 7 context files and their loading order
+- [System Prompt Anatomy](/system-prompt-anatomy) — where TOOLS.md fits in the prompt (minimal mode included)
+- [AGENTS.md Template](/template-agents) — operating instructions that reference tools
 
 
 
@@ -22676,9 +22754,9 @@ A USER.md built up over several conversations:
 
 ## What's Next
 
-- [AGENTS.md Template](#template-agents) — MEMORY.md privacy rules that govern how USER.md content is used
-- [BOOTSTRAP.md Template](#template-bootstrap) — how USER.md gets its initial content during first-run
-- [Context Files](#context-files) — full list of context files and per-user vs. agent-level scope
+- [AGENTS.md Template](/template-agents) — MEMORY.md privacy rules that govern how USER.md content is used
+- [BOOTSTRAP.md Template](/template-bootstrap) — how USER.md gets its initial content during first-run
+- [Context Files](/context-files) — full list of context files and per-user vs. agent-level scope
 
 
 
@@ -22782,10 +22860,10 @@ This file applies to all family members. Each person also has their own USER.md 
 
 ## What's Next
 
-- [USER.md Template](#template-user) — per-user personal context that supplements this file
-- [SOUL.md Template](#template-soul) — agent personality and tone (separate from user rules)
-- [AGENTS.md Template](#template-agents) — memory, privacy rules, and tool access
-- [Context Files](#context-files) — full list of context files and their loading order
+- [USER.md Template](/template-user) — per-user personal context that supplements this file
+- [SOUL.md Template](/template-soul) — agent personality and tone (separate from user rules)
+- [AGENTS.md Template](/template-agents) — memory, privacy rules, and tool access
+- [Context Files](/context-files) — full list of context files and their loading order
 
 
 
@@ -22960,10 +23038,10 @@ _Make a good first impression. Be natural. The user should never know any of thi
 
 ## What's Next
 
-- [IDENTITY.md Template](#template-identity) — what gets written after bootstrap
-- [SOUL.md Template](#template-soul) — the file that gets rewritten during bootstrap
-- [USER.md Template](#template-user) — where user info lands after the conversation
-- [Context Files](#context-files) — full loading order and file lifecycle
+- [IDENTITY.md Template](/template-identity) — what gets written after bootstrap
+- [SOUL.md Template](/template-soul) — the file that gets rewritten during bootstrap
+- [USER.md Template](/template-user) — where user info lands after the conversation
+- [Context Files](/context-files) — full loading order and file lifecycle
 
 
 
@@ -23160,8 +23238,8 @@ This prevents the agent from wasting tool calls probing for team capabilities th
 
 ## What's Next
 
-- [Agent Teams Overview](#teams-what-are-teams) — how to create and manage teams
-- [Delegation & Handoff](#teams-delegation) — how leads delegate tasks to members
+- [Agent Teams Overview](/teams-what-are-teams) — how to create and manage teams
+- [Delegation & Handoff](/teams-delegation) — how leads delegate tasks to members
 - [DELEGATION.md Template](delegation.md) — the sibling virtual file for subagent spawning
 
 
@@ -23248,9 +23326,9 @@ Run `./goclaw doctor` for a quick health check. It verifies:
 
 ## What's Next
 
-- [Channel-specific issues](#troubleshoot-channels)
-- [Provider-specific issues](#troubleshoot-providers)
-- [Database issues](#troubleshoot-database)
+- [Channel-specific issues](/troubleshoot-channels)
+- [Provider-specific issues](/troubleshoot-providers)
+- [Database issues](/troubleshoot-database)
 
 
 
@@ -23373,8 +23451,8 @@ Most WebSocket libraries (browser native, `ws` for Node.js, gorilla) handle ping
 
 ## What's Next
 
-- [Common Issues](#troubleshoot-common) — startup, agent, memory problems
-- [Channels Troubleshooting](#troubleshoot-channels) — Telegram, Discord, WhatsApp issues
+- [Common Issues](/troubleshoot-common) — startup, agent, memory problems
+- [Channels Troubleshooting](/troubleshoot-channels) — Telegram, Discord, WhatsApp issues
 
 
 
@@ -23386,7 +23464,7 @@ Most WebSocket libraries (browser native, `ws` for Node.js, gorilla) handle ping
 
 ## Overview
 
-Each channel has its own connection mode, permission model, and message format quirks. This page covers the most common failure patterns for each channel. For gateway-level issues (startup, WebSocket, rate limiting) see [Common Issues](#troubleshoot-common).
+Each channel has its own connection mode, permission model, and message format quirks. This page covers the most common failure patterns for each channel. For gateway-level issues (startup, WebSocket, rate limiting) see [Common Issues](/troubleshoot-common).
 
 ## General Channel Tips
 
@@ -23477,9 +23555,9 @@ The bridge must be separately authenticated with WhatsApp (QR scan via bridge UI
 
 ## What's Next
 
-- [Provider-specific issues](#troubleshoot-providers)
-- [Database issues](#troubleshoot-database)
-- [Common Issues](#troubleshoot-common)
+- [Provider-specific issues](/troubleshoot-providers)
+- [Database issues](/troubleshoot-database)
+- [Common Issues](/troubleshoot-common)
 
 
 
@@ -23619,9 +23697,9 @@ INFO registered provider name=acp binary=claude
 
 ## What's Next
 
-- [Database issues](#troubleshoot-database)
-- [Common Issues](#troubleshoot-common)
-- [Channel issues](#troubleshoot-channels)
+- [Database issues](/troubleshoot-database)
+- [Common Issues](/troubleshoot-common)
+- [Channel issues](/troubleshoot-channels)
 
 
 
@@ -23706,8 +23784,8 @@ Tools are registered under the name `{prefix}__{tool_name}`. The prefix defaults
 
 ## What's Next
 
-- [Common Issues](#troubleshoot-common) — general startup and connectivity problems
-- [Dashboard Tour](#dashboard-tour) — manage MCP servers and grants in the UI
+- [Common Issues](/troubleshoot-common) — general startup and connectivity problems
+- [Dashboard Tour](/dashboard-tour) — manage MCP servers and grants in the UI
 
 
 
@@ -23889,9 +23967,9 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## What's Next
 
-- [Common Issues](#troubleshoot-common)
-- [Provider issues](#troubleshoot-providers)
-- [Channel issues](#troubleshoot-channels)
+- [Common Issues](/troubleshoot-common)
+- [Provider issues](/troubleshoot-providers)
+- [Channel issues](/troubleshoot-channels)
 
 
 
@@ -23961,7 +24039,7 @@ This returns the full state-change history for a task, including dispatch count 
 
 ## What's Next
 
-- [Agent Teams guide](#teams-what-are-teams) — team setup, roles, and task board
-- [Common Issues](#troubleshoot-common) — general gateway and agent troubleshooting
+- [Agent Teams guide](/teams-what-are-teams) — team setup, roles, and task board
+- [Common Issues](/troubleshoot-common) — general gateway and agent troubleshooting
 
 

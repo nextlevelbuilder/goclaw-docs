@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#migrating-from-openclaw)
+> Bản dịch từ [English version](/migrating-from-openclaw)
 
 # Chuyển từ OpenClaw sang GoClaw
 
@@ -99,7 +99,7 @@ GoClaw hỗ trợ context files ở cả cấp agent (dùng chung) và cấp use
 
 ## Các bước chuyển đổi
 
-1. **Cài đặt GoClaw** — Làm theo hướng dẫn [Cài đặt](#installation) và [Quick Start](#quick-start)
+1. **Cài đặt GoClaw** — Làm theo hướng dẫn [Cài đặt](/installation) và [Quick Start](/quick-start)
 2. **Ánh xạ config** — Dịch OpenClaw config bằng bảng so sánh ở trên
 3. **Chuyển context file** — Copy các file `.md` context (ngoại trừ `TOOLS.md` — không dùng trong GoClaw); upload qua dashboard hoặc API
 4. **Cập nhật channel token** — Chuyển token từ config sang biến môi trường
@@ -130,8 +130,8 @@ Các tính năng bạn có thêm sau khi chuyển:
 
 ## Tiếp theo
 
-- [GoClaw hoạt động như thế nào](#how-goclaw-works) — Hiểu về kiến trúc mới
-- [Multi-Tenancy](#multi-tenancy) — Tìm hiểu về cách ly per-user
-- [Configuration](#configuration) — Tham chiếu config đầy đủ
+- [GoClaw hoạt động như thế nào](/how-goclaw-works) — Hiểu về kiến trúc mới
+- [Multi-Tenancy](/multi-tenancy) — Tìm hiểu về cách ly per-user
+- [Configuration](/configuration) — Tham chiếu config đầy đủ
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

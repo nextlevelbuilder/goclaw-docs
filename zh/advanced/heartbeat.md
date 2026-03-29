@@ -1,4 +1,4 @@
-> 翻译自 [English version](#heartbeat)
+> 翻译自 [English version](/heartbeat)
 
 # Heartbeat
 

@@ -1026,8 +1026,8 @@ Expose GoClaw on a Tailscale network using tsnet.
 
 ## What's Next
 
-- [Web Dashboard Tour](#dashboard-tour) — Configure visually instead of editing JSON
-- [Agents Explained](#agents-explained) — Deep dive into agent configuration
-- [Tools Overview](#tools-overview) — Available tools and categories
+- [Web Dashboard Tour](/dashboard-tour) — Configure visually instead of editing JSON
+- [Agents Explained](/agents-explained) — Deep dive into agent configuration
+- [Tools Overview](/tools-overview) — Available tools and categories
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

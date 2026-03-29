@@ -1,4 +1,4 @@
-> 翻译自 [English version](#api-keys-rbac)
+> 翻译自 [English version](/api-keys-rbac)
 
 # API Keys 与 RBAC
 
@@ -256,9 +256,9 @@ key 创建或撤销时，`cache.invalidate` 事件在内部消息总线上广播
 
 ## 下一步
 
-- [身份认证与 OAuth](#authentication) — 网关 token 和 OAuth 流程
-- [Exec 审批](#exec-approval) — 需要 `operator.approvals` scope
-- [安全加固](#deploy-security) — 完整的 5 层权限概览
+- [身份认证与 OAuth](/authentication) — 网关 token 和 OAuth 流程
+- [Exec 审批](/exec-approval) — 需要 `operator.approvals` scope
+- [安全加固](/deploy-security) — 完整的 5 层权限概览
 - [CLI 凭据](./cli-credentials.md) — SecureCLI：向 CLI 工具注入凭据，不向 agent 暴露密钥
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-23 -->

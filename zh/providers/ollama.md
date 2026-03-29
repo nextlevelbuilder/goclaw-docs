@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-ollama)
+> 翻译自 [English version](/provider-ollama)
 
 # Ollama
 
@@ -42,8 +42,8 @@ Ollama 让你在自己的机器上运行大型语言模型。GoClaw 通过 Ollam
 
 ## 下一步
 
-- [Provider 概览](#providers-overview)
-- [Ollama Cloud](#provider-ollama-cloud) — 托管 Ollama 选项
-- [自定义 / OpenAI 兼容](#provider-custom)
+- [Provider 概览](/providers-overview)
+- [Ollama Cloud](/provider-ollama-cloud) — 托管 Ollama 选项
+- [自定义 / OpenAI 兼容](/provider-custom)
 
 <!-- goclaw-source: 9168e4b4 | 更新: 2026-03-26 -->

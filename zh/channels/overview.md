@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channels-overview)
+> 翻译自 [English version](/channels-overview)
 
 # Channels 概览
 
@@ -151,11 +151,11 @@ Channel 可以对每个用户执行频率限制。通过 channel 设置配置或
 
 ## 下一步
 
-- [Telegram](#channel-telegram) — Telegram 集成完整指南
-- [Discord](#channel-discord) — Discord bot 设置
-- [Slack](#channel-slack) — Slack Socket Mode 集成
-- [Larksuite](#channel-feishu) — Larksuite 流式卡片集成
-- [WebSocket](#channel-websocket) — 通过 WS 直连 agent API
-- [Browser Pairing](#channel-browser-pairing) — 8 位配对码流程
+- [Telegram](/channel-telegram) — Telegram 集成完整指南
+- [Discord](/channel-discord) — Discord bot 设置
+- [Slack](/channel-slack) — Slack Socket Mode 集成
+- [Larksuite](/channel-feishu) — Larksuite 流式卡片集成
+- [WebSocket](/channel-websocket) — 通过 WS 直连 agent API
+- [Browser Pairing](/channel-browser-pairing) — 8 位配对码流程
 
 <!-- goclaw-source: 120fc2d | 更新: 2026-03-19 -->

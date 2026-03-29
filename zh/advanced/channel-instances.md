@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-instances)
+> 翻译自 [English version](/channel-instances)
 
 # Channel 实例
 
@@ -246,8 +246,8 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 
 ## 下一步
 
-- [Channel 概览](#channels-overview)
-- [多 Channel 设置](#recipe-multi-channel)
-- [多租户](#multi-tenancy)
+- [Channel 概览](/channels-overview)
+- [多 Channel 设置](/recipe-multi-channel)
+- [多租户](/multi-tenancy)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

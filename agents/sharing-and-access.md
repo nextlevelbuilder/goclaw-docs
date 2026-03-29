@@ -216,8 +216,8 @@ This powers the "My Agents" list in the Dashboard.
 
 ## What's Next
 
-- [User Overrides — Let users customize LLM provider/model per-agent](#user-overrides)
-- [System Prompt Anatomy — How permissions affect system prompt sections](#system-prompt-anatomy)
-- [Creating Agents — Create an agent and immediately share it](#creating-agents)
+- [User Overrides — Let users customize LLM provider/model per-agent](/user-overrides)
+- [System Prompt Anatomy — How permissions affect system prompt sections](/system-prompt-anatomy)
+- [Creating Agents — Create an agent and immediately share it](/creating-agents)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

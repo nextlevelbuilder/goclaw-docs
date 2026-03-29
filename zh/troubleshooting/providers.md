@@ -1,4 +1,4 @@
-> 翻译自 [English version](#troubleshoot-providers)
+> 翻译自 [English version](/troubleshoot-providers)
 
 # Provider 问题
 
@@ -134,8 +134,8 @@ INFO registered provider name=acp binary=claude
 
 ## 下一步
 
-- [数据库问题](#troubleshoot-database)
-- [常见问题](#troubleshoot-common)
-- [Channel 问题](#troubleshoot-channels)
+- [数据库问题](/troubleshoot-database)
+- [常见问题](/troubleshoot-common)
+- [Channel 问题](/troubleshoot-channels)
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

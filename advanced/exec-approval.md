@@ -194,8 +194,8 @@ Set `"always": true` to permanently allow this binary for the lifetime of the pr
 
 ## What's Next
 
-- [Sandbox](#sandbox) — run exec commands inside an isolated Docker container
-- [Custom Tools](#custom-tools) — define tools backed by shell commands
-- [Security Hardening](#deploy-security) — full five-layer security overview
+- [Sandbox](/sandbox) — run exec commands inside an isolated Docker container
+- [Custom Tools](/custom-tools) — define tools backed by shell commands
+- [Security Hardening](/deploy-security) — full five-layer security overview
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

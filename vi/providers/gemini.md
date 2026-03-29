@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-gemini)
+> Bản dịch từ [English version](/provider-gemini)
 
 # Gemini
 
@@ -80,8 +80,8 @@ GoClaw ánh xạ sang `reasoning_effort` trong request. Thinking tokens được
 
 ## Tiếp theo
 
-- [DeepSeek](#provider-deepseek) — các model DeepSeek với hỗ trợ reasoning_content
-- [OpenRouter](#provider-openrouter) — truy cập Gemini và 100+ model khác qua một key
-- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
+- [DeepSeek](/provider-deepseek) — các model DeepSeek với hỗ trợ reasoning_content
+- [OpenRouter](/provider-openrouter) — truy cập Gemini và 100+ model khác qua một key
+- [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

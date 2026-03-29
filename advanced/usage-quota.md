@@ -231,8 +231,8 @@ This index covers 89% of traces (top-level only) and makes hourly/daily/weekly w
 
 ## What's Next
 
-- [Observability](#deploy-observability) — OpenTelemetry tracing and Jaeger integration
-- [Security Hardening](#deploy-security) — rate limiting at the gateway level
-- [Database Setup](#deploy-database) — PostgreSQL setup including the quota index
+- [Observability](/deploy-observability) — OpenTelemetry tracing and Jaeger integration
+- [Security Hardening](/deploy-security) — rate limiting at the gateway level
+- [Database Setup](/deploy-database) — PostgreSQL setup including the quota index
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

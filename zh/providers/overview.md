@@ -1,4 +1,4 @@
-> 翻译自 [English version](#providers-overview)
+> 翻译自 [English version](/providers-overview)
 
 # Provider 概览
 
@@ -95,13 +95,13 @@ graph TD
 
 ## 下一步
 
-- [Anthropic](#provider-anthropic) — 原生 Claude 集成，支持扩展思考
-- [OpenAI](#provider-openai) — GPT-4o、o 系列推理模型
-- [OpenRouter](#provider-openrouter) — 通过一个 API 访问 100+ 模型
-- [Gemini](#provider-gemini) — 通过 OpenAI 兼容端点使用 Google Gemini
-- [DeepSeek](#provider-deepseek) — 支持 reasoning_content 的 DeepSeek
-- [Groq](#provider-groq) — 超快推理
-- [Mistral](#provider-mistral) — Mistral AI 模型
+- [Anthropic](/provider-anthropic) — 原生 Claude 集成，支持扩展思考
+- [OpenAI](/provider-openai) — GPT-4o、o 系列推理模型
+- [OpenRouter](/provider-openrouter) — 通过一个 API 访问 100+ 模型
+- [Gemini](/provider-gemini) — 通过 OpenAI 兼容端点使用 Google Gemini
+- [DeepSeek](/provider-deepseek) — 支持 reasoning_content 的 DeepSeek
+- [Groq](/provider-groq) — 超快推理
+- [Mistral](/provider-mistral) — Mistral AI 模型
 
 <!-- goclaw-source: 941a965 | 更新: 2026-03-19 -->
 

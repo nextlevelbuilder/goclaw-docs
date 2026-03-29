@@ -1,4 +1,4 @@
-> 翻译自 [English version](#teams-delegation)
+> 翻译自 [English version](/teams-delegation)
 
 # 委派与交接（Delegation & Handoff）
 

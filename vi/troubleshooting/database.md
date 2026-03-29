@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#troubleshoot-database)
+> Bản dịch từ [English version](/troubleshoot-database)
 
 # Vấn đề Database
 
@@ -176,8 +176,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## Tiếp theo
 
-- [Các vấn đề thường gặp](#troubleshoot-common)
-- [Vấn đề provider](#troubleshoot-providers)
-- [Vấn đề channel](#troubleshoot-channels)
+- [Các vấn đề thường gặp](/troubleshoot-common)
+- [Vấn đề provider](/troubleshoot-providers)
+- [Vấn đề channel](/troubleshoot-channels)
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -188,7 +188,7 @@ To inspect routing decisions and per-account health for an agent, call:
 GET /v1/agents/{id}/codex-pool-activity
 ```
 
-See [REST API](#rest-api) for the response shape.
+See [REST API](/rest-api) for the response shape.
 
 ---
 
@@ -204,7 +204,7 @@ See [REST API](#rest-api) for the response shape.
 
 ## What's Next
 
-- [Custom Provider](#provider-custom) — connect any OpenAI-compatible API including local models
-- [Claude CLI](#provider-claude-cli) — use your Claude subscription instead
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
+- [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
 
 <!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->

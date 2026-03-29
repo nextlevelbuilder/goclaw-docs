@@ -1,4 +1,4 @@
-> 翻译自 [English version](#deploy-docker-compose)
+> 翻译自 [English version](/deploy-docker-compose)
 
 # Docker Compose 部署
 
@@ -394,9 +394,9 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 
 ## 下一步
 
-- [数据库设置](#deploy-database) — 手动 PostgreSQL 设置与迁移
-- [安全加固](#deploy-security) — 五层安全防护概览
-- [可观测性](#deploy-observability) — OpenTelemetry 和 Jaeger 配置
-- [Tailscale](#deploy-tailscale) — 通过 Tailscale 实现安全远程访问
+- [数据库设置](/deploy-database) — 手动 PostgreSQL 设置与迁移
+- [安全加固](/deploy-security) — 五层安全防护概览
+- [可观测性](/deploy-observability) — OpenTelemetry 和 Jaeger 配置
+- [Tailscale](/deploy-tailscale) — 通过 Tailscale 实现安全远程访问
 
 <!-- goclaw-source: 4d31fe0 | 更新: 2026-03-26 -->

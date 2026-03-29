@@ -229,9 +229,9 @@ The `allow_from` list supports both user IDs and Slack channel IDs for group-lev
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [Telegram](#channel-telegram) — Telegram bot setup
-- [Discord](#channel-discord) — Discord bot setup
-- [Browser Pairing](#channel-browser-pairing) — Pairing flow
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Discord](/channel-discord) — Discord bot setup
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#tts-voice)
+> Bản dịch từ [English version](/tts-voice)
 
 # Chuyển văn bản thành giọng nói
 

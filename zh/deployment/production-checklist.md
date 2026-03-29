@@ -1,4 +1,4 @@
-> 翻译自 [English version](#deploy-checklist)
+> 翻译自 [English version](/deploy-checklist)
 
 # 生产检查清单
 
@@ -127,7 +127,7 @@ export GOCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32)
 - [ ] 针对重复出现的 `slog.Warn("security.*")` 日志条目配置告警——这些表示被阻止的攻击或异常
 - [ ] 针对 `tracing: span buffer full` 配置告警——表示 collector 在高负载下处理落后
 - [ ] 已配置正常运行时间监控（如 ping `/health` 或 gateway 端口）
-- [ ] 考虑启用 OTel 导出以获得 trace 级别的可见性——参见[可观测性](#deploy-observability)
+- [ ] 考虑启用 OTel 导出以获得 trace 级别的可见性——参见[可观测性](/deploy-observability)
 - [ ] 交互式 API 文档可在 `/docs`（Swagger UI）和 `/v1/openapi.json` 获取，用于集成测试
 
 ---
@@ -137,7 +137,7 @@ export GOCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32)
 - [ ] 如果写入文件，已配置日志轮换（使用 `logrotate` 或容器运行时的日志驱动）
 - [ ] 仅在接受启动时自动执行 schema 迁移的情况下设置 `GOCLAW_AUTO_UPGRADE=true`；否则使用 `./goclaw upgrade` 显式升级
 - [ ] 已有重启、回滚、DB 恢复和加密 key 轮换的操作手册
-- [ ] 升级流程已记录并测试——参见[升级](#deploy-upgrading)
+- [ ] 升级流程已记录并测试——参见[升级](/deploy-upgrading)
 
 ---
 
@@ -236,9 +236,9 @@ curl http://localhost:18790/health
 
 ## 下一步
 
-- [升级](#deploy-upgrading) — 安全升级 GoClaw
-- [可观测性](#deploy-observability) — 设置链路追踪和告警
-- [安全加固](#deploy-security) — 更深入的安全配置
-- [Docker Compose 设置](#deploy-docker-compose) — 生产 compose 模式
+- [升级](/deploy-upgrading) — 安全升级 GoClaw
+- [可观测性](/deploy-observability) — 设置链路追踪和告警
+- [安全加固](/deploy-security) — 更深入的安全配置
+- [Docker Compose 设置](/deploy-docker-compose) — 生产 compose 模式
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

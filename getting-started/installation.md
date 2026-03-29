@@ -76,7 +76,7 @@ Open `http://localhost:5173` and log in:
 - **User ID:** `system`
 - **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
 
-After login, follow the [Quick Start](#quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
 <details>
 <summary><strong>Alternative: run the dashboard via Docker</strong></summary>
@@ -218,7 +218,7 @@ Open `http://localhost:5173` and log in:
 - **User ID:** `system`
 - **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
 
-After login, follow the [Quick Start](#quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
 ---
 
@@ -277,7 +277,7 @@ Open `http://localhost:3000` and log in:
 - **User ID:** `system`
 - **Gateway Token:** found in `.env` (look for `GOCLAW_GATEWAY_TOKEN`)
 
-After login, follow the [Quick Start](#quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
 ### Optional Add-ons
 
@@ -566,7 +566,7 @@ docker compose logs goclaw
 
 ## What's Next
 
-- [Quick Start](#quick-start) — Run your first agent
-- [Configuration](#configuration) — Customize GoClaw settings
+- [Quick Start](/quick-start) — Run your first agent
+- [Configuration](/configuration) — Customize GoClaw settings
 
 <!-- goclaw-source: 175e052 | updated: 2026-03-29 -->

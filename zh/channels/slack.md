@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-slack)
+> 翻译自 [English version](/channel-slack)
 
 # Slack Channel
 
@@ -231,9 +231,9 @@ Slack 支持群组级别的配对。当 `group_policy: "pairing"` 时：
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [Telegram](#channel-telegram) — Telegram bot 设置
-- [Discord](#channel-discord) — Discord bot 设置
-- [Browser Pairing](#channel-browser-pairing) — 配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [Telegram](/channel-telegram) — Telegram bot 设置
+- [Discord](/channel-discord) — Discord bot 设置
+- [Browser Pairing](/channel-browser-pairing) — 配对流程
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

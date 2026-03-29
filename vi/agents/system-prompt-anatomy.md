@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#system-prompt-anatomy)
+> Bản dịch từ [English version](/system-prompt-anatomy)
 
 # Cấu trúc System Prompt
 
@@ -380,8 +380,8 @@ Agent này sẽ:
 
 ## Tiếp theo
 
-- [Editing Personality — Tuỳ chỉnh SOUL.md và IDENTITY.md](#editing-personality)
-- [Context Files — Thêm context dành riêng cho dự án](#context-files)
-- [Creating Agents — Thiết lập cấu hình system prompt](#creating-agents)
+- [Editing Personality — Tuỳ chỉnh SOUL.md và IDENTITY.md](/editing-personality)
+- [Context Files — Thêm context dành riêng cho dự án](/context-files)
+- [Creating Agents — Thiết lập cấu hình system prompt](/creating-agents)
 
 <!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

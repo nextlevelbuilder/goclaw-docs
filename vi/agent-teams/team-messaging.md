@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#teams-messaging)
+> Bản dịch từ [English version](/teams-messaging)
 
 # Team Messaging
 

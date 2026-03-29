@@ -1,4 +1,4 @@
-> 翻译自 [English version](#media-generation)
+> 翻译自 [English version](/media-generation)
 
 # 媒体生成
 
@@ -180,8 +180,8 @@ GoClaw 内置三个媒体生成工具：`create_image`、`create_video` 和 `cre
 
 ## 下一步
 
-- [TTS 与语音](#tts-voice) — agent 回复的文字转语音
-- [自定义工具](#custom-tools) — 构建你自己的工具
-- [Provider 概览](#providers-overview) — 配置 API key
+- [TTS 与语音](/tts-voice) — agent 回复的文字转语音
+- [自定义工具](/custom-tools) — 构建你自己的工具
+- [Provider 概览](/providers-overview) — 配置 API key
 
 <!-- goclaw-source: 120fc2d | 更新: 2026-03-18 -->

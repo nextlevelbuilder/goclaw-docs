@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#recipe-team-chatbot)
+> Bản dịch từ [English version](/recipe-team-chatbot)
 
 # Team Chatbot
 
@@ -256,9 +256,9 @@ Lead delegate qua tool `delegate`. Các chuyên gia chạy dưới dạng sub-se
 
 ## Tiếp theo
 
-- [Team là gì?](#teams-what-are-teams) — khái niệm và kiến trúc team
-- [Task Board](#teams-task-board) — tham khảo đầy đủ về task board
-- [Open vs. Predefined](#open-vs-predefined) — tại sao chuyên gia phải là predefined
-- [Customer Support](#recipe-customer-support) — agent predefined phục vụ nhiều người dùng
+- [Team là gì?](/teams-what-are-teams) — khái niệm và kiến trúc team
+- [Task Board](/teams-task-board) — tham khảo đầy đủ về task board
+- [Open vs. Predefined](/open-vs-predefined) — tại sao chuyên gia phải là predefined
+- [Customer Support](/recipe-customer-support) — agent predefined phục vụ nhiều người dùng
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

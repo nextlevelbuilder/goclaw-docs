@@ -1,4 +1,4 @@
-> 翻译自 [English version](#usage-quota)
+> 翻译自 [English version](/usage-quota)
 
 # 用量与配额
 
@@ -233,8 +233,8 @@ WHERE parent_trace_id IS NULL AND user_id IS NOT NULL;
 
 ## 下一步
 
-- [可观测性](#deploy-observability) — OpenTelemetry 追踪和 Jaeger 集成
-- [安全加固](#deploy-security) — 网关级速率限制
-- [数据库设置](#deploy-database) — 包含配额索引的 PostgreSQL 设置
+- [可观测性](/deploy-observability) — OpenTelemetry 追踪和 Jaeger 集成
+- [安全加固](/deploy-security) — 网关级速率限制
+- [数据库设置](/deploy-database) — 包含配额索引的 PostgreSQL 设置
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

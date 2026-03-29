@@ -238,9 +238,9 @@ class PairingClient {
 
 ## What's Next
 
-- [Overview](#channels-overview) — Channel concepts and policies
-- [WebSocket](#channel-websocket) — Direct RPC communication
-- [Telegram](#channel-telegram) — Telegram setup
-- [WebSocket Protocol](#websocket-protocol) — Full protocol reference
+- [Overview](/channels-overview) — Channel concepts and policies
+- [WebSocket](/channel-websocket) — Direct RPC communication
+- [Telegram](/channel-telegram) — Telegram setup
+- [WebSocket Protocol](/websocket-protocol) — Full protocol reference
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

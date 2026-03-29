@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#usage-quota)
+> Bản dịch từ [English version](/usage-quota)
 
 # Usage & Quota
 
@@ -233,8 +233,8 @@ Index này bao gồm 89% traces (chỉ cấp cao nhất) và làm cho các truy 
 
 ## Tiếp theo
 
-- [Observability](#deploy-observability) — OpenTelemetry tracing và tích hợp Jaeger
-- [Security Hardening](#deploy-security) — rate limiting ở tầng gateway
-- [Database Setup](#deploy-database) — thiết lập PostgreSQL bao gồm quota index
+- [Observability](/deploy-observability) — OpenTelemetry tracing và tích hợp Jaeger
+- [Security Hardening](/deploy-security) — rate limiting ở tầng gateway
+- [Database Setup](/deploy-database) — thiết lập PostgreSQL bao gồm quota index
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

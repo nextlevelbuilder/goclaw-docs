@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#channel-slack)
+> Bản dịch từ [English version](/channel-slack)
 
 # Channel Slack
 
@@ -231,9 +231,9 @@ Danh sách `allow_from` hỗ trợ cả user ID và Slack channel ID cho allowli
 
 ## Tiếp theo
 
-- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
-- [Telegram](#channel-telegram) — Thiết lập Telegram bot
-- [Discord](#channel-discord) — Thiết lập Discord bot
-- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
+- [Telegram](/channel-telegram) — Thiết lập Telegram bot
+- [Discord](/channel-discord) — Thiết lập Discord bot
+- [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

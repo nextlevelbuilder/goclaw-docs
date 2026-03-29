@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#channel-telegram)
+> Bản dịch từ [English version](/channel-telegram)
 
 # Channel Telegram
 
@@ -272,9 +272,9 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 
 ## Tiếp theo
 
-- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
-- [Discord](#channel-discord) — Thiết lập Discord bot
-- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
-- [Sessions & History](#sessions-and-history) — Lịch sử cuộc trò chuyện
+- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
+- [Discord](/channel-discord) — Thiết lập Discord bot
+- [Browser Pairing](/channel-browser-pairing) — Luồng pairing
+- [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
 
 <!-- goclaw-source: 0dab087f | cập nhật: 2026-03-26 -->

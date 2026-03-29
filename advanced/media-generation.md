@@ -178,8 +178,8 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 
 ## What's Next
 
-- [TTS & Voice](#tts-voice) — Text-to-speech for agent replies
-- [Custom Tools](#custom-tools) — Build your own tools
-- [Provider Overview](#providers-overview) — Configure API keys
+- [TTS & Voice](/tts-voice) — Text-to-speech for agent replies
+- [Custom Tools](/custom-tools) — Build your own tools
+- [Provider Overview](/providers-overview) — Configure API keys
 
 <!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->

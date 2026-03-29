@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-cohere)
+> 翻译自 [English version](/provider-cohere)
 
 # Cohere
 
@@ -89,7 +89,7 @@ COHERE_API_KEY=your-cohere-api-key
 
 ## 下一步
 
-- [Perplexity](#provider-perplexity) — 通过 OpenAI 兼容 API 使用搜索增强 AI
-- [自定义 Provider](#provider-custom) — 连接任意 OpenAI 兼容 API
+- [Perplexity](/provider-perplexity) — 通过 OpenAI 兼容 API 使用搜索增强 AI
+- [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

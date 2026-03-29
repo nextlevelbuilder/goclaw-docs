@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#provider-openrouter)
+> Bản dịch từ [English version](/provider-openrouter)
 
 # OpenRouter
 
@@ -88,8 +88,8 @@ OpenRouter chuyển tiếp hầu hết tính năng đến provider model bên d�
 
 ## Tiếp theo
 
-- [Gemini](#provider-gemini) — Google Gemini trực tiếp qua endpoint tương thích OpenAI
-- [OpenAI](#provider-openai) — tích hợp trực tiếp OpenAI
-- [Tổng quan](#providers-overview) — kiến trúc provider và retry logic
+- [Gemini](/provider-gemini) — Google Gemini trực tiếp qua endpoint tương thích OpenAI
+- [OpenAI](/provider-openai) — tích hợp trực tiếp OpenAI
+- [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

@@ -1,4 +1,4 @@
-> 翻译自 [English version](#troubleshoot-mcp)
+> 翻译自 [English version](/troubleshoot-mcp)
 
 # MCP 问题
 
@@ -79,7 +79,7 @@ ERROR mcp.server.reconnect_exhausted server=postgres
 
 ## 下一步
 
-- [常见问题](#troubleshoot-common) — 一般启动和连接问题
-- [仪表盘导览](#dashboard-tour) — 在 UI 中管理 MCP server 和授权
+- [常见问题](/troubleshoot-common) — 一般启动和连接问题
+- [仪表盘导览](/dashboard-tour) — 在 UI 中管理 MCP server 和授权
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

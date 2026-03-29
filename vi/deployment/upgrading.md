@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#deploy-upgrading)
+> Bản dịch từ [English version](/deploy-upgrading)
 
 # Upgrading
 
@@ -238,7 +238,7 @@ Năm migration này được tự động áp dụng khi khởi động khi nân
 
 GoClaw v2.x tích hợp tính năng kiểm tra phiên bản tự động. Sau khi khởi động, gateway định kỳ poll GitHub releases ở nền và hiển thị thông báo trên dashboard khi có phiên bản mới hơn. Không cần cấu hình — tính năng chạy tự động và cần HTTPS ra ngoài đến `api.github.com`.
 
-Xem toàn bộ lịch sử schema tại [Database Schema → Lịch sử Migration](#database-schema).
+Xem toàn bộ lịch sử schema tại [Database Schema → Lịch sử Migration](/database-schema).
 
 ## Biến môi trường đã bị xóa gần đây
 
@@ -273,8 +273,8 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 
 ## Tiếp theo
 
-- [Production Checklist](#deploy-checklist) — kiểm tra đầy đủ trước khi go live
-- [Database Setup](#deploy-database) — cài đặt PostgreSQL và pgvector
-- [Observability](#deploy-observability) — theo dõi gateway sau khi upgrade
+- [Production Checklist](/deploy-checklist) — kiểm tra đầy đủ trước khi go live
+- [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
+- [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
 <!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->

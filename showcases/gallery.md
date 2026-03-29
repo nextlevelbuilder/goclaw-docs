@@ -126,8 +126,8 @@ Have a GoClaw deployment you'd like to showcase? Open a pull request to add it h
 
 ## What's Next
 
-- [What Is GoClaw](#what-is-goclaw) — Start from the beginning
-- [Quick Start](#quick-start) — Get running in 5 minutes
-- [Configuration](#configuration) — Full config reference
+- [What Is GoClaw](/what-is-goclaw) — Start from the beginning
+- [Quick Start](/quick-start) — Get running in 5 minutes
+- [Configuration](/configuration) — Full config reference
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

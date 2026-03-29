@@ -115,7 +115,7 @@ Most WebSocket libraries (browser native, `ws` for Node.js, gorilla) handle ping
 
 ## What's Next
 
-- [Common Issues](#troubleshoot-common) — startup, agent, memory problems
-- [Channels Troubleshooting](#troubleshoot-channels) — Telegram, Discord, WhatsApp issues
+- [Common Issues](/troubleshoot-common) — startup, agent, memory problems
+- [Channels Troubleshooting](/troubleshoot-channels) — Telegram, Discord, WhatsApp issues
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

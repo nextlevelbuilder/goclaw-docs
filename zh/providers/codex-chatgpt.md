@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-codex)
+> 翻译自 [English version](/provider-codex)
 
 # Codex / ChatGPT（OAuth）
 
@@ -190,7 +190,7 @@ Codex provider 使用 Responses API 格式，而非 chat completions：
 GET /v1/agents/{id}/codex-pool-activity
 ```
 
-响应结构参见 [REST API](#rest-api)。
+响应结构参见 [REST API](/rest-api)。
 
 ---
 
@@ -206,7 +206,7 @@ GET /v1/agents/{id}/codex-pool-activity
 
 ## 下一步
 
-- [自定义 Provider](#provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
-- [Claude CLI](#provider-claude-cli) — 使用 Claude 订阅替代
+- [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
+- [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
 
 <!-- goclaw-source: 231bc968 | 更新: 2026-03-27 -->

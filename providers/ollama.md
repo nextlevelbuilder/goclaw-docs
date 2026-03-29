@@ -40,8 +40,8 @@ If Ollama is running on a different host, set the full URL explicitly:
 
 ## What's Next
 
-- [Provider Overview](#providers-overview)
-- [Ollama Cloud](#provider-ollama-cloud) — hosted Ollama option
-- [Custom / OpenAI-Compatible](#provider-custom)
+- [Provider Overview](/providers-overview)
+- [Ollama Cloud](/provider-ollama-cloud) — hosted Ollama option
+- [Custom / OpenAI-Compatible](/provider-custom)
 
 <!-- goclaw-source: 9168e4b4 | updated: 2026-03-26 -->

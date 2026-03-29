@@ -1,4 +1,4 @@
-> 翻译自 [English version](#skills)
+> 翻译自 [English version](/skills)
 
 # Skills
 
@@ -340,8 +340,8 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 
 ## 下一步
 
-- [MCP 集成](#mcp-integration) — 连接外部工具服务器
-- [自定义工具](#custom-tools) — 为 agent 添加基于 shell 的工具
-- [定时任务与 Cron](#scheduling-cron) — 按计划运行 agent
+- [MCP 集成](/mcp-integration) — 连接外部工具服务器
+- [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
+- [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
 <!-- goclaw-source: 941a965 | 更新: 2026-03-23 -->

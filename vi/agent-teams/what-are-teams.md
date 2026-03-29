@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#teams-what-are-teams)
+> Bản dịch từ [English version](/teams-what-are-teams)
 
 # Agent Team là gì?
 

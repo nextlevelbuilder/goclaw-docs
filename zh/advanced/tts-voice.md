@@ -1,4 +1,4 @@
-> 翻译自 [English version](#tts-voice)
+> 翻译自 [English version](/tts-voice)
 
 # TTS 语音
 
@@ -238,7 +238,7 @@ pip install edge-tts
 
 ## 下一步
 
-- [定时任务与 Cron](#scheduling-cron) — 按计划触发 agent
-- [扩展思维](#extended-thinking) — 复杂回复的深度推理
+- [定时任务与 Cron](/scheduling-cron) — 按计划触发 agent
+- [扩展思维](/extended-thinking) — 复杂回复的深度推理
 
 <!-- goclaw-source: 941a965 | 更新: 2026-03-19 -->

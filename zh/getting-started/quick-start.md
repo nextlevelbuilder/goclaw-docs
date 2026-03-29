@@ -1,4 +1,4 @@
-> 翻译自 [English version](#quick-start)
+> 翻译自 [English version](/quick-start)
 
 # 快速开始
 
@@ -6,7 +6,7 @@
 
 ## 前提条件
 
-已完成[安装](#installation)，gateway 正在 `http://localhost:18790` 运行。
+已完成[安装](/installation)，gateway 正在 `http://localhost:18790` 运行。
 
 ## 第一步：打开 Dashboard 并完成初始设置
 
@@ -114,8 +114,8 @@ websocat ws://localhost:18790/ws
 
 ## 下一步
 
-- [配置](#configuration) — 精细调整你的设置
-- [Dashboard 导览](#dashboard-tour) — 探索可视化界面
-- [Agent 详解](#agents-explained) — 了解 agent 类型和上下文
+- [配置](/configuration) — 精细调整你的设置
+- [Dashboard 导览](/dashboard-tour) — 探索可视化界面
+- [Agent 详解](/agents-explained) — 了解 agent 类型和上下文
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

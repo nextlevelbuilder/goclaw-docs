@@ -62,7 +62,7 @@ This returns the full state-change history for a task, including dispatch count 
 
 ## What's Next
 
-- [Agent Teams guide](#teams-what-are-teams) — team setup, roles, and task board
-- [Common Issues](#troubleshoot-common) — general gateway and agent troubleshooting
+- [Agent Teams guide](/teams-what-are-teams) — team setup, roles, and task board
+- [Common Issues](/troubleshoot-common) — general gateway and agent troubleshooting
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

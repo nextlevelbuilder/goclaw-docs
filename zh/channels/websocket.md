@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-websocket)
+> 翻译自 [English version](/channel-websocket)
 
 # WebSocket Channel
 
@@ -254,8 +254,8 @@ ws.onclose = () => {
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [WebSocket 协议](#websocket-protocol) — 完整协议文档
-- [Browser Pairing](#channel-browser-pairing) — 自定义客户端的配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [WebSocket 协议](/websocket-protocol) — 完整协议文档
+- [Browser Pairing](/channel-browser-pairing) — 自定义客户端的配对流程
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

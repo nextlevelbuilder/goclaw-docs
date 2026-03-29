@@ -1,4 +1,4 @@
-> 翻译自 [English version](#recipe-code-review)
+> 翻译自 [English version](/recipe-code-review)
 
 # 代码审查 Agent
 
@@ -225,7 +225,7 @@ flowchart LR
 
 ## 替代方案：使用 ACP provider 接入外部 agent
 
-如果你的代码审查工作流使用外部编程 agent（Claude Code、Codex、Gemini CLI），可以配置 [ACP（Agent Client Protocol）](#provider-acp) provider，而不是 OpenRouter。ACP 通过 JSON-RPC 2.0 连接外部 agent，让它们作为 code-reviewer agent 的 LLM 后端。
+如果你的代码审查工作流使用外部编程 agent（Claude Code、Codex、Gemini CLI），可以配置 [ACP（Agent Client Protocol）](/provider-acp) provider，而不是 OpenRouter。ACP 通过 JSON-RPC 2.0 连接外部 agent，让它们作为 code-reviewer agent 的 LLM 后端。
 
 ## MCP 工具性能
 
@@ -243,8 +243,8 @@ flowchart LR
 
 ## 下一步
 
-- [多 Channel 设置](#recipe-multi-channel) — 在 Telegram 和 WebSocket 上暴露此 agent
-- [团队聊天机器人](#recipe-team-chatbot) — 将审查员作为团队中的专家添加
-- [工具参考](#cli-commands) — 完整内置工具列表和策略选项
+- [多 Channel 设置](/recipe-multi-channel) — 在 Telegram 和 WebSocket 上暴露此 agent
+- [团队聊天机器人](/recipe-team-chatbot) — 将审查员作为团队中的专家添加
+- [工具参考](/cli-commands) — 完整内置工具列表和策略选项
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

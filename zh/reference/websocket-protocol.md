@@ -1,4 +1,4 @@
-> 翻译自 [English version](#websocket-protocol)
+> 翻译自 [English version](/websocket-protocol)
 
 # WebSocket 协议
 
@@ -377,8 +377,8 @@ ws.onmessage = (e) => {
 
 ## 下一步
 
-- [REST API](#rest-api) — agent CRUD、skill 上传、traces 的 HTTP 端点
-- [CLI 命令](#cli-commands) — 从终端进行配对和会话管理
-- [词汇表](#glossary) — Session、Lane、Compaction 等核心术语
+- [REST API](/rest-api) — agent CRUD、skill 上传、traces 的 HTTP 端点
+- [CLI 命令](/cli-commands) — 从终端进行配对和会话管理
+- [词汇表](/glossary) — Session、Lane、Compaction 等核心术语
 
 <!-- goclaw-source: 4d31fe0 | 更新: 2026-03-26 -->

@@ -115,8 +115,8 @@ A TOOLS.md for a home automation agent:
 
 ## What's Next
 
-- [Context Files](#context-files) — all 7 context files and their loading order
-- [System Prompt Anatomy](#system-prompt-anatomy) — where TOOLS.md fits in the prompt (minimal mode included)
-- [AGENTS.md Template](#template-agents) — operating instructions that reference tools
+- [Context Files](/context-files) — all 7 context files and their loading order
+- [System Prompt Anatomy](/system-prompt-anatomy) — where TOOLS.md fits in the prompt (minimal mode included)
+- [AGENTS.md Template](/template-agents) — operating instructions that reference tools
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

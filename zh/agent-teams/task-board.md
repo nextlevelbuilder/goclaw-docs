@@ -1,4 +1,4 @@
-> 翻译自 [English version](#teams-task-board)
+> 翻译自 [English version](/teams-task-board)
 
 # 任务板
 

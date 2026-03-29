@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#deploy-observability)
+> Bản dịch từ [English version](/deploy-observability)
 
 # Observability
 
@@ -173,8 +173,8 @@ WebSocket client đã kết nối có thể subscribe nhận live log events. T�
 
 ## Tiếp theo
 
-- [Production Checklist](#deploy-checklist) — khuyến nghị monitoring và alerting
-- [Docker Compose Setup](#deploy-docker-compose) — tham chiếu đầy đủ compose file
-- [Security Hardening](#deploy-security) — bảo mật deployment
+- [Production Checklist](/deploy-checklist) — khuyến nghị monitoring và alerting
+- [Docker Compose Setup](/deploy-docker-compose) — tham chiếu đầy đủ compose file
+- [Security Hardening](/deploy-security) — bảo mật deployment
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

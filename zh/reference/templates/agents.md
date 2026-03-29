@@ -1,4 +1,4 @@
-> 翻译自 [English version](#template-agents)
+> 翻译自 [English version](/template-agents)
 
 # AGENTS.md 模板
 
@@ -171,8 +171,8 @@ Stay silent during off-topic discussions.
 
 ## 下一步
 
-- [上下文文件](#context-files) — 全部 7 个上下文文件解析
-- [系统提示结构](#system-prompt-anatomy) — AGENTS.md 在完整提示中的位置
-- [SOUL.md 模板](#template-soul) — 与 AGENTS.md 配合使用的个性文件
+- [上下文文件](/context-files) — 全部 7 个上下文文件解析
+- [系统提示结构](/system-prompt-anatomy) — AGENTS.md 在完整提示中的位置
+- [SOUL.md 模板](/template-soul) — 与 AGENTS.md 配合使用的个性文件
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

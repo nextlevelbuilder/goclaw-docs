@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#channel-discord)
+> Bản dịch từ [English version](/channel-discord)
 
 # Channel Discord
 
@@ -132,9 +132,9 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 
 ## Tiếp theo
 
-- [Tổng quan](#channels-overview) — Khái niệm và chính sách channel
-- [Telegram](#channel-telegram) — Thiết lập Telegram bot
-- [Larksuite](#channel-feishu) — Tích hợp Larksuite với streaming card
-- [Browser Pairing](#channel-browser-pairing) — Luồng pairing
+- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
+- [Telegram](/channel-telegram) — Thiết lập Telegram bot
+- [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
+- [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
 <!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->

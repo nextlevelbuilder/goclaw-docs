@@ -1,4 +1,4 @@
-> 翻译自 [English version](#provider-openrouter)
+> 翻译自 [English version](/provider-openrouter)
 
 # OpenRouter
 
@@ -88,8 +88,8 @@ OpenRouter 将大多数功能透传给底层模型 provider，可用性取决于
 
 ## 下一步
 
-- [Gemini](#provider-gemini) — 直接通过 OpenAI 兼容端点使用 Google Gemini
-- [OpenAI](#provider-openai) — 直接 OpenAI 集成
-- [概览](#providers-overview) — provider 架构和重试逻辑
+- [Gemini](/provider-gemini) — 直接通过 OpenAI 兼容端点使用 Google Gemini
+- [OpenAI](/provider-openai) — 直接 OpenAI 集成
+- [概览](/providers-overview) — provider 架构和重试逻辑
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

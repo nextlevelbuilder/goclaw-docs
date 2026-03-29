@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#open-vs-predefined)
+> Bản dịch từ [English version](/open-vs-predefined)
 
 # Open vs. Predefined Agent
 
@@ -178,8 +178,8 @@ Hoặc chuyển sang **predefined** sau nếu agent vượt ra ngoài phạm vi 
 
 ## Tiếp theo
 
-- [Context Files](#context-files) — tìm hiểu sâu về từng file (SOUL.md, IDENTITY.md, v.v.)
-- [Summoning & Bootstrap](#summoning-bootstrap) — cách personality được tạo ra cho predefined agent
-- [Creating Agents](#creating-agents) — hướng dẫn tạo agent
+- [Context Files](/context-files) — tìm hiểu sâu về từng file (SOUL.md, IDENTITY.md, v.v.)
+- [Summoning & Bootstrap](/summoning-bootstrap) — cách personality được tạo ra cho predefined agent
+- [Creating Agents](/creating-agents) — hướng dẫn tạo agent
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

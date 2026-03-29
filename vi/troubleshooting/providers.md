@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#troubleshoot-providers)
+> Bản dịch từ [English version](/troubleshoot-providers)
 
 # Vấn đề Provider
 
@@ -134,8 +134,8 @@ INFO registered provider name=acp binary=claude
 
 ## Tiếp theo
 
-- [Vấn đề database](#troubleshoot-database)
-- [Các vấn đề thường gặp](#troubleshoot-common)
-- [Vấn đề channel](#troubleshoot-channels)
+- [Vấn đề database](/troubleshoot-database)
+- [Các vấn đề thường gặp](/troubleshoot-common)
+- [Vấn đề channel](/troubleshoot-channels)
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->

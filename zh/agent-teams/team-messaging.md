@@ -1,4 +1,4 @@
-> 翻译自 [English version](#teams-messaging)
+> 翻译自 [English version](/teams-messaging)
 
 # 团队消息
 

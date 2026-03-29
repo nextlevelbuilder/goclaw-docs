@@ -1,4 +1,4 @@
-> 翻译自 [English version](#deploy-tailscale)
+> 翻译自 [English version](/deploy-tailscale)
 
 # Tailscale 集成
 
@@ -140,8 +140,8 @@ https://my-goclaw.your-tailnet.ts.net    # HTTPS（如果 enable_tls: true）
 
 ## 下一步
 
-- [生产检查清单](#deploy-checklist) — 端到端保护你的部署
-- [安全加固](#deploy-security) — CORS、速率限制和 token 鉴权
-- [Docker Compose 设置](#deploy-docker-compose) — 完整 compose overlay 参考
+- [生产检查清单](/deploy-checklist) — 端到端保护你的部署
+- [安全加固](/deploy-security) — CORS、速率限制和 token 鉴权
+- [Docker Compose 设置](/deploy-docker-compose) — 完整 compose overlay 参考
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

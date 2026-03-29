@@ -202,9 +202,9 @@ Tin nhắn thoại có thể được chuyển văn bản bằng cách cấu hì
 
 ## Tiếp theo
 
-- [Tổng quan](#channels-overview) — Khái niệm và chính sách kênh
-- [Larksuite](#channel-larksuite) — Cài đặt Larksuite (quốc tế)
-- [Telegram](#channel-telegram) — Cài đặt Telegram bot
-- [Browser Pairing](#channel-browser-pairing) — Luồng ghép cặp trình duyệt
+- [Tổng quan](/channels-overview) — Khái niệm và chính sách kênh
+- [Larksuite](/channel-larksuite) — Cài đặt Larksuite (quốc tế)
+- [Telegram](/channel-telegram) — Cài đặt Telegram bot
+- [Browser Pairing](/channel-browser-pairing) — Luồng ghép cặp trình duyệt
 
 <!-- goclaw-source: 120fc2d | cập nhật: 2026-03-19 -->

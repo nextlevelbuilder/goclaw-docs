@@ -1,4 +1,4 @@
-> 翻译自 [English version](#channel-whatsapp)
+> 翻译自 [English version](/channel-whatsapp)
 
 # WhatsApp Channel
 
@@ -139,9 +139,9 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 
 ## 下一步
 
-- [概览](#channels-overview) — Channel 概念和策略
-- [Telegram](#channel-telegram) — Telegram bot 设置
-- [Larksuite](#channel-feishu) — Larksuite 集成
-- [Browser Pairing](#channel-browser-pairing) — 配对流程
+- [概览](/channels-overview) — Channel 概念和策略
+- [Telegram](/channel-telegram) — Telegram bot 设置
+- [Larksuite](/channel-feishu) — Larksuite 集成
+- [Browser Pairing](/channel-browser-pairing) — 配对流程
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

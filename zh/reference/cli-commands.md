@@ -1,4 +1,4 @@
-> 翻译自 [English version](#cli-commands)
+> 翻译自 [English version](/cli-commands)
 
 # CLI 命令
 
@@ -467,8 +467,8 @@ goclaw auth logout openai
 
 ## 下一步
 
-- [WebSocket 协议](#websocket-protocol) — gateway 的线协议参考
-- [REST API](#rest-api) — HTTP API 端点列表
-- [配置参考](#config-reference) — 完整 `config.json` schema
+- [WebSocket 协议](/websocket-protocol) — gateway 的线协议参考
+- [REST API](/rest-api) — HTTP API 端点列表
+- [配置参考](/config-reference) — 完整 `config.json` schema
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

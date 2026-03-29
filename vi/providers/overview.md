@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#providers-overview)
+> Bản dịch từ [English version](/providers-overview)
 
 # Tổng quan về Providers
 

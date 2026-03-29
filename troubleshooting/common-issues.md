@@ -78,8 +78,8 @@ Run `./goclaw doctor` for a quick health check. It verifies:
 
 ## What's Next
 
-- [Channel-specific issues](#troubleshoot-channels)
-- [Provider-specific issues](#troubleshoot-providers)
-- [Database issues](#troubleshoot-database)
+- [Channel-specific issues](/troubleshoot-channels)
+- [Provider-specific issues](/troubleshoot-providers)
+- [Database issues](/troubleshoot-database)
 
 <!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->

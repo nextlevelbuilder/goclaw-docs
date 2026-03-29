@@ -1,4 +1,4 @@
-> 翻译自 [English version](#template-user-predefined)
+> 翻译自 [English version](/template-user-predefined)
 
 # USER_PREDEFINED.md 模板
 
@@ -112,9 +112,9 @@ This file applies to all family members. Each person also has their own USER.md 
 
 ## 下一步
 
-- [USER.md 模板](#template-user) — 补充此文件的按用户个人上下文
-- [SOUL.md 模板](#template-soul) — Agent 个性和语气（与用户规则分开）
-- [AGENTS.md 模板](#template-agents) — 记忆、隐私规则和工具访问
-- [上下文文件](#context-files) — 完整上下文文件列表和加载顺序
+- [USER.md 模板](/template-user) — 补充此文件的按用户个人上下文
+- [SOUL.md 模板](/template-soul) — Agent 个性和语气（与用户规则分开）
+- [AGENTS.md 模板](/template-agents) — 记忆、隐私规则和工具访问
+- [上下文文件](/context-files) — 完整上下文文件列表和加载顺序
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

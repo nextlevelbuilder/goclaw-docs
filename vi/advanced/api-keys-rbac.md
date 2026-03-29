@@ -254,9 +254,9 @@ Khi một key được tạo hoặc thu hồi, sự kiện `cache.invalidate` đ
 
 ## Tiếp theo
 
-- [Authentication & OAuth](#authentication) — gateway token và luồng OAuth
-- [Exec Approval](#exec-approval) — yêu cầu scope `operator.approvals`
-- [Security Hardening](#deploy-security) — tổng quan đầy đủ 5 lớp phân quyền
+- [Authentication & OAuth](/authentication) — gateway token và luồng OAuth
+- [Exec Approval](/exec-approval) — yêu cầu scope `operator.approvals`
+- [Security Hardening](/deploy-security) — tổng quan đầy đủ 5 lớp phân quyền
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials vào CLI tool (gh, aws, gcloud) mà không để lộ secret cho agent
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->

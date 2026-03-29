@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#teams-creating)
+> Bản dịch từ [English version](/teams-creating)
 
 # Tạo & Quản lý Team
 

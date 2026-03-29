@@ -303,9 +303,9 @@ Footer actions:
 
 ## What's Next
 
-- [Configuration](#configuration) — Edit settings via config file instead
-- [How GoClaw Works](#how-goclaw-works) — Understand the architecture
-- [Agents Explained](#agents-explained) — Learn about agent types
+- [Configuration](/configuration) — Edit settings via config file instead
+- [How GoClaw Works](/how-goclaw-works) — Understand the architecture
+- [Agents Explained](/agents-explained) — Learn about agent types
 
 <!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->
 <!-- TODO: Screenshots needed for v2.x UI — run a GoClaw instance and capture:

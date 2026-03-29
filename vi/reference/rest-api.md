@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#rest-api)
+> Bản dịch từ [English version](/rest-api)
 
 # REST API
 
@@ -153,7 +153,7 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
-Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](#provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
+Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](/provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
 
 **Xác thực:** Cần Bearer token. Người dùng phải có quyền truy cập agent.
 
@@ -874,8 +874,8 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 ## Tiếp theo
 
-- [WebSocket Protocol](#websocket-protocol) — real-time RPC cho chat và agent event
-- [Config Reference](#config-reference) — schema đầy đủ `config.json`
-- [Database Schema](#database-schema) — định nghĩa bảng và quan hệ
+- [WebSocket Protocol](/websocket-protocol) — real-time RPC cho chat và agent event
+- [Config Reference](/config-reference) — schema đầy đủ `config.json`
+- [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
 <!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->

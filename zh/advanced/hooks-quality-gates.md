@@ -1,4 +1,4 @@
-> 翻译自 [English version](#hooks-quality-gates)
+> 翻译自 [English version](/hooks-quality-gates)
 
 # Hooks 与质量门控
 
@@ -226,7 +226,7 @@ Respond with EXACTLY one of:
 
 ## 下一步
 
-- [扩展思维](#extended-thinking) — 生成输出前的深度推理
-- [Exec 审批](#exec-approval) — shell 命令的人工审批
+- [扩展思维](/extended-thinking) — 生成输出前的深度推理
+- [Exec 审批](/exec-approval) — shell 命令的人工审批
 
 <!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->

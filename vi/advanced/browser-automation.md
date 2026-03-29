@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](#browser-automation)
+> Bản dịch từ [English version](/browser-automation)
 
 # Browser Automation
 
@@ -255,7 +255,7 @@ Trả về:
 
 ## Tiếp theo
 
-- [Exec Approval](#exec-approval) — yêu cầu người dùng ký duyệt trước khi chạy lệnh
-- [Hooks & Quality Gates](#hooks-quality-gates) — thêm kiểm tra trước/sau cho hành động agent
+- [Exec Approval](/exec-approval) — yêu cầu người dùng ký duyệt trước khi chạy lệnh
+- [Hooks & Quality Gates](/hooks-quality-gates) — thêm kiểm tra trước/sau cho hành động agent
 
 <!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
