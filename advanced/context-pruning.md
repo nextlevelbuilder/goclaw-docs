@@ -17,7 +17,7 @@ Context pruning is distinct from [session compaction](/sessions-and-history). Co
 
 ## How Pruning Triggers
 
-Pruning runs automatically on every agent request when `mode: "cache-ttl"` is set. The flow:
+Pruning runs automatically on every agent request unless explicitly disabled with `mode: "off"`. The flow:
 
 ```
 history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → LLM
@@ -73,12 +73,12 @@ This placeholder is configurable. Hard clear can also be disabled entirely.
 
 ## Configuration
 
-Context pruning is **off by default**. Enable it by setting `mode: "cache-ttl"` in the agent config.
+Context pruning is **on by default**. To disable it, set `mode: "off"` in the agent config.
 
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl"
+    "mode": "off"
   }
 }
 ```
@@ -90,7 +90,6 @@ All other fields have sensible defaults and are optional.
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "keepLastAssistants": 3,
     "softTrimRatio": 0.3,
     "hardClearRatio": 0.5,
@@ -110,7 +109,7 @@ All other fields have sensible defaults and are optional.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | `"off"` | Set to `"cache-ttl"` to enable pruning. Any other value disables it. |
+| `mode` | *(unset — pruning active)* | Set to `"off"` to disable pruning entirely. |
 | `keepLastAssistants` | `3` | Number of recent assistant turns to protect from pruning. |
 | `softTrimRatio` | `0.3` | Trigger soft trim when context fills this fraction of the context window. |
 | `hardClearRatio` | `0.5` | Trigger hard clear when context fills this fraction after soft trim. |
@@ -125,17 +124,15 @@ All other fields have sensible defaults and are optional.
 
 ## Configuration Examples
 
-### Minimal — enable with defaults
+### Disable pruning entirely
 
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl"
+    "mode": "off"
   }
 }
 ```
-
-Pruning activates at 30% context fill with default trim sizes.
 
 ### Aggressive — for long tool-heavy workflows
 
@@ -144,7 +141,6 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "softTrimRatio": 0.2,
     "hardClearRatio": 0.4,
     "softTrim": {
@@ -161,7 +157,6 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "hardClear": {
       "enabled": false
     }
@@ -174,7 +169,6 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "hardClear": {
       "placeholder": "[Tool output removed to save context]"
     }
@@ -198,7 +192,7 @@ Trigger earlier and keep less context per tool result:
 
 **Pruning never triggers**
 
-Check that `mode` is exactly `"cache-ttl"`. Any other value (including omitting the field) disables pruning. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
+Confirm that `mode` is not set to `"off"`. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
 
 **Agent re-runs tools unexpectedly**
 
@@ -220,4 +214,4 @@ Pruning only acts on tool results. If long user messages or system prompt compon
 - [Memory System](/memory-system) — persistent memory across sessions
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

@@ -145,6 +145,7 @@ const DOC_MAP = {
   'provider-ollama-cloud': docEntry('providers', 'ollama-cloud', 'Ollama Cloud'),
   'provider-suno': docEntry('providers', 'suno', 'Suno'),
   'provider-yescale': docEntry('providers', 'yescale', 'YesScale'),
+  'provider-novita': docEntry('providers', 'novita', 'Novita AI'),
   'provider-custom': docEntry('providers', 'custom-provider', 'Custom / OpenAI-Compatible', 'Custom Provider', '自定义 Provider'),
 
   // Channels

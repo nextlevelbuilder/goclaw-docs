@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **30**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **32**。
 
 ```mermaid
 graph LR
@@ -210,7 +210,7 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 ## 近期迁移
 
-### v2.x 迁移（024–030）
+### v2.x 迁移（024–032）
 
 升级到 v2.x 时，这五个迁移在启动时自动应用。标准升级无需手动步骤——像往常一样运行 `./goclaw upgrade`。只有在主要版本跨越的情况下才需要手动迁移，此时推荐使用备份恢复方案。
 
@@ -225,6 +225,8 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 028 | 为 `team_task_comments` 添加 `comment_type` 以支持阻塞升级 |
 | 029 | 添加 `system_configs` 表——按租户的键值存储系统设置（明文；机密请使用 `config_secrets`） |
 | 030 | 在 `spans.metadata`（局部，`span_type = 'llm_call'`）和 `sessions.metadata` JSONB 列上添加 GIN 索引以提升查询性能 |
+| 031 | 为 `kg_entities` 添加 `tsv tsvector` 生成列和 GIN 索引以支持全文搜索；创建 `kg_dedup_candidates` 表用于实体去重审查 |
+| 032 | 创建 `secure_cli_user_credentials` 表实现按用户 CLI 凭证注入；为 `channel_contacts` 添加 `contact_type` 列 |
 
 ### v2.x 重大变更
 
@@ -277,4 +279,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: 231bc968 | 更新: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

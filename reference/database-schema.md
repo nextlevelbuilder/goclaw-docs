@@ -983,6 +983,53 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 27 | Tenant foundation — creates `tenants` and `tenant_users` tables; seeds master tenant (`0193a5b0-7000-7000-8000-000000000001`); adds `tenant_id` column to 40+ tables for multi-tenant isolation; drops global unique constraints and replaces with per-tenant composite indexes; adds `builtin_tool_tenant_configs`, `skill_tenant_configs`, and `mcp_user_credentials` tables; drops `custom_tools` table (dead code); migrates remaining UUID v4 defaults to v7 |
 | 28 | Adds `comment_type VARCHAR(20) DEFAULT 'note'` to `team_task_comments` — supports `"blocker"` type that triggers task auto-fail and leader escalation |
 | 29 | `system_configs` — centralized per-tenant key-value configuration store; composite PK `(key, tenant_id)` with cascade delete |
+| 30 | Adds GIN indexes on `spans.metadata` (partial, `span_type = 'llm_call'`) and `sessions.metadata` JSONB columns for query performance |
+| 31 | Adds `tsv tsvector` generated column + GIN index to `kg_entities` for full-text search; creates `kg_dedup_candidates` table for entity deduplication review |
+| 32 | Creates `secure_cli_user_credentials` for per-user credential injection (mirrors `mcp_user_credentials` pattern); adds `contact_type VARCHAR(20) DEFAULT 'user'` to `channel_contacts` |
+
+---
+
+### `kg_dedup_candidates`
+
+Stores candidate pairs of knowledge graph entities that may be duplicates, for human or automated review. (migration 031)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | ON DELETE CASCADE | Owning tenant |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | User scope |
+| `entity_a_id` | UUID FK → kg_entities | NOT NULL ON DELETE CASCADE | First entity |
+| `entity_b_id` | UUID FK → kg_entities | NOT NULL ON DELETE CASCADE | Second entity |
+| `similarity` | FLOAT | NOT NULL | Similarity score (0–1) |
+| `status` | VARCHAR(20) | NOT NULL DEFAULT `pending` | `pending`, `merged`, `dismissed` |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(entity_a_id, entity_b_id)`
+
+**Indexes:** `idx_kg_dedup_agent` on `(agent_id, status)`
+
+---
+
+### `secure_cli_user_credentials`
+
+Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_credentials` pattern — user-specific env vars are injected instead of binary defaults. (migration 032)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID FK → secure_cli_binaries | NOT NULL ON DELETE CASCADE | Parent binary config |
+| `user_id` | VARCHAR(255) | NOT NULL | User the credentials belong to |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM encrypted JSON env map |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extra metadata |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(binary_id, user_id, tenant_id)`
+
+**Indexes:** `idx_scuc_tenant` on `(tenant_id)`, `idx_scuc_binary` on `(binary_id)`
+
+> Migration 032 also adds `contact_type VARCHAR(20) NOT NULL DEFAULT 'user'` to `channel_contacts` to distinguish user vs group contacts.
 
 ---
 
@@ -992,4 +1039,4 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

@@ -49,6 +49,7 @@
 - [Suno](vi/providers/suno.md): Tạo nhạc và âm thanh với nền tảng tạo nhạc AI của Suno.
 - [Zai](vi/providers/zai.md): Kết nối với Zai và Zai Coding provider (tương thích OpenAI).
 - [YesScale](vi/providers/yescale.md): Chạy các mô hình AI ở quy mô lớn với nền tảng AI đám mây YesScale.
+- [Novita AI](vi/providers/novita.md): Nhà cung cấp LLM tương thích OpenAI với nhiều mô hình mã nguồn mở đa dạng.
 - [Claude CLI](vi/providers/claude-cli.md): Chạy Claude Code (binary `claude` CLI) như một GoClaw provider — cấp cho agent của bạn khả năng sử dụng tool agentic đầy đủ, được cung cấp bởi subscription Claude của Anthropic.
 - [Codex / ChatGPT](vi/providers/codex-chatgpt.md): Dùng subscription ChatGPT của bạn để chạy GoClaw agent qua OpenAI Responses API với xác thực OAuth.
 - [ACP (Agent Client Protocol)](vi/providers/acp.md): Sử dụng Claude Code, Codex CLI, hoặc Gemini CLI làm LLM provider thông qua Agent Client Protocol — được điều phối như JSON-RPC subprocess.

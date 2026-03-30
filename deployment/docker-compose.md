@@ -1,24 +1,51 @@
 # Docker Compose Deployment
 
-> GoClaw ships 9 compose files — a base plus 8 overlays you mix and match to build the exact stack you need.
+> GoClaw ships a composable docker-compose setup: a base file, a `compose.d/` directory of always-active overlays, and a `compose.options/` directory of opt-in overlays you mix and match.
 
 > **Auto-upgrade on start:** The Docker entrypoint runs `goclaw upgrade` automatically before starting the gateway. This applies pending database migrations so you don't need a separate upgrade step for simple deployments. For production, consider running the upgrade overlay explicitly first.
 
 ## Overview
 
-The compose setup is modular. You always start with `docker-compose.yml` (the base) and stack overlays on top with `-f`. Each overlay extends or overrides only what it needs.
+The compose setup is modular. The base `docker-compose.yml` defines the core `goclaw` service. Active overlays live in `compose.d/` and are assembled automatically. Optional overlays in `compose.options/` can be copied into `compose.d/` to activate them.
+
+### `compose.d/` — always-active overlays
+
+Files in `compose.d/` are loaded automatically by `prepare-compose.sh` (sorted by filename):
 
 ```
-docker-compose.yml            # Base: goclaw binary, ports, volumes, security hardening
-docker-compose.postgres.yml   # PostgreSQL 18 + pgvector
-docker-compose.selfservice.yml # Web dashboard UI (nginx + React, port 3000)
-docker-compose.sandbox.yml    # Docker-in-Docker sandbox for agent code execution
-docker-compose.browser.yml    # Headless Chrome sidecar (CDP, port 9222)
-docker-compose.otel.yml       # Jaeger for OpenTelemetry trace visualization
-docker-compose.tailscale.yml  # Tailscale tsnet for secure remote access
-docker-compose.redis.yml      # Redis 7 cache backend (optional)
-docker-compose.upgrade.yml    # One-shot DB migration runner
+compose.d/
+  00-goclaw.yml        # Core service definition
+  11-postgres.yml      # PostgreSQL 18 + pgvector
+  12-selfservice.yml   # Web dashboard UI (nginx + React, port 3000)
+  13-upgrade.yml       # One-shot DB migration runner
+  14-browser.yml       # Headless Chrome sidecar (CDP, port 9222)
+  15-otel.yml          # Jaeger for OpenTelemetry trace visualization
+  16-redis.yml         # Redis 7 cache backend
+  17-sandbox.yml       # Docker-in-Docker sandbox for agent code execution
+  18-tailscale.yml     # Tailscale tsnet for secure remote access
 ```
+
+### `compose.options/` — opt-in overlays
+
+The `compose.options/` directory holds the same overlay files as reference copies. Copy the ones you want into `compose.d/` to activate them.
+
+### `prepare-compose.sh` — build the COMPOSE_FILE
+
+Run this script once after changing `compose.d/` to regenerate the `COMPOSE_FILE` variable in `.env`:
+
+```bash
+./prepare-compose.sh
+```
+
+The script reads all `compose.d/*.yml` files (sorted), validates the merged config with `docker compose config`, and writes the `COMPOSE_FILE` value to `.env`. Docker Compose reads `COMPOSE_FILE` automatically on every `docker compose` command.
+
+```bash
+# Flags
+./prepare-compose.sh --quiet             # suppress output
+./prepare-compose.sh --skip-validation   # skip docker compose config check
+```
+
+> **podman-compose:** `COMPOSE_FILE` is not read automatically. Run `source .env` before each `podman-compose` command.
 
 ---
 
@@ -57,59 +84,58 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
 
 > **Important:** All `GOCLAW_*` env vars must be set inside the `.env` file, not as shell prefixes (e.g. `GOCLAW_AUTO_UPGRADE=true docker compose …` will **not** work because compose reads from `env_file`).
 
-### Minimal — core + PostgreSQL only
+### Starting the stack
 
-No dashboard, no sandbox. Good for headless/API-only deployments.
+After running `prepare-compose.sh`, start the stack normally — `COMPOSE_FILE` in `.env` tells Docker Compose which files to load:
 
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  up -d --build
+./prepare-compose.sh
+docker compose up -d --build
+```
+
+To add or remove an optional component, copy the relevant file from `compose.options/` into `compose.d/` (or remove it), then re-run `prepare-compose.sh`.
+
+### Minimal — core + PostgreSQL only
+
+Keep only the essential files in `compose.d/`:
+
+```
+compose.d/00-goclaw.yml
+compose.d/11-postgres.yml
+compose.d/13-upgrade.yml
+```
+
+Then:
+
+```bash
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 ### Standard — + dashboard + sandbox
 
-The recommended starting point for most self-hosted setups.
+```
+compose.d/00-goclaw.yml
+compose.d/11-postgres.yml
+compose.d/12-selfservice.yml
+compose.d/13-upgrade.yml
+compose.d/17-sandbox.yml
+```
 
 ```bash
-# 1. Build the sandbox image first (one-time)
+# Build the sandbox image first (one-time)
 docker build -t goclaw-sandbox:bookworm-slim -f Dockerfile.sandbox .
 
-# 2. Start the stack
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.sandbox.yml \
-  up -d --build
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 Dashboard: [http://localhost:3000](http://localhost:3000)
 
-### Standard + browser automation
-
-Adds a headless Chrome sidecar for the browser tool.
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.browser.yml \
-  up -d --build
-```
-
 ### Full — everything including OTel tracing
 
+Add `compose.options/15-otel.yml` to `compose.d/`, then:
+
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.sandbox.yml \
-  -f docker-compose.otel.yml \
-  up -d --build
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 Jaeger UI: [http://localhost:16686](http://localhost:16686)
@@ -280,18 +306,16 @@ deploy:
 
 ```bash
 # 1. Pull latest images / rebuilt code
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml pull
+docker compose pull
 
 # 2. Run DB migrations before starting new binary
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.upgrade.yml \
-  run --rm upgrade
+docker compose run --rm upgrade
 
 # 3. Restart the stack
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+docker compose up -d --build
 ```
+
+> `COMPOSE_FILE` in `.env` (set by `prepare-compose.sh`) includes `13-upgrade.yml` automatically, so no explicit `-f` flags are needed.
 
 ---
 
@@ -397,4 +421,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](/deploy-observability) — OpenTelemetry and Jaeger configuration
 - [Tailscale](/deploy-tailscale) — secure remote access via Tailscale
 
-<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

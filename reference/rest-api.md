@@ -149,6 +149,75 @@ Re-trigger LLM-based summoning for predefined agents.
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user file (USER.md only) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata |
 
+### Agent Export / Import
+
+Export and import agent configurations and data as a tar.gz archive. Supports selective section export.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/export/preview` | Preview export counts per section (no archive built) |
+| `GET` | `/v1/agents/{id}/export` | Download agent archive directly (tar.gz) |
+| `GET` | `/v1/agents/{id}/export/download/{token}` | Download a previously prepared archive via short-lived token (valid 5 min) |
+| `POST` | `/v1/agents/import` | Import archive as a **new** agent (multipart `file` field) |
+| `POST` | `/v1/agents/import/preview` | Parse archive and return manifest without importing |
+| `POST` | `/v1/agents/{id}/import` | **Merge** archive data into an existing agent |
+
+**Export query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `sections` | string | Comma-separated list of sections to include. Defaults to `config,context_files`. Available: `config`, `context_files`, `memory`, `knowledge_graph`, `cron`, `user_profiles`, `user_overrides`, `workspace` |
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` for token-based download |
+
+**Import query params (`POST /v1/agents/import`):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `agent_key` | string | Override agent key (falls back to archive value) |
+| `display_name` | string | Override display name |
+| `stream` | `bool` | Stream import progress via SSE |
+
+**Merge import query params (`POST /v1/agents/{id}/import`):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `include` | string | Comma-separated sections to merge. Defaults to all sections |
+| `stream` | `bool` | Stream merge progress via SSE |
+
+**Archive format** (`agent-{key}-YYYYMMDD.tar.gz`):
+
+```
+manifest.json                              — archive manifest (version, sections summary)
+agent.json                                 — agent config (sensitive fields stripped)
+context_files/{filename}                   — agent-level context files
+user_context_files/{user_id}/{filename}    — per-user context files
+memory/global.jsonl                        — global memory documents
+memory/users/{user_id}.jsonl               — per-user memory documents
+knowledge_graph/entities.jsonl             — KG entities (portable external IDs)
+knowledge_graph/relations.jsonl            — KG relations
+cron/jobs.jsonl                            — cron job definitions
+user_profiles.jsonl                        — user profile records
+user_overrides.jsonl                       — per-user model overrides
+workspace/                                 — workspace directory files
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "agent_id": "uuid",
+  "agent_key": "researcher",
+  "context_files": 3,
+  "memory_docs": 12,
+  "kg_entities": 50,
+  "kg_relations": 30
+}
+```
+
+> Cron jobs are always imported as **disabled**. Duplicate jobs (same name) are skipped. Max archive size: 500 MB.
+
+---
+
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
 Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
@@ -316,6 +385,44 @@ Set a per-tenant override for a skill (e.g., enable/disable for the current tena
 ### `DELETE /v1/skills/{id}/tenant-config`
 
 Remove per-tenant override (revert to default). Admin only.
+
+### Skills Export / Import
+
+Export and import custom skills as a tar.gz archive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/export/preview` | Preview counts before export (no archive built) |
+| `GET` | `/v1/skills/export` | Download skills archive directly (tar.gz) |
+| `POST` | `/v1/skills/import` | Import skills archive (multipart `file` field) |
+
+**Query params for export:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+
+**Archive format** (`skills-YYYYMMDD.tar.gz`):
+
+```
+skills/{slug}/metadata.json   — skill metadata (name, slug, visibility, tags)
+skills/{slug}/SKILL.md        — skill file content
+skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "skills_imported": 3,
+  "skills_skipped": 1,
+  "grants_applied": 5
+}
+```
+
+> Skills are skipped (not overwritten) if the slug already exists in the tenant. Grants reference agents by `agent_key` — unmatched keys are silently skipped.
+
+---
 
 ### Skill Grants
 
@@ -543,6 +650,39 @@ List tools discovered from a running MCP server.
 | `GET` | `/v1/mcp/requests` | List pending requests |
 | `POST` | `/v1/mcp/requests/{id}/review` | Approve or reject a request |
 
+### MCP Export / Import
+
+Export and import MCP server configurations and agent grants as a tar.gz archive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/mcp/export/preview` | Preview export counts (no archive built) |
+| `GET` | `/v1/mcp/export` | Download MCP archive directly (tar.gz) |
+| `POST` | `/v1/mcp/import` | Import MCP archive (multipart `file` field) |
+
+**Query params for export:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+
+**Archive format** (`mcp-servers-YYYYMMDD.tar.gz`):
+
+```
+servers.jsonl   — MCP server definitions
+grants.jsonl    — agent grants (server_name + agent_key)
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "servers_imported": 2,
+  "servers_skipped": 0,
+  "grants_applied": 4
+}
+```
+
 ---
 
 ## Channel Instances
@@ -633,6 +773,61 @@ Delete a channel instance.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/teams/{id}/events` | List team events (paginated) |
+
+---
+
+## Team Export / Import
+
+Export and import a complete team (team metadata + all member agents) as a tar.gz archive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/teams/{id}/export/preview` | Preview export counts (members, tasks, agent_links) without building archive |
+| `GET` | `/v1/teams/{id}/export` | Download team archive directly (tar.gz) |
+| `POST` | `/v1/teams/import` | Import team archive, creating new agents and wiring the team (multipart `file` field) |
+
+**Export query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+
+**Archive format** (`team-{name}-YYYYMMDD.tar.gz`):
+
+```
+manifest.json                          — archive manifest (team_name, agent_keys, sections)
+team/team.json                         — team metadata
+team/members.jsonl                     — team member records
+team/tasks.jsonl                       — team task records
+team/comments.jsonl                    — task comments
+team/events.jsonl                      — task events
+team/links.jsonl                       — agent link records
+team/workspace/                        — team workspace files
+agents/{agent_key}/agent.json          — per-agent config
+agents/{agent_key}/context_files/      — per-agent context files
+agents/{agent_key}/memory/             — per-agent memory documents
+agents/{agent_key}/knowledge_graph/    — per-agent KG entities + relations
+agents/{agent_key}/cron/               — per-agent cron jobs
+agents/{agent_key}/workspace/          — per-agent workspace files
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "team_name": "research-team",
+  "agents_added": 3,
+  "agent_keys": ["researcher", "writer", "reviewer"]
+}
+```
+
+> Import requires **admin role**. Agent keys are deduplicated if they already exist (suffixed `-2`, `-3`, …). Cron jobs are always imported as disabled.
+
+Also available as a shared download endpoint (shared with agent export tokens):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/export/download/{token}` | Download a prepared archive by short-lived token (valid 5 min, any export type) |
 
 ---
 
@@ -876,4 +1071,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

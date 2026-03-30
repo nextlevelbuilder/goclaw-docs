@@ -303,6 +303,7 @@ Phát ra trong quá trình agent run. Kiểm tra `payload.type`:
 | `run.started` | Agent run bắt đầu |
 | `run.completed` | Run hoàn thành thành công |
 | `run.failed` | Run gặp lỗi |
+| `run.cancelled` | Run bị huỷ trước khi hoàn thành |
 | `run.retrying` | Run đang được retry |
 | `tool.call` | Tool được gọi |
 | `tool.result` | Tool trả kết quả |
@@ -381,4 +382,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

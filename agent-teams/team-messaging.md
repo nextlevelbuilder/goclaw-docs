@@ -156,6 +156,39 @@ If a member agent's run is terminated by the loop detector (stuck or infinite lo
 
 This prevents infinite loops from blocking team progress — agents can safely attempt exploratory tasks without risk of permanent stall.
 
+## Team Notification Settings
+
+Team task events can be forwarded to chat channels. The default configuration is conservative — only high-signal events are on by default to reduce noise.
+
+| Event | Default | Description |
+|-------|---------|-------------|
+| `dispatched` | ON | Task dispatched to a member |
+| `new_task` | ON | New task created (human-initiated) |
+| `completed` | ON | Task completed |
+| `progress` | OFF | Member updates progress |
+| `failed` | OFF | Task failed |
+| `commented` | OFF | Task comment added |
+| `slow_tool` | OFF | System alert when a tool call exceeds the adaptive threshold |
+
+Delivery mode is `direct` by default (outbound channel). Set `mode: "leader"` to route all notifications through the lead agent.
+
+Configure notifications in team settings:
+
+```json
+{
+  "notifications": {
+    "dispatched": true,
+    "new_task": true,
+    "completed": true,
+    "progress": false,
+    "failed": false,
+    "commented": false,
+    "slow_tool": false,
+    "mode": "direct"
+  }
+}
+```
+
 ## Best Practices
 
 1. **Be concise**: Keep messages focused and actionable
@@ -172,4 +205,4 @@ All messages are persisted to the database:
 - Timestamps and read status tracked
 - Full message history available for audit/review
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-28 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

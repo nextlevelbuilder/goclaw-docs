@@ -49,6 +49,7 @@
 - [Suno](providers/suno.md): Generate music and audio with Suno's AI music generation platform.
 - [Zai](providers/zai.md): Connect to Zai and Zai Coding providers (OpenAI-compatible).
 - [YesScale](providers/yescale.md): Run AI models at scale with YesScale's cloud AI platform.
+- [Novita AI](providers/novita.md): OpenAI-compatible LLM provider with access to a wide range of open-source models.
 - [Claude CLI](providers/claude-cli.md): Run Claude Code (the `claude` CLI binary) as a GoClaw provider — giving your agents full agentic tool use powered by Anthropic's Claude subscription.
 - [Codex / ChatGPT](providers/codex-chatgpt.md): Use your ChatGPT subscription to power GoClaw agents via the OpenAI Responses API and OAuth authentication.
 - [ACP (Agent Client Protocol)](providers/acp.md): Use Claude Code, Codex CLI, or Gemini CLI as LLM providers through the Agent Client Protocol — orchestrated as JSON-RPC subprocesses.

@@ -407,6 +407,31 @@ Array of MCP server configs. Each entry:
 
 ---
 
+## `providers`
+
+Static provider configuration. API keys can also be set via environment variables (e.g. `GOCLAW_NOVITA_API_KEY`).
+
+### `providers.novita`
+
+Novita AI — OpenAI-compatible endpoint.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `api_key` | string | — | Novita AI API key |
+| `api_base` | string | `https://api.novita.ai/openai` | API base URL |
+
+```json
+{
+  "providers": {
+    "novita": {
+      "api_key": "your-novita-api-key"
+    }
+  }
+}
+```
+
+---
+
 ## `sessions`
 
 | Field | Type | Default | Description |
@@ -610,4 +635,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

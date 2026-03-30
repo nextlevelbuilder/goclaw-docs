@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **30**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **32**.
 
 ```mermaid
 graph LR
@@ -208,7 +208,7 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v2.x Migrations (024–030)
+### v2.x Migrations (024–032)
 
 These five migrations are auto-applied on startup when upgrading to v2.x. No manual steps are needed for standard upgrades — run `./goclaw upgrade` as usual. Manual migration is only required for major version jumps where a backup-and-restore approach is recommended.
 
@@ -223,6 +223,8 @@ These five migrations are auto-applied on startup when upgrading to v2.x. No man
 | 028 | Adds `comment_type` to `team_task_comments` for blocker escalation support |
 | 029 | Adds `system_configs` table — per-tenant key-value store for system settings (plain text; use `config_secrets` for secrets) |
 | 030 | Adds GIN indexes on `spans.metadata` (partial, `span_type = 'llm_call'`) and `sessions.metadata` JSONB columns for query performance |
+| 031 | Adds `tsv tsvector` generated column + GIN index to `kg_entities` for full-text search; creates `kg_dedup_candidates` table for entity deduplication review |
+| 032 | Creates `secure_cli_user_credentials` for per-user CLI credential injection; adds `contact_type` column to `channel_contacts` |
 
 ### Breaking Changes in v2.x
 
@@ -275,4 +277,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

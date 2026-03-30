@@ -409,6 +409,31 @@ Mảng MCP server config. Mỗi entry:
 
 ---
 
+## `providers`
+
+Cấu hình provider tĩnh. API key cũng có thể đặt qua biến môi trường (ví dụ: `GOCLAW_NOVITA_API_KEY`).
+
+### `providers.novita`
+
+Novita AI — endpoint tương thích OpenAI.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `api_key` | string | — | API key Novita AI |
+| `api_base` | string | `https://api.novita.ai/openai` | URL API base |
+
+```json
+{
+  "providers": {
+    "novita": {
+      "api_key": "your-novita-api-key"
+    }
+  }
+}
+```
+
+---
+
 ## `sessions`
 
 | Field | Type | Mặc định | Mô tả |
@@ -612,4 +637,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](/database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

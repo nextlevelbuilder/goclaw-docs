@@ -301,6 +301,7 @@ Emitted during agent runs. Check `payload.type`:
 | `run.started` | Agent run begins |
 | `run.completed` | Run finished successfully |
 | `run.failed` | Run encountered an error |
+| `run.cancelled` | Run was cancelled before completion |
 | `run.retrying` | Run is being retried |
 | `tool.call` | Tool was invoked |
 | `tool.result` | Tool returned a result |
@@ -379,4 +380,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: 4d31fe0 | updated: 2026-03-26 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

@@ -2,25 +2,52 @@
 
 # Docker Compose 部署
 
-> GoClaw 提供 9 个 compose 文件——一个基础文件加 8 个可按需组合的 overlay。
+> GoClaw 提供可组合的 docker-compose 配置：一个基础文件、一个 `compose.d/` 目录（包含始终生效的 overlay）以及一个 `compose.options/` 目录（包含可按需启用的 overlay）。
 
 > **启动时自动升级：** Docker 入口点在启动 gateway 前会自动运行 `goclaw upgrade`，应用待执行的数据库迁移，无需单独执行升级步骤。生产环境建议显式先运行 upgrade overlay。
 
 ## 概览
 
-compose 配置是模块化的。始终以 `docker-compose.yml`（基础）为起点，通过 `-f` 叠加 overlay。每个 overlay 只扩展或覆盖必要的部分。
+compose 配置是模块化的。基础 `docker-compose.yml` 定义核心 `goclaw` 服务。`compose.d/` 中的 overlay 自动组装。`compose.options/` 中的 overlay 可复制到 `compose.d/` 后激活。
+
+### `compose.d/` — 始终生效的 overlay
+
+`compose.d/` 中的文件由 `prepare-compose.sh` 按文件名排序自动加载：
 
 ```
-docker-compose.yml            # 基础：goclaw 二进制、端口、卷、安全加固
-docker-compose.postgres.yml   # PostgreSQL 18 + pgvector
-docker-compose.selfservice.yml # Web 仪表盘 UI（nginx + React，端口 3000）
-docker-compose.sandbox.yml    # Docker-in-Docker 沙盒（用于 agent 代码执行）
-docker-compose.browser.yml    # Headless Chrome sidecar（CDP，端口 9222）
-docker-compose.otel.yml       # Jaeger（OpenTelemetry 链路追踪可视化）
-docker-compose.tailscale.yml  # Tailscale tsnet（安全远程访问）
-docker-compose.redis.yml      # Redis 7 缓存后端（可选）
-docker-compose.upgrade.yml    # 一次性 DB 迁移运行器
+compose.d/
+  00-goclaw.yml        # 核心服务定义
+  11-postgres.yml      # PostgreSQL 18 + pgvector
+  12-selfservice.yml   # Web 仪表盘 UI（nginx + React，端口 3000）
+  13-upgrade.yml       # 一次性 DB 迁移运行器
+  14-browser.yml       # Headless Chrome sidecar（CDP，端口 9222）
+  15-otel.yml          # Jaeger（OpenTelemetry 链路追踪可视化）
+  16-redis.yml         # Redis 7 缓存后端
+  17-sandbox.yml       # Docker-in-Docker 沙盒（用于 agent 代码执行）
+  18-tailscale.yml     # Tailscale tsnet（安全远程访问）
 ```
+
+### `compose.options/` — 可选 overlay
+
+`compose.options/` 目录保存同名 overlay 文件的参考副本。将需要的文件复制到 `compose.d/` 即可激活。
+
+### `prepare-compose.sh` — 生成 COMPOSE_FILE
+
+修改 `compose.d/` 后运行此脚本，重新生成 `.env` 中的 `COMPOSE_FILE` 变量：
+
+```bash
+./prepare-compose.sh
+```
+
+脚本读取所有 `compose.d/*.yml` 文件（排序），用 `docker compose config` 验证合并后的配置，并将 `COMPOSE_FILE` 值写入 `.env`。Docker Compose 在每次 `docker compose` 命令时自动读取 `COMPOSE_FILE`。
+
+```bash
+# 可用参数
+./prepare-compose.sh --quiet             # 抑制输出
+./prepare-compose.sh --skip-validation   # 跳过 config 检查
+```
+
+> **podman-compose：** 不会自动读取 `COMPOSE_FILE`，每次执行 `podman-compose` 前需运行 `source .env`。
 
 ---
 
@@ -59,59 +86,58 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
 
 > **重要：** 所有 `GOCLAW_*` 环境变量必须写在 `.env` 文件中，不能作为 shell 前缀传入（例如 `GOCLAW_AUTO_UPGRADE=true docker compose …` **不起效**，因为 compose 从 `env_file` 读取）。
 
-### 最小化——仅核心 + PostgreSQL
+### 启动服务栈
 
-无仪表盘，无沙盒。适用于无头/仅 API 部署。
+运行 `prepare-compose.sh` 后，正常启动服务栈——`.env` 中的 `COMPOSE_FILE` 告知 Docker Compose 需要加载哪些文件：
 
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  up -d --build
+./prepare-compose.sh
+docker compose up -d --build
+```
+
+要添加或移除某个组件，将对应文件从 `compose.options/` 复制到 `compose.d/`（或删除），然后重新运行 `prepare-compose.sh`。
+
+### 最小化——仅核心 + PostgreSQL
+
+`compose.d/` 中只保留必要文件：
+
+```
+compose.d/00-goclaw.yml
+compose.d/11-postgres.yml
+compose.d/13-upgrade.yml
+```
+
+然后：
+
+```bash
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 ### 标准——+ 仪表盘 + 沙盒
 
-大多数自托管场景的推荐起点。
+```
+compose.d/00-goclaw.yml
+compose.d/11-postgres.yml
+compose.d/12-selfservice.yml
+compose.d/13-upgrade.yml
+compose.d/17-sandbox.yml
+```
 
 ```bash
-# 1. 首先构建沙盒镜像（仅需一次）
+# 首先构建沙盒镜像（仅需一次）
 docker build -t goclaw-sandbox:bookworm-slim -f Dockerfile.sandbox .
 
-# 2. 启动服务栈
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.sandbox.yml \
-  up -d --build
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 仪表盘：[http://localhost:3000](http://localhost:3000)
 
-### 标准 + 浏览器自动化
-
-添加 headless Chrome sidecar 用于浏览器工具。
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.browser.yml \
-  up -d --build
-```
-
 ### 完整——包含 OTel 链路追踪
 
+将 `compose.options/15-otel.yml` 添加到 `compose.d/`，然后：
+
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.sandbox.yml \
-  -f docker-compose.otel.yml \
-  up -d --build
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 Jaeger UI：[http://localhost:16686](http://localhost:16686)
@@ -282,18 +308,16 @@ deploy:
 
 ```bash
 # 1. 拉取最新镜像/重建代码
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml pull
+docker compose pull
 
 # 2. 在启动新二进制前执行 DB 迁移
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.upgrade.yml \
-  run --rm upgrade
+docker compose run --rm upgrade
 
 # 3. 重启服务栈
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+docker compose up -d --build
 ```
+
+> `.env` 中的 `COMPOSE_FILE`（由 `prepare-compose.sh` 设置）已自动包含 `13-upgrade.yml`，无需手动指定 `-f` 参数。
 
 ---
 
@@ -399,4 +423,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [可观测性](/deploy-observability) — OpenTelemetry 和 Jaeger 配置
 - [Tailscale](/deploy-tailscale) — 通过 Tailscale 实现安全远程访问
 
-<!-- goclaw-source: 4d31fe0 | 更新: 2026-03-26 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

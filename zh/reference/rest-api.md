@@ -151,6 +151,43 @@ curl -X POST http://localhost:18790/v1/agents \
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | 更新用户文件（仅 USER.md）|
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | 更新实例元数据 |
 
+### Agent 导出 / 导入
+
+以 tar.gz 归档格式导出和导入 agent 配置及数据，支持按 section 选择性导出。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/export/preview` | 预览各 section 数量（不生成归档）|
+| `GET` | `/v1/agents/{id}/export` | 直接下载 agent 归档（tar.gz）|
+| `GET` | `/v1/agents/{id}/export/download/{token}` | 通过短效 token 下载已准备好的归档（5 分钟有效）|
+| `POST` | `/v1/agents/import` | 将归档导入为**新 agent**（multipart 字段 `file`）|
+| `POST` | `/v1/agents/import/preview` | 解析归档并返回 manifest，不执行导入 |
+| `POST` | `/v1/agents/{id}/import` | 将归档数据**合并**到已有 agent |
+
+**导出查询参数：**
+
+| 参数 | 类型 | 说明 |
+|-------|------|-------------|
+| `sections` | string | 逗号分隔的 section 列表，默认 `config,context_files`。可选：`config`、`context_files`、`memory`、`knowledge_graph`、`cron`、`user_profiles`、`user_overrides`、`workspace` |
+| `stream` | `bool` | 为 `true` 时以 SSE 流式推送进度，最后发送含 `download_url` 的 `complete` 事件 |
+
+**导入响应**（`201 Created`）：
+
+```json
+{
+  "agent_id": "uuid",
+  "agent_key": "researcher",
+  "context_files": 3,
+  "memory_docs": 12,
+  "kg_entities": 50,
+  "kg_relations": 30
+}
+```
+
+> Cron 作业始终以**禁用**状态导入。同名作业将被跳过。归档大小上限：500 MB。
+
+---
+
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
 返回使用 [Codex OAuth pool](/provider-codex) 的 agent 的路由活动和每账户健康状态。要求 agent 的 provider 为 `chatgpt_oauth` 类型并已配置 pool。
@@ -318,6 +355,30 @@ curl -X POST http://localhost:18790/v1/skills/upload \
 ### `DELETE /v1/skills/{id}/tenant-config`
 
 移除租户级覆盖（恢复默认值）。仅管理员。
+
+### Skills 导出 / 导入
+
+以 tar.gz 归档格式导出和导入自定义 skill。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/export/preview` | 预览导出数量 |
+| `GET` | `/v1/skills/export` | 直接下载 skills 归档（tar.gz）|
+| `POST` | `/v1/skills/import` | 导入 skills 归档（multipart 字段 `file`）|
+
+**导入响应**（`201 Created`）：
+
+```json
+{
+  "skills_imported": 3,
+  "skills_skipped": 1,
+  "grants_applied": 5
+}
+```
+
+> 若 slug 在该租户中已存在则跳过（不覆盖）。Grant 通过 `agent_key` 引用 agent，未匹配的 key 将被静默跳过。
+
+---
 
 ### Skill 授权
 
@@ -545,6 +606,26 @@ curl -X POST http://localhost:18790/v1/mcp/servers \
 | `GET` | `/v1/mcp/requests` | 列出待处理请求 |
 | `POST` | `/v1/mcp/requests/{id}/review` | 批准或拒绝请求 |
 
+### MCP 导出 / 导入
+
+以 tar.gz 归档格式导出和导入 MCP server 配置及 agent grant。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/mcp/export/preview` | 预览导出数量 |
+| `GET` | `/v1/mcp/export` | 直接下载 MCP 归档（tar.gz）|
+| `POST` | `/v1/mcp/import` | 导入 MCP 归档（multipart 字段 `file`）|
+
+**导入响应**（`201 Created`）：
+
+```json
+{
+  "servers_imported": 2,
+  "servers_skipped": 0,
+  "grants_applied": 4
+}
+```
+
 ---
 
 ## Channel 实例
@@ -635,6 +716,36 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/teams/{id}/events` | 列出团队事件（分页）|
+
+---
+
+## 团队导出 / 导入
+
+以 tar.gz 归档格式导出和导入完整团队（团队元数据 + 所有成员 agent）。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/teams/{id}/export/preview` | 预览导出数量（members、tasks、agent_links），不生成归档 |
+| `GET` | `/v1/teams/{id}/export` | 直接下载团队归档（tar.gz）|
+| `POST` | `/v1/teams/import` | 导入团队归档，创建新 agent 并建立团队结构（multipart 字段 `file`）|
+
+**导入响应**（`201 Created`）：
+
+```json
+{
+  "team_name": "research-team",
+  "agents_added": 3,
+  "agent_keys": ["researcher", "writer", "reviewer"]
+}
+```
+
+> 导入需要**管理员权限**。重复的 agent key 会自动重命名（添加后缀 `-2`、`-3`……）。Cron 作业始终以禁用状态导入。
+
+通用下载端点（所有导出类型共用）：
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/export/download/{token}` | 通过短效 token 下载归档（5 分钟有效，所有导出类型共用）|
 
 ---
 
@@ -878,4 +989,4 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: 6551c2d1 | 更新: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

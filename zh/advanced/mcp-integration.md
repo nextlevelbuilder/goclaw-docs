@@ -132,6 +132,26 @@ curl -X POST http://localhost:8080/v1/mcp/grants \
 
 当 `tool_allow` 非空时，只有这些工具对 agent 可见。`tool_deny` 可在其余工具被允许时排除特定工具。
 
+## 按用户凭据的服务器（延迟加载）
+
+某些 MCP 服务器需要每用户独立的凭据（OAuth token、个人 API key）。这类服务器**不在启动时连接**。GoClaw 在 `LoadForAgent("")` 期间将它们存储为 `userCredServers`，并在实际用户会话到来时通过 `pool.AcquireUser()` 按请求创建连接。
+
+**工作原理：**
+
+1. 启动时，以无用户上下文调用 `LoadForAgent("")`。需要 `requireUserCreds` 的服务器存储在 `userCredServers` 中——不建立连接。
+2. 用户会话启动时，调用 `LoadForAgent(userID)`。GoClaw 解析该用户的凭据，仅为该会话建立连接。
+3. 服务器及其工具仅在该用户的请求上下文中可用。
+
+按用户凭据的服务器不会出现在全局状态接口中，但通过用户会话访问时正常显示。
+
+## 可选工具参数自动清理
+
+LLM 经常为可选参数发送空字符串或占位符值（如 `""`、`"null"`、`"none"`、`"__OMIT__"`），而不是直接省略它们。这会导致 MCP 服务器因值无效而拒绝调用（例如 UUID 字段收到空字符串）。
+
+GoClaw 在转发调用前自动移除这些值。必填字段始终原样传递，可选字段中的空值或占位符值会从调用参数中删除。
+
+无需配置——对所有 MCP 工具调用始终生效。
+
 ## 用户自助访问
 
 用户可通过自助门户申请访问 MCP 服务器，申请进入队列等待管理员审批。审批通过后，该服务器通过 `LoadForAgent` 自动加载到该用户的会话中。
@@ -279,4 +299,4 @@ curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{us
 - [自定义工具](../advanced/custom-tools.md) — 无需 MCP 服务器即可构建基于 shell 的工具
 - [Skills](../advanced/skills.md) — 将可复用知识注入 agent 系统提示词
 
-<!-- goclaw-source: 19eef35 | 更新: 2026-03-28 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

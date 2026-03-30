@@ -151,6 +151,43 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Cập nhật user file (chỉ USER.md) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Cập nhật instance metadata |
 
+### Export / Import Agent
+
+Xuất và nhập cấu hình + dữ liệu agent dưới dạng archive tar.gz. Hỗ trợ xuất từng section tuỳ chọn.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/agents/{id}/export/preview` | Xem trước số lượng từng section (không tạo archive) |
+| `GET` | `/v1/agents/{id}/export` | Tải xuống archive agent trực tiếp (tar.gz) |
+| `GET` | `/v1/agents/{id}/export/download/{token}` | Tải archive đã chuẩn bị qua token ngắn hạn (hết hạn sau 5 phút) |
+| `POST` | `/v1/agents/import` | Import archive thành **agent mới** (multipart field `file`) |
+| `POST` | `/v1/agents/import/preview` | Parse archive và trả manifest mà không import |
+| `POST` | `/v1/agents/{id}/import` | **Merge** dữ liệu archive vào agent hiện có |
+
+**Query params cho export:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `sections` | string | Danh sách section cách nhau bởi dấu phẩy. Mặc định: `config,context_files`. Có thể chọn: `config`, `context_files`, `memory`, `knowledge_graph`, `cron`, `user_profiles`, `user_overrides`, `workspace` |
+| `stream` | `bool` | Khi `true`, trả SSE progress rồi event `complete` kèm `download_url` |
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "agent_id": "uuid",
+  "agent_key": "researcher",
+  "context_files": 3,
+  "memory_docs": 12,
+  "kg_entities": 50,
+  "kg_relations": 30
+}
+```
+
+> Cron job luôn được import ở trạng thái **disabled**. Job trùng tên sẽ bị bỏ qua. Giới hạn archive: 500 MB.
+
+---
+
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
 Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](/provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
@@ -318,6 +355,30 @@ Bật/tắt skill.
 ### `DELETE /v1/skills/{id}/tenant-config`
 
 Xóa cấu hình ghi đè theo tenant (khôi phục về mặc định). Chỉ admin.
+
+### Export / Import Skills
+
+Xuất và nhập custom skill dưới dạng archive tar.gz.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/export/preview` | Xem trước số lượng trước khi export |
+| `GET` | `/v1/skills/export` | Tải xuống skills archive trực tiếp (tar.gz) |
+| `POST` | `/v1/skills/import` | Import skills archive (multipart field `file`) |
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "skills_imported": 3,
+  "skills_skipped": 1,
+  "grants_applied": 5
+}
+```
+
+> Skill bị bỏ qua nếu slug đã tồn tại trong tenant. Grant tham chiếu agent theo `agent_key` — key không tìm thấy sẽ bị bỏ qua.
+
+---
 
 ### Skill Grants
 
@@ -545,6 +606,26 @@ Liệt kê tool được discover từ MCP server đang chạy.
 | `GET` | `/v1/mcp/requests` | Liệt kê request đang chờ |
 | `POST` | `/v1/mcp/requests/{id}/review` | Phê duyệt hoặc từ chối request |
 
+### Export / Import MCP
+
+Xuất và nhập cấu hình MCP server và agent grant dưới dạng archive tar.gz.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/mcp/export/preview` | Xem trước số lượng trước khi export |
+| `GET` | `/v1/mcp/export` | Tải xuống MCP archive trực tiếp (tar.gz) |
+| `POST` | `/v1/mcp/import` | Import MCP archive (multipart field `file`) |
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "servers_imported": 2,
+  "servers_skipped": 0,
+  "grants_applied": 4
+}
+```
+
 ---
 
 ## Channel Instances
@@ -635,6 +716,36 @@ Xóa channel instance.
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/teams/{id}/events` | Liệt kê team event (có phân trang) |
+
+---
+
+## Export / Import Team
+
+Xuất và nhập toàn bộ team (metadata team + tất cả agent thành viên) dưới dạng archive tar.gz.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/teams/{id}/export/preview` | Xem trước số lượng (members, tasks, agent_links) không tạo archive |
+| `GET` | `/v1/teams/{id}/export` | Tải xuống team archive trực tiếp (tar.gz) |
+| `POST` | `/v1/teams/import` | Import team archive, tạo agent mới và kết nối team (multipart field `file`) |
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "team_name": "research-team",
+  "agents_added": 3,
+  "agent_keys": ["researcher", "writer", "reviewer"]
+}
+```
+
+> Import yêu cầu **quyền admin**. Agent key trùng sẽ được đổi tên tự động (hậu tố `-2`, `-3`, …). Cron job luôn được import ở trạng thái disabled.
+
+Endpoint tải xuống dùng chung cho tất cả loại export:
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/export/download/{token}` | Tải archive qua token ngắn hạn (hết hạn 5 phút, dùng chung) |
 
 ---
 
@@ -878,4 +989,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

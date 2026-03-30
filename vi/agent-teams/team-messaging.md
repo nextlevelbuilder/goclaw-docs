@@ -158,6 +158,39 @@ Nếu run của agent thành viên bị loop detector terminate (loop vô hạn 
 
 Điều này ngăn vòng lặp vô hạn chặn tiến trình team — agent có thể an toàn thử các task thăm dò mà không lo bị kẹt vĩnh viễn.
 
+## Cấu hình thông báo team
+
+Các sự kiện task trong team có thể được chuyển tiếp đến kênh chat. Mặc định, chỉ các sự kiện quan trọng được bật để tránh ồn ào.
+
+| Sự kiện | Mặc định | Mô tả |
+|---------|---------|-------|
+| `dispatched` | BẬT | Task được giao cho thành viên |
+| `new_task` | BẬT | Task mới được tạo (do người dùng khởi tạo) |
+| `completed` | BẬT | Task hoàn thành |
+| `progress` | TẮT | Thành viên cập nhật tiến độ |
+| `failed` | TẮT | Task thất bại |
+| `commented` | TẮT | Bình luận được thêm vào task |
+| `slow_tool` | TẮT | Cảnh báo khi tool call vượt quá ngưỡng thích ứng |
+
+Chế độ giao hàng mặc định là `direct` (kênh outbound). Đặt `mode: "leader"` để chuyển tất cả thông báo qua lead agent.
+
+Cấu hình thông báo trong team settings:
+
+```json
+{
+  "notifications": {
+    "dispatched": true,
+    "new_task": true,
+    "completed": true,
+    "progress": false,
+    "failed": false,
+    "commented": false,
+    "slow_tool": false,
+    "mode": "direct"
+  }
+}
+```
+
 ## Thực hành Tốt nhất
 
 1. **Ngắn gọn**: Giữ tin nhắn tập trung và có thể hành động được
@@ -174,4 +207,4 @@ Tất cả tin nhắn được lưu vào database:
 - Timestamps và trạng thái đọc được theo dõi
 - Toàn bộ lịch sử tin nhắn có sẵn để kiểm tra/xem xét
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-28 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

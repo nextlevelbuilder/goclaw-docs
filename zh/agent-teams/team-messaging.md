@@ -158,6 +158,39 @@ sender ID 中的 `teammate:` 前缀告知消费者将消息路由到正确的团
 
 这防止了无限循环阻塞团队进展——agent 可以安全地尝试探索性任务，不会永久卡住。
 
+## 团队通知配置
+
+团队任务事件可以转发到聊天频道。默认配置较为保守——仅开启高信噪比事件，以减少噪音。
+
+| 事件 | 默认 | 说明 |
+|------|------|------|
+| `dispatched` | 开启 | 任务分配给成员 |
+| `new_task` | 开启 | 新任务创建（由用户发起） |
+| `completed` | 开启 | 任务完成 |
+| `progress` | 关闭 | 成员更新进度 |
+| `failed` | 关闭 | 任务失败 |
+| `commented` | 关闭 | 任务添加评论 |
+| `slow_tool` | 关闭 | 工具调用超过自适应阈值时的系统警报 |
+
+默认投递模式为 `direct`（出站频道）。设置 `mode: "leader"` 可将所有通知通过 lead agent 路由。
+
+在团队设置中配置通知：
+
+```json
+{
+  "notifications": {
+    "dispatched": true,
+    "new_task": true,
+    "completed": true,
+    "progress": false,
+    "failed": false,
+    "commented": false,
+    "slow_tool": false,
+    "mode": "direct"
+  }
+}
+```
+
 ## 最佳实践
 
 1. **保持简洁**：消息要聚焦且可操作
@@ -174,4 +207,4 @@ sender ID 中的 `teammate:` 前缀告知消费者将消息路由到正确的团
 - 跟踪时间戳和已读状态
 - 完整消息历史可供审计/回顾
 
-<!-- goclaw-source: 941a965 | 更新: 2026-03-28 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

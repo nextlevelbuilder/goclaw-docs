@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **30**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **32**.
 
 ```mermaid
 graph LR
@@ -210,7 +210,7 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ## Migration gần đây
 
-### Migration v2.x (024–030)
+### Migration v2.x (024–032)
 
 Năm migration này được tự động áp dụng khi khởi động khi nâng cấp lên v2.x. Không cần bước thủ công cho upgrade thông thường — chạy `./goclaw upgrade` như bình thường. Chỉ cần migration thủ công cho các bước nhảy phiên bản lớn nơi nên backup-and-restore.
 
@@ -225,6 +225,8 @@ Năm migration này được tự động áp dụng khi khởi động khi nân
 | 028 | Thêm `comment_type` vào `team_task_comments` cho blocker escalation support |
 | 029 | Thêm bảng `system_configs` — key-value store per-tenant cho system settings (plain text; dùng `config_secrets` cho secrets) |
 | 030 | Thêm GIN index trên cột JSONB `spans.metadata` (partial, `span_type = 'llm_call'`) và `sessions.metadata` để cải thiện query performance |
+| 031 | Thêm cột generated `tsv tsvector` + GIN index vào `kg_entities` cho full-text search; tạo bảng `kg_dedup_candidates` cho review entity trùng lặp |
+| 032 | Tạo bảng `secure_cli_user_credentials` cho credential CLI theo user; thêm cột `contact_type` vào `channel_contacts` |
 
 ### Breaking Changes trong v2.x
 
@@ -277,4 +279,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

@@ -49,6 +49,7 @@
 - [Suno](zh/providers/suno.md): 使用 Suno 的 AI 音乐生成平台创作音乐和音频。
 - [Zai](zh/providers/zai.md): 连接 Zai 和 Zai Coding provider（OpenAI 兼容）。
 - [YesScale](zh/providers/yescale.md): 通过 YesScale 的云 AI 平台大规模运行 AI 模型。
+- [Novita AI](zh/providers/novita.md): 支持多种开源模型的 OpenAI 兼容 LLM 服务商。
 - [Claude CLI](zh/providers/claude-cli.md): 将 Claude Code（`claude` CLI 二进制文件）作为 GoClaw provider 运行——通过 Anthropic 的 Claude 订阅为 agent 提供完整的 agentic 工具调用能力。
 - [Codex / ChatGPT](zh/providers/codex-chatgpt.md): 通过 OpenAI Responses API 和 OAuth 认证，使用 ChatGPT 订阅驱动 GoClaw agent。
 - [ACP (Agent Client Protocol)](zh/providers/acp.md): 通过 Agent Client Protocol 将 Claude Code、Codex CLI 或 Gemini CLI 作为 LLM provider 使用——以 JSON-RPC 子进程方式编排。

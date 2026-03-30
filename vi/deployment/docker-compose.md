@@ -2,25 +2,52 @@
 
 # Docker Compose Deployment
 
-> GoClaw cung cấp 9 file compose — một file base và 8 overlay để bạn kết hợp linh hoạt tùy theo stack cần triển khai.
+> GoClaw cung cấp cấu trúc docker-compose có thể kết hợp: một file base, thư mục `compose.d/` chứa các overlay luôn hoạt động, và thư mục `compose.options/` chứa các overlay tùy chọn để bạn chọn lựa.
 
 > **Tự động upgrade khi khởi động:** Docker entrypoint tự động chạy `goclaw upgrade` trước khi khởi động gateway. Điều này áp dụng các database migration đang chờ, nên bạn không cần bước upgrade riêng cho các triển khai đơn giản. Với môi trường production, hãy cân nhắc chạy upgrade overlay riêng trước.
 
 ## Tổng quan
 
-Cấu trúc compose được thiết kế theo module. Bạn luôn bắt đầu với `docker-compose.yml` (base) và chồng thêm các overlay bằng `-f`. Mỗi overlay chỉ mở rộng hoặc ghi đè những gì cần thiết.
+Cấu trúc compose được thiết kế theo module. File `docker-compose.yml` base định nghĩa service `goclaw` cốt lõi. Các overlay trong `compose.d/` được tự động lắp ghép. Các overlay trong `compose.options/` có thể copy vào `compose.d/` để kích hoạt.
+
+### `compose.d/` — overlay luôn hoạt động
+
+Các file trong `compose.d/` được `prepare-compose.sh` tải tự động (theo thứ tự tên file):
 
 ```
-docker-compose.yml            # Base: binary goclaw, ports, volumes, security hardening
-docker-compose.postgres.yml   # PostgreSQL 18 + pgvector
-docker-compose.selfservice.yml # Web dashboard UI (nginx + React, port 3000)
-docker-compose.sandbox.yml    # Docker-in-Docker sandbox cho agent thực thi code
-docker-compose.browser.yml    # Headless Chrome sidecar (CDP, port 9222)
-docker-compose.otel.yml       # Jaeger cho OpenTelemetry trace visualization
-docker-compose.tailscale.yml  # Tailscale tsnet để truy cập từ xa an toàn
-docker-compose.redis.yml      # Redis 7 cache backend (tùy chọn)
-docker-compose.upgrade.yml    # One-shot DB migration runner
+compose.d/
+  00-goclaw.yml        # Định nghĩa service cốt lõi
+  11-postgres.yml      # PostgreSQL 18 + pgvector
+  12-selfservice.yml   # Web dashboard UI (nginx + React, port 3000)
+  13-upgrade.yml       # One-shot DB migration runner
+  14-browser.yml       # Headless Chrome sidecar (CDP, port 9222)
+  15-otel.yml          # Jaeger cho OpenTelemetry trace visualization
+  16-redis.yml         # Redis 7 cache backend
+  17-sandbox.yml       # Docker-in-Docker sandbox cho agent thực thi code
+  18-tailscale.yml     # Tailscale tsnet để truy cập từ xa an toàn
 ```
+
+### `compose.options/` — overlay tùy chọn
+
+Thư mục `compose.options/` chứa các file overlay tham chiếu. Copy file bạn muốn vào `compose.d/` để kích hoạt.
+
+### `prepare-compose.sh` — tạo COMPOSE_FILE
+
+Chạy script này một lần sau khi thay đổi `compose.d/` để cập nhật biến `COMPOSE_FILE` trong `.env`:
+
+```bash
+./prepare-compose.sh
+```
+
+Script đọc tất cả file `compose.d/*.yml` (theo thứ tự), kiểm tra config bằng `docker compose config`, và ghi giá trị `COMPOSE_FILE` vào `.env`. Docker Compose tự động đọc `COMPOSE_FILE` trong mỗi lệnh `docker compose`.
+
+```bash
+# Các flag
+./prepare-compose.sh --quiet             # ẩn output
+./prepare-compose.sh --skip-validation   # bỏ qua kiểm tra config
+```
+
+> **podman-compose:** Không đọc `COMPOSE_FILE` tự động. Chạy `source .env` trước mỗi lệnh `podman-compose`.
 
 ---
 
@@ -59,59 +86,58 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
 
 > **Quan trọng:** Tất cả biến `GOCLAW_*` phải đặt trong file `.env`, không dùng prefix trước command (ví dụ `GOCLAW_AUTO_UPGRADE=true docker compose …` sẽ **không hoạt động** vì compose đọc từ `env_file`).
 
-### Tối giản — chỉ core + PostgreSQL
+### Khởi động stack
 
-Không dashboard, không sandbox. Phù hợp cho các triển khai headless/API-only.
+Sau khi chạy `prepare-compose.sh`, khởi động stack bình thường — `COMPOSE_FILE` trong `.env` cho Docker Compose biết cần load file nào:
 
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  up -d --build
+./prepare-compose.sh
+docker compose up -d --build
+```
+
+Để thêm hoặc bỏ một thành phần, copy file từ `compose.options/` vào `compose.d/` (hoặc xóa đi), rồi chạy lại `prepare-compose.sh`.
+
+### Tối giản — chỉ core + PostgreSQL
+
+Chỉ giữ các file cần thiết trong `compose.d/`:
+
+```
+compose.d/00-goclaw.yml
+compose.d/11-postgres.yml
+compose.d/13-upgrade.yml
+```
+
+Sau đó:
+
+```bash
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 ### Chuẩn — + dashboard + sandbox
 
-Điểm khởi đầu được khuyến nghị cho hầu hết các self-hosted setup.
+```
+compose.d/00-goclaw.yml
+compose.d/11-postgres.yml
+compose.d/12-selfservice.yml
+compose.d/13-upgrade.yml
+compose.d/17-sandbox.yml
+```
 
 ```bash
-# 1. Build sandbox image trước (một lần duy nhất)
+# Build sandbox image trước (một lần duy nhất)
 docker build -t goclaw-sandbox:bookworm-slim -f Dockerfile.sandbox .
 
-# 2. Khởi động stack
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.sandbox.yml \
-  up -d --build
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 Dashboard: [http://localhost:3000](http://localhost:3000)
 
-### Chuẩn + browser automation
-
-Thêm headless Chrome sidecar cho browser tool.
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.browser.yml \
-  up -d --build
-```
-
 ### Full — bao gồm cả OTel tracing
 
+Thêm `compose.options/15-otel.yml` vào `compose.d/`, rồi:
+
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
-  -f docker-compose.sandbox.yml \
-  -f docker-compose.otel.yml \
-  up -d --build
+./prepare-compose.sh && docker compose up -d --build
 ```
 
 Jaeger UI: [http://localhost:16686](http://localhost:16686)
@@ -282,18 +308,16 @@ deploy:
 
 ```bash
 # 1. Pull image mới nhất / rebuild code
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml pull
+docker compose pull
 
 # 2. Chạy DB migration trước khi khởi động binary mới
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.upgrade.yml \
-  run --rm upgrade
+docker compose run --rm upgrade
 
 # 3. Khởi động lại stack
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+docker compose up -d --build
 ```
+
+> `COMPOSE_FILE` trong `.env` (được đặt bởi `prepare-compose.sh`) đã bao gồm `13-upgrade.yml` tự động, nên không cần chỉ định `-f` thủ công.
 
 ---
 
@@ -399,4 +423,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](/deploy-observability) — cấu hình OpenTelemetry và Jaeger
 - [Tailscale](/deploy-tailscale) — truy cập từ xa an toàn qua Tailscale
 
-<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

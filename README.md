@@ -53,6 +53,7 @@
 - [Suno](providers/suno.md)
 - [Zai](providers/zai.md)
 - [YesScale](providers/yescale.md)
+- [Novita AI](providers/novita.md)
 - [Claude CLI](providers/claude-cli.md)
 - [Codex / ChatGPT](providers/codex-chatgpt.md)
 - [ACP (Agent Client Protocol)](providers/acp.md)

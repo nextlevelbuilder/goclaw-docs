@@ -43,6 +43,48 @@ The extractor uses a fixed set of relation types:
 
 ---
 
+## Full-Text Search
+
+Entity search uses PostgreSQL `tsvector` full-text search (migration `000031`). A stored `tsv` column is automatically generated from each entity's name and description:
+
+```sql
+tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', name || ' ' || COALESCE(description, ''))) STORED
+```
+
+A GIN index on `tsv` makes text queries fast even with large graphs. Queries like `"john"` or `"project alpha"` match partial words across name and description fields.
+
+---
+
+## Entity Deduplication
+
+After extraction, GoClaw automatically checks new entities for duplicates using two signals:
+
+1. **Embedding similarity** — HNSW KNN query finds the nearest existing entities of the same type
+2. **Name similarity** — Jaro-Winkler string similarity (case-insensitive)
+
+### Thresholds
+
+| Scenario | Condition | Action |
+|----------|-----------|--------|
+| Near-certain duplicate | embedding similarity ≥ 0.98 **and** name similarity ≥ 0.85 | Auto-merged immediately |
+| Possible duplicate | embedding similarity ≥ 0.90 | Flagged in `kg_dedup_candidates` for review |
+
+**Auto-merge** keeps the entity with the higher confidence score, re-points all relations from the merged entity to the surviving one, and deletes the source entity. An advisory lock prevents concurrent merges on the same agent.
+
+**Flagged candidates** are stored in `kg_dedup_candidates` with status `pending`. You can list, dismiss, or manually merge them via the API.
+
+### Bulk duplicate scan
+
+You can trigger a full scan across all entities:
+
+```bash
+POST /v1/agents/{agentID}/kg/scan-duplicates
+```
+
+This runs a self-join similarity scan and adds candidates to the review queue. Useful after bulk imports or initial onboarding.
+
+---
+
 ## Searching the Graph
 
 **Tool:** `knowledge_graph_search`
@@ -117,4 +159,4 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Sessions & History](/sessions-and-history) — Conversation storage
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->

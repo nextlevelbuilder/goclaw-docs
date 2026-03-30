@@ -132,6 +132,26 @@ curl -X POST http://localhost:8080/v1/mcp/grants \
 
 Khi `tool_allow` khác rỗng, chỉ những tool đó mới hiển thị với agent. `tool_deny` loại bỏ các tool cụ thể ngay cả khi phần còn lại được cho phép.
 
+## Server với Credential Per-User (Tải trì hoãn)
+
+Một số MCP server yêu cầu credential riêng cho từng người dùng (OAuth token, API key cá nhân). Các server này **không được kết nối khi khởi động**. Thay vào đó, GoClaw lưu chúng trong `userCredServers` trong quá trình `LoadForAgent("")` và tạo kết nối theo từng request thông qua `pool.AcquireUser()` khi session người dùng thực sự đến.
+
+**Cách hoạt động:**
+
+1. Lúc khởi động, `LoadForAgent("")` được gọi không có user context. Các server cần `requireUserCreds` được lưu vào `userCredServers` — chưa kết nối.
+2. Khi session người dùng bắt đầu, `LoadForAgent(userID)` được gọi. GoClaw phân giải credential cho người dùng cụ thể đó và kết nối server chỉ trong phạm vi session đó.
+3. Server và các tool của nó chỉ khả dụng trong request context của người dùng đó.
+
+Các server dùng credential per-user không hiển thị trong endpoint trạng thái toàn cục, nhưng hoạt động bình thường khi truy cập qua session người dùng.
+
+## Loại bỏ tham số tùy chọn rỗng
+
+LLM thường gửi chuỗi rỗng hoặc giá trị placeholder (ví dụ: `""`, `"null"`, `"none"`, `"__OMIT__"`) cho các tham số tool tùy chọn thay vì bỏ qua chúng. Điều này khiến MCP server từ chối lời gọi do giá trị không hợp lệ (ví dụ chuỗi rỗng khi cần UUID).
+
+GoClaw tự động loại bỏ các giá trị này trước khi chuyển tiếp lời gọi. Các trường bắt buộc luôn được giữ nguyên. Các trường tùy chọn có giá trị rỗng hoặc placeholder sẽ bị xóa khỏi tham số gọi.
+
+Không cần cấu hình — tính năng này luôn hoạt động cho tất cả lời gọi MCP tool.
+
 ## Tự đăng ký truy cập cho người dùng
 
 Người dùng có thể yêu cầu truy cập vào MCP server qua cổng tự phục vụ. Yêu cầu được xếp hàng chờ admin phê duyệt. Sau khi phê duyệt, server sẽ tự động được tải cho các session của người dùng đó qua `LoadForAgent`.
@@ -279,4 +299,4 @@ Yêu cầu quyền admin. Credential được mã hóa khi lưu trữ bằng `GO
 - [Custom Tools](../advanced/custom-tools.md) — tạo tool shell mà không cần MCP server
 - [Skills](../advanced/skills.md) — inject kiến thức tái sử dụng vào system prompt của agent
 
-<!-- goclaw-source: 19eef35 | cập nhật: 2026-03-28 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

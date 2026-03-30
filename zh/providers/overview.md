@@ -78,6 +78,7 @@ graph TD
     OAI --> DeepSeek
     OAI --> Groq
     OAI --> Mistral
+    OAI --> Novita
 ```
 
 ## 自动限制 max_tokens
@@ -102,7 +103,6 @@ graph TD
 - [DeepSeek](/provider-deepseek) — 支持 reasoning_content 的 DeepSeek
 - [Groq](/provider-groq) — 超快推理
 - [Mistral](/provider-mistral) — Mistral AI 模型
+- [Novita AI](/provider-novita) — OpenAI 兼容，支持多种开源模型
 
-<!-- goclaw-source: 941a965 | 更新: 2026-03-19 -->
-
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

@@ -45,6 +45,48 @@ Bộ trích xuất sử dụng một tập cố định các loại mối quan h
 
 ---
 
+## Tìm kiếm toàn văn (Full-Text Search)
+
+Tìm kiếm thực thể sử dụng full-text search `tsvector` của PostgreSQL (migration `000031`). Cột `tsv` được tự động sinh từ tên và mô tả của mỗi thực thể:
+
+```sql
+tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', name || ' ' || COALESCE(description, ''))) STORED
+```
+
+GIN index trên `tsv` giúp truy vấn văn bản nhanh ngay cả với đồ thị lớn. Các truy vấn như `"john"` hay `"project alpha"` khớp từng phần trên cả tên lẫn mô tả.
+
+---
+
+## Loại bỏ thực thể trùng lặp (Deduplication)
+
+Sau khi trích xuất, GoClaw tự động kiểm tra các thực thể mới có bị trùng không, dựa trên hai tín hiệu:
+
+1. **Độ tương đồng embedding** — HNSW KNN tìm các thực thể gần nhất cùng loại
+2. **Độ tương đồng tên** — Jaro-Winkler (không phân biệt hoa thường)
+
+### Ngưỡng
+
+| Tình huống | Điều kiện | Hành động |
+|------------|-----------|-----------|
+| Gần chắc chắn trùng | embedding ≥ 0.98 **và** tên ≥ 0.85 | Tự động gộp ngay |
+| Có thể trùng | embedding ≥ 0.90 | Đánh dấu trong `kg_dedup_candidates` để xem xét |
+
+**Tự động gộp** giữ lại thực thể có điểm tin cậy cao hơn, cập nhật lại tất cả quan hệ từ thực thể bị xóa sang thực thể còn lại. Advisory lock ngăn việc gộp đồng thời trên cùng agent.
+
+**Ứng viên được đánh dấu** lưu vào `kg_dedup_candidates` với trạng thái `pending`. Bạn có thể liệt kê, bỏ qua hoặc gộp thủ công qua API.
+
+### Quét trùng lặp hàng loạt
+
+Bạn có thể kích hoạt quét toàn bộ thực thể:
+
+```bash
+POST /v1/agents/{agentID}/kg/scan-duplicates
+```
+
+Thao tác này chạy self-join tìm kiếm độ tương đồng và thêm ứng viên vào hàng đợi xem xét. Hữu ích sau khi import hàng loạt hoặc onboarding ban đầu.
+
+---
+
 ## Tìm kiếm đồ thị
 
 **Công cụ:** `knowledge_graph_search`
@@ -119,4 +161,4 @@ Agent có thể trả lời câu hỏi như *"Ai đang làm việc trên Project
 - [Hệ thống bộ nhớ](/memory-system) — Bộ nhớ dài hạn dựa trên vector
 - [Sessions & History](/sessions-and-history) — Lưu trữ cuộc hội thoại
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->

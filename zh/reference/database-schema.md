@@ -985,6 +985,53 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 27 | 租户基础——创建 `tenants` 和 `tenant_users` 表；种子 master 租户（`0193a5b0-7000-7000-8000-000000000001`）；在 40+ 个表上添加 `tenant_id` 列实现多租户隔离；删除全局唯一约束并以按租户复合索引替代；新增 `builtin_tool_tenant_configs`、`skill_tenant_configs` 和 `mcp_user_credentials` 表；删除 `custom_tools` 表（死代码）；将剩余 UUID v4 默认值迁移到 v7 |
 | 28 | 在 `team_task_comments` 上新增 `comment_type VARCHAR(20) DEFAULT 'note'`——支持触发任务自动失败和 lead 上报的 `"blocker"` 类型 |
 | 29 | `system_configs`——按租户的集中式键值配置存储；复合主键 `(key, tenant_id)` 含级联删除 |
+| 30 | 在 `spans.metadata`（partial，`span_type = 'llm_call'`）和 `sessions.metadata` JSONB 列上添加 GIN 索引以提升查询性能 |
+| 31 | 为 `kg_entities` 添加 `tsv tsvector` 生成列和 GIN 索引以支持全文搜索；创建 `kg_dedup_candidates` 表用于实体去重审查 |
+| 32 | 创建 `secure_cli_user_credentials` 表实现按用户 CLI 凭证注入（与 `mcp_user_credentials` 模式一致）；在 `channel_contacts` 上添加 `contact_type VARCHAR(20) DEFAULT 'user'` 列 |
+
+---
+
+### `kg_dedup_candidates`
+
+存储可能重复的知识图谱实体对，供人工或自动审查。（migration 031）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | ON DELETE CASCADE | 所属租户 |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | 所属 agent |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | 用户范围 |
+| `entity_a_id` | UUID FK → kg_entities | NOT NULL ON DELETE CASCADE | 第一个实体 |
+| `entity_b_id` | UUID FK → kg_entities | NOT NULL ON DELETE CASCADE | 第二个实体 |
+| `similarity` | FLOAT | NOT NULL | 相似度（0–1） |
+| `status` | VARCHAR(20) | NOT NULL DEFAULT `pending` | `pending`、`merged`、`dismissed` |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**唯一约束：** `(entity_a_id, entity_b_id)`
+
+**索引：** `idx_kg_dedup_agent` 在 `(agent_id, status)` 上
+
+---
+
+### `secure_cli_user_credentials`
+
+按用户存储 CLI 二进制凭证，会覆盖 binary 默认凭证。（migration 032）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID FK → secure_cli_binaries | NOT NULL ON DELETE CASCADE | 父级 binary 配置 |
+| `user_id` | VARCHAR(255) | NOT NULL | 凭证所属用户 |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM 加密的 JSON 环境变量映射 |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | 附加元数据 |
+| `tenant_id` | UUID FK → tenants | NOT NULL | 所属租户 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**唯一约束：** `(binary_id, user_id, tenant_id)`
+
+**索引：** `idx_scuc_tenant` 在 `(tenant_id)` 上，`idx_scuc_binary` 在 `(binary_id)` 上
+
+> Migration 032 同时为 `channel_contacts` 添加 `contact_type VARCHAR(20) NOT NULL DEFAULT 'user'` 以区分用户与群组联系人。
 
 ---
 
@@ -994,4 +1041,4 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: 19eef35 | 更新: 2026-03-25 -->
+<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->

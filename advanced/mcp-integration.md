@@ -130,6 +130,26 @@ curl -X POST http://localhost:8080/v1/mcp/grants \
 
 When `tool_allow` is non-empty, only those tools are visible to the agent. `tool_deny` removes specific tools even when the rest are allowed.
 
+## Per-User Credential Servers (Deferred Loading)
+
+Some MCP servers require per-user credentials (OAuth tokens, personal API keys). These servers are **not connected at startup**. Instead, GoClaw stores them during `LoadForAgent("")` as `userCredServers` and creates connections on a per-request basis via `pool.AcquireUser()` when a real user session arrives.
+
+**How it works:**
+
+1. At startup, `LoadForAgent("")` is called with no user context. Servers that `requireUserCreds` are stored in `userCredServers` — not connected.
+2. When a user session starts, `LoadForAgent(userID)` is called. GoClaw resolves credentials for that specific user and connects the server for that session only.
+3. The server and its tools are available only within that user's request context.
+
+This means per-user credential servers are invisible in the global status endpoint but appear normally when accessed through a user session.
+
+## Optional Tool Argument Stripping
+
+LLMs often send empty strings or placeholder values (e.g. `""`, `"null"`, `"none"`, `"__OMIT__"`) for optional tool arguments instead of omitting them. This causes MCP servers to reject calls with invalid values (e.g. an empty string where a UUID is expected).
+
+GoClaw automatically strips these values before forwarding the call. Required fields are always forwarded as-is. Optional fields with empty or placeholder values are removed from the call arguments.
+
+No configuration required — stripping is always active for all MCP tool calls.
+
 ## Per-User Self-Service Access
 
 Users can request access to an MCP server through the self-service portal. Requests are queued for admin approval. Once approved, the server is loaded for that user's sessions automatically via `LoadForAgent`.
@@ -277,4 +297,4 @@ Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPT
 - [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
 - [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: 19eef35 | updated: 2026-03-28 -->
+<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
