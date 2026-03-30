@@ -32,6 +32,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | `GOCLAW_DATA_DIR` | 否 | Gateway 状态数据目录。默认：`~/.goclaw/data` |
 | `GOCLAW_MIGRATIONS_DIR` | 否 | 迁移目录路径。默认：`./migrations` |
 | `GOCLAW_GATEWAY_URL` | 否 | `auth` CLI 命令的完整 gateway URL（如 `http://localhost:18790`）|
+| `GOCLAW_ALLOWED_ORIGINS` | 否 | 逗号分隔的 CORS 允许来源（覆盖配置文件）。示例：`https://app.example.com,https://admin.example.com` |
 
 ---
 
@@ -223,4 +224,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI 命令](/cli-commands) — `goclaw onboard` 自动生成 `.env.local`
 - [数据库 Schema](/database-schema) — 密钥如何加密存储在 PostgreSQL 中
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->

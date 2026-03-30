@@ -145,6 +145,22 @@ flowchart TD
     BUFFER --> NEXT["Mention tiếp theo:<br/>history được đưa vào"]
 ```
 
+### Chú thích tin nhắn nhóm
+
+Trong chat nhóm, mỗi tin nhắn được thêm tiền tố `[From:]` để agent biết ai đang nói:
+
+```
+[From: @username (Tên hiển thị)]
+Nội dung tin nhắn
+```
+
+Định dạng label phụ thuộc vào dữ liệu user:
+- Username + tên hiển thị: `@username (Tên hiển thị)`
+- Chỉ username: `@username`
+- Chỉ tên hiển thị: `Tên hiển thị`
+
+Chú thích này cũng được thêm vào tin nhắn DM để nhận diện người gửi nhất quán.
+
 ### Group Concurrency
 
 Group session hỗ trợ tối đa **3 agent run đồng thời**. Khi đạt giới hạn này, các tin nhắn tiếp theo sẽ được xếp hàng chờ. Áp dụng cho tất cả group context và forum topic.
@@ -277,4 +293,4 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 0dab087f | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->

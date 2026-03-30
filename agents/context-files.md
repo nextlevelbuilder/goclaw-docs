@@ -125,6 +125,8 @@ _(Domain-specific knowledge goes here: coding standards, image generation techni
 **Open agent:** Per-user (generated on first chat)
 **Predefined agent:** Agent-level (optionally generated via LLM summoning)
 
+> **Auto-sync:** When you rename an agent, the `Name:` field in IDENTITY.md is automatically updated to match. Other fields remain unchanged.
+
 ### TOOLS.md
 
 **Purpose:** Local tool notes. Camera names, SSH hosts, TTS voice preferences, device nicknames.
@@ -372,4 +374,4 @@ FAQ bot creation with summoning:
 - [Summoning & Bootstrap](/summoning-bootstrap) — how SOUL.md and IDENTITY.md are LLM-generated
 - [Creating Agents](/creating-agents) — step-by-step agent creation
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->

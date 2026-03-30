@@ -143,6 +143,22 @@ flowchart TD
     BUFFER --> NEXT["Next mention:<br/>history included"]
 ```
 
+### Group Message Annotation
+
+In group chats, each message is prefixed with a `[From:]` annotation so the agent knows who is speaking:
+
+```
+[From: @username (Display Name)]
+Message content here
+```
+
+The label format depends on available user data:
+- Username + display name: `@username (Display Name)`
+- Username only: `@username`
+- Display name only: `Display Name`
+
+This annotation is also added to DM messages for consistent sender identification.
+
 ### Group Concurrency
 
 Group sessions support up to **3 concurrent agent runs**. When this limit is reached, additional messages are queued. This applies to all group and forum topic contexts.
@@ -275,4 +291,4 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](/sessions-and-history) — Conversation history
 
-<!-- goclaw-source: 0dab087f | updated: 2026-03-26 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->

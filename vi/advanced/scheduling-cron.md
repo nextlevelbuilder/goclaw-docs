@@ -105,6 +105,7 @@ goclaw cron delete <jobId>
 | `schedule.expr` | string | Biểu thức cron 5 trường (cho `cron`) |
 | `schedule.tz` | string | Múi giờ IANA cho biểu thức cron; bỏ trống để dùng múi giờ mặc định của gateway |
 | `message` | string | Văn bản agent nhận làm đầu vào |
+| `stateless` | bool | Chạy không cần session history — tiết kiệm token cho các tác vụ định kỳ đơn giản. Mặc định `false` |
 | `deliver` | bool | `true` = giao kết quả đến channel; `false` = agent xử lý âm thầm. Tự động thành `true` khi job được tạo từ channel thực (Telegram, v.v.) |
 | `channel` | string | Channel đích: `telegram`, `discord`, v.v. Tự động điền từ context khi `deliver` là `true` |
 | `to` | string | Chat ID hoặc định danh người nhận. Tự động điền từ context khi `deliver` là `true` |
@@ -319,4 +320,4 @@ Lệnh `/stop` và `/stopall` được chặn **trước** debouncer 800ms để
 - [Skills](../advanced/skills.md) — inject kiến thức domain để agent theo lịch hiệu quả hơn
 - [Sandbox](../advanced/sandbox.md) — cô lập thực thi code trong các agent turn theo lịch
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->

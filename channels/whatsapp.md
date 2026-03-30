@@ -79,6 +79,8 @@ Bridge detects group chats via `@g.us` suffix in chat ID:
 
 Policies apply accordingly (DM policy for DMs, group policy for groups).
 
+In group chats, messages include a `[From:]` annotation with the sender's display name, allowing the agent to distinguish between participants.
+
 ### Message Format
 
 Messages are JSON objects:
@@ -142,4 +144,4 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 - [Larksuite](/channel-feishu) — Larksuite integration
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->

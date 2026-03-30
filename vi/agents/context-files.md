@@ -127,6 +127,8 @@ _(Kiến thức chuyên môn đặt ở đây: coding standards, image generatio
 **Open agent:** Theo user (tạo ra khi chat lần đầu)
 **Predefined agent:** Cấp agent (tuỳ chọn tạo qua LLM summoning)
 
+> **Tự động đồng bộ:** Khi bạn đổi tên agent, trường `Name:` trong IDENTITY.md được tự động cập nhật theo. Các trường khác giữ nguyên.
+
 ### TOOLS.md
 
 **Mục đích:** Ghi chú tool cục bộ. Tên camera, SSH host, sở thích giọng TTS, biệt danh thiết bị.
@@ -374,4 +376,4 @@ Tạo FAQ bot với summoning:
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách SOUL.md và IDENTITY.md được LLM tạo ra
 - [Creating Agents](/creating-agents) — hướng dẫn tạo agent từng bước
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->

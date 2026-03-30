@@ -81,6 +81,8 @@ flowchart LR
 
 策略相应应用（DM 使用 DM 策略，群组使用群组策略）。
 
+在群聊中，消息包含 `[From:]` 标注和发送者的显示名，让 agent 能够区分参与者。
+
 ### 消息格式
 
 消息为 JSON 对象：
@@ -144,4 +146,4 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 - [Larksuite](/channel-feishu) — Larksuite 集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->

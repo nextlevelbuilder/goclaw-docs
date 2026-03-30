@@ -32,6 +32,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | `GOCLAW_DATA_DIR` | Không | Thư mục data cho gateway state. Mặc định: `~/.goclaw/data` |
 | `GOCLAW_MIGRATIONS_DIR` | Không | Đường dẫn thư mục migrations. Mặc định: `./migrations` |
 | `GOCLAW_GATEWAY_URL` | Không | Gateway URL đầy đủ cho lệnh CLI `auth` (ví dụ `http://localhost:18790`) |
+| `GOCLAW_ALLOWED_ORIGINS` | Không | Danh sách CORS allowed origins phân cách bằng dấu phẩy (ghi đè config file). Ví dụ: `https://app.example.com,https://admin.example.com` |
 
 ---
 
@@ -223,4 +224,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` tự tạo `.env.local`
 - [Database Schema](/database-schema) — secrets được lưu mã hóa trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->

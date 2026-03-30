@@ -97,10 +97,16 @@ OpenAI function calling hoạt động ngay mà không cần cấu hình thêm. 
 | `HTTP 400` với o-series | Tham số không được hỗ trợ | Không đặt `temperature` khi dùng o-series models |
 | Vision không hoạt động | Model không hỗ trợ ảnh | Dùng gpt-4o hoặc gpt-4o-mini |
 
+### Developer Role (GPT-4o+)
+
+Với endpoint gốc OpenAI (`api.openai.com`), GoClaw tự động chuyển role `system` thành `developer` khi gửi request. Role `developer` có độ ưu tiên instruction cao hơn `system` cho GPT-4o và các model mới hơn.
+
+Chuyển đổi này chỉ áp dụng cho endpoint gốc OpenAI. Các backend tương thích OpenAI khác (Azure OpenAI, proxy, Qwen, DeepSeek...) vẫn dùng role `system` tiêu chuẩn.
+
 ## Tiếp theo
 
 - [OpenRouter](/provider-openrouter) — truy cập 100+ model qua một API key
 - [Anthropic](/provider-anthropic) — tích hợp Claude native
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->

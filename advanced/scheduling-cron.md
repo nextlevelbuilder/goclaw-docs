@@ -103,6 +103,7 @@ goclaw cron delete <jobId>
 | `schedule.expr` | string | 5-field cron expression (for `cron`) |
 | `schedule.tz` | string | IANA timezone for cron expressions; omit to use the gateway default timezone |
 | `message` | string | Text the agent receives as its input |
+| `stateless` | bool | Run without session history — saves tokens for simple scheduled tasks. Default `false` |
 | `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.) |
 | `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
 | `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
@@ -317,4 +318,4 @@ When a session's conversation history exceeds **60% of the context window**, the
 - [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->

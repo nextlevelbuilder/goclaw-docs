@@ -95,10 +95,16 @@ OpenAI function calling works out of the box. GoClaw converts internal tool defi
 | `HTTP 400` on o-series | Unsupported parameter | Avoid setting `temperature` with o-series models |
 | Vision not working | Model doesn't support images | Use gpt-4o or gpt-4o-mini |
 
+### Developer Role (GPT-4o+)
+
+For native OpenAI endpoints (`api.openai.com`), GoClaw automatically maps the `system` role to `developer` when sending requests. The `developer` role has higher instruction priority than `system` for GPT-4o and newer models.
+
+This mapping only applies to native OpenAI infrastructure. Other OpenAI-compatible backends (Azure OpenAI, proxies, Qwen, DeepSeek, etc.) continue to use the standard `system` role.
+
 ## What's Next
 
 - [OpenRouter](/provider-openrouter) — access 100+ models through one API key
 - [Anthropic](/provider-anthropic) — native Claude integration
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->

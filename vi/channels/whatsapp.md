@@ -81,6 +81,8 @@ Bridge phát hiện group chat qua hậu tố `@g.us` trong chat ID:
 
 Chính sách được áp dụng tương ứng (chính sách DM cho DM, chính sách nhóm cho nhóm).
 
+Trong chat nhóm, tin nhắn bao gồm chú thích `[From:]` với tên hiển thị của người gửi, giúp agent phân biệt giữa các thành viên.
+
 ### Định dạng tin nhắn
 
 Tin nhắn là JSON object:
@@ -144,4 +146,4 @@ isGroup := strings.HasSuffix(chatID, "@g.us")
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->

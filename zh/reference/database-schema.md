@@ -328,6 +328,11 @@ BM25 + 向量混合记忆系统。
 | `timezone` | VARCHAR(50) | Cron 表达式的时区 |
 | `payload` | JSONB | 发送给 agent 的消息 payload |
 | `delete_after_run` | BOOLEAN DEFAULT false | 首次成功运行后自删除 |
+| `stateless` | BOOLEAN DEFAULT false | 无状态模式 — 无需会话历史运行 |
+| `deliver` | BOOLEAN DEFAULT false | 将结果发送到频道 |
+| `deliver_channel` | TEXT | 目标频道类型（`telegram`、`discord` 等）|
+| `deliver_to` | TEXT | 聊天/接收者 ID |
+| `wake_heartbeat` | BOOLEAN DEFAULT false | 作业完成后触发心跳 |
 | `next_run_at` | TIMESTAMPTZ | 下次执行时间 |
 | `last_run_at` | TIMESTAMPTZ | 上次执行时间 |
 | `last_status` | VARCHAR(20) | `ok`、`error`、`running` |
@@ -988,6 +993,7 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 30 | 在 `spans.metadata`（partial，`span_type = 'llm_call'`）和 `sessions.metadata` JSONB 列上添加 GIN 索引以提升查询性能 |
 | 31 | 为 `kg_entities` 添加 `tsv tsvector` 生成列和 GIN 索引以支持全文搜索；创建 `kg_dedup_candidates` 表用于实体去重审查 |
 | 32 | 创建 `secure_cli_user_credentials` 表实现按用户 CLI 凭证注入（与 `mcp_user_credentials` 模式一致）；在 `channel_contacts` 上添加 `contact_type VARCHAR(20) DEFAULT 'user'` 列 |
+| 33 | 将 `stateless`、`deliver`、`deliver_channel`、`deliver_to`、`wake_heartbeat` 从 `payload` JSONB 提升为 `cron_jobs` 独立列 |
 
 ---
 
@@ -1041,4 +1047,4 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->
+<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->

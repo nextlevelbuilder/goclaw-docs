@@ -127,6 +127,8 @@ _(Domain-specific knowledge goes here: coding standards, image generation techni
 **Open agent：** 每用户（首次对话时生成）
 **Predefined agent：** Agent 级（可选通过 LLM summoning 生成）
 
+> **自动同步：** 重命名 agent 时，IDENTITY.md 中的 `Name:` 字段会自动更新。其他字段保持不变。
+
 ### TOOLS.md
 
 **用途：** 本地 tool 备注。摄像头名称、SSH 主机、TTS 语音偏好、设备昵称。
@@ -374,4 +376,4 @@ write_file("BOOTSTRAP.md", "")
 - [Summoning & Bootstrap](/summoning-bootstrap) — SOUL.md 和 IDENTITY.md 如何由 LLM 生成
 - [Creating Agents](/creating-agents) — 分步创建 agent
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-23 -->
+<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->

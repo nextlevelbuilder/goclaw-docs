@@ -30,6 +30,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | `GOCLAW_DATA_DIR` | No | Data directory for gateway state. Default: `~/.goclaw/data` |
 | `GOCLAW_MIGRATIONS_DIR` | No | Path to migrations directory. Default: `./migrations` |
 | `GOCLAW_GATEWAY_URL` | No | Full gateway URL for `auth` CLI commands (e.g. `http://localhost:18790`) |
+| `GOCLAW_ALLOWED_ORIGINS` | No | Comma-separated CORS allowed origins (overrides config file). Example: `https://app.example.com,https://admin.example.com` |
 
 ---
 
@@ -221,4 +222,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` generates `.env.local` automatically
 - [Database Schema](/database-schema) — how secrets are stored encrypted in PostgreSQL
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->

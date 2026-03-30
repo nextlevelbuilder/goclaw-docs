@@ -326,6 +326,11 @@ Scheduled agent tasks.
 | `timezone` | VARCHAR(50) | Timezone for cron expressions |
 | `payload` | JSONB | Message payload sent to agent |
 | `delete_after_run` | BOOLEAN DEFAULT false | Self-delete after first successful run |
+| `stateless` | BOOLEAN DEFAULT false | Stateless mode — run without session history |
+| `deliver` | BOOLEAN DEFAULT false | Deliver result to channel |
+| `deliver_channel` | TEXT | Target channel type (`telegram`, `discord`, etc.) |
+| `deliver_to` | TEXT | Chat/recipient ID |
+| `wake_heartbeat` | BOOLEAN DEFAULT false | Trigger heartbeat after job completes |
 | `next_run_at` | TIMESTAMPTZ | Calculated next execution time |
 | `last_run_at` | TIMESTAMPTZ | Last execution time |
 | `last_status` | VARCHAR(20) | `ok`, `error`, `running` |
@@ -986,6 +991,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 30 | Adds GIN indexes on `spans.metadata` (partial, `span_type = 'llm_call'`) and `sessions.metadata` JSONB columns for query performance |
 | 31 | Adds `tsv tsvector` generated column + GIN index to `kg_entities` for full-text search; creates `kg_dedup_candidates` table for entity deduplication review |
 | 32 | Creates `secure_cli_user_credentials` for per-user credential injection (mirrors `mcp_user_credentials` pattern); adds `contact_type VARCHAR(20) DEFAULT 'user'` to `channel_contacts` |
+| 33 | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
 
 ---
 
@@ -1039,4 +1045,4 @@ Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_cre
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
