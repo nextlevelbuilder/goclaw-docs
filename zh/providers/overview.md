@@ -50,6 +50,8 @@ Name()        — 返回 provider 标识符（如 "anthropic"、"openai"）
 
 Provider 也可存储在 `llm_providers` PostgreSQL 表中。API key 使用 AES-256-GCM 加密存储。可以在控制台中添加、编辑或删除 provider，无需重启 GoClaw，修改在下一次请求时生效。
 
+> **注意：** `provider_type` 创建后不可更改——无法通过 API 或控制台修改。如需切换 provider 类型，请删除后重新创建。
+
 ## 重试逻辑
 
 所有 provider 通过 `RetryDo()` 共享相同的重试行为：
@@ -81,6 +83,14 @@ graph TD
     OAI --> Novita
 ```
 
+## MCP Tools 的 Tool Schema 规范化
+
+当 GoClaw 将 MCP（Model Context Protocol）tools 桥接到 provider 时，tool schema 会自动规范化以匹配 provider 所需的格式。字段类型、required 数组和不支持的属性会自动调整，确保 MCP tools 无需手动适配即可在所有 provider 后端上正常工作。
+
+## 基于模型能力的 Reasoning Effort 控制
+
+Reasoning effort 控制参数（`reasoning_effort`、`thinking_budget` 等）在每次请求前会根据目标模型的能力进行解析。如果目标模型不支持 reasoning effort，该参数会被静默丢弃——不会返回错误。这意味着你可以全局配置 reasoning effort，它只会应用于支持该功能的模型。
+
 ## 自动限制 max_tokens
 
 当模型因 `max_tokens` 过大而拒绝请求时，GoClaw 会自动使用限制后的值重试。根据 provider 不同，处理 `max_tokens` 和 `max_completion_tokens` 两种参数名。重试对 agent 透明——agent 不会看到错误。
@@ -105,4 +115,4 @@ graph TD
 - [Mistral](/provider-mistral) — Mistral AI 模型
 - [Novita AI](/provider-novita) — OpenAI 兼容，支持多种开源模型
 
-<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->
+<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->

@@ -76,7 +76,7 @@ In servers (channels), the bot requires being mentioned by default (`require_men
 
 ### Typing Indicator
 
-While the agent processes, a typing indicator is shown (9-second keepalive).
+While the agent processes, a typing indicator is shown (9-second keepalive). The typing indicator stops automatically after successful message delivery.
 
 ### Thread Support
 
@@ -84,7 +84,7 @@ The bot automatically detects and responds in Discord threads. Responses stay in
 
 ### Media from Replied-to Messages
 
-When a user replies to a message that contains media attachments, GoClaw extracts those attachments and includes them in the inbound message context. This lets the agent see and process media even when it was originally shared in a previous turn.
+When a user replies to a message that contains media attachments, GoClaw extracts those attachments and includes them in the inbound message context. This lets the agent see and process media even when it was originally shared in a previous turn. Attachment source URLs are preserved in media tags, so agents can reference the original Discord CDN URL.
 
 ### Group Media History
 
@@ -135,4 +135,4 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 - [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

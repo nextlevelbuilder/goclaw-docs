@@ -48,6 +48,8 @@ The `api_base` field is optional — each provider has a built-in default endpoi
 
 Providers can also be stored in the `llm_providers` PostgreSQL table. API keys are encrypted at rest using AES-256-GCM. You can add, edit, or remove providers from the dashboard without restarting GoClaw. Changes take effect on the next request.
 
+> **Note:** `provider_type` is immutable after creation — it cannot be changed via the API or dashboard. To switch provider types, delete and recreate the provider.
+
 ## Retry Logic
 
 All providers share the same retry behavior via `RetryDo()`:
@@ -79,6 +81,14 @@ graph TD
     OAI --> Novita
 ```
 
+## Tool Schema Normalization for MCP Tools
+
+When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schemas are normalized to match the provider's expected format. Field types, required arrays, and unsupported properties are adjusted automatically. This ensures MCP tools work across all provider backends without manual schema adaptation.
+
+## Capability-Aware Reasoning Effort
+
+Reasoning effort controls (`reasoning_effort`, `thinking_budget`, etc.) are resolved against model capabilities before each request. If the target model does not support reasoning effort, the parameter is silently dropped — no error is returned. This means you can configure reasoning effort globally and it will only be applied to models that support it.
+
 ## Auto-Clamp max_tokens
 
 When a model rejects a request because `max_tokens` is too large, GoClaw automatically retries with a clamped value. This handles both `max_tokens` and `max_completion_tokens` parameter names depending on the provider. The retry is transparent — the agent never sees the error.
@@ -103,4 +113,4 @@ When a model rejects a request because `max_tokens` is too large, GoClaw automat
 - [Mistral](/provider-mistral) — Mistral AI models
 - [Novita AI](/provider-novita) — OpenAI-compatible, wide range of open-source models
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

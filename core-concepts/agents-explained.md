@@ -169,10 +169,45 @@ After each conversation run, GoClaw evaluates whether to compact session history
 
 Predefined agents have built-in protection against social engineering. If a user tries to convince the agent to ignore its SOUL.md or act outside its defined identity, the agent is designed to resist. Shared identity files are injected into the system prompt at a level that takes precedence over user instructions.
 
+## Subagent Enhancements
+
+When an agent spawns subagents via the `spawn` tool, the following capabilities apply:
+
+### Per-Edition Rate Limiting
+
+The `Edition` struct enforces two tenant-scoped limits on subagent usage:
+
+| Field | Description |
+|-------|-------------|
+| `MaxSubagentConcurrent` | Max number of subagents running in parallel per tenant |
+| `MaxSubagentDepth` | Max nesting depth — prevents unbounded delegation chains |
+
+These are set per edition and enforced at spawn time.
+
+### Token Cost Tracking
+
+Each subagent accumulates per-call input and output token counts. Totals are persisted in the database and included in announce messages, giving the parent agent full visibility into delegation cost.
+
+### WaitAll Orchestration
+
+`spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. This enables fan-out/fan-in patterns without polling.
+
+### Auto-Retry with Backoff
+
+Configurable `MaxRetries` (default `2`) with linear backoff handles transient LLM failures automatically. The parent is only notified on permanent failure after all retries are exhausted.
+
+### SubagentDenyAlways
+
+Subagents cannot spawn nested subagents — the `team_tasks` tool is blocked in subagent context. All delegation must originate from a top-level agent.
+
+### Producer-Consumer Announce Queue
+
+Staggered subagent results are queued and merged into a single LLM run announcement on the parent side. This reduces unnecessary parent wake-ups when multiple subagents finish at different times.
+
 ## What's Next
 
 - [Sessions and History](/sessions-and-history) — How conversations persist
 - [Tools Overview](/tools-overview) — What tools agents can use
 - [Memory System](/memory-system) — Long-term memory and search
 
-<!-- goclaw-source: c70e50c9 | updated: 2026-03-28 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

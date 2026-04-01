@@ -186,6 +186,25 @@ Admin có thể tắt nhóm cụ thể theo từng agent:
 
 Cài đặt `tools.exec_approval` thêm một lớp phê duyệt bổ sung (`full`, `light`, hoặc `none`).
 
+## spawn — Điều phối Subagent
+
+Tool `spawn` (thuộc `group:sessions`) tạo và chạy subagent. Các tính năng chính:
+
+| Tính năng | Chi tiết |
+|-----------|---------|
+| **WaitAll** | `spawn(action=wait, timeout=N)` chặn parent cho đến khi tất cả các children đã spawn hoàn tất. Hữu ích cho pattern fan-out/fan-in. |
+| **Auto-retry** | `MaxRetries` có thể cấu hình (mặc định `2`) với linear backoff khi LLM gặp lỗi. Lỗi tạm thời được tự động retry. |
+| **Token tracking** | Mỗi subagent tích lũy số token input/output theo từng lần gọi. Tổng cộng được đưa vào announce message để parent có thể theo dõi chi phí. |
+| **SubagentDenyAlways** | Subagent không thể spawn subagent lồng nhau — tool `team_tasks` bị chặn trong ngữ cảnh subagent. Ngăn chuỗi delegation không giới hạn. |
+| **Producer-consumer announce queue** | Kết quả subagent lệch nhau được xếp hàng và gộp thành một lần announce LLM run duy nhất ở phía parent, giảm bớt các lần đánh thức không cần thiết. |
+
+```jsonc
+// Ví dụ: fan-out rồi wait
+spawn(action=start, prompt="Summarize part A")
+spawn(action=start, prompt="Summarize part B")
+spawn(action=wait, timeout=120)  // chặn cho đến khi cả hai hoàn tất
+```
+
 ## Bảo mật Session Tool
 
 Các session tool (`sessions_list`, `sessions_history`, `sessions_send`) được gia cố với validation fail-closed:
@@ -236,4 +255,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 4d31fe0 | cập nhật: 2026-03-28 -->
+<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->

@@ -992,6 +992,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 31 | Adds `tsv tsvector` generated column + GIN index to `kg_entities` for full-text search; creates `kg_dedup_candidates` table for entity deduplication review |
 | 32 | Creates `secure_cli_user_credentials` for per-user credential injection (mirrors `mcp_user_credentials` pattern); adds `contact_type VARCHAR(20) DEFAULT 'user'` to `channel_contacts` |
 | 33 | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
+| 34 | `subagent_tasks` — subagent task persistence for DB-backed task lifecycle tracking, cost attribution, and restart recovery |
 
 ---
 
@@ -1039,10 +1040,49 @@ Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_cre
 
 ---
 
+### `subagent_tasks`
+
+Persists subagent task lifecycle for audit trail, cost attribution, and restart recovery. (migration 034)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `parent_agent_key` | VARCHAR(255) | NOT NULL | Agent key that spawned this task |
+| `session_key` | VARCHAR(500) | | Session the task belongs to |
+| `subject` | VARCHAR(255) | NOT NULL | Short task title |
+| `description` | TEXT | NOT NULL | Full task description |
+| `status` | VARCHAR(20) | NOT NULL DEFAULT `running` | `running`, `completed`, `failed`, `cancelled` |
+| `result` | TEXT | | Task result text |
+| `depth` | INT | NOT NULL DEFAULT 1 | Nesting depth from root agent |
+| `model` | VARCHAR(255) | | LLM model used |
+| `provider` | VARCHAR(255) | | LLM provider used |
+| `iterations` | INT | NOT NULL DEFAULT 0 | Tool loop iterations consumed |
+| `input_tokens` | BIGINT | NOT NULL DEFAULT 0 | Input token count |
+| `output_tokens` | BIGINT | NOT NULL DEFAULT 0 | Output token count |
+| `origin_channel` | VARCHAR(50) | | Channel that triggered the root task |
+| `origin_chat_id` | VARCHAR(255) | | Chat ID of the originating message |
+| `origin_peer_kind` | VARCHAR(20) | | Peer kind (`user`, `group`, etc.) |
+| `origin_user_id` | VARCHAR(255) | | User who triggered the root task |
+| `spawned_by` | UUID | | ID of parent `subagent_tasks` row (self-referential) |
+| `completed_at` | TIMESTAMPTZ | | When the task finished |
+| `archived_at` | TIMESTAMPTZ | | When the task was archived |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extra metadata |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:**
+- `idx_subagent_tasks_parent_status` on `(tenant_id, parent_agent_key, status)` — primary roster lookup
+- `idx_subagent_tasks_session` on `(session_key)` WHERE `session_key IS NOT NULL` — session-scoped lookup
+- `idx_subagent_tasks_created` on `(tenant_id, created_at DESC)` — time-based audit and cleanup
+- `idx_subagent_tasks_metadata_gin` GIN on `(metadata)` — flexible metadata queries
+- `idx_subagent_tasks_archive` on `(status, completed_at)` WHERE `status IN ('completed', 'failed', 'cancelled') AND archived_at IS NULL` — archival candidates
+
+---
+
 ## What's Next
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

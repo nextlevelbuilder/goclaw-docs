@@ -184,6 +184,25 @@ Admins can disable specific groups per agent:
 
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
 
+## spawn — Subagent Orchestration
+
+The `spawn` tool (part of `group:sessions`) creates and runs subagents. Key capabilities:
+
+| Capability | Detail |
+|-----------|--------|
+| **WaitAll** | `spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. Useful for fan-out/fan-in patterns. |
+| **Auto-retry** | Configurable `MaxRetries` (default `2`) with linear backoff on LLM failures. Transient errors are retried automatically. |
+| **Token tracking** | Each subagent accumulates per-call input/output token counts. Totals are included in announce messages so the parent can account for cost. |
+| **SubagentDenyAlways** | Subagents cannot spawn nested subagents — the `team_tasks` tool is blocked in subagent context. Prevents unbounded delegation chains. |
+| **Producer-consumer announce queue** | Staggered subagent results are queued and merged into a single LLM run announcement on the parent side, reducing unnecessary wake-ups. |
+
+```jsonc
+// Example: fan-out then wait
+spawn(action=start, prompt="Summarize part A")
+spawn(action=start, prompt="Summarize part B")
+spawn(action=wait, timeout=120)  // blocks until both finish
+```
+
 ## Session Tool Security
 
 Session tools (`sessions_list`, `sessions_history`, `sessions_send`) are hardened with fail-closed validation:
@@ -234,4 +253,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: 4d31fe0 | updated: 2026-03-28 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

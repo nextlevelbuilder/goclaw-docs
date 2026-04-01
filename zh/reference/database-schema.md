@@ -994,6 +994,7 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 31 | 为 `kg_entities` 添加 `tsv tsvector` 生成列和 GIN 索引以支持全文搜索；创建 `kg_dedup_candidates` 表用于实体去重审查 |
 | 32 | 创建 `secure_cli_user_credentials` 表实现按用户 CLI 凭证注入（与 `mcp_user_credentials` 模式一致）；在 `channel_contacts` 上添加 `contact_type VARCHAR(20) DEFAULT 'user'` 列 |
 | 33 | 将 `stateless`、`deliver`、`deliver_channel`、`deliver_to`、`wake_heartbeat` 从 `payload` JSONB 提升为 `cron_jobs` 独立列 |
+| 34 | `subagent_tasks` — subagent 任务持久化，支持基于 DB 的任务生命周期追踪、成本归因和重启恢复 |
 
 ---
 
@@ -1041,10 +1042,49 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 
 ---
 
+### `subagent_tasks`
+
+持久化 subagent 任务生命周期，用于审计追踪、成本归因和重启恢复。（migration 034）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK | UUID v7 |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `parent_agent_key` | VARCHAR(255) | NOT NULL | 创建该任务的 agent key |
+| `session_key` | VARCHAR(500) | | 任务所属的 session |
+| `subject` | VARCHAR(255) | NOT NULL | 任务简短标题 |
+| `description` | TEXT | NOT NULL | 任务完整描述 |
+| `status` | VARCHAR(20) | NOT NULL DEFAULT `running` | `running`、`completed`、`failed`、`cancelled` |
+| `result` | TEXT | | 任务结果文本 |
+| `depth` | INT | NOT NULL DEFAULT 1 | 从根 agent 起的嵌套深度 |
+| `model` | VARCHAR(255) | | 使用的 LLM 模型 |
+| `provider` | VARCHAR(255) | | 使用的 LLM provider |
+| `iterations` | INT | NOT NULL DEFAULT 0 | 工具循环迭代次数 |
+| `input_tokens` | BIGINT | NOT NULL DEFAULT 0 | 输入 token 数 |
+| `output_tokens` | BIGINT | NOT NULL DEFAULT 0 | 输出 token 数 |
+| `origin_channel` | VARCHAR(50) | | 触发根任务的 channel |
+| `origin_chat_id` | VARCHAR(255) | | 原始消息的 chat ID |
+| `origin_peer_kind` | VARCHAR(20) | | peer 类型（`user`、`group` 等） |
+| `origin_user_id` | VARCHAR(255) | | 触发根任务的用户 |
+| `spawned_by` | UUID | | 父级 `subagent_tasks` 行的 ID（自引用） |
+| `completed_at` | TIMESTAMPTZ | | 任务完成时间 |
+| `archived_at` | TIMESTAMPTZ | | 任务归档时间 |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | 附加元数据 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**索引：**
+- `idx_subagent_tasks_parent_status` 在 `(tenant_id, parent_agent_key, status)` 上——主任务列表查询
+- `idx_subagent_tasks_session` 在 `(session_key)` 上 WHERE `session_key IS NOT NULL`——按 session 查询
+- `idx_subagent_tasks_created` 在 `(tenant_id, created_at DESC)` 上——时间序审计与清理
+- `idx_subagent_tasks_metadata_gin` GIN 在 `(metadata)` 上——灵活元数据查询
+- `idx_subagent_tasks_archive` 在 `(status, completed_at)` 上 WHERE `status IN ('completed', 'failed', 'cancelled') AND archived_at IS NULL`——待归档候选
+
+---
+
 ## 下一步
 
 - [环境变量](/env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->
+<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->

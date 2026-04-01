@@ -78,7 +78,7 @@ Trong server (channel), bot mặc định yêu cầu được mention (`require_
 
 ### Typing Indicator
 
-Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 giây).
+Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 giây). Typing indicator dừng tự động sau khi tin nhắn được gửi thành công.
 
 ### Hỗ trợ Thread
 
@@ -86,7 +86,7 @@ Bot tự động phát hiện và phản hồi trong Discord thread. Phản hồ
 
 ### Media từ tin nhắn được reply
 
-Khi user reply vào một tin nhắn chứa file đính kèm media, GoClaw trích xuất các file đó và đưa vào context của tin nhắn đến. Agent có thể thấy và xử lý media ngay cả khi nó được chia sẻ ở lượt trước.
+Khi user reply vào một tin nhắn chứa file đính kèm media, GoClaw trích xuất các file đó và đưa vào context của tin nhắn đến. Agent có thể thấy và xử lý media ngay cả khi nó được chia sẻ ở lượt trước. URL nguồn của attachment được giữ nguyên trong media tag, cho phép agent tham chiếu đến URL gốc trên Discord CDN.
 
 ### Lịch sử Media Nhóm
 
@@ -137,4 +137,4 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->

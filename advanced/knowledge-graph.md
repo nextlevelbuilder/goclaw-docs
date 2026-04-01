@@ -17,7 +17,7 @@ The graph is scoped per agent and per user — each agent builds its own graph f
 
 After a conversation, GoClaw sends the text to an LLM with a structured extraction prompt. For long texts (over 12,000 characters), GoClaw splits the input into chunks, extracts from each, and merges results by deduplicating entities and relations. The LLM returns:
 
-- **Entities** — People, projects, tasks, events, concepts, locations, organizations
+- **Entities** — People, organizations, projects, products, technologies, tasks, events, documents, concepts, locations
 - **Relations** — Typed connections between entities (e.g., `works_on`, `reports_to`)
 
 Each entity and relation has a **confidence score** (0.0–1.0). Only items at or above the threshold (default **0.75**) are stored.
@@ -26,7 +26,7 @@ Each entity and relation has a **confidence score** (0.0–1.0). Only items at o
 - 3–15 entities per extraction, depending on text density
 - Entity IDs are lowercase with hyphens (e.g., `john-doe`, `project-alpha`)
 - Descriptions are one sentence maximum
-- Temperature 0.0 for deterministic results
+- Temperature 0.2 for consistent yet slightly flexible results
 
 ### Extract API
 
@@ -155,7 +155,7 @@ Marks the pair as not-duplicate — it won't appear in future review queues.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `query` | string | Entity name, keyword, or `*` to list all (required) |
-| `entity_type` | string | Filter: `person`, `project`, `task`, `event`, `concept`, `location`, `organization` |
+| `entity_type` | string | Filter: `person`, `organization`, `project`, `product`, `technology`, `task`, `event`, `document`, `concept`, `location` |
 | `entity_id` | string | Start point for relationship traversal |
 | `max_depth` | int | Traversal depth (default 2, max 3) |
 
@@ -163,7 +163,7 @@ Marks the pair as not-duplicate — it won't appear in future review queues.
 
 The tool uses a 3-tier fallback strategy to ensure results are always returned:
 
-1. **Traversal** (when `entity_id` provided) — BFS outgoing traversal up to `max_depth`, returns up to 20 results with path info and relation types
+1. **Traversal** (when `entity_id` provided) — Bidirectional multi-hop traversal up to `max_depth`, returns up to 20 results with path info and relation types
 2. **Direct connections** (fallback if traversal returns nothing) — Bidirectional 1-hop relations, capped at 10
 3. **Text search** (fallback if no connections) — Full-text search on entity names/descriptions, returns up to 10 results with their relations (5 per entity)
 
@@ -181,7 +181,7 @@ query: "John"
 query: "*"
 ```
 
-**Traverse relationships** — Start from an entity and follow outgoing connections:
+**Traverse relationships** — Start from an entity and follow connections in both directions:
 ```
 query: "*"
 entity_id: "project-alpha"
@@ -266,12 +266,15 @@ Relations are directional: `source --relation_type--> target`. Deleting an entit
 | Type | Examples |
 |------|----------|
 | `person` | Team members, contacts, stakeholders |
-| `project` | Products, initiatives, codebases |
+| `organization` | Companies, teams, departments |
+| `project` | Initiatives, codebases, programs |
+| `product` | Software products, services, features |
+| `technology` | Languages, frameworks, platforms |
 | `task` | Action items, tickets, assignments |
 | `event` | Meetings, deadlines, milestones |
-| `concept` | Technologies, methodologies, ideas |
+| `document` | Reports, specs, wikis, runbooks |
+| `concept` | Methodologies, ideas, principles |
 | `location` | Offices, cities, regions |
-| `organization` | Companies, teams, departments |
 
 ---
 
@@ -378,4 +381,4 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Sessions & History](/sessions-and-history) — Conversation storage
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

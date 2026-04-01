@@ -208,10 +208,22 @@ Pruning only acts on tool results. If long user messages or system prompt compon
 
 ---
 
+## Pipeline Improvements
+
+### Structured Compaction Summary
+
+When context is compacted, the summary now preserves key identifiers — agent IDs, task IDs, and session keys — in a structured format. This ensures that agents can continue referencing their active tasks and sessions after compaction without losing critical tracking context.
+
+### Tool Output Capping at Source
+
+Tool output is now capped at the source before being added to context. Rather than waiting for the pruning pipeline to trim oversized results after the fact, GoClaw limits tool output size at ingestion time. This reduces unnecessary memory pressure and makes the pruning pipeline more predictable.
+
+---
+
 ## What's Next
 
 - [Sessions & History](/sessions-and-history) — session compaction, history limits
 - [Memory System](/memory-system) — persistent memory across sessions
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

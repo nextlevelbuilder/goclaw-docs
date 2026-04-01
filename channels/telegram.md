@@ -243,6 +243,8 @@ Commands processed before message enrichment:
 | `/status` | Bot status + username | -- |
 | `/tasks` | Team task list | -- |
 | `/task_detail <id>` | View task | -- |
+| `/subagents` | List all active subagent tasks with status | -- |
+| `/subagent <id>` | Show detailed view of a subagent task from DB | -- |
 | `/addwriter` | Add group file writer | Writers only |
 | `/removewriter` | Remove group file writer | Writers only |
 | `/writers` | List group writers | -- |
@@ -291,4 +293,4 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](/sessions-and-history) — Conversation history
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

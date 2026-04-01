@@ -310,6 +310,18 @@ curl -X POST http://localhost:18790/v1/providers \
 
 预检——验证 API key 和模型是否可达。
 
+### `POST /v1/providers/{id}/verify-embedding`
+
+验证 provider 的 embedding 模型连通性。
+
+### `GET /v1/providers/{id}/codex-pool-activity`
+
+返回 provider 级别的 Codex OAuth pool 路由活动（另见上方 agent 级别端点）。
+
+### `GET /v1/embedding/status`
+
+检查 embedding 是否已配置并在各 provider 中可用。
+
 ### `GET /v1/providers/claude-cli/auth-status`
 
 检查 Claude CLI 认证状态（全局，非按 provider）。
@@ -365,6 +377,20 @@ curl -X POST http://localhost:18790/v1/skills/upload \
 | `GET` | `/v1/skills/export/preview` | 预览导出数量 |
 | `GET` | `/v1/skills/export` | 直接下载 skills 归档（tar.gz）|
 | `POST` | `/v1/skills/import` | 导入 skills 归档（multipart 字段 `file`）|
+
+**导出查询参数：**
+
+| 参数 | 类型 | 说明 |
+|-------|------|-------------|
+| `stream` | `bool` | 为 `true` 时以 SSE 流式推送进度，最后发送含 `download_url` 的 `complete` 事件 |
+
+**归档格式**（`skills-YYYYMMDD.tar.gz`）：
+
+```
+skills/{slug}/metadata.json   — skill 元数据（name、slug、visibility、tags）
+skills/{slug}/SKILL.md        — skill 文件内容
+skills/{slug}/grants.jsonl    — agent grant（agent_key + pinned version）
+```
 
 **导入响应**（`201 Created`）：
 
@@ -434,6 +460,8 @@ POST /v1/tools/invoke
 | `GET` | `/v1/tools/builtin` | 列出所有内置工具 |
 | `GET` | `/v1/tools/builtin/{name}` | 获取工具定义 |
 | `PUT` | `/v1/tools/builtin/{name}` | 更新启用状态/设置 |
+| `PUT` | `/v1/tools/builtin/{name}/tenant-config` | 设置租户级覆盖（管理员）|
+| `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | 移除租户级覆盖（管理员）|
 
 ### 自定义工具
 
@@ -483,6 +511,10 @@ POST /v1/tools/invoke
 | `POST` | `/v1/agents/{agentID}/kg/extract` | LLM 驱动的实体提取 |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | 知识图谱统计 |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | 可视化用完整图谱 |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | 扫描重复实体 |
+| `GET` | `/v1/agents/{agentID}/kg/dedup` | 列出去重候选项 |
+| `POST` | `/v1/agents/{agentID}/kg/merge` | 合并重复实体 |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/dismiss` | 忽略去重候选项 |
 
 ---
 
@@ -583,6 +615,10 @@ curl -X POST http://localhost:18790/v1/mcp/servers \
 
 保存前测试 MCP server 连通性。
 
+### `POST /v1/mcp/servers/{id}/reconnect`
+
+强制重新连接运行中的 MCP server。
+
 ### `GET /v1/mcp/servers/{id}/tools`
 
 列出运行中的 MCP server 发现的工具。
@@ -612,9 +648,32 @@ curl -X POST http://localhost:18790/v1/mcp/servers \
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `GET` | `/v1/mcp/export/preview` | 预览导出数量 |
+| `GET` | `/v1/mcp/export/preview` | 预览导出数量（不生成归档）|
 | `GET` | `/v1/mcp/export` | 直接下载 MCP 归档（tar.gz）|
 | `POST` | `/v1/mcp/import` | 导入 MCP 归档（multipart 字段 `file`）|
+
+### MCP 用户凭证
+
+为需要独立认证的 MCP server 提供按用户凭证存储。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | 为 server 设置用户凭证 |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | 获取用户凭证 |
+| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | 删除用户凭证 |
+
+**导出查询参数：**
+
+| 参数 | 类型 | 说明 |
+|-------|------|-------------|
+| `stream` | `bool` | 为 `true` 时以 SSE 流式推送进度，最后发送含 `download_url` 的 `complete` 事件 |
+
+**归档格式**（`mcp-servers-YYYYMMDD.tar.gz`）：
+
+```
+servers.jsonl   — MCP server 定义
+grants.jsonl    — agent grant（server_name + agent_key）
+```
 
 **导入响应**（`201 Created`）：
 
@@ -696,18 +755,15 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | `GET` | `/v1/contacts` | 列出联系人（分页）|
 | `GET` | `/v1/contacts/resolve?ids=...` | 按 ID 解析联系人（最多 100 个）|
 | `POST` | `/v1/contacts/merge` | 合并重复联系人记录 |
+| `POST` | `/v1/contacts/unmerge` | 取消已合并的联系人 |
+| `GET` | `/v1/contacts/merged/{tenantUserId}` | 列出租户用户的已合并联系人 |
 
----
-
-## 会话
+### 租户用户
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `GET` | `/v1/sessions` | 列出会话（分页）|
-| `GET` | `/v1/sessions/{key}` | 获取会话及其消息 |
-| `DELETE` | `/v1/sessions/{key}` | 删除会话 |
-| `POST` | `/v1/sessions/{key}/reset` | 清空会话消息 |
-| `PATCH` | `/v1/sessions/{key}` | 更新标签、模型、元数据 |
+| `GET` | `/v1/tenant-users` | 列出租户用户 |
+| `GET` | `/v1/users/search` | 跨 channel 搜索用户 |
 
 ---
 
@@ -716,6 +772,19 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/teams/{id}/events` | 列出团队事件（分页）|
+
+### 团队工作区
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `POST` | `/v1/teams/{teamId}/workspace/upload` | 上传文件到团队工作区 |
+| `PUT` | `/v1/teams/{teamId}/workspace/move` | 移动/重命名团队工作区中的文件 |
+
+### 团队附件
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/teams/{teamId}/attachments/{attachmentId}/download` | 下载任务附件 |
 
 ---
 
@@ -728,6 +797,31 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | `GET` | `/v1/teams/{id}/export/preview` | 预览导出数量（members、tasks、agent_links），不生成归档 |
 | `GET` | `/v1/teams/{id}/export` | 直接下载团队归档（tar.gz）|
 | `POST` | `/v1/teams/import` | 导入团队归档，创建新 agent 并建立团队结构（multipart 字段 `file`）|
+
+**导出查询参数：**
+
+| 参数 | 类型 | 说明 |
+|-------|------|-------------|
+| `stream` | `bool` | 为 `true` 时以 SSE 流式推送进度，最后发送含 `download_url` 的 `complete` 事件 |
+
+**归档格式**（`team-{name}-YYYYMMDD.tar.gz`）：
+
+```
+manifest.json                          — 归档 manifest（team_name、agent_keys、sections）
+team/team.json                         — 团队元数据
+team/members.jsonl                     — 团队成员记录
+team/tasks.jsonl                       — 团队任务记录
+team/comments.jsonl                    — 任务评论
+team/events.jsonl                      — 任务事件
+team/links.jsonl                       — agent 链接记录
+team/workspace/                        — 团队工作区文件
+agents/{agent_key}/agent.json          — 每个 agent 的配置
+agents/{agent_key}/context_files/      — 每个 agent 的 context 文件
+agents/{agent_key}/memory/             — 每个 agent 的记忆文档
+agents/{agent_key}/knowledge_graph/    — 每个 agent 的 KG 实体 + 关系
+agents/{agent_key}/cron/               — 每个 agent 的 cron 作业
+agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
+```
 
 **导入响应**（`201 Created`）：
 
@@ -788,6 +882,15 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | `GET` | `/v1/cli-credentials/presets` | 获取预设凭证模板 |
 | `POST` | `/v1/cli-credentials/{id}/test` | 测试凭证连接（演习）|
 
+### 按用户 CLI 凭证
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/user-credentials` | 列出某 CLI 配置的用户凭证 |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 获取用户专属凭证 |
+| `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 设置用户专属凭证 |
+| `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 删除用户专属凭证 |
+
 ---
 
 ## 运行时与包
@@ -818,6 +921,10 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 { "python": true, "node": true }
 ```
 
+### `GET /v1/shell-deny-groups`
+
+列出 shell 命令拒绝组（安全策略）。
+
 ---
 
 ## 存储
@@ -828,7 +935,9 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 |--------|------|-------------|
 | `GET` | `/v1/storage/files` | 列出文件（支持深度限制）|
 | `GET` | `/v1/storage/files/{path...}` | 读取文件（JSON 或原始格式）|
+| `POST` | `/v1/storage/files` | 上传文件到工作区（管理员）|
 | `DELETE` | `/v1/storage/files/{path...}` | 删除文件/目录 |
+| `PUT` | `/v1/storage/move` | 移动/重命名文件或目录（管理员）|
 | `GET` | `/v1/storage/size` | 流式传输存储大小（SSE，缓存 60 分钟）|
 
 `?raw=true`——以原生 MIME 类型提供。`?depth=N`——限制遍历深度。
@@ -851,6 +960,7 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/files/{path...}` | 按路径提供工作区文件 |
+| `POST` | `/v1/files/sign` | 生成文件访问的签名 URL |
 
 **查询参数：**
 
@@ -884,9 +994,24 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 
 ## OAuth
 
+### 按 Provider 的 ChatGPT/Codex OAuth
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/auth/chatgpt/{provider}/status` | 检查某 provider 的 OAuth 状态 |
+| `GET` | `/v1/auth/chatgpt/{provider}/quota` | 获取 Codex/OpenAI 配额状态 |
+| `POST` | `/v1/auth/chatgpt/{provider}/start` | 为某 provider 发起 OAuth 流程 |
+| `POST` | `/v1/auth/chatgpt/{provider}/callback` | 手动处理回调 |
+| `POST` | `/v1/auth/chatgpt/{provider}/logout` | 撤销某 provider 的 OAuth token |
+
+### 旧版 OpenAI 别名
+
+默认 `openai-codex` provider 的兼容别名：
+
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/auth/openai/status` | 检查 OpenAI OAuth 状态 |
+| `GET` | `/v1/auth/openai/quota` | 获取配额状态 |
 | `POST` | `/v1/auth/openai/start` | 发起 OAuth 流程 |
 | `POST` | `/v1/auth/openai/callback` | 手动处理 OAuth 回调 |
 | `POST` | `/v1/auth/openai/logout` | 移除已存储的 OAuth token |
@@ -902,8 +1027,10 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | `GET` | `/v1/tenants` | 列出租户 |
 | `POST` | `/v1/tenants` | 创建租户 |
 | `GET` | `/v1/tenants/{id}` | 获取租户 |
-| `PUT` | `/v1/tenants/{id}` | 更新租户 |
-| `DELETE` | `/v1/tenants/{id}` | 删除租户 |
+| `PATCH` | `/v1/tenants/{id}` | 更新租户 |
+| `GET` | `/v1/tenants/{id}/users` | 列出租户用户 |
+| `POST` | `/v1/tenants/{id}/users` | 将用户添加到租户 |
+| `DELETE` | `/v1/tenants/{id}/users/{userId}` | 从租户移除用户 |
 
 ---
 
@@ -925,6 +1052,29 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | `GET` | `/v1/system-configs/{key}` | 按 key 获取单个配置值 |
 | `PUT` | `/v1/system-configs/{key}` | 设置配置值（仅管理员）|
 | `DELETE` | `/v1/system-configs/{key}` | 删除配置项（仅管理员）|
+
+---
+
+## Edition
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/edition` | 获取当前版本信息及功能限制 |
+
+---
+
+## MCP Bridge
+
+通过 `/mcp/bridge` 的 streamable HTTP 将 GoClaw 工具暴露给 Claude CLI。仅监听 localhost，通过 gateway token 保护，并使用 HMAC 签名的 context 请求头。
+
+| 请求头 | 用途 |
+|--------|---------|
+| `X-Agent-ID` | 工具执行的 agent 上下文 |
+| `X-User-ID` | 用户上下文 |
+| `X-Channel` | channel 路由 |
+| `X-Chat-ID` | 聊天路由 |
+| `X-Peer-Kind` | `direct` 或 `group` |
+| `X-Bridge-Sig` | 所有 context 字段的 HMAC 签名 |
 
 ---
 
@@ -977,9 +1127,20 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 
 以下功能**只能通过 WebSocket RPC 使用**，不支持 HTTP：
 
-- **Cron 任务：** 列出、创建、更新、删除、日志（`cron.*`）
-- **配置管理：** 获取、应用、修改（`config.*`）
-- **发送消息：** 向 channel 发送（`send.*`）
+- **会话：** 列出、预览、更新、删除、重置（`sessions.*`）
+- **Cron 任务：** 列出、创建、更新、删除、切换、状态、运行、运行记录（`cron.*`）
+- **配置管理：** 获取、应用、修改、schema（`config.*`）
+- **配置权限：** 列出、授权、撤销（`config.permissions.*`）
+- **发送消息：** 向 channel 发送（`send`）
+- **聊天：** 发送、历史记录、中断、注入、会话状态（`chat.*`）
+- **心跳：** 获取、设置、切换、测试、日志、检查清单、目标（`heartbeat.*`）
+- **设备配对：** 请求、批准、拒绝、列出、撤销（`device.pair.*`）
+- **执行审批：** 列出、批准、拒绝（`exec.approval.*`）
+- **TTS：** 状态、启用、禁用、转换、设置 provider、providers（`tts.*`）
+- **浏览器自动化：** 操作、快照、截图（`browser.*`）
+- **日志：** 实时追踪服务器日志（`logs.tail`）
+
+> 完整方法参考和帧格式，见 [WebSocket 协议](/websocket-protocol)。
 
 ---
 
@@ -989,4 +1150,4 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->
+<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->

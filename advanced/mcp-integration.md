@@ -24,7 +24,7 @@ graph LR
     Registry --> Agent
 ```
 
-GoClaw runs a health-check loop every 30 seconds and reconnects with exponential backoff (initial delay 2 s, up to 10 attempts, capped at 60 s between retries) if a server goes down.
+GoClaw runs a health-check loop every 30 seconds. A server is only marked disconnected after **3 consecutive ping failures** — transient network blips do not trigger a reconnect. When a server does go down, GoClaw reconnects with exponential backoff (initial delay 2 s, up to 10 attempts, capped at 60 s between retries).
 
 ## Registering an MCP Server
 
@@ -103,13 +103,13 @@ If no prefix is set and a name collision is detected, GoClaw logs a warning (`mc
 
 ## Search Mode (large tool sets)
 
-When the total number of MCP tools across all servers exceeds **40**, GoClaw automatically enters **search mode**: tools are no longer registered inline in the tool registry. Instead, only the built-in `mcp_tool_search` tool is exposed. The agent uses `mcp_tool_search` to find and activate specific MCP tools on demand.
+When the total number of MCP tools across all servers exceeds **40**, GoClaw automatically enters **hybrid mode**: the first 40 tools remain registered inline in the tool registry, while the remainder are deferred to search mode. In hybrid mode, the built-in `mcp_tool_search` tool is also exposed so the agent can find and activate the deferred tools on demand.
 
 This keeps the tool list manageable when connecting many MCP servers. There is no configuration required — the switch is automatic.
 
 ### Lazy activation
 
-In search mode, if an agent calls a deferred MCP tool directly by name (without searching first), GoClaw **auto-activates** it. The tool is resolved from the MCP server, registered on the fly, and executed — no extra search step needed. This enables compatibility with agents that already know the tool name from prior context.
+In hybrid mode, if an agent calls a deferred MCP tool directly by name (without searching first), GoClaw **auto-activates** it. The tool is resolved from the MCP server, registered on the fly, and executed — no extra search step needed. This enables compatibility with agents that already know the tool name from prior context.
 
 ## Per-Agent Access Grants
 
@@ -297,4 +297,4 @@ Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPT
 - [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
 - [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

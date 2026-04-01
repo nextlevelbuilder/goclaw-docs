@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **33**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **34**.
 
 ```mermaid
 graph LR
@@ -228,6 +228,7 @@ Năm migration này được tự động áp dụng khi khởi động khi nân
 | 031 | Thêm cột generated `tsv tsvector` + GIN index vào `kg_entities` cho full-text search; tạo bảng `kg_dedup_candidates` cho review entity trùng lặp |
 | 032 | Tạo bảng `secure_cli_user_credentials` cho credential CLI theo user; thêm cột `contact_type` vào `channel_contacts` |
 | 033 | Cron payload columns | Chuyển `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` từ `payload` JSONB sang cột riêng trên `cron_jobs` |
+| 034 | `subagent_tasks` | Lưu trữ subagent task vào DB để theo dõi trạng thái task |
 
 ### Breaking Changes trong v2.x
 
@@ -280,4 +281,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->
+<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->

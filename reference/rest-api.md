@@ -340,6 +340,18 @@ List models available from the provider (proxied to the upstream API).
 
 Pre-flight check — verify the API key and model are reachable.
 
+### `POST /v1/providers/{id}/verify-embedding`
+
+Verify embedding model connectivity for a provider.
+
+### `GET /v1/providers/{id}/codex-pool-activity`
+
+Returns Codex OAuth pool routing activity at the provider level (see also agent-level endpoint above).
+
+### `GET /v1/embedding/status`
+
+Check if embedding is configured and available across providers.
+
 ### `GET /v1/providers/claude-cli/auth-status`
 
 Check Claude CLI authentication status (global, not per-provider).
@@ -478,6 +490,8 @@ Set `"dryRun": true` to return tool schema without execution.
 | `GET` | `/v1/tools/builtin` | List all built-in tools |
 | `GET` | `/v1/tools/builtin/{name}` | Get tool definition |
 | `PUT` | `/v1/tools/builtin/{name}` | Update enabled/settings |
+| `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Set per-tenant override (admin) |
+| `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Remove per-tenant override (admin) |
 
 ### Custom Tools
 
@@ -527,6 +541,10 @@ Per-agent entity-relation graph.
 | `POST` | `/v1/agents/{agentID}/kg/extract` | LLM-powered entity extraction |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | Knowledge graph statistics |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | Full graph for visualization |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | Scan for duplicate entities |
+| `GET` | `/v1/agents/{agentID}/kg/dedup` | List dedup candidates |
+| `POST` | `/v1/agents/{agentID}/kg/merge` | Merge duplicate entities |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/dismiss` | Dismiss a dedup candidate |
 
 ---
 
@@ -627,6 +645,10 @@ Delete an MCP server.
 
 Test connectivity to an MCP server before saving.
 
+### `POST /v1/mcp/servers/{id}/reconnect`
+
+Force reconnect a running MCP server.
+
 ### `GET /v1/mcp/servers/{id}/tools`
 
 List tools discovered from a running MCP server.
@@ -659,6 +681,16 @@ Export and import MCP server configurations and agent grants as a tar.gz archive
 | `GET` | `/v1/mcp/export/preview` | Preview export counts (no archive built) |
 | `GET` | `/v1/mcp/export` | Download MCP archive directly (tar.gz) |
 | `POST` | `/v1/mcp/import` | Import MCP archive (multipart `file` field) |
+
+### MCP User Credentials
+
+Per-user credential storage for MCP servers that require individual authentication.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | Set user credentials for a server |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | Get user credentials |
+| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | Delete user credentials |
 
 **Query params for export:**
 
@@ -753,18 +785,15 @@ Delete a channel instance.
 | `GET` | `/v1/contacts` | List contacts (paginated) |
 | `GET` | `/v1/contacts/resolve?ids=...` | Resolve contacts by IDs (max 100) |
 | `POST` | `/v1/contacts/merge` | Merge duplicate contact records |
+| `POST` | `/v1/contacts/unmerge` | Unmerge previously merged contacts |
+| `GET` | `/v1/contacts/merged/{tenantUserId}` | List merged contacts for a tenant user |
 
----
-
-## Sessions
+### Tenant Users
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/sessions` | List sessions (paginated) |
-| `GET` | `/v1/sessions/{key}` | Get session with messages |
-| `DELETE` | `/v1/sessions/{key}` | Delete session |
-| `POST` | `/v1/sessions/{key}/reset` | Clear session messages |
-| `PATCH` | `/v1/sessions/{key}` | Update label, model, metadata |
+| `GET` | `/v1/tenant-users` | List tenant users |
+| `GET` | `/v1/users/search` | Search users across channels |
 
 ---
 
@@ -773,6 +802,19 @@ Delete a channel instance.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/teams/{id}/events` | List team events (paginated) |
+
+### Team Workspace
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/teams/{teamId}/workspace/upload` | Upload file to team workspace |
+| `PUT` | `/v1/teams/{teamId}/workspace/move` | Move/rename file in team workspace |
+
+### Team Attachments
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/teams/{teamId}/attachments/{attachmentId}/download` | Download task attachment |
 
 ---
 
@@ -870,6 +912,15 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `GET` | `/v1/cli-credentials/presets` | Get preset credential templates |
 | `POST` | `/v1/cli-credentials/{id}/test` | Test credential connection (dry-run) |
 
+### Per-User CLI Credentials
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/user-credentials` | List user credentials for a CLI config |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Get user-specific credentials |
+| `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Set user-specific credentials |
+| `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Delete user-specific credentials |
+
 ---
 
 ## Runtime & Packages
@@ -900,6 +951,10 @@ Check if Python and Node runtimes are available.
 { "python": true, "node": true }
 ```
 
+### `GET /v1/shell-deny-groups`
+
+List shell command deny groups (security policy).
+
 ---
 
 ## Storage
@@ -910,7 +965,9 @@ Workspace file management.
 |--------|------|-------------|
 | `GET` | `/v1/storage/files` | List files with depth limiting |
 | `GET` | `/v1/storage/files/{path...}` | Read file (JSON or raw) |
+| `POST` | `/v1/storage/files` | Upload file to workspace (admin) |
 | `DELETE` | `/v1/storage/files/{path...}` | Delete file/directory |
+| `PUT` | `/v1/storage/move` | Move/rename a file or directory (admin) |
 | `GET` | `/v1/storage/size` | Stream storage size (SSE, cached 60 min) |
 
 `?raw=true` — serve native MIME type. `?depth=N` — limit traversal depth.
@@ -933,6 +990,7 @@ Auth via Bearer token or `?token=` query param (for `<img>` and `<audio>` tags).
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/files/{path...}` | Serve workspace file by path |
+| `POST` | `/v1/files/sign` | Generate signed URL for file access |
 
 **Query parameters:**
 
@@ -966,9 +1024,24 @@ The `key` field is only returned in the create response. Subsequent calls show o
 
 ## OAuth
 
+### Per-Provider ChatGPT/Codex OAuth
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/auth/chatgpt/{provider}/status` | Check OAuth status for a provider |
+| `GET` | `/v1/auth/chatgpt/{provider}/quota` | Fetch Codex/OpenAI quota state |
+| `POST` | `/v1/auth/chatgpt/{provider}/start` | Start OAuth flow for a provider |
+| `POST` | `/v1/auth/chatgpt/{provider}/callback` | Manual callback handler |
+| `POST` | `/v1/auth/chatgpt/{provider}/logout` | Revoke OAuth token for a provider |
+
+### Legacy OpenAI Aliases
+
+Compatibility aliases for the default `openai-codex` provider:
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/auth/openai/status` | Check OpenAI OAuth status |
+| `GET` | `/v1/auth/openai/quota` | Fetch quota state |
 | `POST` | `/v1/auth/openai/start` | Initiate OAuth flow |
 | `POST` | `/v1/auth/openai/callback` | Handle OAuth callback manually |
 | `POST` | `/v1/auth/openai/logout` | Remove stored OAuth tokens |
@@ -984,8 +1057,10 @@ Multi-tenant management (gateway token scope only).
 | `GET` | `/v1/tenants` | List tenants |
 | `POST` | `/v1/tenants` | Create tenant |
 | `GET` | `/v1/tenants/{id}` | Get tenant |
-| `PUT` | `/v1/tenants/{id}` | Update tenant |
-| `DELETE` | `/v1/tenants/{id}` | Delete tenant |
+| `PATCH` | `/v1/tenants/{id}` | Update tenant |
+| `GET` | `/v1/tenants/{id}/users` | List tenant users |
+| `POST` | `/v1/tenants/{id}/users` | Add user to tenant |
+| `DELETE` | `/v1/tenants/{id}/users/{userId}` | Remove user from tenant |
 
 ---
 
@@ -1007,6 +1082,29 @@ Per-tenant key-value configuration store. Read access for all authenticated user
 | `GET` | `/v1/system-configs/{key}` | Get a single config value by key |
 | `PUT` | `/v1/system-configs/{key}` | Set a config value (admin only) |
 | `DELETE` | `/v1/system-configs/{key}` | Delete a config entry (admin only) |
+
+---
+
+## Edition
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/edition` | Get current edition info and feature limits |
+
+---
+
+## MCP Bridge
+
+Exposes GoClaw tools to Claude CLI via streamable HTTP at `/mcp/bridge`. Only listens on localhost. Protected by gateway token with HMAC-signed context headers.
+
+| Header | Purpose |
+|--------|---------|
+| `X-Agent-ID` | Agent context for tool execution |
+| `X-User-ID` | User context |
+| `X-Channel` | Channel routing |
+| `X-Chat-ID` | Chat routing |
+| `X-Peer-Kind` | `direct` or `group` |
+| `X-Bridge-Sig` | HMAC signature over all context fields |
 
 ---
 
@@ -1059,9 +1157,20 @@ Error messages are localized based on the `Accept-Language` header.
 
 The following are **only available via WebSocket RPC**, not HTTP:
 
-- **Cron jobs:** List, create, update, delete, logs (`cron.*`)
-- **Config management:** Get, apply, patch (`config.*`)
-- **Send messages:** Send to channels (`send.*`)
+- **Sessions:** List, preview, patch, delete, reset (`sessions.*`)
+- **Cron jobs:** List, create, update, delete, toggle, status, run, runs (`cron.*`)
+- **Config management:** Get, apply, patch, schema (`config.*`)
+- **Config permissions:** List, grant, revoke (`config.permissions.*`)
+- **Send messages:** Send to channels (`send`)
+- **Chat:** Send, history, abort, inject, session status (`chat.*`)
+- **Heartbeat:** Get, set, toggle, test, logs, checklist, targets (`heartbeat.*`)
+- **Device pairing:** Request, approve, deny, list, revoke (`device.pair.*`)
+- **Exec approvals:** List, approve, deny (`exec.approval.*`)
+- **TTS:** Status, enable, disable, convert, set provider, providers (`tts.*`)
+- **Browser automation:** Act, snapshot, screenshot (`browser.*`)
+- **Logs:** Tail server logs (`logs.tail`)
+
+> See [WebSocket Protocol](/websocket-protocol) for full method reference and frame format.
 
 ---
 
@@ -1071,4 +1180,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

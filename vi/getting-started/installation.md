@@ -64,7 +64,18 @@ source .env.local && goclaw
 
 ### Mở Dashboard
 
-Cài binary chỉ khởi động gateway. Để truy cập web dashboard, clone repo và chạy UI:
+Các binary cài sẵn đã bao gồm Web UI nhúng sẵn — dashboard được phục vụ trực tiếp tại cổng gateway. Không cần chạy tiến trình UI riêng.
+
+Mở `http://localhost:18790` và đăng nhập:
+- **User ID:** `system`
+- **Gateway Token:** tìm trong `.env.local` (dòng `GOCLAW_GATEWAY_TOKEN`)
+
+Sau khi đăng nhập, làm theo hướng dẫn [Bắt đầu nhanh](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
+
+<details>
+<summary><strong>Cách khác: chạy dashboard UI riêng biệt</strong></summary>
+
+Nếu cần chạy dashboard như một dev server riêng (ví dụ để phát triển UI), clone repo và chạy:
 
 ```bash
 git clone https://github.com/nextlevelbuilder/goclaw.git
@@ -74,23 +85,7 @@ pnpm install
 pnpm dev
 ```
 
-Mở `http://localhost:5173` và đăng nhập:
-- **User ID:** `system`
-- **Gateway Token:** tìm trong `.env.local` (dòng `GOCLAW_GATEWAY_TOKEN`)
-
-Sau khi đăng nhập, làm theo hướng dẫn [Bắt đầu nhanh](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
-
-<details>
-<summary><strong>Cách khác: chạy dashboard qua Docker</strong></summary>
-
-Nếu bạn đã cài Docker, có thể chạy riêng container dashboard mà không cần build từ source:
-
-```bash
-cd goclaw
-docker compose -f docker-compose.selfservice.yml up -d
-```
-
-Dashboard sẽ có tại `http://localhost:3000`.
+Dashboard sẽ có tại `http://localhost:5173`.
 
 </details>
 
@@ -180,6 +175,7 @@ go build -o goclaw .
 **Build Tags (Tùy chọn):** Bật thêm tính năng tại thời điểm biên dịch:
 
 ```bash
+go build -tags embedui -o goclaw .           # Nhúng Web UI vào binary (phục vụ dashboard tại cổng gateway)
 go build -tags otel -o goclaw .              # OpenTelemetry tracing
 go build -tags tsnet -o goclaw .             # Tailscale networking
 go build -tags redis -o goclaw .             # Redis caching
@@ -207,7 +203,11 @@ source .env.local && ./goclaw
 
 ### Bước 5: Mở Dashboard
 
-Dashboard là ứng dụng React riêng biệt. Mở terminal mới:
+Nếu bạn build với tag `embedui`, dashboard được phục vụ trực tiếp tại `http://localhost:18790`. Đăng nhập với:
+- **User ID:** `system`
+- **Gateway Token:** lấy từ file `.env.local` (dòng `GOCLAW_GATEWAY_TOKEN`)
+
+Nếu không dùng `embedui`, chạy dashboard như dev server React riêng biệt trong terminal mới:
 
 ```bash
 cd ui/web
@@ -216,9 +216,7 @@ pnpm install
 pnpm dev
 ```
 
-Mở `http://localhost:5173` và đăng nhập:
-- **User ID:** `system`
-- **Gateway Token:** lấy từ file `.env.local` (dòng `GOCLAW_GATEWAY_TOKEN`)
+Mở `http://localhost:5173` và đăng nhập bằng thông tin đăng nhập ở trên.
 
 Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
 
@@ -254,11 +252,35 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
 ### Bước 2: Khởi động services
 
 GoClaw dùng các file Docker Compose theo module:
-- `docker-compose.yml` — GoClaw gateway và API server chính
+- `docker-compose.yml` — GoClaw gateway và API server chính (đã bao gồm Web UI nhúng mặc định)
 - `docker-compose.postgres.yml` — PostgreSQL database với pgvector extension
-- `docker-compose.selfservice.yml` — Web dashboard UI (port 3000)
+- `docker-compose.selfservice.yml` — Tùy chọn: nginx reverse proxy + container UI riêng ở port 3000
 
-Bạn cần cả ba file cho một setup local đầy đủ. Nếu chỉ muốn gateway không có dashboard, có thể bỏ file selfservice.
+File `docker-compose.yml` mặc định đặt `ENABLE_EMBEDUI: true`, dashboard được phục vụ trực tiếp tại cổng gateway (`http://localhost:18790`). Chỉ cần hai file cho setup local đầy đủ:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --build
+```
+
+Lệnh này khởi động:
+- **GoClaw gateway + dashboard nhúng** — `http://localhost:18790`
+- **PostgreSQL** với pgvector — port `5432`
+
+GoClaw tự động chạy pending database migrations mỗi lần khởi động. Không cần chạy `goclaw onboard` hay `goclaw migrate` thủ công.
+
+Mở `http://localhost:18790` và đăng nhập:
+- **User ID:** `system`
+- **Gateway Token:** tìm trong `.env` (dòng `GOCLAW_GATEWAY_TOKEN`)
+
+Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
+
+<details>
+<summary><strong>Tùy chọn: nginx + UI riêng biệt (selfservice)</strong></summary>
+
+Nếu bạn muốn container UI riêng ở port 3000 (ví dụ dùng nginx reverse proxy với cổng UI riêng biệt), thêm overlay selfservice:
 
 ```bash
 docker compose \
@@ -268,18 +290,9 @@ docker compose \
   up -d --build
 ```
 
-Lệnh này khởi động:
-- **GoClaw gateway** — `ws://localhost:18790`
-- **PostgreSQL** với pgvector — port `5432`
-- **Web Dashboard** — `http://localhost:3000`
+Dashboard sẽ có tại `http://localhost:3000`.
 
-GoClaw tự động chạy pending database migrations mỗi lần khởi động. Không cần chạy `goclaw onboard` hay `goclaw migrate` thủ công.
-
-Mở `http://localhost:3000` và đăng nhập:
-- **User ID:** `system`
-- **Gateway Token:** tìm trong `.env` (dòng `GOCLAW_GATEWAY_TOKEN`)
-
-Sau khi đăng nhập, làm theo hướng dẫn [Quick Start](/quick-start) để thêm LLM provider, tạo agent đầu tiên và bắt đầu chat.
+</details>
 
 ### Tiện ích mở rộng
 
@@ -301,12 +314,11 @@ Thêm bất kỳ overlay nào bằng `-f` khi khởi động services:
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   -f docker-compose.redis.yml \
   up -d --build
 ```
 
-> **Lưu ý:** Overlay Redis và OTel yêu cầu rebuild image GoClaw với build args tương ứng (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). Xem chi tiết trong các file overlay.
+> **Lưu ý:** Overlay Redis và OTel yêu cầu rebuild image GoClaw với build args tương ứng (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). Đặt `ENABLE_EMBEDUI=false` để tắt UI nhúng (ví dụ khi dùng overlay nginx selfservice). Xem chi tiết trong các file overlay.
 
 > **Python runtime:** File `docker-compose.yml` mặc định build GoClaw với `ENABLE_PYTHON: "true"`, nên các skills dùng Python hoạt động sẵn khi dùng Docker.
 
@@ -360,15 +372,20 @@ cd /opt/goclaw
 
 ### Bước 4: Khởi động services
 
+Compose mặc định đã bao gồm Web UI nhúng. Chỉ cần hai file cho setup production đầy đủ:
+
 ```bash
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   up -d --build
 ```
 
 GoClaw tự động chạy pending database migrations mỗi lần khởi động. Không cần chạy `goclaw onboard` hay `goclaw migrate` thủ công.
+
+Dashboard có tại `http://localhost:18790`.
+
+> **Tùy chọn:** Để dùng nginx + container UI riêng ở port 3000, thêm `-f docker-compose.selfservice.yml`. Xem phần [Tùy chọn: nginx + UI riêng biệt](#tùy-chọn-nginx--ui-riêng-biệt-selfservice) trong Cách 3 để biết chi tiết.
 
 ### Bước 4.5: Kiểm tra services đã chạy
 
@@ -384,12 +401,11 @@ docker compose logs goclaw | grep "gateway starting"
 
 ### Bước 5: Reverse Proxy với SSL
 
-**Cấu hình DNS:** Tạo 2 bản ghi A trỏ về IP VPS:
+**Cấu hình DNS:** Tạo bản ghi A trỏ về IP VPS:
 
 | Bản ghi | Loại | Giá trị |
 |---------|------|---------|
 | `yourdomain.com` | A | `IP_VPS_CỦA_BẠN` |
-| `ws.yourdomain.com` | A | `IP_VPS_CỦA_BẠN` |
 
 **Caddy (Khuyến nghị):**
 
@@ -401,13 +417,11 @@ Tạo file `/etc/caddy/Caddyfile`:
 
 ```
 yourdomain.com {
-    reverse_proxy localhost:3000
-}
-
-ws.yourdomain.com {
     reverse_proxy localhost:18790
 }
 ```
+
+> **Lưu ý:** Với `ENABLE_EMBEDUI: true` (mặc định), cả dashboard và API/WebSocket đều được phục vụ từ cùng một cổng (`18790`). Nếu dùng `docker-compose.selfservice.yml`, trỏ domain dashboard về `localhost:3000` thay thế.
 
 ```bash
 sudo systemctl reload caddy
@@ -427,13 +441,6 @@ Tạo file `/etc/nginx/sites-available/goclaw`:
 server {
     server_name yourdomain.com;
     location / {
-        proxy_pass http://localhost:3000;
-    }
-}
-
-server {
-    server_name ws.yourdomain.com;
-    location / {
         proxy_pass http://localhost:18790;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -442,10 +449,12 @@ server {
 }
 ```
 
+> **Lưu ý:** Với `ENABLE_EMBEDUI: true` (mặc định), tất cả traffic (dashboard + API + WebSocket) đều qua cùng một cổng gateway. Nếu dùng `docker-compose.selfservice.yml`, cấu hình thêm server block riêng trỏ `localhost:3000` cho UI và `localhost:18790` cho WebSocket gateway.
+
 ```bash
 sudo ln -s /etc/nginx/sites-available/goclaw /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d yourdomain.com -d ws.yourdomain.com
+sudo certbot --nginx -d yourdomain.com
 ```
 
 ### Bước 6: Sao lưu (Khuyến nghị)
@@ -498,7 +507,6 @@ git pull origin main
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   up -d --build
 ```
 
@@ -571,4 +579,4 @@ docker compose logs goclaw
 - [Quick Start](/quick-start) — Chạy agent đầu tiên của bạn
 - [Configuration](/configuration) — Tùy chỉnh cài đặt GoClaw
 
-<!-- goclaw-source: 175e052 | cập nhật: 2026-03-29 -->
+<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->

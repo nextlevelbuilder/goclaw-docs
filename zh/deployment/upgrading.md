@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **33**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **34**。
 
 ```mermaid
 graph LR
@@ -228,6 +228,7 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 031 | 为 `kg_entities` 添加 `tsv tsvector` 生成列和 GIN 索引以支持全文搜索；创建 `kg_dedup_candidates` 表用于实体去重审查 |
 | 032 | 创建 `secure_cli_user_credentials` 表实现按用户 CLI 凭证注入；为 `channel_contacts` 添加 `contact_type` 列 |
 | 033 | Cron payload columns | 将 `stateless`、`deliver`、`deliver_channel`、`deliver_to`、`wake_heartbeat` 从 `payload` JSONB 提升为 `cron_jobs` 独立列 |
+| 034 | `subagent_tasks` | Subagent 任务持久化，支持基于 DB 的任务追踪 |
 
 ### v2.x 重大变更
 
@@ -280,4 +281,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->
+<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->

@@ -208,10 +208,22 @@ Pruning chỉ tác động lên kết quả tool. Nếu user message dài hoặc
 
 ---
 
+## Cải Tiến Pipeline
+
+### Tóm tắt Compaction có cấu trúc
+
+Khi context được compacted, bản tóm tắt giờ đây giữ lại các định danh quan trọng — agent ID, task ID, và session key — theo định dạng có cấu trúc. Điều này đảm bảo agent có thể tiếp tục tham chiếu đến các task và session đang hoạt động sau khi compaction mà không mất context theo dõi.
+
+### Giới hạn tool output tại nguồn
+
+Tool output giờ được giới hạn ngay tại nguồn trước khi thêm vào context. Thay vì chờ pipeline pruning cắt tỉa các kết quả quá lớn sau khi đã lưu, GoClaw giới hạn kích thước tool output ngay lúc tiếp nhận. Điều này giảm áp lực bộ nhớ không cần thiết và làm cho pipeline pruning trở nên dự đoán được hơn.
+
+---
+
 ## Tiếp Theo
 
 - [Sessions & History](/sessions-and-history) — session compaction, giới hạn lịch sử
 - [Memory System](/memory-system) — bộ nhớ bền vững giữa các session
 - [Configuration Reference](/config-reference) — tham chiếu cấu hình agent đầy đủ
 
-<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->
+<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->

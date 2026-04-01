@@ -26,7 +26,7 @@ graph LR
     Registry --> Agent
 ```
 
-GoClaw 每 30 秒进行一次健康检查，如果服务器宕机，则以指数退避方式重连（初始延迟 2 秒，最多 10 次，每次最长间隔 60 秒）。
+GoClaw 每 30 秒进行一次健康检查。只有**连续 3 次 ping 失败**后，服务器才会被标记为断开连接 — 短暂的网络抖动不会触发重连。当服务器确实宕机时，GoClaw 以指数退避方式重连（初始延迟 2 秒，最多 10 次，每次最长间隔 60 秒）。
 
 ## 注册 MCP 服务器
 
@@ -105,13 +105,13 @@ filesystem_ → filesystem_read_file, filesystem_write_file
 
 ## 搜索模式（大量工具集）
 
-当所有服务器的 MCP 工具总数超过 **40** 时，GoClaw 自动进入**搜索模式**：工具不再内联注册到工具注册表，而是仅暴露内置的 `mcp_tool_search` 工具。agent 使用 `mcp_tool_search` 按需查找并激活特定 MCP 工具。
+当所有服务器的 MCP 工具总数超过 **40** 时，GoClaw 自动进入**混合模式（hybrid mode）**：前 40 个工具仍内联注册到工具注册表，其余工具延迟到搜索模式。在混合模式下，内置的 `mcp_tool_search` 工具也会暴露出来，供 agent 按需查找并激活延迟的工具。
 
 这样在连接多个 MCP 服务器时可以保持工具列表可控。无需任何配置 — 切换是自动的。
 
 ### 延迟激活
 
-在搜索模式下，如果 agent 直接按名称调用某个延迟的 MCP 工具（未先搜索），GoClaw 会**自动激活**它。该工具从 MCP 服务器解析，即时注册并执行 — 无需额外搜索步骤。这确保了与已知工具名称（来自先前上下文）的 agent 兼容。
+在混合模式下，如果 agent 直接按名称调用某个延迟的 MCP 工具（未先搜索），GoClaw 会**自动激活**它。该工具从 MCP 服务器解析，即时注册并执行 — 无需额外搜索步骤。这确保了与已知工具名称（来自先前上下文）的 agent 兼容。
 
 ## 按 Agent 的访问授权
 
@@ -299,4 +299,4 @@ curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{us
 - [自定义工具](../advanced/custom-tools.md) — 无需 MCP 服务器即可构建基于 shell 的工具
 - [Skills](../advanced/skills.md) — 将可复用知识注入 agent 系统提示词
 
-<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->
+<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->

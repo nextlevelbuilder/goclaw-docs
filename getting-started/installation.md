@@ -62,7 +62,18 @@ source .env.local && goclaw
 
 ### Open the Dashboard
 
-The binary install only starts the gateway. To access the web dashboard, clone the repo and run the UI:
+Pre-built binaries include the embedded Web UI — the dashboard is served directly at the gateway port. No separate UI process needed.
+
+Open `http://localhost:18790` and log in:
+- **User ID:** `system`
+- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
+
+After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
+
+<details>
+<summary><strong>Alternative: run a separate dashboard UI</strong></summary>
+
+If you need to run the dashboard as a separate dev server (e.g. for UI development), clone the repo and run:
 
 ```bash
 git clone https://github.com/nextlevelbuilder/goclaw.git
@@ -72,23 +83,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:5173` and log in:
-- **User ID:** `system`
-- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
-
-After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
-
-<details>
-<summary><strong>Alternative: run the dashboard via Docker</strong></summary>
-
-If you have Docker installed, you can run just the dashboard container without building from source:
-
-```bash
-cd goclaw
-docker compose -f docker-compose.selfservice.yml up -d
-```
-
-Dashboard will be available at `http://localhost:3000`.
+Dashboard will be available at `http://localhost:5173`.
 
 </details>
 
@@ -178,6 +173,7 @@ go build -o goclaw .
 **Build Tags (Optional):** Enable extra features at compile time:
 
 ```bash
+go build -tags embedui -o goclaw .           # Embed web UI in binary (serves dashboard at gateway port)
 go build -tags otel -o goclaw .              # OpenTelemetry tracing
 go build -tags tsnet -o goclaw .             # Tailscale networking
 go build -tags redis -o goclaw .             # Redis caching
@@ -205,7 +201,11 @@ source .env.local && ./goclaw
 
 ### Step 5: Open the Dashboard
 
-The web dashboard is a separate React app. In a new terminal:
+If you built with the `embedui` tag, the dashboard is served directly at `http://localhost:18790`. Log in with:
+- **User ID:** `system`
+- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
+
+Without `embedui`, run the dashboard as a separate React dev server in a new terminal:
 
 ```bash
 cd ui/web
@@ -214,9 +214,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:5173` and log in:
-- **User ID:** `system`
-- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
+Open `http://localhost:5173` and log in with the same credentials above.
 
 After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
@@ -252,11 +250,33 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
 ### Step 2: Start Services
 
 GoClaw uses modular Docker Compose files:
-- `docker-compose.yml` — Core GoClaw gateway and API server
+- `docker-compose.yml` — Core GoClaw gateway and API server (includes embedded Web UI by default)
 - `docker-compose.postgres.yml` — PostgreSQL database with pgvector extension
-- `docker-compose.selfservice.yml` — Web dashboard UI (port 3000)
+- `docker-compose.selfservice.yml` — Optional: nginx reverse proxy + separate UI container at port 3000
 
-You need all three for a complete local setup. If you want just the gateway without the dashboard, you can skip the selfservice file.
+The default `docker-compose.yml` sets `ENABLE_EMBEDUI: true`, so the dashboard is served directly at the gateway port (`http://localhost:18790`). You only need two files for a complete local setup:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --build
+```
+
+This starts:
+- **GoClaw gateway + embedded dashboard** — `http://localhost:18790`
+- **PostgreSQL** with pgvector — port `5432`
+
+GoClaw automatically runs pending database migrations on every start. No need to run `goclaw onboard` or `goclaw migrate` manually.
+
+Open `http://localhost:18790` and log in:
+- **User ID:** `system`
+- **Gateway Token:** found in `.env` (look for `GOCLAW_GATEWAY_TOKEN`)
+
+<details>
+<summary><strong>Optional: nginx + separate UI (selfservice)</strong></summary>
+
+If you prefer a separate UI container at port 3000 (e.g. for nginx reverse proxy with a distinct UI port), add the selfservice overlay:
 
 ```bash
 docker compose \
@@ -266,16 +286,9 @@ docker compose \
   up -d --build
 ```
 
-This starts:
-- **GoClaw gateway** — `ws://localhost:18790`
-- **PostgreSQL** with pgvector — port `5432`
-- **Web Dashboard** — `http://localhost:3000`
+Dashboard will be available at `http://localhost:3000`.
 
-GoClaw automatically runs pending database migrations on every start. No need to run `goclaw onboard` or `goclaw migrate` manually.
-
-Open `http://localhost:3000` and log in:
-- **User ID:** `system`
-- **Gateway Token:** found in `.env` (look for `GOCLAW_GATEWAY_TOKEN`)
+</details>
 
 After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
@@ -299,12 +312,11 @@ Append any overlay with `-f` when starting services:
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   -f docker-compose.redis.yml \
   up -d --build
 ```
 
-> **Note:** Redis and OTel overlays require rebuilding the GoClaw image with the corresponding build args (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). See the overlay files for details.
+> **Note:** Redis and OTel overlays require rebuilding the GoClaw image with the corresponding build args (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). Set `ENABLE_EMBEDUI=false` to disable the embedded UI (e.g. when using the selfservice nginx overlay). See the overlay files for details.
 
 > **Python runtime:** The default `docker-compose.yml` builds GoClaw with `ENABLE_PYTHON: "true"`, so Python-based skills work out of the box in Docker.
 
@@ -358,15 +370,20 @@ cd /opt/goclaw
 
 ### Step 4: Start Services
 
+The default compose includes the embedded Web UI. Two files are sufficient for a complete production setup:
+
 ```bash
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   up -d --build
 ```
 
 GoClaw automatically runs pending database migrations on every start. No need to run `goclaw onboard` or `goclaw migrate` manually.
+
+The dashboard is available at `http://localhost:18790`.
+
+> **Optional:** To use nginx + a separate UI container at port 3000, add `-f docker-compose.selfservice.yml`. See the [Optional: nginx + separate UI](#optional-nginx--separate-ui-selfservice) section in Path 3 for details.
 
 ### Step 4.5: Verify Services Started
 
@@ -382,12 +399,11 @@ docker compose logs goclaw | grep "gateway starting"
 
 ### Step 5: Reverse Proxy with SSL
 
-**DNS setup:** Create two A records pointing to your VPS IP:
+**DNS setup:** Create an A record pointing to your VPS IP:
 
 | Record | Type | Value |
 |--------|------|-------|
 | `yourdomain.com` | A | `YOUR_VPS_IP` |
-| `ws.yourdomain.com` | A | `YOUR_VPS_IP` |
 
 **Caddy (Recommended):**
 
@@ -399,13 +415,11 @@ Create `/etc/caddy/Caddyfile`:
 
 ```
 yourdomain.com {
-    reverse_proxy localhost:3000
-}
-
-ws.yourdomain.com {
     reverse_proxy localhost:18790
 }
 ```
+
+> **Note:** With `ENABLE_EMBEDUI: true` (default), both the dashboard and API/WebSocket are served from the same port (`18790`). If using `docker-compose.selfservice.yml`, point the dashboard domain to `localhost:3000` instead.
 
 ```bash
 sudo systemctl reload caddy
@@ -425,13 +439,6 @@ Create `/etc/nginx/sites-available/goclaw`:
 server {
     server_name yourdomain.com;
     location / {
-        proxy_pass http://localhost:3000;
-    }
-}
-
-server {
-    server_name ws.yourdomain.com;
-    location / {
         proxy_pass http://localhost:18790;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -440,10 +447,12 @@ server {
 }
 ```
 
+> **Note:** With `ENABLE_EMBEDUI: true` (default), all traffic (dashboard + API + WebSocket) goes through the single gateway port. If using `docker-compose.selfservice.yml`, configure a separate server block pointing to `localhost:3000` for the UI and `localhost:18790` for the WebSocket gateway.
+
 ```bash
 sudo ln -s /etc/nginx/sites-available/goclaw /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d yourdomain.com -d ws.yourdomain.com
+sudo certbot --nginx -d yourdomain.com
 ```
 
 ### Step 6: Backup (Recommended)
@@ -496,7 +505,6 @@ git pull origin main
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   up -d --build
 ```
 
@@ -569,4 +577,4 @@ docker compose logs goclaw
 - [Quick Start](/quick-start) — Run your first agent
 - [Configuration](/configuration) — Customize GoClaw settings
 
-<!-- goclaw-source: 175e052 | updated: 2026-03-29 -->
+<!-- goclaw-source: c388364d | updated: 2026-04-01 -->

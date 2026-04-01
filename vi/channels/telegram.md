@@ -245,6 +245,8 @@ Lệnh được xử lý trước bước message enrichment:
 | `/status` | Trạng thái bot + username | -- |
 | `/tasks` | Danh sách task của team | -- |
 | `/task_detail <id>` | Xem task | -- |
+| `/subagents` | Liệt kê tất cả subagent task đang hoạt động cùng trạng thái | -- |
+| `/subagent <id>` | Xem chi tiết một subagent task từ DB | -- |
 | `/addwriter` | Thêm file writer nhóm | Chỉ Writer |
 | `/removewriter` | Xoá file writer nhóm | Chỉ Writer |
 | `/writers` | Liệt kê writer nhóm | -- |
@@ -293,4 +295,4 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->
+<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
