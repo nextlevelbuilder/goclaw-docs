@@ -227,9 +227,25 @@ Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
 
 > Typing indicator reaction giờ có error recovery tốt hơn — invalid reaction type được handle gracefully thay vì gây lỗi.
 
-- `off` — Không có reaction
-- `minimal` — Chỉ ⏳ (đang suy nghĩ)
-- `full` — ⏳ (suy nghĩ) → 🛠️ (dùng tool) → ✅ (xong) hoặc ❌ (lỗi)
+- `off` — Không có reaction (mặc định)
+- `minimal` — Chỉ trạng thái kết thúc (done/error)
+- `full` — Tất cả chuyển đổi trạng thái với debouncing và phát hiện stall
+
+**Bảng ánh xạ Status → Emoji** (dùng `/reactions` trong chat để xem bảng chú giải):
+
+| Status | Emoji | Mô tả |
+|--------|-------|-------|
+| queued | 👀 | Đang chờ xử lý |
+| thinking | 🤔 | Đang xử lý yêu cầu |
+| tool | ✍ | Đang thực thi tool |
+| coding | 👨‍💻 | Đang chạy code |
+| web | ⚡ | Duyệt web / API call |
+| done | 👍 | Hoàn thành |
+| error | 💔 | Có lỗi xảy ra |
+| stallSoft | 🥱 | Không hoạt động 10 giây |
+| stallHard | 😨 | Không hoạt động 30 giây |
+
+Mỗi status có emoji dự phòng trong trường hợp emoji chính bị hạn chế bởi reaction cho phép của chat. Các trạng thái trung gian (thinking, tool, v.v.) được debounce ở 700ms để tránh spam reaction.
 
 ### Lệnh Bot
 
@@ -247,6 +263,7 @@ Lệnh được xử lý trước bước message enrichment:
 | `/task_detail <id>` | Xem task | -- |
 | `/subagents` | Liệt kê tất cả subagent task đang hoạt động cùng trạng thái | -- |
 | `/subagent <id>` | Xem chi tiết một subagent task từ DB | -- |
+| `/reactions` | Hiển thị bảng chú giải emoji phản ứng (status → emoji) | -- |
 | `/addwriter` | Thêm file writer nhóm | Chỉ Writer |
 | `/removewriter` | Xoá file writer nhóm | Chỉ Writer |
 | `/writers` | Liệt kê writer nhóm | -- |
@@ -295,4 +312,4 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->

@@ -223,11 +223,25 @@ Disabled by default. When enabled with `reasoning_stream: true` (default), reaso
 
 Show emoji status on user messages. Set `reaction_level`:
 
-> Typing indicator reactions are now handled with better error recovery — invalid reaction types are caught gracefully instead of causing errors.
+- `off` — No reactions (default)
+- `minimal` — Only terminal states (done/error)
+- `full` — All status transitions with debouncing and stall detection
 
-- `off` — No reactions
-- `minimal` — Only ⏳ (thinking)
-- `full` — ⏳ (thinking) → 🛠️ (tool) → ✅ (done) or ❌ (error)
+**Status → Emoji mapping** (use `/reactions` in chat to see this legend):
+
+| Status | Emoji | Description |
+|--------|-------|-------------|
+| queued | 👀 | Waiting to process |
+| thinking | 🤔 | Processing your request |
+| tool | ✍ | Executing a tool |
+| coding | 👨‍💻 | Running code |
+| web | ⚡ | Browsing / API call |
+| done | 👍 | Completed |
+| error | 💔 | Something went wrong |
+| stallSoft | 🥱 | No activity for 10s |
+| stallHard | 😨 | No activity for 30s |
+
+Each status has fallback emoji variants in case the primary emoji is restricted by the chat's allowed reactions. Intermediate states (thinking, tool, etc.) are debounced at 700ms to avoid reaction spam.
 
 ### Bot Commands
 
@@ -245,6 +259,7 @@ Commands processed before message enrichment:
 | `/task_detail <id>` | View task | -- |
 | `/subagents` | List all active subagent tasks with status | -- |
 | `/subagent <id>` | Show detailed view of a subagent task from DB | -- |
+| `/reactions` | Show reaction emoji legend (status → emoji mapping) | -- |
 | `/addwriter` | Add group file writer | Writers only |
 | `/removewriter` | Remove group file writer | Writers only |
 | `/writers` | List group writers | -- |
@@ -293,4 +308,4 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](/sessions-and-history) — Conversation history
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->

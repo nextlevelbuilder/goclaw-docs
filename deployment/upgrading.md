@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **34**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **35**.
 
 ```mermaid
 graph LR
@@ -227,6 +227,7 @@ These five migrations are auto-applied on startup when upgrading to v2.x. No man
 | 032 | Creates `secure_cli_user_credentials` for per-user CLI credential injection; adds `contact_type` column to `channel_contacts` |
 | 033 | Cron payload columns | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
 | 034 | `subagent_tasks` | Subagent task persistence for DB-backed task tracking |
+| 035 | `contact_thread_id` | Adds `thread_id VARCHAR(100)` and `thread_type VARCHAR(20)` to `channel_contacts`; cleans up `sender_id` by stripping `\|username` suffixes; rebuilds unique index as `(tenant_id, channel_type, sender_id, COALESCE(thread_id, ''))` |
 
 ### Breaking Changes in v2.x
 
@@ -279,4 +280,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->

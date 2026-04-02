@@ -645,11 +645,13 @@ Global unified contact directory auto-collected from all channel interactions. N
 | `avatar_url` | TEXT | | Profile image URL |
 | `peer_kind` | VARCHAR(20) | | e.g. `user`, `bot`, `group` |
 | `metadata` | JSONB | DEFAULT `{}` | Extra platform-specific data |
+| `thread_id` | VARCHAR(100) | | Thread/topic identifier within a chat (migration 035) |
+| `thread_type` | VARCHAR(20) | | Thread type classifier (migration 035) |
 | `merged_id` | UUID | | Canonical contact after de-duplication |
 | `first_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 | `last_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
-**Unique:** `(channel_type, sender_id)`
+**Unique:** `(tenant_id, channel_type, sender_id, COALESCE(thread_id, ''))`
 
 **Indexes:** `channel_instance` (partial non-null), `merged_id` (partial non-null), `(display_name, username)`
 
@@ -993,6 +995,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 32 | Creates `secure_cli_user_credentials` for per-user credential injection (mirrors `mcp_user_credentials` pattern); adds `contact_type VARCHAR(20) DEFAULT 'user'` to `channel_contacts` |
 | 33 | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
 | 34 | `subagent_tasks` — subagent task persistence for DB-backed task lifecycle tracking, cost attribution, and restart recovery |
+| 35 | `contact_thread_id` — adds `thread_id` and `thread_type` to `channel_contacts`; cleans `sender_id` format; rebuilds unique index to include thread scope |
 
 ---
 
@@ -1085,4 +1088,4 @@ Persists subagent task lifecycle for audit trail, cost attribution, and restart 
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->

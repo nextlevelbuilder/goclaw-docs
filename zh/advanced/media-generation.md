@@ -43,13 +43,23 @@ GoClaw 内置三个媒体生成工具：`create_image`、`create_video` 和 `cre
 
 **默认 provider 链：** Gemini → MiniMax → OpenRouter
 
-**默认模型：** Gemini `veo-3.0-generate-preview`、MiniMax `MiniMax-Hailuo-2.3`、OpenRouter `google/veo-3.0-generate-preview`
+**默认模型：** Gemini `veo-3.1-lite-generate-preview`、MiniMax `MiniMax-Hailuo-2.3`、OpenRouter `google/veo-3.1-lite-generate-preview`
 
 | 参数 | 类型 | 默认值 | 描述 |
 |-----------|------|---------|-------------|
 | `prompt` | string | 必填 | 视频的文字描述 |
 | `duration` | int | `8` | 时长（秒）：`4`、`6` 或 `8` |
 | `aspect_ratio` | string | `16:9` | `16:9` 或 `9:16` |
+| `image_path` | string | — | 工作区图片路径，用作起始帧（图生视频）。省略则为文生视频。支持格式：PNG、JPEG、WebP、GIF。最大 20 MB。 |
+| `filename_hint` | string | — | 简短描述性文件名，不含扩展名（如 `cat-playing-piano`） |
+
+### 图生视频
+
+提供 `image_path` 可生成以参考图片为起始帧的视频。图片以 base64 编码发送给 provider。使用图生视频模式时，时长固定为 **8 秒**（API 限制）。
+
+**示例 agent 提示词：** *"为这张产品照片添加缓慢变焦和微妙光影变化的动画"*（`image_path` 指向工作区中的图片）
+
+> **注意：** 并非所有 provider 都支持图生视频。Gemini（Veo 3.1 Lite）原生支持。链中不支持的 provider 会被自动跳过。
 
 视频生成较慢 — Gemini 和 MiniMax 轮询最多约 6 分钟。每个 provider 的默认超时为 120 秒，可通过链设置增大。
 
@@ -184,4 +194,4 @@ GoClaw 内置三个媒体生成工具：`create_image`、`create_video` 和 `cre
 - [自定义工具](/custom-tools) — 构建你自己的工具
 - [Provider 概览](/providers-overview) — 配置 API key
 
-<!-- goclaw-source: 120fc2d | 更新: 2026-03-18 -->
+<!-- goclaw-source: c5bfbc96 | 更新: 2026-04-02 -->

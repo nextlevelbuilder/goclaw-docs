@@ -41,13 +41,23 @@ File được tạo ra sẽ được xác minh sau khi ghi — nếu file không
 
 **Chuỗi provider mặc định:** Gemini → MiniMax → OpenRouter
 
-**Model mặc định:** Gemini `veo-3.0-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.0-generate-preview`
+**Model mặc định:** Gemini `veo-3.1-lite-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.1-lite-generate-preview`
 
 | Tham số | Kiểu | Mặc định | Mô tả |
 |---------|------|----------|-------|
 | `prompt` | string | bắt buộc | Mô tả video |
 | `duration` | int | `8` | Thời lượng (giây): `4`, `6`, hoặc `8` |
 | `aspect_ratio` | string | `16:9` | `16:9` hoặc `9:16` |
+| `image_path` | string | — | Đường dẫn đến hình ảnh trong workspace để dùng làm khung hình đầu tiên (image-to-video). Bỏ trống cho text-to-video. Định dạng hỗ trợ: PNG, JPEG, WebP, GIF. Tối đa 20 MB. |
+| `filename_hint` | string | — | Tên file mô tả ngắn không có phần mở rộng (ví dụ `cat-playing-piano`) |
+
+### Image-to-Video
+
+Cung cấp `image_path` để tạo video bắt đầu từ hình ảnh tham chiếu. Hình ảnh được mã hóa base64 và gửi đến provider. Khi dùng chế độ image-to-video, thời lượng cố định **8 giây** (ràng buộc API).
+
+**Ví dụ prompt agent:** *"Animate this product photo with a slow zoom and subtle lighting changes"* (với `image_path` trỏ đến hình ảnh trong workspace)
+
+> **Lưu ý:** Không phải tất cả provider đều hỗ trợ image-to-video. Gemini (Veo 3.1 Lite) hỗ trợ native. Các provider không hỗ trợ trong chuỗi sẽ tự động bị bỏ qua.
 
 Tạo video khá chậm — cả Gemini và MiniMax đều có thể polling đến ~6 phút. Timeout mỗi provider mặc định 120 giây nhưng có thể tăng qua cài đặt chuỗi.
 
@@ -182,4 +192,4 @@ File media tải về giới hạn tối đa **200 MB**. File vượt quá sẽ 
 - [Custom Tools](/custom-tools) — Tạo công cụ riêng
 - [Tổng quan Provider](/providers-overview) — Cấu hình API key
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->

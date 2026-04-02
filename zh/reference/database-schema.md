@@ -647,11 +647,13 @@ Agent 间委派权限。源 agent 可以将任务委派给目标 agent。
 | `avatar_url` | TEXT | | 头像 URL |
 | `peer_kind` | VARCHAR(20) | | 如 `user`、`bot`、`group` |
 | `metadata` | JSONB | DEFAULT `{}` | 额外的平台特定数据 |
+| `thread_id` | VARCHAR(100) | | 聊天内的线程/话题标识符（migration 035） |
+| `thread_type` | VARCHAR(20) | | 线程类型分类器（migration 035） |
 | `merged_id` | UUID | | 去重后的规范联系人 |
 | `first_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 | `last_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
-**唯一约束：** `(channel_type, sender_id)`
+**唯一约束：** `(tenant_id, channel_type, sender_id, COALESCE(thread_id, ''))`
 
 **索引：** `channel_instance`（部分非空）、`merged_id`（部分非空）、`(display_name, username)`
 
@@ -995,6 +997,7 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 32 | 创建 `secure_cli_user_credentials` 表实现按用户 CLI 凭证注入（与 `mcp_user_credentials` 模式一致）；在 `channel_contacts` 上添加 `contact_type VARCHAR(20) DEFAULT 'user'` 列 |
 | 33 | 将 `stateless`、`deliver`、`deliver_channel`、`deliver_to`、`wake_heartbeat` 从 `payload` JSONB 提升为 `cron_jobs` 独立列 |
 | 34 | `subagent_tasks` — subagent 任务持久化，支持基于 DB 的任务生命周期追踪、成本归因和重启恢复 |
+| 35 | `contact_thread_id` — 在 `channel_contacts` 中添加 `thread_id` 和 `thread_type`；清理 `sender_id` 格式；重建唯一索引以包含线程范围 |
 
 ---
 
@@ -1087,4 +1090,4 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: c5bfbc96 | 更新: 2026-04-02 -->

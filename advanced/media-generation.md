@@ -41,13 +41,23 @@ Generated files are verified after writing — if the file doesn't exist on disk
 
 **Default provider chain:** Gemini → MiniMax → OpenRouter
 
-**Default models:** Gemini `veo-3.0-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.0-generate-preview`
+**Default models:** Gemini `veo-3.1-lite-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.1-lite-generate-preview`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prompt` | string | required | Text description of the video |
 | `duration` | int | `8` | Duration in seconds: `4`, `6`, or `8` |
 | `aspect_ratio` | string | `16:9` | `16:9` or `9:16` |
+| `image_path` | string | — | Path to a workspace image to use as starting frame (image-to-video). Omit for text-to-video. Supported formats: PNG, JPEG, WebP, GIF. Max 20 MB. |
+| `filename_hint` | string | — | Short descriptive filename without extension (e.g. `cat-playing-piano`) |
+
+### Image-to-Video
+
+Provide an `image_path` to generate a video starting from a reference image. The image is encoded as base64 and sent to the provider. When using image-to-video mode, duration is fixed at **8 seconds** (API constraint).
+
+**Example agent prompt:** *"Animate this product photo with a slow zoom and subtle lighting changes"* (with `image_path` pointing to a workspace image)
+
+> **Note:** Not all providers support image-to-video. Gemini (Veo 3.1 Lite) supports it natively. Unsupported providers in the chain are skipped automatically.
 
 Video generation is slow — both Gemini and MiniMax poll up to ~6 minutes. The timeout per provider defaults to 120 seconds but can be increased via chain settings.
 
@@ -182,4 +192,4 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 - [Custom Tools](/custom-tools) — Build your own tools
 - [Provider Overview](/providers-overview) — Configure API keys
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->

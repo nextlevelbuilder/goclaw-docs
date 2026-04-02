@@ -21,6 +21,12 @@ GoClaw exposes a WebSocket endpoint at `/ws`. All client-gateway communication u
 | Read deadline | 60 s | Reset on each message or pong; triggers disconnect on timeout |
 | Write deadline | 10 s | Per-write timeout for individual frames |
 | Ping interval | 30 s | Server-initiated keepalive pings |
+| Rate limit | configurable | `rate_limit_rpm` in gateway config (0 = disabled, >0 = requests per minute, burst size 5) |
+
+### CORS & Origin Control
+
+- **`allowed_origins`** — string array in gateway config. Empty = all origins allowed (dev mode). Supports `"*"` wildcard. Non-browser clients (empty `Origin` header) always allowed.
+- **Desktop mode** — set `GOCLAW_DESKTOP=1` env var for permissive CORS (`Access-Control-Allow-Origin: *`). Adds custom headers: `X-GoClaw-Tenant-Id`, `X-GoClaw-User-Id`.
 
 ---
 
@@ -148,7 +154,8 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `connect` | `{token, user_id, sender_id?, locale?}` | Authenticate. Must be first request |
 | `health` | — | Ping / health check |
 | `status` | — | Gateway status |
-| `providers.models` | — | List available models from all configured LLM providers |
+| `agent` | `{agentId?}` | Get runtime status of a single agent (defaults to `"default"`) |
+| `send` | `{channel, to, message}` | Route an outbound message to an external channel |
 
 ### Chat
 
@@ -158,6 +165,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `chat.history` | `{sessionKey}` | Retrieve message history |
 | `chat.abort` | `{sessionKey}` | Abort an in-progress run |
 | `chat.inject` | `{sessionKey, content}` | Inject a message without triggering a run |
+| `chat.session.status` | `{sessionKey}` | Get live run state + activity phase of a session |
 
 ### Agents Management
 
@@ -172,6 +180,10 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `agents.files.get` | `{agentId, fileName}` | Get a context file |
 | `agents.files.set` | `{agentId, fileName, content}` | Create or update a context file |
 | `agent.identity.get` | `{agentId}` | Get agent persona info |
+| `agents.links.list` | `{agentId, direction?}` | List delegation links (`"from"`, `"to"`, `"all"`) |
+| `agents.links.create` | `{sourceAgent, targetAgent, direction?, description?, maxConcurrent?, settings?}` | Create a delegation link between agents |
+| `agents.links.update` | `{linkId, direction?, description?, maxConcurrent?, settings?, status?}` | Update a delegation link |
+| `agents.links.delete` | `{linkId}` | Delete a delegation link |
 
 ### Sessions
 
@@ -191,6 +203,9 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `config.apply` | Replace config entirely |
 | `config.patch` | Patch specific config fields |
 | `config.schema` | Get JSON schema for config |
+| `config.permissions.list` | `{agentId, configType?}` | List permissions for an agent |
+| `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
+| `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
 
 ### Cron
 
@@ -235,6 +250,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `device.pair.deny` | `{code}` | Deny a pairing request |
 | `device.pair.list` | — | List pending and approved pairings |
 | `device.pair.revoke` | `{channel, senderId}` | Revoke a pairing |
+| `browser.pairing.status` | `{sender_id}` | Poll pairing approval status (unauthenticated, rate-limited) |
 
 ### Exec Approvals
 
@@ -258,14 +274,15 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `teams.tasks.list` | List team tasks (filterable) |
 | `teams.tasks.get` | Get task with comments/events |
 | `teams.tasks.create` | Create task |
-| `teams.tasks.claim` | Claim task (mark as in-progress) |
 | `teams.tasks.assign` | Assign task to member |
 | `teams.tasks.approve` | Approve completed task |
 | `teams.tasks.reject` | Reject task submission |
 | `teams.tasks.comment` | Add comment to task |
 | `teams.tasks.comments` | List task comments |
 | `teams.tasks.events` | List task event history |
+| `teams.tasks.get-light` | Get task without comments/events/attachments |
 | `teams.tasks.delete` | Delete task |
+| `teams.tasks.delete-bulk` | `{teamId, taskIds}` | Bulk-delete terminal-status tasks |
 | `teams.tasks.active-by-session` | Get active tasks for a session (used to restore state on session switch) |
 | `teams.workspace.list` | List team workspace files |
 | `teams.workspace.read` | Read workspace file |
@@ -288,6 +305,47 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 |--------|--------|-------------|
 | `logs.tail` | `{action: "start"\|"stop", level?}` | Start or stop live log streaming; log entries arrive as server-push events while active |
 
+### Heartbeat
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `heartbeat.get` | `{agentId}` | Get heartbeat config for an agent |
+| `heartbeat.set` | `{agentId, enabled?, intervalSec?, prompt?, providerName?, model?, ...}` | Upsert heartbeat config (intervalSec min 300) |
+| `heartbeat.toggle` | `{agentId, enabled}` | Enable or disable heartbeat |
+| `heartbeat.test` | `{agentId}` | Trigger an immediate heartbeat run |
+| `heartbeat.logs` | `{agentId, limit?, offset?}` | List heartbeat execution logs |
+| `heartbeat.checklist.get` | `{agentId}` | Read the HEARTBEAT.md context file |
+| `heartbeat.checklist.set` | `{agentId, content}` | Write/replace the HEARTBEAT.md context file |
+| `heartbeat.targets` | `{agentId}` | List delivery targets for heartbeat notifications |
+
+### API Keys
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `api_keys.list` | — | List API keys (non-admin sees own only) |
+| `api_keys.create` | `{name, scopes, expires_in?, owner_id?, tenant_id?}` | Create an API key; returns raw key once |
+| `api_keys.revoke` | `{id}` | Revoke an API key (non-admin can revoke own only) |
+
+### Tenants
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `tenants.list` | — | List all tenants (owner only) |
+| `tenants.get` | `{id}` | Get a tenant by ID |
+| `tenants.create` | `{name, slug, settings?}` | Create a tenant and its workspace |
+| `tenants.update` | `{id, name?, status?, settings?}` | Update tenant properties |
+| `tenants.users.list` | `{tenant_id}` | List users in a tenant |
+| `tenants.users.add` | `{tenant_id, user_id, role?}` | Add user (roles: owner/admin/operator/member/viewer) |
+| `tenants.users.remove` | `{tenant_id, user_id}` | Remove user and broadcast access-revoked event |
+| `tenants.mine` | — | Get current user's tenant memberships |
+
+### Messaging
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `zalo.personal.qr.start` | `{instance_id}` | Start Zalo Personal QR login flow |
+| `zalo.personal.contacts` | `{instance_id}` | Fetch Zalo friends and groups |
+
 ---
 
 ## Server-Push Events
@@ -306,6 +364,7 @@ Emitted during agent runs. Check `payload.type`:
 | `tool.call` | Tool was invoked |
 | `tool.result` | Tool returned a result |
 | `block.reply` | Reply was blocked by input guard |
+| `activity` | Agent activity update |
 
 ### Chat Events (`"chat"`)
 
@@ -327,16 +386,69 @@ Emitted during agent runs. Check `payload.type`:
 | `exec.approval.resolved` | Approval decision made |
 | `device.pair.requested` | New pairing request from channel user |
 | `device.pair.resolved` | Pairing approved or denied |
+| `presence` | User presence change |
 | `agent.summoning` | Predefined agent persona generation in progress |
-| `handoff` | Agent delegated to another agent (`from_agent`, `to_agent`, `reason` in payload) |
-| `delegation.started/completed/failed` | Delegation lifecycle |
+| `delegation.started` | Delegation to subagent started |
+| `delegation.completed` | Delegation completed successfully |
+| `delegation.failed` | Delegation failed |
+| `delegation.cancelled` | Delegation was cancelled |
 | `delegation.progress` | Intermediate delegation result |
 | `delegation.announce` | Batched subagent results delivered to parent |
-| `team.task.created/completed/claimed/cancelled` | Team task lifecycle |
+| `delegation.accumulated` | Accumulated delegation results |
+| `connect.challenge` | Authentication challenge issued |
+| `voicewake.changed` | Voice wake word setting changed |
+| `talk.mode` | Talk mode state change |
+| `node.pair.requested` | Node pairing request received |
+| `node.pair.resolved` | Node pairing resolved |
+| `session.updated` | Chat session metadata updated |
+| `trace.updated` | Agent trace updated |
+| `heartbeat` | Heartbeat execution event |
+| `workspace.file.changed` | Team workspace file changed |
+| `agent_link.created` | Delegation link created |
+| `agent_link.updated` | Delegation link updated |
+| `agent_link.deleted` | Delegation link deleted |
+| `tenant.access.revoked` | Tenant access revoked for a user |
+| `zalo.personal.qr.code` | Zalo QR code generated |
+| `zalo.personal.qr.done` | Zalo QR login completed |
+
+### Skill Events
+
+| Event | Description |
+|-------|-------------|
+| `skill.deps.checked` | Skill dependencies check started |
+| `skill.deps.complete` | All skill dependencies resolved |
+| `skill.deps.installing` | Skill dependency installation started |
+| `skill.deps.installed` | Skill dependency installation completed |
+| `skill.dep.item.installing` | Individual dependency item installing |
+| `skill.dep.item.installed` | Individual dependency item installed |
+
+### Team Events
+
+| Event | Description |
+|-------|-------------|
+| `team.created` | Team created |
+| `team.updated` | Team updated |
+| `team.deleted` | Team deleted |
+| `team.member.added` | Member added to team |
+| `team.member.removed` | Member removed from team |
 | `team.message.sent` | Peer-to-peer message in team |
-| `team.created/updated/deleted` | Team CRUD notifications |
-| `team.member.added/removed` | Team membership changes |
-| `activity` | Activity audit log entry recorded |
+| `team.leader.processing` | Team leader processing request |
+| `team.task.created` | Task created |
+| `team.task.completed` | Task completed |
+| `team.task.claimed` | Task claimed |
+| `team.task.cancelled` | Task cancelled |
+| `team.task.failed` | Task failed |
+| `team.task.reviewed` | Task reviewed |
+| `team.task.approved` | Task approved |
+| `team.task.rejected` | Task rejected |
+| `team.task.progress` | Task progress update |
+| `team.task.commented` | Comment added to task |
+| `team.task.assigned` | Task assigned to member |
+| `team.task.dispatched` | Task dispatched |
+| `team.task.updated` | Task updated |
+| `team.task.deleted` | Task deleted |
+| `team.task.stale` | Task marked stale |
+| `team.task.attachment_added` | Attachment added to task |
 
 ---
 
@@ -380,4 +492,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: 04dc34e3 | updated: 2026-04-02 -->

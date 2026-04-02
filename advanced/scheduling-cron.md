@@ -101,7 +101,7 @@ goclaw cron delete <jobId>
 | `schedule.atMs` | int64 | Unix timestamp in ms (for `at`) |
 | `schedule.everyMs` | int64 | Interval in ms (for `every`) |
 | `schedule.expr` | string | 5-field cron expression (for `cron`) |
-| `schedule.tz` | string | IANA timezone for cron expressions; omit to use the gateway default timezone |
+| `schedule.tz` | string | IANA timezone — applies to **all** schedule kinds (`at`, `every`, `cron`), not just cron expressions. Omit to use the gateway default timezone |
 | `message` | string | Text the agent receives as its input |
 | `stateless` | bool | Run without session history — saves tokens for simple scheduled tasks. Default `false` |
 | `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.) |
@@ -318,4 +318,4 @@ When a session's conversation history exceeds **60% of the context window**, the
 - [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->

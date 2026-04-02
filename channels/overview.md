@@ -95,9 +95,48 @@ The `media_max_bytes` config field enforces a per-channel limit on outbound medi
 | **Media** | Photos, voice, files | Files, embeds | Files (20MB) | Images, files (30MB) | Images (5MB) | -- | JSON |
 | **Reply media** | Yes | Yes | -- | Yes | -- | -- | -- |
 | **Rich format** | HTML | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
+| **Thread support** | Yes | -- | -- | -- | -- | -- | -- |
 | **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- |
 | **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | **Message limit** | 4,096 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
+
+## Channel Health Diagnostics
+
+GoClaw tracks the runtime health of each channel instance and provides actionable diagnostics when issues occur. Health state is exposed via the `channels.status` WebSocket method and the dashboard overview page.
+
+### Health States
+
+| State | Meaning |
+|-------|---------|
+| `registered` | Channel is configured but not yet started |
+| `starting` | Channel is initializing |
+| `healthy` | Running normally |
+| `degraded` | Running with issues |
+| `failed` | Stopped due to an error |
+| `stopped` | Manually stopped |
+
+### Failure Classification
+
+When a channel fails, GoClaw classifies the error into one of four categories:
+
+| Kind | Typical Cause | Remediation |
+|------|---------------|-------------|
+| `auth` | Invalid or expired token/secret | Review credentials or re-authenticate |
+| `config` | Missing required settings, invalid proxy | Complete required fields in channel settings |
+| `network` | Timeout, connection refused, DNS failure | Check upstream service reachability and proxy settings |
+| `unknown` | Unrecognized error | Inspect server logs for the full error |
+
+Each failure includes a **remediation hint** — a short operator instruction pointing to the specific UI surface (credentials panel, advanced settings, or details page) where the issue can be resolved. The dashboard surfaces these hints directly on channel cards.
+
+### Health Tracking
+
+The health system tracks failure history per channel:
+- **Consecutive failures** — resets when the channel recovers
+- **Total failure count** — lifetime counter
+- **First/last failure timestamps** — for diagnosing intermittent issues
+- **Last healthy timestamp** — when the channel was last operational
+
+---
 
 ## Implementation Checklist
 
@@ -156,4 +195,4 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 - [WebSocket](/channel-websocket) — Direct agent API via WS
 - [Browser Pairing](/channel-browser-pairing) — 8-char code pairing flow
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->
+<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->
