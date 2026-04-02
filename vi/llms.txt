@@ -101,7 +101,7 @@
 - [Agent Evolution](vi/advanced/agent-evolution.md): Cho phép predefined agents tinh chỉnh phong cách giao tiếp và xây dựng các skill có thể tái sử dụng theo thời gian — tự động, với sự đồng ý của bạn.
 
 ## Deployment
-- [Docker Compose](vi/deployment/docker-compose.md): GoClaw cung cấp 9 file compose — một file base và 8 overlay để bạn kết hợp linh hoạt tùy theo stack cần triển khai.
+- [Docker Compose](vi/deployment/docker-compose.md): GoClaw cung cấp cấu trúc docker-compose có thể kết hợp: một file base, thư mục `compose.d/` chứa các overlay luôn hoạt động, và thư mục `compose.options/` chứa các overlay tùy chọn để bạn chọn lựa.
 - [Database Setup](vi/deployment/database-setup.md): GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` để lưu trữ đa tenant, tìm kiếm memory, và theo dõi usage.
 - [Security Hardening](vi/deployment/security-hardening.md): GoClaw dùng năm lớp bảo vệ độc lập — transport, input, tools, output, và isolation — để bypass một lớp không ảnh hưởng đến các lớp còn lại.
 - [Observability](vi/deployment/observability.md): Theo dõi mọi LLM call, tool use, và agent run — từ dashboard tích hợp đến Jaeger và xa hơn.

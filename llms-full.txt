@@ -171,6 +171,7 @@ go build -o goclaw .
 **Build Tags (Optional):** Enable extra features at compile time:
 
 ```bash
+go build -tags embedui -o goclaw .           # Embed web UI in binary (serves dashboard at gateway port)
 go build -tags otel -o goclaw .              # OpenTelemetry tracing
 go build -tags tsnet -o goclaw .             # Tailscale networking
 go build -tags redis -o goclaw .             # Redis caching
@@ -198,7 +199,11 @@ source .env.local && ./goclaw
 
 ### Step 5: Open the Dashboard
 
-The web dashboard is a separate React app. In a new terminal:
+If you built with the `embedui` tag, the dashboard is served directly at `http://localhost:18790`. Log in with:
+- **User ID:** `system`
+- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
+
+Without `embedui`, run the dashboard as a separate React dev server in a new terminal:
 
 ```bash
 cd ui/web
@@ -207,9 +212,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:5173` and log in:
-- **User ID:** `system`
-- **Gateway Token:** found in `.env.local` (look for `GOCLAW_GATEWAY_TOKEN`)
+Open `http://localhost:5173` and log in with the same credentials above.
 
 After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
@@ -245,11 +248,33 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-xxxxx
 ### Step 2: Start Services
 
 GoClaw uses modular Docker Compose files:
-- `docker-compose.yml` — Core GoClaw gateway and API server
+- `docker-compose.yml` — Core GoClaw gateway and API server (includes embedded Web UI by default)
 - `docker-compose.postgres.yml` — PostgreSQL database with pgvector extension
-- `docker-compose.selfservice.yml` — Web dashboard UI (port 3000)
+- `docker-compose.selfservice.yml` — Optional: nginx reverse proxy + separate UI container at port 3000
 
-You need all three for a complete local setup. If you want just the gateway without the dashboard, you can skip the selfservice file.
+The default `docker-compose.yml` sets `ENABLE_EMBEDUI: true`, so the dashboard is served directly at the gateway port (`http://localhost:18790`). You only need two files for a complete local setup:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --build
+```
+
+This starts:
+- **GoClaw gateway + embedded dashboard** — `http://localhost:18790`
+- **PostgreSQL** with pgvector — port `5432`
+
+GoClaw automatically runs pending database migrations on every start. No need to run `goclaw onboard` or `goclaw migrate` manually.
+
+Open `http://localhost:18790` and log in:
+- **User ID:** `system`
+- **Gateway Token:** found in `.env` (look for `GOCLAW_GATEWAY_TOKEN`)
+
+<details>
+<summary><strong>Optional: nginx + separate UI (selfservice)</strong></summary>
+
+If you prefer a separate UI container at port 3000 (e.g. for nginx reverse proxy with a distinct UI port), add the selfservice overlay:
 
 ```bash
 docker compose \
@@ -259,16 +284,9 @@ docker compose \
   up -d --build
 ```
 
-This starts:
-- **GoClaw gateway** — `ws://localhost:18790`
-- **PostgreSQL** with pgvector — port `5432`
-- **Web Dashboard** — `http://localhost:3000`
+Dashboard will be available at `http://localhost:3000`.
 
-GoClaw automatically runs pending database migrations on every start. No need to run `goclaw onboard` or `goclaw migrate` manually.
-
-Open `http://localhost:3000` and log in:
-- **User ID:** `system`
-- **Gateway Token:** found in `.env` (look for `GOCLAW_GATEWAY_TOKEN`)
+</details>
 
 After login, follow the [Quick Start](/quick-start) guide to add an LLM provider, create your first agent, and start chatting.
 
@@ -292,12 +310,11 @@ Append any overlay with `-f` when starting services:
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   -f docker-compose.redis.yml \
   up -d --build
 ```
 
-> **Note:** Redis and OTel overlays require rebuilding the GoClaw image with the corresponding build args (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). See the overlay files for details.
+> **Note:** Redis and OTel overlays require rebuilding the GoClaw image with the corresponding build args (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). Set `ENABLE_EMBEDUI=false` to disable the embedded UI (e.g. when using the selfservice nginx overlay). See the overlay files for details.
 
 > **Python runtime:** The default `docker-compose.yml` builds GoClaw with `ENABLE_PYTHON: "true"`, so Python-based skills work out of the box in Docker.
 
@@ -351,15 +368,20 @@ cd /opt/goclaw
 
 ### Step 4: Start Services
 
+The default compose includes the embedded Web UI. Two files are sufficient for a complete production setup:
+
 ```bash
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   up -d --build
 ```
 
 GoClaw automatically runs pending database migrations on every start. No need to run `goclaw onboard` or `goclaw migrate` manually.
+
+The dashboard is available at `http://localhost:18790`.
+
+> **Optional:** To use nginx + a separate UI container at port 3000, add `-f docker-compose.selfservice.yml`. See the [Optional: nginx + separate UI](#optional-nginx--separate-ui-selfservice) section in Path 3 for details.
 
 ### Step 4.5: Verify Services Started
 
@@ -375,12 +397,11 @@ docker compose logs goclaw | grep "gateway starting"
 
 ### Step 5: Reverse Proxy with SSL
 
-**DNS setup:** Create two A records pointing to your VPS IP:
+**DNS setup:** Create an A record pointing to your VPS IP:
 
 | Record | Type | Value |
 |--------|------|-------|
 | `yourdomain.com` | A | `YOUR_VPS_IP` |
-| `ws.yourdomain.com` | A | `YOUR_VPS_IP` |
 
 **Caddy (Recommended):**
 
@@ -392,13 +413,11 @@ Create `/etc/caddy/Caddyfile`:
 
 ```
 yourdomain.com {
-    reverse_proxy localhost:3000
-}
-
-ws.yourdomain.com {
     reverse_proxy localhost:18790
 }
 ```
+
+> **Note:** With `ENABLE_EMBEDUI: true` (default), both the dashboard and API/WebSocket are served from the same port (`18790`). If using `docker-compose.selfservice.yml`, point the dashboard domain to `localhost:3000` instead.
 
 ```bash
 sudo systemctl reload caddy
@@ -418,13 +437,6 @@ Create `/etc/nginx/sites-available/goclaw`:
 server {
     server_name yourdomain.com;
     location / {
-        proxy_pass http://localhost:3000;
-    }
-}
-
-server {
-    server_name ws.yourdomain.com;
-    location / {
         proxy_pass http://localhost:18790;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -433,10 +445,12 @@ server {
 }
 ```
 
+> **Note:** With `ENABLE_EMBEDUI: true` (default), all traffic (dashboard + API + WebSocket) goes through the single gateway port. If using `docker-compose.selfservice.yml`, configure a separate server block pointing to `localhost:3000` for the UI and `localhost:18790` for the WebSocket gateway.
+
 ```bash
 sudo ln -s /etc/nginx/sites-available/goclaw /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d yourdomain.com -d ws.yourdomain.com
+sudo certbot --nginx -d yourdomain.com
 ```
 
 ### Step 6: Backup (Recommended)
@@ -489,7 +503,6 @@ git pull origin main
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.postgres.yml \
-  -f docker-compose.selfservice.yml \
   up -d --build
 ```
 
@@ -2363,6 +2376,41 @@ After each conversation run, GoClaw evaluates whether to compact session history
 
 Predefined agents have built-in protection against social engineering. If a user tries to convince the agent to ignore its SOUL.md or act outside its defined identity, the agent is designed to resist. Shared identity files are injected into the system prompt at a level that takes precedence over user instructions.
 
+## Subagent Enhancements
+
+When an agent spawns subagents via the `spawn` tool, the following capabilities apply:
+
+### Per-Edition Rate Limiting
+
+The `Edition` struct enforces two tenant-scoped limits on subagent usage:
+
+| Field | Description |
+|-------|-------------|
+| `MaxSubagentConcurrent` | Max number of subagents running in parallel per tenant |
+| `MaxSubagentDepth` | Max nesting depth — prevents unbounded delegation chains |
+
+These are set per edition and enforced at spawn time.
+
+### Token Cost Tracking
+
+Each subagent accumulates per-call input and output token counts. Totals are persisted in the database and included in announce messages, giving the parent agent full visibility into delegation cost.
+
+### WaitAll Orchestration
+
+`spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. This enables fan-out/fan-in patterns without polling.
+
+### Auto-Retry with Backoff
+
+Configurable `MaxRetries` (default `2`) with linear backoff handles transient LLM failures automatically. The parent is only notified on permanent failure after all retries are exhausted.
+
+### SubagentDenyAlways
+
+Subagents cannot spawn nested subagents — the `team_tasks` tool is blocked in subagent context. All delegation must originate from a top-level agent.
+
+### Producer-Consumer Announce Queue
+
+Staggered subagent results are queued and merged into a single LLM run announcement on the parent side. This reduces unnecessary parent wake-ups when multiple subagents finish at different times.
+
 ## What's Next
 
 - [Sessions and History](/sessions-and-history) — How conversations persist
@@ -2692,6 +2740,25 @@ Admins can disable specific groups per agent:
 ```
 
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
+
+## spawn — Subagent Orchestration
+
+The `spawn` tool (part of `group:sessions`) creates and runs subagents. Key capabilities:
+
+| Capability | Detail |
+|-----------|--------|
+| **WaitAll** | `spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. Useful for fan-out/fan-in patterns. |
+| **Auto-retry** | Configurable `MaxRetries` (default `2`) with linear backoff on LLM failures. Transient errors are retried automatically. |
+| **Token tracking** | Each subagent accumulates per-call input/output token counts. Totals are included in announce messages so the parent can account for cost. |
+| **SubagentDenyAlways** | Subagents cannot spawn nested subagents — the `team_tasks` tool is blocked in subagent context. Prevents unbounded delegation chains. |
+| **Producer-consumer announce queue** | Staggered subagent results are queued and merged into a single LLM run announcement on the parent side, reducing unnecessary wake-ups. |
+
+```jsonc
+// Example: fan-out then wait
+spawn(action=start, prompt="Summarize part A")
+spawn(action=start, prompt="Summarize part B")
+spawn(action=wait, timeout=120)  // blocks until both finish
+```
 
 ## Session Tool Security
 
@@ -3623,6 +3690,8 @@ _(Domain-specific knowledge goes here: coding standards, image generation techni
 
 **Open agent:** Per-user (generated on first chat)
 **Predefined agent:** Agent-level (optionally generated via LLM summoning)
+
+> **Auto-sync:** When you rename an agent, the `Name:` field in IDENTITY.md is automatically updated to match. Other fields remain unchanged.
 
 ### TOOLS.md
 
@@ -5289,6 +5358,8 @@ The `api_base` field is optional — each provider has a built-in default endpoi
 
 Providers can also be stored in the `llm_providers` PostgreSQL table. API keys are encrypted at rest using AES-256-GCM. You can add, edit, or remove providers from the dashboard without restarting GoClaw. Changes take effect on the next request.
 
+> **Note:** `provider_type` is immutable after creation — it cannot be changed via the API or dashboard. To switch provider types, delete and recreate the provider.
+
 ## Retry Logic
 
 All providers share the same retry behavior via `RetryDo()`:
@@ -5317,7 +5388,16 @@ graph TD
     OAI --> DeepSeek
     OAI --> Groq
     OAI --> Mistral
+    OAI --> Novita
 ```
+
+## Tool Schema Normalization for MCP Tools
+
+When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schemas are normalized to match the provider's expected format. Field types, required arrays, and unsupported properties are adjusted automatically. This ensures MCP tools work across all provider backends without manual schema adaptation.
+
+## Capability-Aware Reasoning Effort
+
+Reasoning effort controls (`reasoning_effort`, `thinking_budget`, etc.) are resolved against model capabilities before each request. If the target model does not support reasoning effort, the parameter is silently dropped — no error is returned. This means you can configure reasoning effort globally and it will only be applied to models that support it.
 
 ## Auto-Clamp max_tokens
 
@@ -5341,6 +5421,7 @@ When a model rejects a request because `max_tokens` is too large, GoClaw automat
 - [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
 - [Groq](/provider-groq) — ultra-fast inference
 - [Mistral](/provider-mistral) — Mistral AI models
+- [Novita AI](/provider-novita) — OpenAI-compatible, wide range of open-source models
 
 
 
@@ -5554,6 +5635,12 @@ OpenAI function calling works out of the box. GoClaw converts internal tool defi
 | `HTTP 429` | Rate limit | GoClaw retries automatically; check your tier limits |
 | `HTTP 400` on o-series | Unsupported parameter | Avoid setting `temperature` with o-series models |
 | Vision not working | Model doesn't support images | Use gpt-4o or gpt-4o-mini |
+
+### Developer Role (GPT-4o+)
+
+For native OpenAI endpoints (`api.openai.com`), GoClaw automatically maps the `system` role to `developer` when sending requests. The `developer` role has higher instruction priority than `system` for GPT-4o and newer models.
+
+This mapping only applies to native OpenAI infrastructure. Other OpenAI-compatible backends (Azure OpenAI, proxies, Qwen, DeepSeek, etc.) continue to use the standard `system` role.
 
 ## What's Next
 
@@ -6718,6 +6805,74 @@ YesScale is a cloud AI platform providing access to a wide range of language mod
 
 ---
 
+# Novita AI
+
+> OpenAI-compatible LLM provider with access to a wide range of open-source models.
+
+## Overview
+
+Novita AI is a cloud inference platform providing access to dozens of open-source models via an OpenAI-compatible API. GoClaw connects to Novita using the standard `OpenAIProvider`.
+
+- **Provider type:** `novita`
+- **Default API base:** `https://api.novita.ai/openai`
+- **Default model:** `moonshotai/kimi-k2.5`
+- **Protocol:** OpenAI-compatible (Bearer token)
+
+## Quick Setup
+
+### Static config (config.json)
+
+```json
+{
+  "providers": {
+    "novita": {
+      "api_key": "your-novita-api-key"
+    }
+  }
+}
+```
+
+The `api_base` defaults to `https://api.novita.ai/openai` — omit it unless you need to override.
+
+### Environment variable
+
+```
+GOCLAW_NOVITA_API_KEY=your-novita-api-key
+```
+
+### Dashboard (llm_providers table)
+
+```json
+{
+  "provider_type": "novita",
+  "api_key": "your-novita-api-key",
+  "api_base": "https://api.novita.ai/openai"
+}
+```
+
+## Using Novita in an Agent
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "provider": "novita",
+      "model": "moonshotai/kimi-k2.5"
+    }
+  }
+}
+```
+
+## What's Next
+
+- [Provider Overview](/providers-overview)
+- [Custom / OpenAI-Compatible](/provider-custom)
+- [OpenRouter](/provider-openrouter) — another multi-model platform
+
+
+
+---
+
 # Claude CLI
 
 Run Claude Code (the `claude` CLI binary) as a GoClaw provider — giving your agents full agentic tool use powered by Anthropic's Claude subscription.
@@ -7577,66 +7732,46 @@ The `media_max_bytes` config field enforces a per-channel limit on outbound medi
 | **Media** | Photos, voice, files | Files, embeds | Files (20MB) | Images, files (30MB) | Images (5MB) | -- | JSON |
 | **Reply media** | Yes | Yes | -- | Yes | -- | -- | -- |
 | **Rich format** | HTML | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
+| **Thread support** | Yes | -- | -- | -- | -- | -- | -- |
 | **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- |
 | **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | **Message limit** | 4,096 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
 
-## Implementation Checklist
+## Channel Health Diagnostics
 
-When adding a new channel, implement these methods:
+GoClaw tracks the runtime health of each channel instance and provides actionable diagnostics when issues occur. Health state is exposed via the `channels.status` WebSocket method and the dashboard overview page.
 
-- **`Name()`** — Return channel identifier (e.g., `"telegram"`)
-- **`Start(ctx)`** — Begin listening for messages
-- **`Stop(ctx)`** — Graceful shutdown
-- **`Send(ctx, msg)`** — Deliver message to platform
-- **`IsRunning()`** — Report running status
-- **`IsAllowed(senderID)`** — Check allowlist
+### Health States
 
-Optional interfaces:
+| State | Meaning |
+|-------|---------|
+| `registered` | Channel is configured but not yet started |
+| `starting` | Channel is initializing |
+| `healthy` | Running normally |
+| `degraded` | Running with issues |
+| `failed` | Stopped due to an error |
+| `stopped` | Manually stopped |
 
-- **`StreamingChannel`** — Real-time message updates (chunks, typing indicators)
-- **`ReactionChannel`** — Status emoji reactions (thinking, done, error)
-- **`WebhookChannel`** — HTTP handler mountable on main gateway mux
-- **`BlockReplyChannel`** — Override gateway block_reply setting
+### Failure Classification
 
-## Common Patterns
+When a channel fails, GoClaw classifies the error into one of four categories:
 
-### Message Handling
+| Kind | Typical Cause | Remediation |
+|------|---------------|-------------|
+| `auth` | Invalid or expired token/secret | Review credentials or re-authenticate |
+| `config` | Missing required settings, invalid proxy | Complete required fields in channel settings |
+| `network` | Timeout, connection refused, DNS failure | Check upstream service reachability and proxy settings |
+| `unknown` | Unrecognized error | Inspect server logs for the full error |
 
-All channels use `BaseChannel.HandleMessage()` to forward messages to the bus:
+Each failure includes a **remediation hint** — a short operator instruction pointing to the specific UI surface (credentials panel, advanced settings, or details page) where the issue can be resolved. The dashboard surfaces these hints directly on channel cards.
 
-```go
-ch.HandleMessage(
-    senderID,        // "telegram:123" or "discord:456@guild"
-    chatID,          // where to send responses
-    content,         // user text
-    media,           // file URLs/paths
-    metadata,        // routing hints
-    "direct",        // or "group"
-)
-```
+### Health Tracking
 
-### Allowlist Matching
-
-Support compound sender IDs like `"123|username"`. Allowlist can contain:
-
-- User IDs: `"123456"`
-- Usernames: `"@alice"`
-- Compound: `"123456|alice"`
-- Wildcards: Not supported
-
-### Rate Limiting
-
-Channels may enforce per-user rate limits. Configure via channel settings or implement custom logic.
-
-## Next Steps
-
-- [Telegram](/channel-telegram) — Full guide for Telegram integration
-- [Discord](/channel-discord) — Discord bot setup
-- [Slack](/channel-slack) — Slack Socket Mode integration
-- [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
-- [WebSocket](/channel-websocket) — Direct agent API via WS
-- [Browser Pairing](/channel-browser-pairing) — 8-char code pairing flow
+The health system tracks failure history per channel:
+- **Consecutive failures** — resets when the channel recovers
+- **Total failure count** — lifetime counter
+- **First/last failure timestamps** — for diagnosing intermittent issues
+- **Last healthy timestamp** — when the channel was last operational
 
 
 
@@ -7787,6 +7922,22 @@ flowchart TD
     BUFFER --> NEXT["Next mention:<br/>history included"]
 ```
 
+### Group Message Annotation
+
+In group chats, each message is prefixed with a `[From:]` annotation so the agent knows who is speaking:
+
+```
+[From: @username (Display Name)]
+Message content here
+```
+
+The label format depends on available user data:
+- Username + display name: `@username (Display Name)`
+- Username only: `@username`
+- Display name only: `Display Name`
+
+This annotation is also added to DM messages for consistent sender identification.
+
 ### Group Concurrency
 
 Group sessions support up to **3 concurrent agent runs**. When this limit is reached, additional messages are queued. This applies to all group and forum topic contexts.
@@ -7851,11 +8002,25 @@ Disabled by default. When enabled with `reasoning_stream: true` (default), reaso
 
 Show emoji status on user messages. Set `reaction_level`:
 
-> Typing indicator reactions are now handled with better error recovery — invalid reaction types are caught gracefully instead of causing errors.
+- `off` — No reactions (default)
+- `minimal` — Only terminal states (done/error)
+- `full` — All status transitions with debouncing and stall detection
 
-- `off` — No reactions
-- `minimal` — Only ⏳ (thinking)
-- `full` — ⏳ (thinking) → 🛠️ (tool) → ✅ (done) or ❌ (error)
+**Status → Emoji mapping** (use `/reactions` in chat to see this legend):
+
+| Status | Emoji | Description |
+|--------|-------|-------------|
+| queued | 👀 | Waiting to process |
+| thinking | 🤔 | Processing your request |
+| tool | ✍ | Executing a tool |
+| coding | 👨‍💻 | Running code |
+| web | ⚡ | Browsing / API call |
+| done | 👍 | Completed |
+| error | 💔 | Something went wrong |
+| stallSoft | 🥱 | No activity for 10s |
+| stallHard | 😨 | No activity for 30s |
+
+Each status has fallback emoji variants in case the primary emoji is restricted by the chat's allowed reactions. Intermediate states (thinking, tool, etc.) are debounced at 700ms to avoid reaction spam.
 
 ### Bot Commands
 
@@ -7871,6 +8036,9 @@ Commands processed before message enrichment:
 | `/status` | Bot status + username | -- |
 | `/tasks` | Team task list | -- |
 | `/task_detail <id>` | View task | -- |
+| `/subagents` | List all active subagent tasks with status | -- |
+| `/subagent <id>` | Show detailed view of a subagent task from DB | -- |
+| `/reactions` | Show reaction emoji legend (status → emoji mapping) | -- |
 | `/addwriter` | Add group file writer | Writers only |
 | `/removewriter` | Remove group file writer | Writers only |
 | `/writers` | List group writers | -- |
@@ -8001,7 +8169,7 @@ In servers (channels), the bot requires being mentioned by default (`require_men
 
 ### Typing Indicator
 
-While the agent processes, a typing indicator is shown (9-second keepalive).
+While the agent processes, a typing indicator is shown (9-second keepalive). The typing indicator stops automatically after successful message delivery.
 
 ### Thread Support
 
@@ -8009,7 +8177,7 @@ The bot automatically detects and responds in Discord threads. Responses stay in
 
 ### Media from Replied-to Messages
 
-When a user replies to a message that contains media attachments, GoClaw extracts those attachments and includes them in the inbound message context. This lets the agent see and process media even when it was originally shared in a previous turn.
+When a user replies to a message that contains media attachments, GoClaw extracts those attachments and includes them in the inbound message context. This lets the agent see and process media even when it was originally shared in a previous turn. Attachment source URLs are preserved in media tags, so agents can reference the original Discord CDN URL.
 
 ### Group Media History
 
@@ -9070,6 +9238,8 @@ Bridge detects group chats via `@g.us` suffix in chat ID:
 - **Group**: `"123-456@g.us"`
 
 Policies apply accordingly (DM policy for DMs, group policy for groups).
+
+In group chats, messages include a `[From:]` annotation with the sender's display name, allowing the agent to distinguish between participants.
 
 ### Message Format
 
@@ -10461,6 +10631,39 @@ If a member agent's run is terminated by the loop detector (stuck or infinite lo
 
 This prevents infinite loops from blocking team progress — agents can safely attempt exploratory tasks without risk of permanent stall.
 
+## Team Notification Settings
+
+Team task events can be forwarded to chat channels. The default configuration is conservative — only high-signal events are on by default to reduce noise.
+
+| Event | Default | Description |
+|-------|---------|-------------|
+| `dispatched` | ON | Task dispatched to a member |
+| `new_task` | ON | New task created (human-initiated) |
+| `completed` | ON | Task completed |
+| `progress` | OFF | Member updates progress |
+| `failed` | OFF | Task failed |
+| `commented` | OFF | Task comment added |
+| `slow_tool` | OFF | System alert when a tool call exceeds the adaptive threshold |
+
+Delivery mode is `direct` by default (outbound channel). Set `mode: "leader"` to route all notifications through the lead agent.
+
+Configure notifications in team settings:
+
+```json
+{
+  "notifications": {
+    "dispatched": true,
+    "new_task": true,
+    "completed": true,
+    "progress": false,
+    "failed": false,
+    "commented": false,
+    "slow_tool": false,
+    "mode": "direct"
+  }
+}
+```
+
 ## Best Practices
 
 1. **Be concise**: Keep messages focused and actionable
@@ -10937,7 +11140,7 @@ graph LR
     Registry --> Agent
 ```
 
-GoClaw runs a health-check loop every 30 seconds and reconnects with exponential backoff (initial delay 2 s, up to 10 attempts, capped at 60 s between retries) if a server goes down.
+GoClaw runs a health-check loop every 30 seconds. A server is only marked disconnected after **3 consecutive ping failures** — transient network blips do not trigger a reconnect. When a server does go down, GoClaw reconnects with exponential backoff (initial delay 2 s, up to 10 attempts, capped at 60 s between retries).
 
 ## Registering an MCP Server
 
@@ -11016,13 +11219,13 @@ If no prefix is set and a name collision is detected, GoClaw logs a warning (`mc
 
 ## Search Mode (large tool sets)
 
-When the total number of MCP tools across all servers exceeds **40**, GoClaw automatically enters **search mode**: tools are no longer registered inline in the tool registry. Instead, only the built-in `mcp_tool_search` tool is exposed. The agent uses `mcp_tool_search` to find and activate specific MCP tools on demand.
+When the total number of MCP tools across all servers exceeds **40**, GoClaw automatically enters **hybrid mode**: the first 40 tools remain registered inline in the tool registry, while the remainder are deferred to search mode. In hybrid mode, the built-in `mcp_tool_search` tool is also exposed so the agent can find and activate the deferred tools on demand.
 
 This keeps the tool list manageable when connecting many MCP servers. There is no configuration required — the switch is automatic.
 
 ### Lazy activation
 
-In search mode, if an agent calls a deferred MCP tool directly by name (without searching first), GoClaw **auto-activates** it. The tool is resolved from the MCP server, registered on the fly, and executed — no extra search step needed. This enables compatibility with agents that already know the tool name from prior context.
+In hybrid mode, if an agent calls a deferred MCP tool directly by name (without searching first), GoClaw **auto-activates** it. The tool is resolved from the MCP server, registered on the fly, and executed — no extra search step needed. This enables compatibility with agents that already know the tool name from prior context.
 
 ## Per-Agent Access Grants
 
@@ -11042,6 +11245,26 @@ curl -X POST http://localhost:8080/v1/mcp/grants \
 ```
 
 When `tool_allow` is non-empty, only those tools are visible to the agent. `tool_deny` removes specific tools even when the rest are allowed.
+
+## Per-User Credential Servers (Deferred Loading)
+
+Some MCP servers require per-user credentials (OAuth tokens, personal API keys). These servers are **not connected at startup**. Instead, GoClaw stores them during `LoadForAgent("")` as `userCredServers` and creates connections on a per-request basis via `pool.AcquireUser()` when a real user session arrives.
+
+**How it works:**
+
+1. At startup, `LoadForAgent("")` is called with no user context. Servers that `requireUserCreds` are stored in `userCredServers` — not connected.
+2. When a user session starts, `LoadForAgent(userID)` is called. GoClaw resolves credentials for that specific user and connects the server for that session only.
+3. The server and its tools are available only within that user's request context.
+
+This means per-user credential servers are invisible in the global status endpoint but appear normally when accessed through a user session.
+
+## Optional Tool Argument Stripping
+
+LLMs often send empty strings or placeholder values (e.g. `""`, `"null"`, `"none"`, `"__OMIT__"`) for optional tool arguments instead of omitting them. This causes MCP servers to reject calls with invalid values (e.g. an empty string where a UUID is expected).
+
+GoClaw automatically strips these values before forwarding the call. Required fields are always forwarded as-is. Optional fields with empty or placeholder values are removed from the call arguments.
+
+No configuration required — stripping is always active for all MCP tool calls.
 
 ## Per-User Self-Service Access
 
@@ -11593,8 +11816,9 @@ goclaw cron delete <jobId>
 | `schedule.atMs` | int64 | Unix timestamp in ms (for `at`) |
 | `schedule.everyMs` | int64 | Interval in ms (for `every`) |
 | `schedule.expr` | string | 5-field cron expression (for `cron`) |
-| `schedule.tz` | string | IANA timezone for cron expressions; omit to use the gateway default timezone |
+| `schedule.tz` | string | IANA timezone — applies to **all** schedule kinds (`at`, `every`, `cron`), not just cron expressions. Omit to use the gateway default timezone |
 | `message` | string | Text the agent receives as its input |
+| `stateless` | bool | Run without session history — saves tokens for simple scheduled tasks. Default `false` |
 | `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.) |
 | `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
 | `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
@@ -12331,13 +12555,23 @@ Generated files are verified after writing — if the file doesn't exist on disk
 
 **Default provider chain:** Gemini → MiniMax → OpenRouter
 
-**Default models:** Gemini `veo-3.0-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.0-generate-preview`
+**Default models:** Gemini `veo-3.1-lite-generate-preview`, MiniMax `MiniMax-Hailuo-2.3`, OpenRouter `google/veo-3.1-lite-generate-preview`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prompt` | string | required | Text description of the video |
 | `duration` | int | `8` | Duration in seconds: `4`, `6`, or `8` |
 | `aspect_ratio` | string | `16:9` | `16:9` or `9:16` |
+| `image_path` | string | — | Path to a workspace image to use as starting frame (image-to-video). Omit for text-to-video. Supported formats: PNG, JPEG, WebP, GIF. Max 20 MB. |
+| `filename_hint` | string | — | Short descriptive filename without extension (e.g. `cat-playing-piano`) |
+
+### Image-to-Video
+
+Provide an `image_path` to generate a video starting from a reference image. The image is encoded as base64 and sent to the provider. When using image-to-video mode, duration is fixed at **8 seconds** (API constraint).
+
+**Example agent prompt:** *"Animate this product photo with a slow zoom and subtle lighting changes"* (with `image_path` pointing to a workspace image)
+
+> **Note:** Not all providers support image-to-video. Gemini (Veo 3.1 Lite) supports it natively. Unsupported providers in the chain are skipped automatically.
 
 Video generation is slow — both Gemini and MiniMax poll up to ~6 minutes. The timeout per provider defaults to 120 seconds but can be increased via chain settings.
 
@@ -12712,6 +12946,81 @@ GoClaw's knowledge graph system has two parts:
 The graph is scoped per agent and per user — each agent builds its own graph from its conversations.
 
 
+## Full-Text Search
+
+Entity search uses PostgreSQL `tsvector` full-text search (migration `000031`). A stored `tsv` column is automatically generated from each entity's name and description:
+
+```sql
+tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', name || ' ' || COALESCE(description, ''))) STORED
+```
+
+A GIN index on `tsv` makes text queries fast even with large graphs. Queries like `"john"` or `"project alpha"` match partial words across name and description fields.
+
+---
+
+## Entity Deduplication
+
+After extraction, GoClaw automatically checks new entities for duplicates using two signals:
+
+1. **Embedding similarity** — HNSW KNN query finds the nearest existing entities of the same type
+2. **Name similarity** — Jaro-Winkler string similarity (case-insensitive)
+
+### Thresholds
+
+| Scenario | Condition | Action |
+|----------|-----------|--------|
+| Near-certain duplicate | embedding similarity ≥ 0.98 **and** name similarity ≥ 0.85 | Auto-merged immediately |
+| Possible duplicate | embedding similarity ≥ 0.90 | Flagged in `kg_dedup_candidates` for review |
+
+**Auto-merge** keeps the entity with the higher confidence score, re-points all relations from the merged entity to the surviving one, and deletes the source entity. An advisory lock prevents concurrent merges on the same agent.
+
+**Flagged candidates** are stored in `kg_dedup_candidates` with status `pending`. You can list, dismiss, or manually merge them via the API.
+
+### Dedup Management Workflow
+
+**1. Scan for duplicates** — Run a full scan across all entities:
+
+```bash
+POST /v1/agents/{agentID}/kg/dedup/scan
+Content-Type: application/json
+
+{"threshold": 0.90, "limit": 100}
+```
+
+Useful after bulk imports or initial onboarding. Results are added to the review queue.
+
+**2. Review candidates:**
+
+```bash
+GET /v1/agents/{agentID}/kg/dedup?user_id=xxx
+```
+
+Returns `DedupCandidate[]` with fields: `entity_a`, `entity_b`, `similarity`, `status`.
+
+**3. Merge:**
+
+```bash
+POST /v1/agents/{agentID}/kg/merge
+Content-Type: application/json
+
+{"target_id": "john-doe-uuid", "source_id": "j-doe-uuid"}
+```
+
+Re-points all relations from `source_id` to `target_id`, then deletes the source entity.
+
+**4. Dismiss:**
+
+```bash
+POST /v1/agents/{agentID}/kg/dedup/dismiss
+Content-Type: application/json
+
+{"candidate_id": "candidate-uuid"}
+```
+
+Marks the pair as not-duplicate — it won't appear in future review queues.
+
+---
+
 ## Searching the Graph
 
 **Tool:** `knowledge_graph_search`
@@ -12719,9 +13028,19 @@ The graph is scoped per agent and per user — each agent builds its own graph f
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `query` | string | Entity name, keyword, or `*` to list all (required) |
-| `entity_type` | string | Filter: `person`, `project`, `task`, `event`, `concept`, `location`, `organization` |
+| `entity_type` | string | Filter: `person`, `organization`, `project`, `product`, `technology`, `task`, `event`, `document`, `concept`, `location` |
 | `entity_id` | string | Start point for relationship traversal |
 | `max_depth` | int | Traversal depth (default 2, max 3) |
+
+### 3-Tier Search Fallback
+
+The tool uses a 3-tier fallback strategy to ensure results are always returned:
+
+1. **Traversal** (when `entity_id` provided) — Bidirectional multi-hop traversal up to `max_depth`, returns up to 20 results with path info and relation types
+2. **Direct connections** (fallback if traversal returns nothing) — Bidirectional 1-hop relations, capped at 10
+3. **Text search** (fallback if no connections) — Full-text search on entity names/descriptions, returns up to 10 results with their relations (5 per entity)
+
+When all three tiers return nothing, the tool returns the top 10 existing entities as hints so the model knows what's available in the graph.
 
 ### Search modes
 
@@ -12735,7 +13054,7 @@ query: "John"
 query: "*"
 ```
 
-**Traverse relationships** — Start from an entity and follow outgoing connections:
+**Traverse relationships** — Start from an entity and follow connections in both directions:
 ```
 query: "*"
 entity_id: "project-alpha"
@@ -12746,17 +13065,166 @@ Results include entity names, types, descriptions, depth, traversal path, and th
 
 ---
 
+## REST API Reference
+
+All endpoints require authentication (`Authorization: Bearer <token>`). Add `?user_id=<id>` to scope results to a specific user.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{agentID}/kg/entities` | List or search entities |
+| `GET` | `/v1/agents/{agentID}/kg/entities/{entityID}` | Get entity with its relations |
+| `POST` | `/v1/agents/{agentID}/kg/entities` | Upsert entity |
+| `DELETE` | `/v1/agents/{agentID}/kg/entities/{entityID}` | Delete entity (cascades relations) |
+| `POST` | `/v1/agents/{agentID}/kg/traverse` | Traverse the graph from an entity |
+| `POST` | `/v1/agents/{agentID}/kg/extract` | LLM-powered extraction from text |
+| `GET` | `/v1/agents/{agentID}/kg/stats` | Graph statistics |
+| `GET` | `/v1/agents/{agentID}/kg/graph` | Full graph for visualization |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | Scan for duplicate candidates |
+| `GET` | `/v1/agents/{agentID}/kg/dedup` | List dedup candidates |
+| `POST` | `/v1/agents/{agentID}/kg/merge` | Merge two entities |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/dismiss` | Dismiss a dedup candidate |
+
+---
+
+## Data Model
+
+### Entity
+
+```json
+{
+  "id": "uuid",
+  "agent_id": "agent-uuid",
+  "user_id": "optional-user-id",
+  "external_id": "john-doe",
+  "name": "John Doe",
+  "entity_type": "person",
+  "description": "Backend engineer on the platform team",
+  "properties": {"team": "platform"},
+  "source_id": "optional-source-ref",
+  "confidence": 0.95,
+  "created_at": 1711900000,
+  "updated_at": 1711900000
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `external_id` | Human-readable slug (e.g., `john-doe`). Used for upsert dedup. |
+| `properties` | Arbitrary key-value metadata from extraction |
+| `source_id` | Optional reference to the source conversation or document |
+| `confidence` | Extraction confidence (0.0–1.0); surviving entity in merges keeps the higher value |
+
+### Relation
+
+```json
+{
+  "id": "uuid",
+  "agent_id": "agent-uuid",
+  "user_id": "optional-user-id",
+  "source_entity_id": "john-doe-uuid",
+  "relation_type": "works_on",
+  "target_entity_id": "project-alpha-uuid",
+  "confidence": 0.9,
+  "properties": {},
+  "created_at": 1711900000
+}
+```
+
+Relations are directional: `source --relation_type--> target`. Deleting an entity cascades and removes all its relations.
+
+---
+
 ## Entity Types
 
 | Type | Examples |
 |------|----------|
 | `person` | Team members, contacts, stakeholders |
-| `project` | Products, initiatives, codebases |
+| `organization` | Companies, teams, departments |
+| `project` | Initiatives, codebases, programs |
+| `product` | Software products, services, features |
+| `technology` | Languages, frameworks, platforms |
 | `task` | Action items, tickets, assignments |
 | `event` | Meetings, deadlines, milestones |
-| `concept` | Technologies, methodologies, ideas |
+| `document` | Reports, specs, wikis, runbooks |
+| `concept` | Methodologies, ideas, principles |
 | `location` | Offices, cities, regions |
-| `organization` | Companies, teams, departments |
+
+---
+
+## Graph Statistics & Visualization
+
+### Statistics
+
+```bash
+GET /v1/agents/{agentID}/kg/stats?user_id=xxx
+```
+
+```json
+{
+  "entity_count": 42,
+  "relation_count": 87,
+  "entity_types": {
+    "person": 15,
+    "project": 8,
+    "concept": 12,
+    "task": 7
+  }
+}
+```
+
+### Full Graph for Visualization
+
+```bash
+GET /v1/agents/{agentID}/kg/graph?user_id=xxx&limit=200
+```
+
+Returns all entities and relations suitable for rendering in a graph UI. Default limit is 200 entities; relations are capped at 3× the entity limit.
+
+The web dashboard renders the graph using **ReactFlow** with **D3 Force Simulation** (`d3-force`) for automatic node positioning:
+
+- **Force layout** — `forceSimulation` computes node positions using link distance, charge repulsion (`forceManyBody`), centering (`forceCenter`), and collision avoidance (`forceCollide`). Forces scale by node count (tighter for small graphs, spread for large).
+- **Node sizing by type** — Each entity type has a different mass (organization=8, project=6, person=4, etc.), so hub entities naturally sit at the center.
+- **Degree centrality** — When entities exceed the display limit (50), the graph keeps the most-connected hub nodes. Nodes with ≥4 connections get a glow highlight.
+- **Interactive selection** — Clicking a node highlights its connected edges with labels, dims unrelated edges, and opens the entity detail dialog.
+- **Theme support** — Dual-theme color palette (dark/light) with per-entity-type colors. Theme changes update colors without re-running the layout.
+- **Performance** — Node components are `memo`-ized, layout runs in `setTimeout(0)` to avoid blocking, and edge updates use `useTransition` for responsive interaction.
+
+---
+
+## Shared Knowledge Graph
+
+By default, the knowledge graph is scoped per agent **and** per user — each user builds their own graph. When `share_knowledge_graph` is enabled in the agent's workspace sharing config, the graph becomes agent-level (shared across all users):
+
+```yaml
+workspace_sharing:
+  share_knowledge_graph: true
+```
+
+In shared mode, `user_id` is ignored for all KG operations — entities and relations from all users are stored and queried together. This is useful for team agents where everyone should see the same entity graph.
+
+> **Note:** `share_knowledge_graph` is independent of `share_memory`. You can share memory without sharing the graph, or vice versa.
+
+---
+
+## Automatic Extraction on Memory Write
+
+When an agent writes to its memory files (e.g., `MEMORY.md` or files under `memory/`), GoClaw automatically triggers KG extraction on the written content. This happens via the `MemoryInterceptor`, which calls the configured LLM to extract entities and relations from the new memory text.
+
+This means agents continuously build their knowledge graph as they learn — no manual `/kg/extract` calls needed for normal conversations. The extract API is available for bulk imports or external integrations.
+
+---
+
+## Confidence Pruning
+
+Remove low-confidence entities and relations in bulk using `PruneByConfidence`:
+
+```bash
+# Internal service call — prunes items below threshold
+# Returns count of pruned entities and relations
+PruneByConfidence(agentID, userID, minConfidence)
+```
+
+This is useful after bulk imports where many low-confidence items accumulate. Items with `confidence < minConfidence` are deleted; their relations cascade automatically.
 
 ---
 
@@ -14143,12 +14611,12 @@ This placeholder is configurable. Hard clear can also be disabled entirely.
 
 ## Configuration
 
-Context pruning is **off by default**. Enable it by setting `mode: "cache-ttl"` in the agent config.
+Context pruning is **on by default**. To disable it, set `mode: "off"` in the agent config.
 
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl"
+    "mode": "off"
   }
 }
 ```
@@ -14160,7 +14628,6 @@ All other fields have sensible defaults and are optional.
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "keepLastAssistants": 3,
     "softTrimRatio": 0.3,
     "hardClearRatio": 0.5,
@@ -14180,7 +14647,7 @@ All other fields have sensible defaults and are optional.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | `"off"` | Set to `"cache-ttl"` to enable pruning. Any other value disables it. |
+| `mode` | *(unset — pruning active)* | Set to `"off"` to disable pruning entirely. |
 | `keepLastAssistants` | `3` | Number of recent assistant turns to protect from pruning. |
 | `softTrimRatio` | `0.3` | Trigger soft trim when context fills this fraction of the context window. |
 | `hardClearRatio` | `0.5` | Trigger hard clear when context fills this fraction after soft trim. |
@@ -14195,17 +14662,15 @@ All other fields have sensible defaults and are optional.
 
 ## Configuration Examples
 
-### Minimal — enable with defaults
+### Disable pruning entirely
 
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl"
+    "mode": "off"
   }
 }
 ```
-
-Pruning activates at 30% context fill with default trim sizes.
 
 ### Aggressive — for long tool-heavy workflows
 
@@ -14214,7 +14679,6 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "softTrimRatio": 0.2,
     "hardClearRatio": 0.4,
     "softTrim": {
@@ -14231,7 +14695,6 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "hardClear": {
       "enabled": false
     }
@@ -14244,7 +14707,6 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl",
     "hardClear": {
       "placeholder": "[Tool output removed to save context]"
     }
@@ -14268,7 +14730,7 @@ Trigger earlier and keep less context per tool result:
 
 **Pruning never triggers**
 
-Check that `mode` is exactly `"cache-ttl"`. Any other value (including omitting the field) disables pruning. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
+Confirm that `mode` is not set to `"off"`. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
 
 **Agent re-runs tools unexpectedly**
 
@@ -14281,6 +14743,18 @@ Increase `softTrim.headChars` and `softTrim.tailChars`, or raise `softTrim.maxCh
 **Context still overflows despite pruning**
 
 Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](/sessions-and-history) or reduce the system prompt size.
+
+---
+
+## Pipeline Improvements
+
+### Structured Compaction Summary
+
+When context is compacted, the summary now preserves key identifiers — agent IDs, task IDs, and session keys — in a structured format. This ensures that agents can continue referencing their active tasks and sessions after compaction without losing critical tracking context.
+
+### Tool Output Capping at Source
+
+Tool output is now capped at the source before being added to context. Rather than waiting for the pruning pipeline to trim oversized results after the fact, GoClaw limits tool output size at ingestion time. This reduces unnecessary memory pressure and makes the pruning pipeline more predictable.
 
 ---
 
@@ -15544,25 +16018,52 @@ Maximum overhead per run with both features enabled: ~305 tokens for skill learn
 
 # Docker Compose Deployment
 
-> GoClaw ships 9 compose files — a base plus 8 overlays you mix and match to build the exact stack you need.
+> GoClaw ships a composable docker-compose setup: a base file, a `compose.d/` directory of always-active overlays, and a `compose.options/` directory of opt-in overlays you mix and match.
 
 > **Auto-upgrade on start:** The Docker entrypoint runs `goclaw upgrade` automatically before starting the gateway. This applies pending database migrations so you don't need a separate upgrade step for simple deployments. For production, consider running the upgrade overlay explicitly first.
 
 ## Overview
 
-The compose setup is modular. You always start with `docker-compose.yml` (the base) and stack overlays on top with `-f`. Each overlay extends or overrides only what it needs.
+The compose setup is modular. The base `docker-compose.yml` defines the core `goclaw` service. Active overlays live in `compose.d/` and are assembled automatically. Optional overlays in `compose.options/` can be copied into `compose.d/` to activate them.
+
+### `compose.d/` — always-active overlays
+
+Files in `compose.d/` are loaded automatically by `prepare-compose.sh` (sorted by filename):
 
 ```
-docker-compose.yml            # Base: goclaw binary, ports, volumes, security hardening
-docker-compose.postgres.yml   # PostgreSQL 18 + pgvector
-docker-compose.selfservice.yml # Web dashboard UI (nginx + React, port 3000)
-docker-compose.sandbox.yml    # Docker-in-Docker sandbox for agent code execution
-docker-compose.browser.yml    # Headless Chrome sidecar (CDP, port 9222)
-docker-compose.otel.yml       # Jaeger for OpenTelemetry trace visualization
-docker-compose.tailscale.yml  # Tailscale tsnet for secure remote access
-docker-compose.redis.yml      # Redis 7 cache backend (optional)
-docker-compose.upgrade.yml    # One-shot DB migration runner
+compose.d/
+  00-goclaw.yml        # Core service definition
+  11-postgres.yml      # PostgreSQL 18 + pgvector
+  12-selfservice.yml   # Web dashboard UI (nginx + React, port 3000)
+  13-upgrade.yml       # One-shot DB migration runner
+  14-browser.yml       # Headless Chrome sidecar (CDP, port 9222)
+  15-otel.yml          # Jaeger for OpenTelemetry trace visualization
+  16-redis.yml         # Redis 7 cache backend
+  17-sandbox.yml       # Docker-in-Docker sandbox for agent code execution
+  18-tailscale.yml     # Tailscale tsnet for secure remote access
 ```
+
+### `compose.options/` — opt-in overlays
+
+The `compose.options/` directory holds the same overlay files as reference copies. Copy the ones you want into `compose.d/` to activate them.
+
+### `prepare-compose.sh` — build the COMPOSE_FILE
+
+Run this script once after changing `compose.d/` to regenerate the `COMPOSE_FILE` variable in `.env`:
+
+```bash
+./prepare-compose.sh
+```
+
+The script reads all `compose.d/*.yml` files (sorted), validates the merged config with `docker compose config`, and writes the `COMPOSE_FILE` value to `.env`. Docker Compose reads `COMPOSE_FILE` automatically on every `docker compose` command.
+
+```bash
+# Flags
+./prepare-compose.sh --quiet             # suppress output
+./prepare-compose.sh --skip-validation   # skip docker compose config check
+```
+
+> **podman-compose:** `COMPOSE_FILE` is not read automatically. Run `source .env` before each `podman-compose` command.
 
 
 ## Overlay Reference
@@ -15729,18 +16230,16 @@ deploy:
 
 ```bash
 # 1. Pull latest images / rebuilt code
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml pull
+docker compose pull
 
 # 2. Run DB migrations before starting new binary
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.postgres.yml \
-  -f docker-compose.upgrade.yml \
-  run --rm upgrade
+docker compose run --rm upgrade
 
 # 3. Restart the stack
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+docker compose up -d --build
 ```
+
+> `COMPOSE_FILE` in `.env` (set by `prepare-compose.sh`) includes `13-upgrade.yml` automatically, so no explicit `-f` flags are needed.
 
 ---
 
@@ -17134,7 +17633,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **30**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **35**.
 
 ```mermaid
 graph LR
@@ -17333,7 +17832,7 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v2.x Migrations (024–030)
+### v2.x Migrations (024–032)
 
 These five migrations are auto-applied on startup when upgrading to v2.x. No manual steps are needed for standard upgrades — run `./goclaw upgrade` as usual. Manual migration is only required for major version jumps where a backup-and-restore approach is recommended.
 
@@ -17348,6 +17847,11 @@ These five migrations are auto-applied on startup when upgrading to v2.x. No man
 | 028 | Adds `comment_type` to `team_task_comments` for blocker escalation support |
 | 029 | Adds `system_configs` table — per-tenant key-value store for system settings (plain text; use `config_secrets` for secrets) |
 | 030 | Adds GIN indexes on `spans.metadata` (partial, `span_type = 'llm_call'`) and `sessions.metadata` JSONB columns for query performance |
+| 031 | Adds `tsv tsvector` generated column + GIN index to `kg_entities` for full-text search; creates `kg_dedup_candidates` table for entity deduplication review |
+| 032 | Creates `secure_cli_user_credentials` for per-user CLI credential injection; adds `contact_type` column to `channel_contacts` |
+| 033 | Cron payload columns | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
+| 034 | `subagent_tasks` | Subagent task persistence for DB-backed task tracking |
+| 035 | `contact_thread_id` | Adds `thread_id VARCHAR(100)` and `thread_type VARCHAR(20)` to `channel_contacts`; cleans up `sender_id` by stripping `\|username` suffixes; rebuilds unique index as `(tenant_id, channel_type, sender_id, COALESCE(thread_id, ''))` |
 
 ### Breaking Changes in v2.x
 
@@ -19338,7 +19842,8 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `connect` | `{token, user_id, sender_id?, locale?}` | Authenticate. Must be first request |
 | `health` | — | Ping / health check |
 | `status` | — | Gateway status |
-| `providers.models` | — | List available models from all configured LLM providers |
+| `agent` | `{agentId?}` | Get runtime status of a single agent (defaults to `"default"`) |
+| `send` | `{channel, to, message}` | Route an outbound message to an external channel |
 
 ### Chat
 
@@ -19348,6 +19853,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `chat.history` | `{sessionKey}` | Retrieve message history |
 | `chat.abort` | `{sessionKey}` | Abort an in-progress run |
 | `chat.inject` | `{sessionKey, content}` | Inject a message without triggering a run |
+| `chat.session.status` | `{sessionKey}` | Get live run state + activity phase of a session |
 
 ### Agents Management
 
@@ -19362,6 +19868,10 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `agents.files.get` | `{agentId, fileName}` | Get a context file |
 | `agents.files.set` | `{agentId, fileName, content}` | Create or update a context file |
 | `agent.identity.get` | `{agentId}` | Get agent persona info |
+| `agents.links.list` | `{agentId, direction?}` | List delegation links (`"from"`, `"to"`, `"all"`) |
+| `agents.links.create` | `{sourceAgent, targetAgent, direction?, description?, maxConcurrent?, settings?}` | Create a delegation link between agents |
+| `agents.links.update` | `{linkId, direction?, description?, maxConcurrent?, settings?, status?}` | Update a delegation link |
+| `agents.links.delete` | `{linkId}` | Delete a delegation link |
 
 ### Sessions
 
@@ -19381,6 +19891,9 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `config.apply` | Replace config entirely |
 | `config.patch` | Patch specific config fields |
 | `config.schema` | Get JSON schema for config |
+| `config.permissions.list` | `{agentId, configType?}` | List permissions for an agent |
+| `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
+| `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
 
 ### Cron
 
@@ -19425,6 +19938,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `device.pair.deny` | `{code}` | Deny a pairing request |
 | `device.pair.list` | — | List pending and approved pairings |
 | `device.pair.revoke` | `{channel, senderId}` | Revoke a pairing |
+| `browser.pairing.status` | `{sender_id}` | Poll pairing approval status (unauthenticated, rate-limited) |
 
 ### Exec Approvals
 
@@ -19448,14 +19962,15 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `teams.tasks.list` | List team tasks (filterable) |
 | `teams.tasks.get` | Get task with comments/events |
 | `teams.tasks.create` | Create task |
-| `teams.tasks.claim` | Claim task (mark as in-progress) |
 | `teams.tasks.assign` | Assign task to member |
 | `teams.tasks.approve` | Approve completed task |
 | `teams.tasks.reject` | Reject task submission |
 | `teams.tasks.comment` | Add comment to task |
 | `teams.tasks.comments` | List task comments |
 | `teams.tasks.events` | List task event history |
+| `teams.tasks.get-light` | Get task without comments/events/attachments |
 | `teams.tasks.delete` | Delete task |
+| `teams.tasks.delete-bulk` | `{teamId, taskIds}` | Bulk-delete terminal-status tasks |
 | `teams.tasks.active-by-session` | Get active tasks for a session (used to restore state on session switch) |
 | `teams.workspace.list` | List team workspace files |
 | `teams.workspace.read` | Read workspace file |
@@ -19478,6 +19993,47 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 |--------|--------|-------------|
 | `logs.tail` | `{action: "start"\|"stop", level?}` | Start or stop live log streaming; log entries arrive as server-push events while active |
 
+### Heartbeat
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `heartbeat.get` | `{agentId}` | Get heartbeat config for an agent |
+| `heartbeat.set` | `{agentId, enabled?, intervalSec?, prompt?, providerName?, model?, ...}` | Upsert heartbeat config (intervalSec min 300) |
+| `heartbeat.toggle` | `{agentId, enabled}` | Enable or disable heartbeat |
+| `heartbeat.test` | `{agentId}` | Trigger an immediate heartbeat run |
+| `heartbeat.logs` | `{agentId, limit?, offset?}` | List heartbeat execution logs |
+| `heartbeat.checklist.get` | `{agentId}` | Read the HEARTBEAT.md context file |
+| `heartbeat.checklist.set` | `{agentId, content}` | Write/replace the HEARTBEAT.md context file |
+| `heartbeat.targets` | `{agentId}` | List delivery targets for heartbeat notifications |
+
+### API Keys
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `api_keys.list` | — | List API keys (non-admin sees own only) |
+| `api_keys.create` | `{name, scopes, expires_in?, owner_id?, tenant_id?}` | Create an API key; returns raw key once |
+| `api_keys.revoke` | `{id}` | Revoke an API key (non-admin can revoke own only) |
+
+### Tenants
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `tenants.list` | — | List all tenants (owner only) |
+| `tenants.get` | `{id}` | Get a tenant by ID |
+| `tenants.create` | `{name, slug, settings?}` | Create a tenant and its workspace |
+| `tenants.update` | `{id, name?, status?, settings?}` | Update tenant properties |
+| `tenants.users.list` | `{tenant_id}` | List users in a tenant |
+| `tenants.users.add` | `{tenant_id, user_id, role?}` | Add user (roles: owner/admin/operator/member/viewer) |
+| `tenants.users.remove` | `{tenant_id, user_id}` | Remove user and broadcast access-revoked event |
+| `tenants.mine` | — | Get current user's tenant memberships |
+
+### Messaging
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `zalo.personal.qr.start` | `{instance_id}` | Start Zalo Personal QR login flow |
+| `zalo.personal.contacts` | `{instance_id}` | Fetch Zalo friends and groups |
+
 ---
 
 ## Server-Push Events
@@ -19491,10 +20047,12 @@ Emitted during agent runs. Check `payload.type`:
 | `run.started` | Agent run begins |
 | `run.completed` | Run finished successfully |
 | `run.failed` | Run encountered an error |
+| `run.cancelled` | Run was cancelled before completion |
 | `run.retrying` | Run is being retried |
 | `tool.call` | Tool was invoked |
 | `tool.result` | Tool returned a result |
 | `block.reply` | Reply was blocked by input guard |
+| `activity` | Agent activity update |
 
 ### Chat Events (`"chat"`)
 
@@ -19516,16 +20074,69 @@ Emitted during agent runs. Check `payload.type`:
 | `exec.approval.resolved` | Approval decision made |
 | `device.pair.requested` | New pairing request from channel user |
 | `device.pair.resolved` | Pairing approved or denied |
+| `presence` | User presence change |
 | `agent.summoning` | Predefined agent persona generation in progress |
-| `handoff` | Agent delegated to another agent (`from_agent`, `to_agent`, `reason` in payload) |
-| `delegation.started/completed/failed` | Delegation lifecycle |
+| `delegation.started` | Delegation to subagent started |
+| `delegation.completed` | Delegation completed successfully |
+| `delegation.failed` | Delegation failed |
+| `delegation.cancelled` | Delegation was cancelled |
 | `delegation.progress` | Intermediate delegation result |
 | `delegation.announce` | Batched subagent results delivered to parent |
-| `team.task.created/completed/claimed/cancelled` | Team task lifecycle |
+| `delegation.accumulated` | Accumulated delegation results |
+| `connect.challenge` | Authentication challenge issued |
+| `voicewake.changed` | Voice wake word setting changed |
+| `talk.mode` | Talk mode state change |
+| `node.pair.requested` | Node pairing request received |
+| `node.pair.resolved` | Node pairing resolved |
+| `session.updated` | Chat session metadata updated |
+| `trace.updated` | Agent trace updated |
+| `heartbeat` | Heartbeat execution event |
+| `workspace.file.changed` | Team workspace file changed |
+| `agent_link.created` | Delegation link created |
+| `agent_link.updated` | Delegation link updated |
+| `agent_link.deleted` | Delegation link deleted |
+| `tenant.access.revoked` | Tenant access revoked for a user |
+| `zalo.personal.qr.code` | Zalo QR code generated |
+| `zalo.personal.qr.done` | Zalo QR login completed |
+
+### Skill Events
+
+| Event | Description |
+|-------|-------------|
+| `skill.deps.checked` | Skill dependencies check started |
+| `skill.deps.complete` | All skill dependencies resolved |
+| `skill.deps.installing` | Skill dependency installation started |
+| `skill.deps.installed` | Skill dependency installation completed |
+| `skill.dep.item.installing` | Individual dependency item installing |
+| `skill.dep.item.installed` | Individual dependency item installed |
+
+### Team Events
+
+| Event | Description |
+|-------|-------------|
+| `team.created` | Team created |
+| `team.updated` | Team updated |
+| `team.deleted` | Team deleted |
+| `team.member.added` | Member added to team |
+| `team.member.removed` | Member removed from team |
 | `team.message.sent` | Peer-to-peer message in team |
-| `team.created/updated/deleted` | Team CRUD notifications |
-| `team.member.added/removed` | Team membership changes |
-| `activity` | Activity audit log entry recorded |
+| `team.leader.processing` | Team leader processing request |
+| `team.task.created` | Task created |
+| `team.task.completed` | Task completed |
+| `team.task.claimed` | Task claimed |
+| `team.task.cancelled` | Task cancelled |
+| `team.task.failed` | Task failed |
+| `team.task.reviewed` | Task reviewed |
+| `team.task.approved` | Task approved |
+| `team.task.rejected` | Task rejected |
+| `team.task.progress` | Task progress update |
+| `team.task.commented` | Comment added to task |
+| `team.task.assigned` | Task assigned to member |
+| `team.task.dispatched` | Task dispatched |
+| `team.task.updated` | Task updated |
+| `team.task.deleted` | Task deleted |
+| `team.task.stale` | Task marked stale |
+| `team.task.attachment_added` | Attachment added to task |
 
 ---
 
@@ -19687,6 +20298,75 @@ Re-trigger LLM-based summoning for predefined agents.
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user file (USER.md only) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata |
 
+### Agent Export / Import
+
+Export and import agent configurations and data as a tar.gz archive. Supports selective section export.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/export/preview` | Preview export counts per section (no archive built) |
+| `GET` | `/v1/agents/{id}/export` | Download agent archive directly (tar.gz) |
+| `GET` | `/v1/agents/{id}/export/download/{token}` | Download a previously prepared archive via short-lived token (valid 5 min) |
+| `POST` | `/v1/agents/import` | Import archive as a **new** agent (multipart `file` field) |
+| `POST` | `/v1/agents/import/preview` | Parse archive and return manifest without importing |
+| `POST` | `/v1/agents/{id}/import` | **Merge** archive data into an existing agent |
+
+**Export query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `sections` | string | Comma-separated list of sections to include. Defaults to `config,context_files`. Available: `config`, `context_files`, `memory`, `knowledge_graph`, `cron`, `user_profiles`, `user_overrides`, `workspace` |
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` for token-based download |
+
+**Import query params (`POST /v1/agents/import`):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `agent_key` | string | Override agent key (falls back to archive value) |
+| `display_name` | string | Override display name |
+| `stream` | `bool` | Stream import progress via SSE |
+
+**Merge import query params (`POST /v1/agents/{id}/import`):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `include` | string | Comma-separated sections to merge. Defaults to all sections |
+| `stream` | `bool` | Stream merge progress via SSE |
+
+**Archive format** (`agent-{key}-YYYYMMDD.tar.gz`):
+
+```
+manifest.json                              — archive manifest (version, sections summary)
+agent.json                                 — agent config (sensitive fields stripped)
+context_files/{filename}                   — agent-level context files
+user_context_files/{user_id}/{filename}    — per-user context files
+memory/global.jsonl                        — global memory documents
+memory/users/{user_id}.jsonl               — per-user memory documents
+knowledge_graph/entities.jsonl             — KG entities (portable external IDs)
+knowledge_graph/relations.jsonl            — KG relations
+cron/jobs.jsonl                            — cron job definitions
+user_profiles.jsonl                        — user profile records
+user_overrides.jsonl                       — per-user model overrides
+workspace/                                 — workspace directory files
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "agent_id": "uuid",
+  "agent_key": "researcher",
+  "context_files": 3,
+  "memory_docs": 12,
+  "kg_entities": 50,
+  "kg_relations": 30
+}
+```
+
+> Cron jobs are always imported as **disabled**. Duplicate jobs (same name) are skipped. Max archive size: 500 MB.
+
+---
+
 ### `GET /v1/agents/{id}/codex-pool-activity`
 
 Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
@@ -19809,6 +20489,18 @@ List models available from the provider (proxied to the upstream API).
 
 Pre-flight check — verify the API key and model are reachable.
 
+### `POST /v1/providers/{id}/verify-embedding`
+
+Verify embedding model connectivity for a provider.
+
+### `GET /v1/providers/{id}/codex-pool-activity`
+
+Returns Codex OAuth pool routing activity at the provider level (see also agent-level endpoint above).
+
+### `GET /v1/embedding/status`
+
+Check if embedding is configured and available across providers.
+
 ### `GET /v1/providers/claude-cli/auth-status`
 
 Check Claude CLI authentication status (global, not per-provider).
@@ -19854,6 +20546,44 @@ Set a per-tenant override for a skill (e.g., enable/disable for the current tena
 ### `DELETE /v1/skills/{id}/tenant-config`
 
 Remove per-tenant override (revert to default). Admin only.
+
+### Skills Export / Import
+
+Export and import custom skills as a tar.gz archive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/export/preview` | Preview counts before export (no archive built) |
+| `GET` | `/v1/skills/export` | Download skills archive directly (tar.gz) |
+| `POST` | `/v1/skills/import` | Import skills archive (multipart `file` field) |
+
+**Query params for export:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+
+**Archive format** (`skills-YYYYMMDD.tar.gz`):
+
+```
+skills/{slug}/metadata.json   — skill metadata (name, slug, visibility, tags)
+skills/{slug}/SKILL.md        — skill file content
+skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "skills_imported": 3,
+  "skills_skipped": 1,
+  "grants_applied": 5
+}
+```
+
+> Skills are skipped (not overwritten) if the slug already exists in the tenant. Grants reference agents by `agent_key` — unmatched keys are silently skipped.
+
+---
 
 ### Skill Grants
 
@@ -19909,6 +20639,8 @@ Set `"dryRun": true` to return tool schema without execution.
 | `GET` | `/v1/tools/builtin` | List all built-in tools |
 | `GET` | `/v1/tools/builtin/{name}` | Get tool definition |
 | `PUT` | `/v1/tools/builtin/{name}` | Update enabled/settings |
+| `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Set per-tenant override (admin) |
+| `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Remove per-tenant override (admin) |
 
 ### Custom Tools
 
@@ -19958,6 +20690,10 @@ Per-agent entity-relation graph.
 | `POST` | `/v1/agents/{agentID}/kg/extract` | LLM-powered entity extraction |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | Knowledge graph statistics |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | Full graph for visualization |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | Scan for duplicate entities |
+| `GET` | `/v1/agents/{agentID}/kg/dedup` | List dedup candidates |
+| `POST` | `/v1/agents/{agentID}/kg/merge` | Merge duplicate entities |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/dismiss` | Dismiss a dedup candidate |
 
 ---
 
@@ -20058,6 +20794,10 @@ Delete an MCP server.
 
 Test connectivity to an MCP server before saving.
 
+### `POST /v1/mcp/servers/{id}/reconnect`
+
+Force reconnect a running MCP server.
+
 ### `GET /v1/mcp/servers/{id}/tools`
 
 List tools discovered from a running MCP server.
@@ -20080,6 +20820,49 @@ List tools discovered from a running MCP server.
 | `POST` | `/v1/mcp/requests` | Submit an access request |
 | `GET` | `/v1/mcp/requests` | List pending requests |
 | `POST` | `/v1/mcp/requests/{id}/review` | Approve or reject a request |
+
+### MCP Export / Import
+
+Export and import MCP server configurations and agent grants as a tar.gz archive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/mcp/export/preview` | Preview export counts (no archive built) |
+| `GET` | `/v1/mcp/export` | Download MCP archive directly (tar.gz) |
+| `POST` | `/v1/mcp/import` | Import MCP archive (multipart `file` field) |
+
+### MCP User Credentials
+
+Per-user credential storage for MCP servers that require individual authentication.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | Set user credentials for a server |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | Get user credentials |
+| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | Delete user credentials |
+
+**Query params for export:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+
+**Archive format** (`mcp-servers-YYYYMMDD.tar.gz`):
+
+```
+servers.jsonl   — MCP server definitions
+grants.jsonl    — agent grants (server_name + agent_key)
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "servers_imported": 2,
+  "servers_skipped": 0,
+  "grants_applied": 4
+}
+```
 
 ---
 
@@ -20151,18 +20934,15 @@ Delete a channel instance.
 | `GET` | `/v1/contacts` | List contacts (paginated) |
 | `GET` | `/v1/contacts/resolve?ids=...` | Resolve contacts by IDs (max 100) |
 | `POST` | `/v1/contacts/merge` | Merge duplicate contact records |
+| `POST` | `/v1/contacts/unmerge` | Unmerge previously merged contacts |
+| `GET` | `/v1/contacts/merged/{tenantUserId}` | List merged contacts for a tenant user |
 
----
-
-## Sessions
+### Tenant Users
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/sessions` | List sessions (paginated) |
-| `GET` | `/v1/sessions/{key}` | Get session with messages |
-| `DELETE` | `/v1/sessions/{key}` | Delete session |
-| `POST` | `/v1/sessions/{key}/reset` | Clear session messages |
-| `PATCH` | `/v1/sessions/{key}` | Update label, model, metadata |
+| `GET` | `/v1/tenant-users` | List tenant users |
+| `GET` | `/v1/users/search` | Search users across channels |
 
 ---
 
@@ -20171,6 +20951,74 @@ Delete a channel instance.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/teams/{id}/events` | List team events (paginated) |
+
+### Team Workspace
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/teams/{teamId}/workspace/upload` | Upload file to team workspace |
+| `PUT` | `/v1/teams/{teamId}/workspace/move` | Move/rename file in team workspace |
+
+### Team Attachments
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/teams/{teamId}/attachments/{attachmentId}/download` | Download task attachment |
+
+---
+
+## Team Export / Import
+
+Export and import a complete team (team metadata + all member agents) as a tar.gz archive.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/teams/{id}/export/preview` | Preview export counts (members, tasks, agent_links) without building archive |
+| `GET` | `/v1/teams/{id}/export` | Download team archive directly (tar.gz) |
+| `POST` | `/v1/teams/import` | Import team archive, creating new agents and wiring the team (multipart `file` field) |
+
+**Export query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+
+**Archive format** (`team-{name}-YYYYMMDD.tar.gz`):
+
+```
+manifest.json                          — archive manifest (team_name, agent_keys, sections)
+team/team.json                         — team metadata
+team/members.jsonl                     — team member records
+team/tasks.jsonl                       — team task records
+team/comments.jsonl                    — task comments
+team/events.jsonl                      — task events
+team/links.jsonl                       — agent link records
+team/workspace/                        — team workspace files
+agents/{agent_key}/agent.json          — per-agent config
+agents/{agent_key}/context_files/      — per-agent context files
+agents/{agent_key}/memory/             — per-agent memory documents
+agents/{agent_key}/knowledge_graph/    — per-agent KG entities + relations
+agents/{agent_key}/cron/               — per-agent cron jobs
+agents/{agent_key}/workspace/          — per-agent workspace files
+```
+
+**Import response** (`201 Created`):
+
+```json
+{
+  "team_name": "research-team",
+  "agents_added": 3,
+  "agent_keys": ["researcher", "writer", "reviewer"]
+}
+```
+
+> Import requires **admin role**. Agent keys are deduplicated if they already exist (suffixed `-2`, `-3`, …). Cron jobs are always imported as disabled.
+
+Also available as a shared download endpoint (shared with agent export tokens):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/export/download/{token}` | Download a prepared archive by short-lived token (valid 5 min, any export type) |
 
 ---
 
@@ -20213,6 +21061,15 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `GET` | `/v1/cli-credentials/presets` | Get preset credential templates |
 | `POST` | `/v1/cli-credentials/{id}/test` | Test credential connection (dry-run) |
 
+### Per-User CLI Credentials
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/user-credentials` | List user credentials for a CLI config |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Get user-specific credentials |
+| `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Set user-specific credentials |
+| `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Delete user-specific credentials |
+
 ---
 
 ## Runtime & Packages
@@ -20243,6 +21100,10 @@ Check if Python and Node runtimes are available.
 { "python": true, "node": true }
 ```
 
+### `GET /v1/shell-deny-groups`
+
+List shell command deny groups (security policy).
+
 ---
 
 ## Storage
@@ -20253,7 +21114,9 @@ Workspace file management.
 |--------|------|-------------|
 | `GET` | `/v1/storage/files` | List files with depth limiting |
 | `GET` | `/v1/storage/files/{path...}` | Read file (JSON or raw) |
+| `POST` | `/v1/storage/files` | Upload file to workspace (admin) |
 | `DELETE` | `/v1/storage/files/{path...}` | Delete file/directory |
+| `PUT` | `/v1/storage/move` | Move/rename a file or directory (admin) |
 | `GET` | `/v1/storage/size` | Stream storage size (SSE, cached 60 min) |
 
 `?raw=true` — serve native MIME type. `?depth=N` — limit traversal depth.
@@ -20276,6 +21139,7 @@ Auth via Bearer token or `?token=` query param (for `<img>` and `<audio>` tags).
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/files/{path...}` | Serve workspace file by path |
+| `POST` | `/v1/files/sign` | Generate signed URL for file access |
 
 **Query parameters:**
 
@@ -20309,9 +21173,24 @@ The `key` field is only returned in the create response. Subsequent calls show o
 
 ## OAuth
 
+### Per-Provider ChatGPT/Codex OAuth
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/auth/chatgpt/{provider}/status` | Check OAuth status for a provider |
+| `GET` | `/v1/auth/chatgpt/{provider}/quota` | Fetch Codex/OpenAI quota state |
+| `POST` | `/v1/auth/chatgpt/{provider}/start` | Start OAuth flow for a provider |
+| `POST` | `/v1/auth/chatgpt/{provider}/callback` | Manual callback handler |
+| `POST` | `/v1/auth/chatgpt/{provider}/logout` | Revoke OAuth token for a provider |
+
+### Legacy OpenAI Aliases
+
+Compatibility aliases for the default `openai-codex` provider:
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/auth/openai/status` | Check OpenAI OAuth status |
+| `GET` | `/v1/auth/openai/quota` | Fetch quota state |
 | `POST` | `/v1/auth/openai/start` | Initiate OAuth flow |
 | `POST` | `/v1/auth/openai/callback` | Handle OAuth callback manually |
 | `POST` | `/v1/auth/openai/logout` | Remove stored OAuth tokens |
@@ -20327,8 +21206,10 @@ Multi-tenant management (gateway token scope only).
 | `GET` | `/v1/tenants` | List tenants |
 | `POST` | `/v1/tenants` | Create tenant |
 | `GET` | `/v1/tenants/{id}` | Get tenant |
-| `PUT` | `/v1/tenants/{id}` | Update tenant |
-| `DELETE` | `/v1/tenants/{id}` | Delete tenant |
+| `PATCH` | `/v1/tenants/{id}` | Update tenant |
+| `GET` | `/v1/tenants/{id}/users` | List tenant users |
+| `POST` | `/v1/tenants/{id}/users` | Add user to tenant |
+| `DELETE` | `/v1/tenants/{id}/users/{userId}` | Remove user from tenant |
 
 ---
 
@@ -20350,6 +21231,29 @@ Per-tenant key-value configuration store. Read access for all authenticated user
 | `GET` | `/v1/system-configs/{key}` | Get a single config value by key |
 | `PUT` | `/v1/system-configs/{key}` | Set a config value (admin only) |
 | `DELETE` | `/v1/system-configs/{key}` | Delete a config entry (admin only) |
+
+---
+
+## Edition
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/edition` | Get current edition info and feature limits |
+
+---
+
+## MCP Bridge
+
+Exposes GoClaw tools to Claude CLI via streamable HTTP at `/mcp/bridge`. Only listens on localhost. Protected by gateway token with HMAC-signed context headers.
+
+| Header | Purpose |
+|--------|---------|
+| `X-Agent-ID` | Agent context for tool execution |
+| `X-User-ID` | User context |
+| `X-Channel` | Channel routing |
+| `X-Chat-ID` | Chat routing |
+| `X-Peer-Kind` | `direct` or `group` |
+| `X-Bridge-Sig` | HMAC signature over all context fields |
 
 ---
 
@@ -20402,9 +21306,20 @@ Error messages are localized based on the `Accept-Language` header.
 
 The following are **only available via WebSocket RPC**, not HTTP:
 
-- **Cron jobs:** List, create, update, delete, logs (`cron.*`)
-- **Config management:** Get, apply, patch (`config.*`)
-- **Send messages:** Send to channels (`send.*`)
+- **Sessions:** List, preview, patch, delete, reset (`sessions.*`)
+- **Cron jobs:** List, create, update, delete, toggle, status, run, runs (`cron.*`)
+- **Config management:** Get, apply, patch, schema (`config.*`)
+- **Config permissions:** List, grant, revoke (`config.permissions.*`)
+- **Send messages:** Send to channels (`send`)
+- **Chat:** Send, history, abort, inject, session status (`chat.*`)
+- **Heartbeat:** Get, set, toggle, test, logs, checklist, targets (`heartbeat.*`)
+- **Device pairing:** Request, approve, deny, list, revoke (`device.pair.*`)
+- **Exec approvals:** List, approve, deny (`exec.approval.*`)
+- **TTS:** Status, enable, disable, convert, set provider, providers (`tts.*`)
+- **Browser automation:** Act, snapshot, screenshot (`browser.*`)
+- **Logs:** Tail server logs (`logs.tail`)
+
+> See [WebSocket Protocol](/websocket-protocol) for full method reference and frame format.
 
 ---
 
@@ -20802,6 +21717,31 @@ Array of MCP server configs. Each entry:
 | `tool_prefix` | string | Optional prefix for tool names |
 | `timeout_sec` | integer | Request timeout (default 60) |
 | `enabled` | boolean | Enable/disable the server |
+
+---
+
+## `providers`
+
+Static provider configuration. API keys can also be set via environment variables (e.g. `GOCLAW_NOVITA_API_KEY`).
+
+### `providers.novita`
+
+Novita AI — OpenAI-compatible endpoint.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `api_key` | string | — | Novita AI API key |
+| `api_base` | string | `https://api.novita.ai/openai` | API base URL |
+
+```json
+{
+  "providers": {
+    "novita": {
+      "api_key": "your-novita-api-key"
+    }
+  }
+}
+```
 
 ---
 
@@ -21505,6 +22445,11 @@ Scheduled agent tasks.
 | `timezone` | VARCHAR(50) | Timezone for cron expressions |
 | `payload` | JSONB | Message payload sent to agent |
 | `delete_after_run` | BOOLEAN DEFAULT false | Self-delete after first successful run |
+| `stateless` | BOOLEAN DEFAULT false | Stateless mode — run without session history |
+| `deliver` | BOOLEAN DEFAULT false | Deliver result to channel |
+| `deliver_channel` | TEXT | Target channel type (`telegram`, `discord`, etc.) |
+| `deliver_to` | TEXT | Chat/recipient ID |
+| `wake_heartbeat` | BOOLEAN DEFAULT false | Trigger heartbeat after job completes |
 | `next_run_at` | TIMESTAMPTZ | Calculated next execution time |
 | `last_run_at` | TIMESTAMPTZ | Last execution time |
 | `last_status` | VARCHAR(20) | `ok`, `error`, `running` |
@@ -21819,11 +22764,13 @@ Global unified contact directory auto-collected from all channel interactions. N
 | `avatar_url` | TEXT | | Profile image URL |
 | `peer_kind` | VARCHAR(20) | | e.g. `user`, `bot`, `group` |
 | `metadata` | JSONB | DEFAULT `{}` | Extra platform-specific data |
+| `thread_id` | VARCHAR(100) | | Thread/topic identifier within a chat (migration 035) |
+| `thread_type` | VARCHAR(20) | | Thread type classifier (migration 035) |
 | `merged_id` | UUID | | Canonical contact after de-duplication |
 | `first_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 | `last_seen_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
-**Unique:** `(channel_type, sender_id)`
+**Unique:** `(tenant_id, channel_type, sender_id, COALESCE(thread_id, ''))`
 
 **Indexes:** `channel_instance` (partial non-null), `merged_id` (partial non-null), `(display_name, username)`
 
@@ -22162,6 +23109,95 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 27 | Tenant foundation — creates `tenants` and `tenant_users` tables; seeds master tenant (`0193a5b0-7000-7000-8000-000000000001`); adds `tenant_id` column to 40+ tables for multi-tenant isolation; drops global unique constraints and replaces with per-tenant composite indexes; adds `builtin_tool_tenant_configs`, `skill_tenant_configs`, and `mcp_user_credentials` tables; drops `custom_tools` table (dead code); migrates remaining UUID v4 defaults to v7 |
 | 28 | Adds `comment_type VARCHAR(20) DEFAULT 'note'` to `team_task_comments` — supports `"blocker"` type that triggers task auto-fail and leader escalation |
 | 29 | `system_configs` — centralized per-tenant key-value configuration store; composite PK `(key, tenant_id)` with cascade delete |
+| 30 | Adds GIN indexes on `spans.metadata` (partial, `span_type = 'llm_call'`) and `sessions.metadata` JSONB columns for query performance |
+| 31 | Adds `tsv tsvector` generated column + GIN index to `kg_entities` for full-text search; creates `kg_dedup_candidates` table for entity deduplication review |
+| 32 | Creates `secure_cli_user_credentials` for per-user credential injection (mirrors `mcp_user_credentials` pattern); adds `contact_type VARCHAR(20) DEFAULT 'user'` to `channel_contacts` |
+| 33 | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
+| 34 | `subagent_tasks` — subagent task persistence for DB-backed task lifecycle tracking, cost attribution, and restart recovery |
+| 35 | `contact_thread_id` — adds `thread_id` and `thread_type` to `channel_contacts`; cleans `sender_id` format; rebuilds unique index to include thread scope |
+
+---
+
+### `kg_dedup_candidates`
+
+Stores candidate pairs of knowledge graph entities that may be duplicates, for human or automated review. (migration 031)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | ON DELETE CASCADE | Owning tenant |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | User scope |
+| `entity_a_id` | UUID FK → kg_entities | NOT NULL ON DELETE CASCADE | First entity |
+| `entity_b_id` | UUID FK → kg_entities | NOT NULL ON DELETE CASCADE | Second entity |
+| `similarity` | FLOAT | NOT NULL | Similarity score (0–1) |
+| `status` | VARCHAR(20) | NOT NULL DEFAULT `pending` | `pending`, `merged`, `dismissed` |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(entity_a_id, entity_b_id)`
+
+**Indexes:** `idx_kg_dedup_agent` on `(agent_id, status)`
+
+---
+
+### `secure_cli_user_credentials`
+
+Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_credentials` pattern — user-specific env vars are injected instead of binary defaults. (migration 032)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID FK → secure_cli_binaries | NOT NULL ON DELETE CASCADE | Parent binary config |
+| `user_id` | VARCHAR(255) | NOT NULL | User the credentials belong to |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM encrypted JSON env map |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extra metadata |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(binary_id, user_id, tenant_id)`
+
+**Indexes:** `idx_scuc_tenant` on `(tenant_id)`, `idx_scuc_binary` on `(binary_id)`
+
+> Migration 032 also adds `contact_type VARCHAR(20) NOT NULL DEFAULT 'user'` to `channel_contacts` to distinguish user vs group contacts.
+
+---
+
+### `subagent_tasks`
+
+Persists subagent task lifecycle for audit trail, cost attribution, and restart recovery. (migration 034)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | UUID v7 |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `parent_agent_key` | VARCHAR(255) | NOT NULL | Agent key that spawned this task |
+| `session_key` | VARCHAR(500) | | Session the task belongs to |
+| `subject` | VARCHAR(255) | NOT NULL | Short task title |
+| `description` | TEXT | NOT NULL | Full task description |
+| `status` | VARCHAR(20) | NOT NULL DEFAULT `running` | `running`, `completed`, `failed`, `cancelled` |
+| `result` | TEXT | | Task result text |
+| `depth` | INT | NOT NULL DEFAULT 1 | Nesting depth from root agent |
+| `model` | VARCHAR(255) | | LLM model used |
+| `provider` | VARCHAR(255) | | LLM provider used |
+| `iterations` | INT | NOT NULL DEFAULT 0 | Tool loop iterations consumed |
+| `input_tokens` | BIGINT | NOT NULL DEFAULT 0 | Input token count |
+| `output_tokens` | BIGINT | NOT NULL DEFAULT 0 | Output token count |
+| `origin_channel` | VARCHAR(50) | | Channel that triggered the root task |
+| `origin_chat_id` | VARCHAR(255) | | Chat ID of the originating message |
+| `origin_peer_kind` | VARCHAR(20) | | Peer kind (`user`, `group`, etc.) |
+| `origin_user_id` | VARCHAR(255) | | User who triggered the root task |
+| `spawned_by` | UUID | | ID of parent `subagent_tasks` row (self-referential) |
+| `completed_at` | TIMESTAMPTZ | | When the task finished |
+| `archived_at` | TIMESTAMPTZ | | When the task was archived |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extra metadata |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:**
+- `idx_subagent_tasks_parent_status` on `(tenant_id, parent_agent_key, status)` — primary roster lookup
+- `idx_subagent_tasks_session` on `(session_key)` WHERE `session_key IS NOT NULL` — session-scoped lookup
+- `idx_subagent_tasks_created` on `(tenant_id, created_at DESC)` — time-based audit and cleanup
+- `idx_subagent_tasks_metadata_gin` GIN on `(metadata)` — flexible metadata queries
+- `idx_subagent_tasks_archive` on `(status, completed_at)` WHERE `status IN ('completed', 'failed', 'cancelled') AND archived_at IS NULL` — archival candidates
 
 ---
 

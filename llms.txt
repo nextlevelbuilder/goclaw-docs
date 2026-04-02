@@ -101,7 +101,7 @@
 - [Agent Evolution](advanced/agent-evolution.md): Let predefined agents refine their communication style and build reusable skills over time — automatically, with your consent.
 
 ## Deployment
-- [Docker Compose](deployment/docker-compose.md): GoClaw ships 9 compose files — a base plus 8 overlays you mix and match to build the exact stack you need.
+- [Docker Compose](deployment/docker-compose.md): GoClaw ships a composable docker-compose setup: a base file, a `compose.d/` directory of always-active overlays, and a `compose.options/` directory of opt-in overlays you mix and match.
 - [Database Setup](deployment/database-setup.md): GoClaw requires PostgreSQL 15+ with the `pgvector` extension for multi-tenant storage, memory search, and usage tracking.
 - [Security Hardening](deployment/security-hardening.md): GoClaw uses five independent defense layers — transport, input, tools, output, and isolation — so a bypass of one layer doesn't compromise the rest.
 - [Observability](deployment/observability.md): Monitor every LLM call, tool use, and agent run — from the built-in dashboard to Jaeger and beyond.

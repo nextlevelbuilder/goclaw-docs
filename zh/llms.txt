@@ -101,7 +101,7 @@
 - [Agent Evolution](zh/advanced/agent-evolution.md): 让预定义 agent 随时间精炼其沟通风格并构建可复用 skill — 自动完成，经过你的授权。
 
 ## Deployment
-- [Docker Compose](zh/deployment/docker-compose.md): GoClaw 提供 9 个 compose 文件——一个基础文件加 8 个可按需组合的 overlay。
+- [Docker Compose](zh/deployment/docker-compose.md): GoClaw 提供可组合的 docker-compose 配置：一个基础文件、一个 `compose.d/` 目录（包含始终生效的 overlay）以及一个 `compose.options/` 目录（包含可按需启用的 overlay）。
 - [Database Setup](zh/deployment/database-setup.md): GoClaw 需要 PostgreSQL 15+ 并安装 `pgvector` 扩展，用于多租户存储、语义记忆搜索和用量统计。
 - [Security Hardening](zh/deployment/security-hardening.md): GoClaw 采用五层独立防御——传输、输入、工具、输出和隔离——一层被突破不会危及其余层。
 - [Observability](zh/deployment/observability.md): 监控每一次 LLM 调用、工具使用和 agent 运行——从内置仪表盘到 Jaeger 及更多。
