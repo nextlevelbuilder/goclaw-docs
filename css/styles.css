@@ -898,3 +898,20 @@ h1, h2, h3, h4, h5, h6 {
 .doc-source-sep {
   opacity: 0.3;
 }
+
+/* Dev site banner */
+#dev-banner {
+  background: #92400e;
+  color: #fef3c7;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+#dev-banner a {
+  color: #fbbf24;
+  text-decoration: underline;
+  margin-left: 8px;
+}

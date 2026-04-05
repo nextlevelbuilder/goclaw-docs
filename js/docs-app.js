@@ -4,6 +4,14 @@
  */
 
 /* ============================================================
+   DEV SITE DETECTION
+   ============================================================ */
+function isDevSite() {
+  const host = window.location.hostname;
+  return host.includes('pages.dev') || host.startsWith('dev.');
+}
+
+/* ============================================================
    I18N — UI string translations
    ============================================================ */
 const UI_STRINGS = {
@@ -764,6 +772,25 @@ function migrateHashURL() {
    INIT
    ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
+  /* Dev site: show warning banner + noindex */
+  if (isDevSite()) {
+    const banner = document.createElement('div');
+    banner.id = 'dev-banner';
+    const lang = localStorage.getItem('goclaw-docs-lang') || 'en';
+    const msgs = {
+      en: '⚠️ Development docs — may differ from stable release.',
+      vi: '⚠️ Tài liệu phiên bản phát triển — có thể khác bản ổn định.',
+      zh: '⚠️ 开发版文档 — 可能与稳定版不同。',
+    };
+    banner.innerHTML = (msgs[lang] || msgs.en) + ' <a href="https://docs.goclaw.sh">Stable docs →</a>';
+    document.body.prepend(banner);
+
+    const noindex = document.createElement('meta');
+    noindex.name = 'robots';
+    noindex.content = 'noindex, nofollow';
+    document.head.appendChild(noindex);
+  }
+
   initMarked();
   initSidebar();
   initMobileSidebar();

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # audit-docs.sh — Find doc pages whose goclaw-source SHA is behind latest goclaw commit
-# Usage: ./scripts/audit-docs.sh [--update]
-#   --update  Update all outdated pages with current SHA and today's date
+# Usage: ./scripts/audit-docs.sh [--update] [--source-branch=main|dev]
+#   --update              Update all outdated pages with current SHA and today's date
+#   --source-branch=NAME  GoClaw branch to audit against (default: main)
 
 set -euo pipefail
 
@@ -9,12 +10,20 @@ GOCLAW_DIR="$(cd "$(dirname "$0")/../../goclaw" 2>/dev/null && pwd)" || {
   echo "Error: ../goclaw directory not found"; exit 1
 }
 DOCS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-LATEST_SHA=$(git -C "$GOCLAW_DIR" log -1 --format="%h")
 TODAY=$(date +%Y-%m-%d)
 UPDATE=false
-[[ "${1:-}" == "--update" ]] && UPDATE=true
+SOURCE_BRANCH="main"
 
-echo "GoClaw latest: $LATEST_SHA"
+for arg in "$@"; do
+  case "$arg" in
+    --update) UPDATE=true ;;
+    --source-branch=*) SOURCE_BRANCH="${arg#*=}" ;;
+  esac
+done
+
+LATEST_SHA=$(git -C "$GOCLAW_DIR" log -1 --format="%h" "$SOURCE_BRANCH")
+
+echo "GoClaw branch: $SOURCE_BRANCH (latest: $LATEST_SHA)"
 echo "Scanning docs in: $DOCS_DIR"
 echo "---"
 
