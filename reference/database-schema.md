@@ -814,7 +814,7 @@ Immutable audit log for task state changes. (migration 018)
 
 ### `secure_cli_binaries`
 
-Credential injection configuration for the Exec tool (Direct Exec Mode). Admins map binary names to encrypted environment variables; GoClaw auto-injects them into child processes. (migration 020)
+Credential injection configuration for the Exec tool (Direct Exec Mode). Admins map binary names to encrypted environment variables; GoClaw auto-injects them into child processes. (migration 020; updated migration 036)
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -827,14 +827,16 @@ Credential injection configuration for the Exec tool (Direct Exec Mode). Admins 
 | `deny_verbose` | JSONB DEFAULT `[]` | | Verbose flag patterns to strip |
 | `timeout_seconds` | INT DEFAULT 30 | | Process timeout |
 | `tips` | TEXT DEFAULT `''` | | Hint injected into TOOLS.md context |
-| `agent_id` | UUID FK → agents (nullable) | | NULL = global (all agents) |
+| `is_global` | BOOLEAN | NOT NULL DEFAULT true | If true, available to all agents; if false, only agents with an explicit grant |
 | `enabled` | BOOLEAN DEFAULT true | | |
 | `created_by` | TEXT DEFAULT `''` | | Admin user who created this entry |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
-**Unique:** `(binary_name, COALESCE(agent_id, '00000000...'))` — one config per binary per scope.
+> **Migration 036 note:** The `agent_id` column was removed from this table. Per-agent access is now controlled via the `secure_cli_agent_grants` table. Binaries with `is_global = true` are accessible to all agents; binaries with `is_global = false` require an explicit grant.
 
-**Indexes:** `binary_name`, `agent_id` (partial non-null)
+**Unique:** `(binary_name, tenant_id)` — one binary definition per name per tenant.
+
+**Indexes:** `binary_name`
 
 ---
 
@@ -996,6 +998,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 33 | Promotes `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` from `payload` JSONB to dedicated columns on `cron_jobs` |
 | 34 | `subagent_tasks` — subagent task persistence for DB-backed task lifecycle tracking, cost attribution, and restart recovery |
 | 35 | `contact_thread_id` — adds `thread_id` and `thread_type` to `channel_contacts`; cleans `sender_id` format; rebuilds unique index to include thread scope |
+| 36 | `secure_cli_agent_grants` — restructures CLI credentials from per-binary agent assignment to a grants model; creates `secure_cli_agent_grants` table; adds `is_global` to `secure_cli_binaries`; removes `agent_id` column from `secure_cli_binaries` |
 
 ---
 
@@ -1040,6 +1043,29 @@ Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_cre
 **Indexes:** `idx_scuc_tenant` on `(tenant_id)`, `idx_scuc_binary` on `(binary_id)`
 
 > Migration 032 also adds `contact_type VARCHAR(20) NOT NULL DEFAULT 'user'` to `channel_contacts` to distinguish user vs group contacts.
+
+---
+
+### `secure_cli_agent_grants`
+
+Per-agent access grants for secure CLI binaries. Separates "which agents can use a binary" from the binary credential definition. Each grant can override individual settings (deny_args, timeout, tips, etc.) — `NULL` fields inherit the binary default. (migration 036)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | UUID v7 |
+| `binary_id` | UUID FK → secure_cli_binaries | NOT NULL ON DELETE CASCADE | Parent binary config |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Agent being granted access |
+| `deny_args` | JSONB | NULL = use binary default | Per-agent override for forbidden argument patterns |
+| `deny_verbose` | JSONB | NULL = use binary default | Per-agent override for verbose flag patterns |
+| `timeout_seconds` | INTEGER | NULL = use binary default | Per-agent process timeout override |
+| `tips` | TEXT | NULL = use binary default | Per-agent hint injected into TOOLS.md context |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | Whether this grant is active |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(binary_id, agent_id, tenant_id)` — one grant per agent per binary per tenant.
+
+**Indexes:** `idx_scag_binary` on `(binary_id)`, `idx_scag_agent` on `(agent_id)`, `idx_scag_tenant` on `(tenant_id)`
 
 ---
 
@@ -1088,4 +1114,4 @@ Persists subagent task lifecycle for audit trail, cost attribution, and restart 
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

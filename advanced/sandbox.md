@@ -246,4 +246,4 @@ docker ps --filter "label=goclaw.sandbox=true"
 - [Exec Approval](/exec-approval) — require human approval before any command runs, sandboxed or not
 - [Scheduling & Cron](/scheduling-cron) — run sandboxed agent turns on a schedule
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

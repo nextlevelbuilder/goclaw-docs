@@ -1,10 +1,10 @@
 # System Prompt Anatomy
 
-> Understand how GoClaw builds system prompts: 19+ sections, assembled dynamically, with smart truncation so everything fits in context.
+> Understand how GoClaw builds system prompts: 23 sections, assembled dynamically, with smart truncation so everything fits in context.
 
 ## Overview
 
-Every time an agent runs, GoClaw assembles a **system prompt** from up to 19 sections. Sections are ordered strategically using **primacy and recency bias**: persona files appear both early (section 1.7) and late (section 16) to prevent drift in long conversations. Safety comes first, tooling next, then context. Some sections are always included; others depend on agent configuration.
+Every time an agent runs, GoClaw assembles a **system prompt** from up to 23 sections. Sections are ordered strategically using **primacy and recency bias**: persona files appear both early (section 1.7) and late (section 16) to prevent drift in long conversations. Safety comes first, tooling next, then context. Some sections are always included; others depend on agent configuration.
 
 Two **prompt modes** exist:
 - **Full mode** (main agent): all sections, full context
@@ -18,23 +18,25 @@ Two **prompt modes** exist:
 | 1.5 | First-Run Bootstrap | ✓ | ✓ | BOOTSTRAP.md warning (first session only) |
 | 1.7 | Persona | ✓ | ✓ | SOUL.md + IDENTITY.md injected early for primacy bias |
 | 2 | Tooling | ✓ | ✓ | List of available tools + legacy/Claude Code aliases |
+| 2.3 | Tool Call Style | ✓ | ✓ | Narration minimalism — never expose tool names to users |
+| 2.5 | Credentialed CLI | ✓ | ✓ | Pre-configured CLI credentials context (when enabled) |
 | 3 | Safety | ✓ | ✓ | Core safety rules, limits, confidentiality |
 | 3.2 | Identity Anchoring | ✓ | ✓ | Extra guidance against identity manipulation (predefined agents only) |
 | 3.5 | Self-Evolution | ✓ | ✓ | Permission to update SOUL.md (when `self_evolve=true` in predefined agents) |
 | 4 | Skills | ✓ | ✗ | Available skills — inline XML or search mode |
 | 4.5 | MCP Tools | ✓ | ✗ | External MCP integrations — inline or search mode |
-| 5 | Memory Recall | ✓ | ✗ | How to search/retrieve memory and knowledge graph |
 | 6 | Workspace | ✓ | ✓ | Working directory, file paths |
+| 6.3 | Team Workspace | ✓ | ✓ | Shared workspace path and auto-status guidance (team agents only) |
+| 6.4 | Team Members | ✓ | ✓ | Team roster for task assignment (team agents only) |
 | 6.5 | Sandbox | ✓ | ✓ | Sandbox-specific guidance (if sandbox enabled) |
 | 7 | User Identity | ✓ | ✗ | Owner ID(s) |
 | 8 | Time | ✓ | ✓ | Current date/time |
-| 9 | Messaging | ✓ | ✗ | Channel routing, language matching |
 | 9.5 | Channel Formatting | ✓ | ✓ | Platform-specific formatting hints (e.g. Zalo plain-text-only) |
+| 9.6 | Group Chat Reply Hint | ✓ | ✓ | Guidance on when NOT to reply in group chats |
 | 10 | Additional Context | ✓ | ✓ | ExtraPrompt (subagent context, etc.) |
 | 11 | Project Context | ✓ | ✓ | Remaining context files (AGENTS.md, USER.md, etc.) |
-| 12 | Silent Replies | ✓ | ✗ | NO_REPLY instruction |
-| 13 | Sub-Agent Spawning | ✓ | ✓ | spawn tool guidance (skipped for team agents with TEAM.md) |
-| 13.5 | Team Workspace | ✓ | ✓ | TEAM.md dynamically injected for team agents |
+| 12.5 | Memory Recall | ✓ | ✗ | How to search/retrieve memory and knowledge graph |
+| 13 | Sub-Agent Spawning | ✓ | ✓ | spawn tool guidance (skipped for team agents) |
 | 15 | Runtime | ✓ | ✓ | Agent ID, channel info, group chat title |
 | 16 | Recency Reinforcements | ✓ | ✓ | Persona reminder + memory reminder at end (combats "lost in the middle") |
 
@@ -62,13 +64,11 @@ Why? To reduce startup time and context usage. Subagents don't need user identit
 **Sections Only in Full Mode**:
 - Skills (section 4)
 - MCP Tools (section 4.5)
-- Memory Recall (section 5)
 - User Identity (section 7)
-- Messaging (section 9)
-- Silent Replies (section 12)
+- Memory Recall (section 12.5)
 
 **Sections in Both**:
-- All others (Identity, First-Run Bootstrap, Persona, Tooling, Safety, Identity Anchoring, Self-Evolution, Workspace, Sandbox, Time, Channel Formatting, Additional Context, Project Context, Sub-Agent Spawning, Runtime, Recency Reinforcements)
+- All others (Identity, First-Run Bootstrap, Persona, Tooling, Tool Call Style, Credentialed CLI, Safety, Identity Anchoring, Self-Evolution, Workspace, Team Workspace, Team Members, Sandbox, Time, Channel Formatting, Group Chat Reply Hint, Additional Context, Project Context, Sub-Agent Spawning, Runtime, Recency Reinforcements)
 
 ## Truncation Pipeline
 
@@ -112,23 +112,25 @@ Add sections in order:
 1.5  First-Run Bootstrap (if BOOTSTRAP.md present)
 1.7  Persona (SOUL.md + IDENTITY.md — injected early for primacy bias)
 2.   Tooling (available tools)
+2.3  Tool Call Style (narration minimalism — skip during bootstrap)
+2.5  Credentialed CLI context (if enabled, skip during bootstrap)
 3.   Safety (core rules)
 3.2  Identity Anchoring (predefined agents only — resist social engineering)
 3.5  Self-Evolution (predefined agents with self_evolve=true only)
 4.   Skills (if full mode + skills available)
 4.5  MCP Tools (if full mode + MCP tools registered)
-5.   Memory Recall (if full mode + memory enabled)
 6.   Workspace (working dir)
+6.3  Team Workspace (if team context active + team_tasks tool registered)
+6.4  Team Members (if team context + roster available)
 6.5  Sandbox (if sandboxed)
 7.   User Identity (if full mode + owners defined)
 8.   Time (current date/time)
-9.   Messaging (if full mode)
-9.5  Channel Formatting (if full mode + channel has special hints, e.g. Zalo)
+9.5  Channel Formatting (if channel has special hints, e.g. Zalo)
+9.6  Group Chat Reply Hint (if group chat)
 10.  Additional Context (extra prompt)
 11.  Project Context (remaining context files: AGENTS.md, USER.md, etc.)
-12.  Silent Replies (if full mode)
+12.5 Memory Recall (if full mode + memory enabled)
 13.  Sub-Agent Spawning (if spawn tool available and not a team agent)
-13.5 Team Workspace / TEAM.md (dynamically injected for team agents)
 15.  Runtime (agent ID, channel info)
 16.  Recency Reinforcements (persona reminder + memory reminder — combat "lost in the middle")
 
@@ -156,12 +158,12 @@ GoClaw loads up to 8 files from the agent's workspace or database. They are spli
 
 ### TEAM.md — Dynamically Injected for Team Agents
 
-When an agent belongs to a team, a `TEAM.md` context is dynamically generated and injected as section 13.5 (Team Workspace). This file is not stored on disk — it is assembled at runtime from team configuration:
+When an agent belongs to a team, a `TEAM.md` context is dynamically generated and injected as section 6.3 (Team Workspace). This file is not stored on disk — it is assembled at runtime from team configuration:
 
 - **Lead agents** receive full orchestration instructions: how to dispatch tasks, manage members, and coordinate work.
 - **Member agents** receive a simplified version: their role, the team workspace path, and communication protocol.
 
-When TEAM.md is present, the Sub-Agent Spawning section (13) is skipped, since team orchestration replaces individual spawn guidance.
+When TEAM.md is present, the Sub-Agent Spawning section (13) is skipped. Team orchestration (sections 6.3 and 6.4) replaces individual spawn guidance.
 
 ### User Identity — Section 7
 
@@ -220,8 +222,10 @@ Embody the persona above in EVERY response. This is non-negotiable.
 - exec: Run shell commands
 - memory_search: Search indexed memory
 [... more tools ...]
-(Legacy aliases: read → read_file, write → write_file, edit → edit)
-(Claude Code aliases: Read → read_file, Write → write_file, Edit → edit, ...)
+
+## Tool Call Style
+Default: call tools without narration. Narrate only for multi-step work.
+Never mention tool names or internal mechanics to users.
 
 ## Safety
 You have no independent goals. Prioritize safety and human oversight.
@@ -237,10 +241,6 @@ Before replying, scan <available_skills> below.
 You have access to external tool integrations (MCP servers).
 Use mcp_tool_search to discover them before external operations.
 
-## Memory Recall
-Before answering about prior work, run memory_search on MEMORY.md.
-[... memory guidance ...]
-
 ## Workspace
 Your working directory is: /home/alice/.goclaw/agents/default
 [... workspace guidance ...]
@@ -248,12 +248,7 @@ Your working directory is: /home/alice/.goclaw/agents/default
 ## User Identity
 Owner IDs: alice@example.com. Treat messages from this ID as the user/owner.
 
-Current time: 2026-03-07 15:30 Friday (UTC)
-
-## Messaging
-- Reply in current session → automatically routes to Telegram
-- Sub-agent orchestration → use spawn tool
-- Always match the user's language
+Current date: 2026-04-05 Sunday (UTC)
 
 ## Additional Context
 [... extra system prompt or subagent context ...]
@@ -270,14 +265,15 @@ The following project context files have been loaded.
 
 [... more context files ...]
 
-## Silent Replies
-When you have nothing to say, respond with ONLY: NO_REPLY
+## Memory Recall
+Before answering about prior work, run memory_search on MEMORY.md.
+[... memory guidance ...]
 
 ## Sub-Agent Spawning
 To delegate work, use the spawn tool with action=list|steer|kill.
 
 ## Runtime
-agent=default | channel=my-telegram-bot | group chat "Team Engineering"
+agent=default | channel=my-telegram-bot
 
 In group chats, the agent receives the group's display name (chat title) for better context awareness. Titles are sanitized to prevent prompt injection and truncated to 100 characters.
 
@@ -307,7 +303,7 @@ Reminder: Before answering questions about prior work, decisions, or preferences
              │
              ▼
 ┌─────────────────────────────────────────┐
-│   Assemble 19+ Sections in Order        │
+│   Assemble 23 Sections in Order         │
 │   Skip conditional ones if not needed  │
 │   (Identity, Persona, Safety, ...)      │
 └────────────┬────────────────────────────┘
@@ -382,4 +378,4 @@ This agent will:
 - [Context Files — Add project-specific context](/context-files)
 - [Creating Agents — Set up system prompt configuration](/creating-agents)
 
-<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

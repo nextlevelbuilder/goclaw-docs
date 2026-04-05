@@ -180,6 +180,69 @@ Set `"always": true` to permanently allow this binary for the lifetime of the pr
 
 ---
 
+## Shell Deny Groups
+
+In addition to the approval flow, GoClaw applies **deny groups** — named sets of shell command patterns that are blocked regardless of approval settings. All groups are enabled by default.
+
+### Available Deny Groups
+
+| Group | Description | Examples Blocked |
+|-------|-------------|-----------------|
+| `destructive_ops` | Destructive Operations | `rm -rf`, `dd if=`, `shutdown`, fork bombs |
+| `data_exfiltration` | Data Exfiltration | `curl \| sh`, `wget --post-data`, DNS lookups via dig/nslookup |
+| `reverse_shell` | Reverse Shell | `nc`, `socat`, `python -c '...socket...'`, `mkfifo` |
+| `code_injection` | Code Injection & Eval | `eval $()`, `base64 -d \| sh` |
+| `privilege_escalation` | Privilege Escalation | `sudo`, `su`, `mount`, `nsenter`, `pkexec` |
+| `dangerous_paths` | Dangerous Path Operations | `chmod +x /tmp/...`, `chown ... /` |
+| `env_injection` | Environment Variable Injection | `LD_PRELOAD=`, `DYLD_INSERT_LIBRARIES=`, `BASH_ENV=` |
+| `container_escape` | Container Escape | `/var/run/docker.sock`, `/proc/sys/kernel/`, `/sys/kernel/` |
+| `crypto_mining` | Crypto Mining | `xmrig`, `cpuminer`, `stratum+tcp://` |
+| `filter_bypass` | Filter Bypass (CVE mitigations) | `sed .../e`, `sort --compress-program`, `git --upload-pack=` |
+| `network_recon` | Network Reconnaissance & Tunneling | `nmap`, `ssh user@host`, `ngrok`, `chisel` |
+| `package_install` | Package Installation | `pip install`, `npm install`, `apk add` |
+| `persistence` | Persistence Mechanisms | `crontab`, writing to `~/.bashrc` or `~/.profile` |
+| `process_control` | Process Manipulation | `kill -9`, `killall`, `pkill` |
+| `env_dump` | Environment Variable Dumping | `printenv`, `env \| ...`, reading `GOCLAW_` secrets |
+
+### Per-Agent Deny Group Overrides
+
+Each agent can selectively enable or disable specific deny groups via `shell_deny_groups` in its config. This is a `map[string]bool` where `true` means deny (block) and `false` means allow (unblock).
+
+All groups default to `true` (denied). Explicitly set a group to `false` to allow those commands for a specific agent.
+
+**Example: allow package installs but keep everything else blocked**
+
+```json
+{
+  "agents": {
+    "my-agent": {
+      "shell_deny_groups": {
+        "package_install": false
+      }
+    }
+  }
+}
+```
+
+**Example: allow SSH/tunneling for a DevOps agent, but block crypto mining**
+
+```json
+{
+  "agents": {
+    "devops-agent": {
+      "shell_deny_groups": {
+        "network_recon": false,
+        "crypto_mining": true
+      }
+    }
+  }
+}
+```
+
+Deny groups and the exec approval flow operate independently — a command can pass the deny-group check but still be held for human approval based on your `ask` mode setting.
+
+---
+
 ## Common Issues
 
 | Problem | Cause | Fix |
@@ -198,4 +261,4 @@ Set `"always": true` to permanently allow this binary for the lifetime of the pr
 - [Custom Tools](/custom-tools) — define tools backed by shell commands
 - [Security Hardening](/deploy-security) — full five-layer security overview
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

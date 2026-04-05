@@ -140,6 +140,8 @@ flowchart TD
     BUFFER --> NEXT["下次提及时：<br/>包含历史"]
 ```
 
+当 `require_mention: false` 时，Slack 会为同一条消息同时发送 `message` 事件和 `app_mention` 事件。GoClaw 使用共享的去重键（`channel:timestamp`），先到的事件处理该消息，重复的事件被丢弃。在 `require_mention: false` 模式下，`app_mention` 处理器在存储去重键之前退出，确保由 `message` 处理器接管处理。
+
 ### 线程参与
 
 Bot 在线程中回复后，会自动回复该线程中的后续消息，无需 @提及。参与在 `thread_ttl` 小时后过期（默认 24 小时）。设置 `thread_ttl: 0` 禁用此功能（始终需要 @提及）。
@@ -236,4 +238,4 @@ Slack 支持群组级别的配对。当 `group_policy: "pairing"` 时：
 - [Discord](/channel-discord) — Discord bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

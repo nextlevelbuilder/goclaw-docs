@@ -19,12 +19,14 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Teams** (`group:teams`) | team_tasks, team_message | Collaborate with agent teams via shared task board and mailbox |
 | **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
-| **Media Generation** (`group:media_gen`) | create_image, create_audio, create_video, tts | Generate images, audio, video, and text-to-speech |
+| **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts | Generate images, audio, video, and text-to-speech |
 | **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
 | **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images, transcribe audio, extract documents, analyze video |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
 | **Workspace** | workspace_dir | Resolve workspace directory for team/user context |
 | **AI** | openai_compat_call | Call OpenAI-compatible endpoints with custom request formats |
+
+**BytePlus media tools** (`create_image_byteplus`, `create_video_byteplus`) are available when a `byteplus` provider is configured. Both use async job polling: image generation via Seedream returns a URL once the job completes; video generation via Seedance polls `/text-to-video-pro/status/{id}` for the result.
 
 > Additional tools like `mcp_tool_search` and channel-specific tools are registered dynamically. Tool groups can be referenced with `group:` prefix in allow/deny lists (e.g., `group:fs`).
 
@@ -253,4 +255,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

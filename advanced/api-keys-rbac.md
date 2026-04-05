@@ -63,7 +63,7 @@ A key can hold multiple scopes — the highest-privilege scope wins.
 
 ## Backward Compatibility
 
-If `GOCLAW_GATEWAY_TOKEN` is empty (no gateway token configured), all requests — including unauthenticated ones — are granted `RoleOperator` access automatically. This lets self-hosted setups work without strict auth. Once a token is set, all requests must provide valid credentials or they receive `401 Unauthorized`.
+If `gateway.token` is empty (no gateway token configured), all requests — including unauthenticated ones — are granted `RoleAdmin` access automatically. This lets self-hosted setups work without strict auth. Once a token is set, all requests must provide valid credentials or they receive `401 Unauthorized`.
 
 ---
 
@@ -259,4 +259,4 @@ When a key is created or revoked, a `cache.invalidate` event is broadcast on the
 - [Security Hardening](/deploy-security) — full 5-layer permission overview
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials into CLI tools (gh, aws, gcloud) without exposing secrets to the agent
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

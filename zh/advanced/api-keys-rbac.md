@@ -65,7 +65,7 @@ write / approvals / pairing  → RoleOperator
 
 ## 向后兼容性
 
-如果 `GOCLAW_GATEWAY_TOKEN` 为空（未配置网关 token），所有请求 — 包括未认证的 — 自动获得 `RoleOperator` 访问权限。这让自托管设置无需严格认证即可工作。一旦设置了 token，所有请求必须提供有效凭据，否则收到 `401 Unauthorized`。
+如果 `gateway.token` 为空（未配置网关 token），所有请求 — 包括未认证的 — 自动获得 `RoleAdmin` 访问权限。这让自托管设置无需严格认证即可工作。一旦设置了 token，所有请求必须提供有效凭据，否则收到 `401 Unauthorized`。
 
 ---
 
@@ -261,4 +261,4 @@ key 创建或撤销时，`cache.invalidate` 事件在内部消息总线上广播
 - [安全加固](/deploy-security) — 完整的 5 层权限概览
 - [CLI 凭据](./cli-credentials.md) — SecureCLI：向 CLI 工具注入凭据，不向 agent 暴露密钥
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-23 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

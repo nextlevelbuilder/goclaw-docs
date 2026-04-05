@@ -891,6 +891,33 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 设置用户专属凭证 |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 删除用户专属凭证 |
 
+### CLI 凭证 Agent 授权
+
+按 agent 的二进制授权 — 控制哪些 agent 可使用特定 CLI 凭证二进制，可选限制参数、详细输出和超时时间。需要 **admin 角色**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/agent-grants` | 列出凭证的所有 agent 授权 |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants` | 创建 agent 授权 |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | 获取指定授权详情 |
+| `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | 更新授权 |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | 删除授权 |
+
+**创建/更新授权字段：**
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `agent_id` | UUID | 被授权的 agent（创建时必填）|
+| `deny_args` | JSON | 参数限制（可选）|
+| `deny_verbose` | JSON | 详细输出限制（可选）|
+| `timeout_seconds` | integer | 覆盖该 agent 的执行超时（可选）|
+| `tips` | string | 给 agent 的使用提示（可选）|
+| `enabled` | boolean | 启用/禁用授权（默认：`true`）|
+
+**创建响应**（`201 Created`）：返回已创建的授权对象。
+
+授权变更会在消息总线上发出 `cache_invalidate` 事件，使已连接的 agent 立即感知更新。
+
 ---
 
 ## 运行时与包
@@ -1150,4 +1177,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

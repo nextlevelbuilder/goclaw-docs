@@ -315,8 +315,8 @@ When a group accumulates more pending messages than `threshold`, older messages 
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `threshold` | integer | `50` | Trigger compaction when pending message count exceeds this |
-| `keep_recent` | integer | `15` | Number of recent raw messages to keep after compaction |
+| `threshold` | integer | `200` | Trigger compaction when pending message count exceeds this |
+| `keep_recent` | integer | `40` | Number of recent raw messages to keep after compaction |
 | `max_tokens` | integer | `4096` | Max output tokens for the LLM summarization call |
 | `provider` | string | — | LLM provider for summarization (empty = use agent's provider) |
 | `model` | string | — | Model for summarization (empty = use agent's model) |
@@ -635,4 +635,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

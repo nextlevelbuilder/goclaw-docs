@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **35**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **36**.
 
 ```mermaid
 graph LR
@@ -230,6 +230,7 @@ Năm migration này được tự động áp dụng khi khởi động khi nân
 | 033 | Cron payload columns | Chuyển `stateless`, `deliver`, `deliver_channel`, `deliver_to`, `wake_heartbeat` từ `payload` JSONB sang cột riêng trên `cron_jobs` |
 | 034 | `subagent_tasks` | Lưu trữ subagent task vào DB để theo dõi trạng thái task |
 | 035 | contact_thread_id | Thêm thread_id VARCHAR(100) và thread_type VARCHAR(20) vào channel_contacts; dọn sender_id bằng cách bỏ hậu tố \|username; tạo lại unique index với (tenant_id, channel_type, sender_id, COALESCE(thread_id, '')) |
+| 036 | secure_cli_agent_grants | Tái cấu trúc CLI credentials từ per-binary agent assignment sang grants model; tạo bảng `secure_cli_agent_grants` cho truy cập per-agent với override cài đặt tùy chọn; thêm `is_global BOOLEAN` vào `secure_cli_binaries`; xóa cột `agent_id` khỏi `secure_cli_binaries` |
 
 ### Breaking Changes trong v2.x
 
@@ -282,4 +283,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **35**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **36**。
 
 ```mermaid
 graph LR
@@ -230,6 +230,7 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 033 | Cron payload columns | 将 `stateless`、`deliver`、`deliver_channel`、`deliver_to`、`wake_heartbeat` 从 `payload` JSONB 提升为 `cron_jobs` 独立列 |
 | 034 | `subagent_tasks` | Subagent 任务持久化，支持基于 DB 的任务追踪 |
 | 035 | contact_thread_id | 在 channel_contacts 中添加 thread_id VARCHAR(100) 和 thread_type VARCHAR(20)；清理 sender_id 去除 \|username 后缀；重建唯一索引为 (tenant_id, channel_type, sender_id, COALESCE(thread_id, '')) |
+| 036 | secure_cli_agent_grants | 将 CLI 凭证从 per-binary agent 分配重构为 grants 模型；创建 `secure_cli_agent_grants` 表实现带可选设置覆盖的 per-agent 访问；为 `secure_cli_binaries` 添加 `is_global BOOLEAN`；从 `secure_cli_binaries` 移除 `agent_id` 列 |
 
 ### v2.x 重大变更
 
@@ -282,4 +283,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: c5bfbc96 | 更新: 2026-04-02 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

@@ -48,19 +48,20 @@ The `{baseDir}` placeholder is replaced at load time with the absolute path to t
 | `name` | Human-readable display name (defaults to directory name) |
 | `description` | One-line summary used by `skill_search` to match queries |
 
-## 5-Tier Hierarchy
+## 6-Tier Hierarchy
 
-GoClaw loads skills from five locations in priority order. A skill in a higher-priority location overrides one with the same slug from a lower one:
+GoClaw loads skills from six locations in priority order. A skill in a higher-priority location overrides one with the same slug from a lower one:
 
 | Priority | Location | Source label |
 |---|---|---|
 | 1 (highest) | `<workspace>/skills/` | `workspace` |
 | 2 | `<workspace>/.agents/skills/` | `agents-project` |
 | 3 | `~/.agents/skills/` | `agents-personal` |
-| 4 | `~/.goclaw/skills/` (managed DB) | `managed-skills` |
-| 5 (lowest) | Built-in (bundled with binary) | `builtin` |
+| 4 | `~/.goclaw/skills/` | `global` |
+| 5 | `~/.goclaw/skills-store/` (DB-seeded, versioned) | `managed` |
+| 6 (lowest) | Built-in (bundled with binary) | `builtin` |
 
-Skills uploaded via the Dashboard are stored in `~/.goclaw/skills-store/` (managed directory, backed by PostgreSQL) and act at the `managed-skills` level. The `file_path` DB column is used to resolve the versioned directory for each skill on disk.
+Skills uploaded via the Dashboard are stored in `~/.goclaw/skills-store/` using a versioned subdirectory structure (`<slug>/<version>/SKILL.md`). They act at the `managed` level — above builtin but below the four file-system tiers. The loader always serves the highest-numbered version for each slug.
 
 **Precedence example:** if you have a `code-reviewer` skill in both `~/.goclaw/skills/` and `<workspace>/skills/`, the workspace version wins.
 
@@ -342,4 +343,4 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

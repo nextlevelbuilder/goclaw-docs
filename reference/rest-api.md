@@ -921,6 +921,33 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Set user-specific credentials |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Delete user-specific credentials |
 
+### CLI Credential Agent Grants
+
+Per-agent binary grants — control which agents can use a specific CLI credential binary, with optional restrictions on arguments, verbosity, and timeout. Requires **admin role**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/agent-grants` | List all agent grants for a credential |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants` | Create an agent grant |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Get a specific grant |
+| `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Update a grant |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Delete a grant |
+
+**Create/update grant fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | UUID | Agent to grant access (required on create) |
+| `deny_args` | JSON | Argument restrictions (optional) |
+| `deny_verbose` | JSON | Verbose output restrictions (optional) |
+| `timeout_seconds` | integer | Per-agent execution timeout override (optional) |
+| `tips` | string | Usage hints for the agent (optional) |
+| `enabled` | boolean | Enable/disable the grant (default: `true`) |
+
+**Create response** (`201 Created`): the created grant object.
+
+Changes to grants emit a `cache_invalidate` event on the message bus so connected agents pick up the update immediately.
+
 ---
 
 ## Runtime & Packages
@@ -1180,4 +1207,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

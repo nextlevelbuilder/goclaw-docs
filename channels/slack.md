@@ -138,6 +138,8 @@ flowchart TD
     BUFFER --> NEXT["Next mention:<br/>history included"]
 ```
 
+When `require_mention: false`, Slack delivers both a `message` event and an `app_mention` event for the same message. GoClaw uses a shared dedup key (`channel:timestamp`) so whichever event arrives first processes the message; the duplicate is dropped. With `require_mention: false`, the `app_mention` handler exits before storing the dedup key, ensuring the `message` handler takes ownership.
+
 ### Thread Participation
 
 After the bot replies in a thread, it auto-replies to subsequent messages in that thread without requiring @mention. Participation expires after `thread_ttl` hours (default 24). Set `thread_ttl: 0` to disable (always require @mention).
@@ -234,4 +236,4 @@ The `allow_from` list supports both user IDs and Slack channel IDs for group-lev
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

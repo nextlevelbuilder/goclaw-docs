@@ -247,4 +247,4 @@ docker ps --filter "label=goclaw.sandbox=true"
 - [Exec 审批](/exec-approval) — 在任何命令运行前要求人工审批，无论是否沙箱化
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行沙箱化的 agent 轮次
 
-<!-- goclaw-source: 941a965 | 更新: 2026-03-19 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

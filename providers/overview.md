@@ -85,6 +85,46 @@ graph TD
 
 When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schemas are normalized to match the provider's expected format. Field types, required arrays, and unsupported properties are adjusted automatically. This ensures MCP tools work across all provider backends without manual schema adaptation.
 
+## BytePlus Media Generation (Seedream & Seedance)
+
+The `byteplus` provider supports two async media generation capabilities via the BytePlus ModelArk platform:
+
+| Tool | Model | Capability |
+|------|-------|-----------|
+| `create_image_byteplus` | Seedream (e.g. `seedream-3-0`) | Async image generation — submits a job and polls for the result |
+| `create_video_byteplus` | Seedance (e.g. `seedance-1-0`) | Async video generation — submits a job and polls `/text-to-video-pro/status/{id}` |
+
+Both tools are automatically available when a `byteplus` provider is configured. They share the same API key and `api_base` as the text provider; media endpoints are derived automatically (always `/api/v3`, not `/api/coding/v3`).
+
+## Codex OAuth Pool Routing
+
+When multiple `chatgpt_oauth` provider aliases are configured, GoClaw can route requests across them using a pool strategy. Configure this via `settings.codex_pool` on the pool-owner provider:
+
+```json
+{
+  "name": "openai-codex",
+  "provider_type": "chatgpt_oauth",
+  "settings": {
+    "codex_pool": {
+      "strategy": "round_robin",
+      "extra_provider_names": ["codex-work", "codex-personal"]
+    }
+  }
+}
+```
+
+| Strategy | Behavior |
+|----------|----------|
+| `round_robin` | Rotates requests across the preferred account plus all extra accounts |
+| `priority_order` | Tries the preferred account first, then drains extra accounts in order |
+| `primary_first` | Keeps the preferred account fixed (disables pool for that agent) |
+
+Retryable upstream failures fall through to the next eligible account in the same request. Pool activity per-agent is visible at `GET /v1/agents/{id}/codex-pool-activity`.
+
+## Provider-Level `reasoning_defaults`
+
+Providers (currently `chatgpt_oauth`) can store reusable reasoning defaults in `settings.reasoning_defaults`. Agents inherit them via `reasoning.override_mode: "inherit"` or override with `"custom"`. See [OpenAI provider](/provider-openai) for full details.
+
 ## Capability-Aware Reasoning Effort
 
 Reasoning effort controls (`reasoning_effort`, `thinking_budget`, etc.) are resolved against model capabilities before each request. If the target model does not support reasoning effort, the parameter is silently dropped — no error is returned. This means you can configure reasoning effort globally and it will only be applied to models that support it.
@@ -113,4 +153,4 @@ When a model rejects a request because `max_tokens` is too large, GoClaw automat
 - [Mistral](/provider-mistral) — Mistral AI models
 - [Novita AI](/provider-novita) — OpenAI-compatible, wide range of open-source models
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

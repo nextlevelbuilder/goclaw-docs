@@ -182,6 +182,69 @@ Phản hồi:
 
 ---
 
+## Nhóm Deny Shell (Shell Deny Groups)
+
+Ngoài luồng phê duyệt, GoClaw áp dụng **deny groups** — các tập pattern lệnh shell được chặn bất kể cài đặt phê duyệt. Tất cả nhóm mặc định đều bật.
+
+### Các Deny Group Có Sẵn
+
+| Nhóm | Mô tả | Ví dụ bị chặn |
+|-------|-------------|-----------------|
+| `destructive_ops` | Thao tác hủy diệt | `rm -rf`, `dd if=`, `shutdown`, fork bomb |
+| `data_exfiltration` | Lấy cắp dữ liệu | `curl \| sh`, `wget --post-data`, tra cứu DNS qua dig/nslookup |
+| `reverse_shell` | Reverse Shell | `nc`, `socat`, `python -c '...socket...'`, `mkfifo` |
+| `code_injection` | Chèn mã & Eval | `eval $()`, `base64 -d \| sh` |
+| `privilege_escalation` | Leo thang đặc quyền | `sudo`, `su`, `mount`, `nsenter`, `pkexec` |
+| `dangerous_paths` | Thao tác đường dẫn nguy hiểm | `chmod +x /tmp/...`, `chown ... /` |
+| `env_injection` | Chèn biến môi trường | `LD_PRELOAD=`, `DYLD_INSERT_LIBRARIES=`, `BASH_ENV=` |
+| `container_escape` | Thoát container | `/var/run/docker.sock`, `/proc/sys/kernel/`, `/sys/kernel/` |
+| `crypto_mining` | Đào tiền mã hóa | `xmrig`, `cpuminer`, `stratum+tcp://` |
+| `filter_bypass` | Bypass bộ lọc (giảm thiểu CVE) | `sed .../e`, `sort --compress-program`, `git --upload-pack=` |
+| `network_recon` | Trinh sát mạng & Tunnel | `nmap`, `ssh user@host`, `ngrok`, `chisel` |
+| `package_install` | Cài đặt package | `pip install`, `npm install`, `apk add` |
+| `persistence` | Cơ chế persistence | `crontab`, ghi vào `~/.bashrc` hoặc `~/.profile` |
+| `process_control` | Thao tác tiến trình | `kill -9`, `killall`, `pkill` |
+| `env_dump` | Dump biến môi trường | `printenv`, `env \| ...`, đọc secret `GOCLAW_` |
+
+### Ghi Đè Deny Group Theo Agent
+
+Mỗi agent có thể bật/tắt riêng từng deny group qua `shell_deny_groups` trong config. Đây là `map[string]bool` trong đó `true` nghĩa là deny (chặn) và `false` nghĩa là allow (cho phép).
+
+Tất cả nhóm mặc định là `true` (bị chặn). Đặt một nhóm thành `false` để cho phép các lệnh đó với agent cụ thể.
+
+**Ví dụ: cho phép cài package nhưng giữ các nhóm khác bị chặn**
+
+```json
+{
+  "agents": {
+    "my-agent": {
+      "shell_deny_groups": {
+        "package_install": false
+      }
+    }
+  }
+}
+```
+
+**Ví dụ: cho phép SSH/tunnel cho agent DevOps, nhưng vẫn chặn đào tiền mã hóa**
+
+```json
+{
+  "agents": {
+    "devops-agent": {
+      "shell_deny_groups": {
+        "network_recon": false,
+        "crypto_mining": true
+      }
+    }
+  }
+}
+```
+
+Deny group và luồng exec approval hoạt động độc lập — một lệnh có thể qua kiểm tra deny group nhưng vẫn bị giữ để con người phê duyệt tùy theo cài đặt `ask` của bạn.
+
+---
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Nguyên nhân | Giải pháp |
@@ -200,4 +263,4 @@ Phản hồi:
 - [Custom Tools](/custom-tools) — định nghĩa tool backed bởi lệnh shell
 - [Security Hardening](/deploy-security) — tổng quan bảo mật năm lớp đầy đủ
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

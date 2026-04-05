@@ -478,4 +478,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — 通过 compose overlay 部署安全设置
 - [数据库设置](./database-setup.md) — PostgreSQL TLS 和加密密钥存储
 
-<!-- goclaw-source: 19eef35 | 更新: 2026-03-25 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

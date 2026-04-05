@@ -488,4 +488,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
-<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

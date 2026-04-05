@@ -317,8 +317,8 @@ Khi group tích lũy nhiều hơn `threshold` tin nhắn đang chờ, các tin n
 
 | Field | Type | Mặc định | Mô tả |
 |-------|------|----------|-------|
-| `threshold` | integer | `50` | Kích hoạt compaction khi số tin nhắn đang chờ vượt ngưỡng này |
-| `keep_recent` | integer | `15` | Số tin nhắn gần nhất giữ nguyên sau compaction |
+| `threshold` | integer | `200` | Kích hoạt compaction khi số tin nhắn đang chờ vượt ngưỡng này |
+| `keep_recent` | integer | `40` | Số tin nhắn gần nhất giữ nguyên sau compaction |
 | `max_tokens` | integer | `4096` | Max output token cho LLM khi tóm tắt |
 | `provider` | string | — | LLM provider cho tóm tắt (trống = dùng provider của agent) |
 | `model` | string | — | Model cho tóm tắt (trống = dùng model của agent) |
@@ -637,4 +637,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](/database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

@@ -87,6 +87,46 @@ graph TD
 
 当 GoClaw 将 MCP（Model Context Protocol）tools 桥接到 provider 时，tool schema 会自动规范化以匹配 provider 所需的格式。字段类型、required 数组和不支持的属性会自动调整，确保 MCP tools 无需手动适配即可在所有 provider 后端上正常工作。
 
+## BytePlus 媒体生成（Seedream 和 Seedance）
+
+`byteplus` provider 通过 BytePlus ModelArk 平台支持两种异步媒体生成能力：
+
+| 工具 | 模型 | 功能 |
+|------|------|------|
+| `create_image_byteplus` | Seedream（如 `seedream-3-0`） | 异步图片生成——提交任务并轮询结果 |
+| `create_video_byteplus` | Seedance（如 `seedance-1-0`） | 异步视频生成——提交任务并轮询 `/text-to-video-pro/status/{id}` |
+
+配置 `byteplus` provider 后，两个工具均自动可用。它们与文本 provider 共享同一 API key 和 `api_base`；媒体端点自动推导（始终为 `/api/v3`，而非 `/api/coding/v3`）。
+
+## Codex OAuth Pool 路由
+
+当配置了多个 `chatgpt_oauth` provider 别名时，GoClaw 可通过 pool 策略将请求分发给它们。在 pool 所有者 provider 上通过 `settings.codex_pool` 配置：
+
+```json
+{
+  "name": "openai-codex",
+  "provider_type": "chatgpt_oauth",
+  "settings": {
+    "codex_pool": {
+      "strategy": "round_robin",
+      "extra_provider_names": ["codex-work", "codex-personal"]
+    }
+  }
+}
+```
+
+| 策略 | 行为 |
+|------|------|
+| `round_robin` | 在首选账号和所有额外账号之间轮询请求 |
+| `priority_order` | 优先尝试首选账号，然后按顺序依次使用额外账号 |
+| `primary_first` | 固定使用首选账号（禁用该 agent 的 pool） |
+
+可重试的上游失败会在同一请求中转移到下一个可用账号。每 agent 的 pool 活动可在 `GET /v1/agents/{id}/codex-pool-activity` 查看。
+
+## Provider 级别的 `reasoning_defaults`
+
+Provider（目前为 `chatgpt_oauth`）可在 `settings.reasoning_defaults` 中存储可复用的推理默认值。Agent 通过 `reasoning.override_mode: "inherit"` 继承，或通过 `"custom"` 覆盖。完整详情见 [OpenAI provider](/provider-openai)。
+
 ## 基于模型能力的 Reasoning Effort 控制
 
 Reasoning effort 控制参数（`reasoning_effort`、`thinking_budget` 等）在每次请求前会根据目标模型的能力进行解析。如果目标模型不支持 reasoning effort，该参数会被静默丢弃——不会返回错误。这意味着你可以全局配置 reasoning effort，它只会应用于支持该功能的模型。
@@ -115,4 +155,4 @@ Reasoning effort 控制参数（`reasoning_effort`、`thinking_budget` 等）在
 - [Mistral](/provider-mistral) — Mistral AI 模型
 - [Novita AI](/provider-novita) — OpenAI 兼容，支持多种开源模型
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

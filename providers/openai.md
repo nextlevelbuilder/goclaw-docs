@@ -51,9 +51,96 @@ Go to **Settings → Providers → OpenAI** in the dashboard and enter your API 
 | o1 | 200k tokens | Original reasoning model |
 | o1-mini | 128k tokens | Smaller reasoning model |
 
-## Reasoning Models (o-series)
+## Reasoning API
 
-For o-series models, set `thinking_level` in your agent options. GoClaw maps it to the `reasoning_effort` parameter automatically:
+GoClaw supports a two-level reasoning configuration: provider-level defaults that apply to all agents, and per-agent overrides. This applies to o-series and GPT-5/Codex models.
+
+### Provider-Level Defaults
+
+Set reusable reasoning defaults on the provider itself using `settings.reasoning_defaults`. Every agent that uses this provider inherits these defaults automatically:
+
+```json
+{
+  "name": "openai",
+  "provider_type": "openai",
+  "settings": {
+    "reasoning_defaults": {
+      "effort": "high",
+      "fallback": "downgrade"
+    }
+  }
+}
+```
+
+If no `reasoning_defaults` is configured on the provider, `inherit` resolves to reasoning off.
+
+### Agent-Level Overrides
+
+Agents can override or inherit the provider default using `reasoning.override_mode` in `other_config`:
+
+```json
+{
+  "provider": "openai",
+  "other_config": {
+    "reasoning": {
+      "override_mode": "inherit"
+    }
+  }
+}
+```
+
+```json
+{
+  "provider": "openai",
+  "other_config": {
+    "reasoning": {
+      "override_mode": "custom",
+      "effort": "medium",
+      "fallback": "off"
+    }
+  }
+}
+```
+
+| `override_mode` | Behavior |
+|---|---|
+| `inherit` | Uses the provider's `reasoning_defaults` |
+| `custom` | Uses the agent's own reasoning policy |
+
+Agents without `override_mode` behave as `custom` (backward compatible).
+
+### Effort Levels and Fallback Policy
+
+Valid effort levels: `off`, `auto`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`.
+
+Valid fallback values when the requested effort is not supported by the model:
+
+| `fallback` | Behavior |
+|---|---|
+| `downgrade` (default) | Uses the highest supported level below the requested level |
+| `off` | Disables reasoning entirely |
+| `provider_default` | Falls back to the model's default effort |
+
+### GPT-5 and Codex Effort Normalization
+
+For known GPT-5 and Codex models, GoClaw validates and normalizes effort before sending the request. This avoids API errors when the requested level is not supported by that model variant:
+
+| Model | Supported Levels | Default |
+|---|---|---|
+| gpt-5 | minimal, low, medium, high | medium |
+| gpt-5.1 | none, low, medium, high | none |
+| gpt-5.1-codex | low, medium, high | medium |
+| gpt-5.2 | none, low, medium, high, xhigh | none |
+| gpt-5.2-codex | low, medium, high, xhigh | medium |
+| gpt-5.3-codex | low, medium, high, xhigh | medium |
+| gpt-5.4 | none, low, medium, high, xhigh | none |
+| gpt-5-mini / gpt-5.4-mini | none, low, medium, high, xhigh | none |
+
+For unknown models (e.g. new releases), the requested effort is passed through as-is. Trace metadata exposes the resolved `source` and `effective_effort` so you can see what was actually sent.
+
+### Legacy `thinking_level` (Backward Compat)
+
+The earlier `options.thinking_level` key still works as a shorthand for the reasoning API:
 
 ```json
 {
@@ -63,7 +150,7 @@ For o-series models, set `thinking_level` in your agent options. GoClaw maps it 
 }
 ```
 
-The `thinking_level` values map directly to `reasoning_effort`: `low`, `medium`, `high`. Reasoning token usage is tracked in `Usage.ThinkingTokens` from `completion_tokens_details.reasoning_tokens`.
+This is a shim — GoClaw maps it to `reasoning_effort` internally. New configurations should use `reasoning.override_mode` with `effort` instead. Reasoning token usage is tracked in `Usage.ThinkingTokens` from `completion_tokens_details.reasoning_tokens`.
 
 ## Vision
 
@@ -107,4 +194,4 @@ This mapping only applies to native OpenAI infrastructure. Other OpenAI-compatib
 - [Anthropic](/provider-anthropic) — native Claude integration
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: c083622f | updated: 2026-04-05 -->

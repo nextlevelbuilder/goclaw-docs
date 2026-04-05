@@ -50,19 +50,20 @@ Use `{baseDir}` to reference files alongside this SKILL.md:
 | `name` | 人类可读的显示名称（默认为目录名） |
 | `description` | 供 `skill_search` 匹配查询的单行摘要 |
 
-## 五层优先级
+## 六层优先级
 
-GoClaw 按优先级从五个位置加载 skill。高优先级位置的 skill 会覆盖低优先级的同名 slug：
+GoClaw 按优先级从六个位置加载 skill。高优先级位置的 skill 会覆盖低优先级的同名 slug：
 
 | 优先级 | 位置 | 来源标签 |
 |---|---|---|
 | 1（最高） | `<workspace>/skills/` | `workspace` |
 | 2 | `<workspace>/.agents/skills/` | `agents-project` |
 | 3 | `~/.agents/skills/` | `agents-personal` |
-| 4 | `~/.goclaw/skills/`（数据库管理） | `managed-skills` |
-| 5（最低） | 内置（随二进制文件打包） | `builtin` |
+| 4 | `~/.goclaw/skills/` | `global` |
+| 5 | `~/.goclaw/skills-store/`（DB 托管，版本化） | `managed` |
+| 6（最低） | 内置（随二进制文件打包） | `builtin` |
 
-通过 Dashboard 上传的 skill 存储在 `~/.goclaw/skills-store/`（由 PostgreSQL 支持的管理目录），作用于 `managed-skills` 层级。数据库中的 `file_path` 列用于解析每个 skill 在磁盘上的版本目录。
+通过 Dashboard 上传的 skill 存储在 `~/.goclaw/skills-store/`，使用版本化子目录结构（`<slug>/<version>/SKILL.md`）。它们作用于 `managed` 层级——高于 builtin，但低于四个文件系统层级。Loader 始终为每个 slug 提供编号最高的版本。
 
 **优先级示例：** 如果 `~/.goclaw/skills/` 和 `<workspace>/skills/` 中都有 `code-reviewer` skill，则 workspace 版本优先。
 
@@ -344,4 +345,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: 941a965 | 更新: 2026-03-23 -->
+<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->

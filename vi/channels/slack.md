@@ -140,6 +140,8 @@ flowchart TD
     BUFFER --> NEXT["Mention tiếp theo:<br/>lịch sử được bao gồm"]
 ```
 
+Khi `require_mention: false`, Slack gửi cả sự kiện `message` và `app_mention` cho cùng một tin nhắn. GoClaw dùng dedup key chung (`channel:timestamp`) để event nào đến trước sẽ xử lý tin nhắn; event trùng lặp bị bỏ qua. Với `require_mention: false`, handler `app_mention` thoát trước khi lưu dedup key, đảm bảo handler `message` tiếp quản xử lý.
+
 ### Thread Participation
 
 Sau khi bot trả lời trong thread, bot tự động trả lời các tin nhắn tiếp theo trong thread đó mà không cần @mention. Participation hết hạn sau `thread_ttl` giờ (mặc định 24). Đặt `thread_ttl: 0` để tắt (luôn yêu cầu @mention).
@@ -236,4 +238,4 @@ Danh sách `allow_from` hỗ trợ cả user ID và Slack channel ID cho allowli
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

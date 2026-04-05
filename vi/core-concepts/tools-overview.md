@@ -21,12 +21,14 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Teams** (`group:teams`) | team_tasks, team_message | Cộng tác với agent team qua task board và mailbox chung |
 | **Automation** (`group:automation`) | cron, datetime | Lên lịch job định kỳ; lấy ngày/giờ hiện tại |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Gửi tin nhắn; tạo topic forum Telegram |
-| **Tạo Media** (`group:media_gen`) | create_image, create_audio, create_video, tts | Tạo hình ảnh, audio, video, và text-to-speech |
+| **Tạo Media** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts | Tạo hình ảnh, audio, video, và text-to-speech |
 | **Browser** | browser | Điều hướng trang web, chụp ảnh màn hình, tương tác với element |
 | **Đọc Media** (`group:media_read`) | read_image, read_audio, read_document, read_video | Phân tích hình ảnh, chuyển ngữ audio, trích xuất tài liệu, phân tích video |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Gọi và xuất bản skill |
 | **Workspace** | workspace_dir | Resolve workspace directory theo team/user context |
 | **AI** | openai_compat_call | Gọi endpoint tương thích OpenAI với định dạng request tùy chỉnh |
+
+**Tool media BytePlus** (`create_image_byteplus`, `create_video_byteplus`) khả dụng khi cấu hình provider `byteplus`. Cả hai dùng async job polling: tạo ảnh qua Seedream trả về URL sau khi job hoàn thành; tạo video qua Seedance polling `/text-to-video-pro/status/{id}` để lấy kết quả.
 
 > Các tool bổ sung như `mcp_tool_search` và tool đặc thù theo channel được đăng ký động. Tool group có thể dùng tiền tố `group:` trong allow/deny list (ví dụ: `group:fs`).
 
@@ -255,4 +257,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

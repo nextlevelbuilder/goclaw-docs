@@ -923,6 +923,33 @@ Yêu cầu **admin role** (full gateway token hoặc gateway token rỗng ở ch
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Đặt credential của user cụ thể |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Xóa credential của user cụ thể |
 
+### CLI Credential Agent Grants
+
+Per-agent binary grants — kiểm soát agent nào được phép dùng một CLI credential binary cụ thể, với các giới hạn tùy chọn về đối số, verbose output, và timeout. Yêu cầu **admin role**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/cli-credentials/{id}/agent-grants` | Liệt kê tất cả agent grant cho một credential |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants` | Tạo agent grant |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Lấy thông tin một grant cụ thể |
+| `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Cập nhật grant |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Xóa grant |
+
+**Trường khi tạo/cập nhật grant:**
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `agent_id` | UUID | Agent được cấp quyền truy cập (bắt buộc khi tạo) |
+| `deny_args` | JSON | Giới hạn đối số (tùy chọn) |
+| `deny_verbose` | JSON | Giới hạn verbose output (tùy chọn) |
+| `timeout_seconds` | integer | Ghi đè timeout thực thi cho agent (tùy chọn) |
+| `tips` | string | Gợi ý sử dụng cho agent (tùy chọn) |
+| `enabled` | boolean | Bật/tắt grant (mặc định: `true`) |
+
+**Response khi tạo** (`201 Created`): đối tượng grant vừa tạo.
+
+Thay đổi grant sẽ phát sự kiện `cache_invalidate` trên message bus để các agent đang kết nối cập nhật ngay lập tức.
+
 ---
 
 ## Runtime & Packages
@@ -1182,4 +1209,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

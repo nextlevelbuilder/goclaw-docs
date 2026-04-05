@@ -23,6 +23,12 @@ GoClaw expose WebSocket endpoint tại `/ws`. Tất cả giao tiếp client-gate
 | Read deadline | 60 s | Reset mỗi message hoặc pong; ngắt kết nối khi timeout |
 | Write deadline | 10 s | Timeout ghi mỗi frame |
 | Ping interval | 30 s | Server ping keepalive chủ động |
+| Rate limit | có thể cấu hình | `rate_limit_rpm` trong gateway config (0 = tắt, >0 = request mỗi phút, burst size 5) |
+
+### CORS & Kiểm soát Origin
+
+- **`allowed_origins`** — mảng string trong gateway config. Rỗng = cho phép tất cả origin (chế độ dev). Hỗ trợ wildcard `"*"`. Client không phải browser (header `Origin` trống) luôn được cho phép.
+- **Chế độ Desktop** — đặt biến môi trường `GOCLAW_DESKTOP=1` để dùng CORS cho phép (`Access-Control-Allow-Origin: *`). Thêm các header: `X-GoClaw-Tenant-Id`, `X-GoClaw-User-Id`.
 
 ---
 
@@ -290,6 +296,47 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 |--------|--------|-------|
 | `logs.tail` | `{action: "start"\|"stop", level?}` | Bắt đầu hoặc dừng stream log trực tiếp; log entries được gửi qua server-push event khi đang active |
 
+### Heartbeat
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `heartbeat.get` | `{agentId}` | Lấy cấu hình heartbeat của agent |
+| `heartbeat.set` | `{agentId, enabled?, intervalSec?, prompt?, providerName?, model?, ...}` | Upsert cấu hình heartbeat (intervalSec tối thiểu 300) |
+| `heartbeat.toggle` | `{agentId, enabled}` | Bật hoặc tắt heartbeat |
+| `heartbeat.test` | `{agentId}` | Kích hoạt heartbeat run ngay lập tức |
+| `heartbeat.logs` | `{agentId, limit?, offset?}` | Liệt kê log thực thi heartbeat |
+| `heartbeat.checklist.get` | `{agentId}` | Đọc file context HEARTBEAT.md |
+| `heartbeat.checklist.set` | `{agentId, content}` | Ghi/thay thế file context HEARTBEAT.md |
+| `heartbeat.targets` | `{agentId}` | Liệt kê delivery target cho thông báo heartbeat |
+
+### API Keys
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `api_keys.list` | — | Liệt kê API key (non-admin chỉ thấy key của mình) |
+| `api_keys.create` | `{name, scopes, expires_in?, owner_id?, tenant_id?}` | Tạo API key; trả về raw key một lần duy nhất |
+| `api_keys.revoke` | `{id}` | Thu hồi API key (non-admin chỉ thu hồi key của mình) |
+
+### Tenants
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `tenants.list` | — | Liệt kê tất cả tenant (chỉ owner) |
+| `tenants.get` | `{id}` | Lấy tenant theo ID |
+| `tenants.create` | `{name, slug, settings?}` | Tạo tenant và workspace |
+| `tenants.update` | `{id, name?, status?, settings?}` | Cập nhật thuộc tính tenant |
+| `tenants.users.list` | `{tenant_id}` | Liệt kê user trong tenant |
+| `tenants.users.add` | `{tenant_id, user_id, role?}` | Thêm user (role: owner/admin/operator/member/viewer) |
+| `tenants.users.remove` | `{tenant_id, user_id}` | Xóa user và phát sự kiện access-revoked |
+| `tenants.mine` | — | Lấy danh sách tenant membership của user hiện tại |
+
+### Messaging
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `zalo.personal.qr.start` | `{instance_id}` | Bắt đầu quy trình đăng nhập QR Zalo Personal |
+| `zalo.personal.contacts` | `{instance_id}` | Lấy danh sách bạn bè và nhóm Zalo |
+
 ---
 
 ## Server-Push Events
@@ -308,6 +355,7 @@ Phát ra trong quá trình agent run. Kiểm tra `payload.type`:
 | `tool.call` | Tool được gọi |
 | `tool.result` | Tool trả kết quả |
 | `block.reply` | Reply bị input guard chặn |
+| `activity` | Cập nhật hoạt động agent |
 
 ### Chat Events (`"chat"`)
 
@@ -329,16 +377,69 @@ Phát ra trong quá trình agent run. Kiểm tra `payload.type`:
 | `exec.approval.resolved` | Quyết định phê duyệt đã có |
 | `device.pair.requested` | Pairing request mới từ channel user |
 | `device.pair.resolved` | Pairing được phê duyệt hoặc từ chối |
+| `presence` | Thay đổi trạng thái hiện diện của user |
 | `agent.summoning` | Predefined agent persona generation đang diễn ra |
-| `handoff` | Agent delegate sang agent khác (`from_agent`, `to_agent`, `reason` trong payload) |
-| `delegation.started/completed/failed` | Delegation lifecycle |
+| `delegation.started` | Bắt đầu delegation sang subagent |
+| `delegation.completed` | Delegation hoàn thành thành công |
+| `delegation.failed` | Delegation thất bại |
+| `delegation.cancelled` | Delegation bị huỷ |
 | `delegation.progress` | Kết quả delegation trung gian |
 | `delegation.announce` | Kết quả subagent được gom lại gửi về parent |
-| `team.task.created/completed/claimed/cancelled` | Team task lifecycle |
+| `delegation.accumulated` | Kết quả delegation tích luỹ |
+| `connect.challenge` | Challenge xác thực được phát |
+| `voicewake.changed` | Cài đặt voice wake word thay đổi |
+| `talk.mode` | Trạng thái talk mode thay đổi |
+| `node.pair.requested` | Nhận được node pairing request |
+| `node.pair.resolved` | Node pairing được giải quyết |
+| `session.updated` | Metadata chat session được cập nhật |
+| `trace.updated` | Agent trace được cập nhật |
+| `heartbeat` | Sự kiện thực thi heartbeat |
+| `workspace.file.changed` | File team workspace thay đổi |
+| `agent_link.created` | Delegation link được tạo |
+| `agent_link.updated` | Delegation link được cập nhật |
+| `agent_link.deleted` | Delegation link bị xóa |
+| `tenant.access.revoked` | Quyền truy cập tenant bị thu hồi của user |
+| `zalo.personal.qr.code` | QR code Zalo được tạo |
+| `zalo.personal.qr.done` | Đăng nhập QR Zalo hoàn tất |
+
+### Skill Events
+
+| Event | Mô tả |
+|-------|-------|
+| `skill.deps.checked` | Bắt đầu kiểm tra dependency của skill |
+| `skill.deps.complete` | Tất cả dependency của skill đã được giải quyết |
+| `skill.deps.installing` | Bắt đầu cài đặt dependency của skill |
+| `skill.deps.installed` | Cài đặt dependency skill hoàn tất |
+| `skill.dep.item.installing` | Đang cài đặt từng dependency |
+| `skill.dep.item.installed` | Cài đặt từng dependency hoàn tất |
+
+### Team Events
+
+| Event | Mô tả |
+|-------|-------|
+| `team.created` | Team được tạo |
+| `team.updated` | Team được cập nhật |
+| `team.deleted` | Team bị xóa |
+| `team.member.added` | Thành viên được thêm vào team |
+| `team.member.removed` | Thành viên bị xóa khỏi team |
 | `team.message.sent` | Tin nhắn peer-to-peer trong team |
-| `team.created/updated/deleted` | Thông báo Team CRUD |
-| `team.member.added/removed` | Team membership thay đổi |
-| `activity` | Bản ghi audit log hoạt động được ghi nhận |
+| `team.leader.processing` | Team leader đang xử lý request |
+| `team.task.created` | Task được tạo |
+| `team.task.completed` | Task hoàn thành |
+| `team.task.claimed` | Task được nhận |
+| `team.task.cancelled` | Task bị huỷ |
+| `team.task.failed` | Task thất bại |
+| `team.task.reviewed` | Task được review |
+| `team.task.approved` | Task được phê duyệt |
+| `team.task.rejected` | Task bị từ chối |
+| `team.task.progress` | Cập nhật tiến độ task |
+| `team.task.commented` | Bình luận được thêm vào task |
+| `team.task.assigned` | Task được giao cho thành viên |
+| `team.task.dispatched` | Task được phân phối |
+| `team.task.updated` | Task được cập nhật |
+| `team.task.deleted` | Task bị xóa |
+| `team.task.stale` | Task bị đánh dấu cũ |
+| `team.task.attachment_added` | Tệp đính kèm được thêm vào task |
 
 ---
 
@@ -382,4 +483,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->

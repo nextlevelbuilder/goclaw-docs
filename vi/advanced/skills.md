@@ -50,19 +50,20 @@ Placeholder `{baseDir}` được thay thế lúc tải bằng đường dẫn tu
 | `name` | Tên hiển thị dễ đọc (mặc định là tên thư mục) |
 | `description` | Tóm tắt một dòng dùng bởi `skill_search` để khớp truy vấn |
 
-## Phân cấp 5 tầng
+## Phân cấp 6 tầng
 
-GoClaw tải skill từ năm vị trí theo thứ tự ưu tiên. Skill ở vị trí ưu tiên cao hơn ghi đè skill cùng slug từ vị trí thấp hơn:
+GoClaw tải skill từ sáu vị trí theo thứ tự ưu tiên. Skill ở vị trí ưu tiên cao hơn ghi đè skill cùng slug từ vị trí thấp hơn:
 
 | Ưu tiên | Vị trí | Nhãn nguồn |
 |---|---|---|
 | 1 (cao nhất) | `<workspace>/skills/` | `workspace` |
 | 2 | `<workspace>/.agents/skills/` | `agents-project` |
 | 3 | `~/.agents/skills/` | `agents-personal` |
-| 4 | `~/.goclaw/skills/` (managed DB) | `managed-skills` |
-| 5 (thấp nhất) | Tích hợp sẵn (đóng gói với binary) | `builtin` |
+| 4 | `~/.goclaw/skills/` | `global` |
+| 5 | `~/.goclaw/skills-store/` (DB-seeded, versioned) | `managed` |
+| 6 (thấp nhất) | Tích hợp sẵn (đóng gói với binary) | `builtin` |
 
-Skills upload qua Dashboard được lưu trong `~/.goclaw/skills-store/` (thư mục được quản lý, backed bởi PostgreSQL) và hoạt động ở mức `managed-skills`. Cột `file_path` trong DB được dùng để xác định thư mục phiên bản của mỗi skill trên đĩa.
+Skills upload qua Dashboard được lưu trong `~/.goclaw/skills-store/` theo cấu trúc thư mục có phiên bản (`<slug>/<version>/SKILL.md`). Chúng hoạt động ở mức `managed` — cao hơn builtin nhưng thấp hơn bốn tầng file-system. Loader luôn phục vụ phiên bản có số cao nhất cho mỗi slug.
 
 **Ví dụ về precedence:** nếu bạn có skill `code-reviewer` cả trong `~/.goclaw/skills/` và `<workspace>/skills/`, phiên bản workspace sẽ thắng.
 
@@ -344,4 +345,4 @@ Xem [Agent Evolution](agent-evolution.md) để biết chi tiết về tool `ski
 - [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-23 -->
+<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
