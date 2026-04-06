@@ -2,7 +2,7 @@
 
 # Channel WhatsApp
 
-Tích hợp WhatsApp gốc qua [whatsmeow](https://github.com/tulir/whatsmeow). GoClaw kết nối trực tiếp đến giao thức multi-device của WhatsApp — không cần bridge hay dịch vụ Node.js bên ngoài. Trạng thái xác thực được lưu trong database (PostgreSQL hoặc SQLite).
+Tích hợp WhatsApp trực tiếp. GoClaw kết nối trực tiếp đến giao thức multi-device của WhatsApp — không cần bridge hay dịch vụ Node.js bên ngoài. Trạng thái xác thực được lưu trong database (PostgreSQL hoặc SQLite).
 
 ## Thiết lập
 
@@ -48,14 +48,14 @@ Tất cả config key nằm trong `channels.whatsapp` (file config) hoặc confi
 ```mermaid
 flowchart LR
     WA["WhatsApp<br/>Servers"]
-    GC["GoClaw<br/>(whatsmeow)"]
+    GC["GoClaw"]
     UI["Web UI<br/>(QR Wizard)"]
 
     WA <-->|"Giao thức multi-device"| GC
     GC -->|"QR event qua WS"| UI
 ```
 
-- **GoClaw** kết nối trực tiếp đến WhatsApp server qua whatsmeow (thư viện Go)
+- **GoClaw** kết nối trực tiếp đến WhatsApp server qua giao thức multi-device
 - Trạng thái xác thực lưu trong database — tồn tại qua khởi động lại
 - Một channel instance = một số điện thoại WhatsApp
 - Không bridge, không Node.js, không shared volume
@@ -66,11 +66,11 @@ flowchart LR
 
 WhatsApp yêu cầu quét QR để liên kết thiết bị. Quy trình:
 
-1. GoClaw tạo QR qua GetQRChannel() của whatsmeow
+1. GoClaw tạo mã QR để liên kết thiết bị
 2. Chuỗi QR được mã hóa thành PNG (base64) và gửi đến UI wizard qua WS event
 3. Web UI hiển thị ảnh QR
 4. Người dùng quét bằng WhatsApp (Bạn > Thiết bị liên kết > Liên kết thiết bị)
-5. whatsmeow xác nhận xác thực qua Connected event
+5. Xác thực được xác nhận qua sự kiện kết nối
 
 **Xác thực lại**: Dùng nút "Re-authenticate" trong bảng channels để buộc quét QR mới (đăng xuất phiên WhatsApp hiện tại và xóa thông tin thiết bị đã lưu).
 
@@ -100,11 +100,11 @@ Fail-closed — nếu JID của bot chưa xác định, tin nhắn sẽ bị b�
 
 ### Hỗ trợ Media
 
-GoClaw tải media đến trực tiếp qua whatsmeow (ảnh, video, audio, tài liệu, sticker) vào file tạm, sau đó chuyển vào pipeline agent.
+GoClaw tải media đến trực tiếp (ảnh, video, audio, tài liệu, sticker) vào file tạm, sau đó chuyển vào pipeline agent.
 
 Loại media đến được hỗ trợ: image, video, audio, document, sticker (tối đa 20 MB mỗi file).
 
-Media đi: GoClaw upload file lên server WhatsApp qua whatsmeow với mã hóa phù hợp. Hỗ trợ image, video, audio và document kèm caption.
+Media đi: GoClaw upload file lên server WhatsApp với mã hóa phù hợp. Hỗ trợ image, video, audio và document kèm caption.
 
 ### Định dạng tin nhắn
 
@@ -128,8 +128,8 @@ GoClaw hiển thị "đang nhập..." trong WhatsApp khi agent xử lý tin nh�
 
 ### Tự động kết nối lại
 
-whatsmeow tự xử lý kết nối lại. Nếu kết nối bị đứt:
-- Logic reconnect tích hợp của whatsmeow xử lý retry
+Tự động kết nối lại khi kết nối bị đứt:
+- Logic reconnect tích hợp xử lý retry với exponential backoff
 - Trạng thái sức khỏe channel được cập nhật (degraded → healthy khi kết nối lại)
 - Không cần vòng lặp reconnect thủ công
 
@@ -168,4 +168,4 @@ GoClaw sẽ phát hiện config `bridge_url` cũ và hiển thị lỗi di chuy�
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: whatsmeow-native | cập nhật: 2026-04-06 -->
+<!-- goclaw-source: whatsapp-direct | cập nhật: 2026-04-07 -->

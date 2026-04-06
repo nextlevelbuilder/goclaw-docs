@@ -2,7 +2,7 @@
 
 # WhatsApp Channel
 
-通过 [whatsmeow](https://github.com/tulir/whatsmeow) 原生集成 WhatsApp。GoClaw 直接连接 WhatsApp 多设备协议 —— 无需外部桥接或 Node.js 服务。认证状态存储在数据库中（PostgreSQL 或 SQLite）。
+直接集成 WhatsApp。GoClaw 直接连接 WhatsApp 多设备协议 —— 无需外部桥接或 Node.js 服务。认证状态存储在数据库中（PostgreSQL 或 SQLite）。
 
 ## 设置
 
@@ -48,14 +48,14 @@
 ```mermaid
 flowchart LR
     WA["WhatsApp<br/>服务器"]
-    GC["GoClaw<br/>(whatsmeow)"]
+    GC["GoClaw"]
     UI["Web UI<br/>(QR 向导)"]
 
     WA <-->|"多设备协议"| GC
     GC -->|"QR 事件通过 WS"| UI
 ```
 
-- **GoClaw** 通过 whatsmeow（Go 库）直接连接 WhatsApp 服务器
+- **GoClaw** 通过多设备协议直接连接 WhatsApp 服务器
 - 认证状态存储在数据库 —— 重启后保留
 - 一个 channel 实例 = 一个 WhatsApp 手机号
 - 无桥接、无 Node.js、无共享卷
@@ -66,11 +66,11 @@ flowchart LR
 
 WhatsApp 需要扫描 QR 码来关联设备。流程：
 
-1. GoClaw 通过 whatsmeow 的 GetQRChannel() 生成 QR
+1. GoClaw 生成 QR 码用于设备关联
 2. QR 字符串编码为 PNG（base64）并通过 WS 事件发送到 UI 向导
 3. Web UI 显示 QR 图片
 4. 用户用 WhatsApp 扫描（你 > 已关联的设备 > 关联设备）
-5. whatsmeow 通过 Connected 事件确认认证
+5. 连接事件确认认证成功
 
 **重新认证**：在 channels 表中点击"Re-authenticate"按钮强制新 QR 扫描（登出当前 WhatsApp 会话并删除已存储的设备凭据）。
 
@@ -100,11 +100,11 @@ WhatsApp 群组的 chat ID 以 `@g.us` 结尾：
 
 ### 媒体支持
 
-GoClaw 通过 whatsmeow 直接下载收到的媒体（图片、视频、音频、文档、贴纸）到临时文件，然后传入 agent 管道。
+GoClaw 直接下载收到的媒体（图片、视频、音频、文档、贴纸）到临时文件，然后传入 agent 管道。
 
 支持的入站媒体类型：image、video、audio、document、sticker（每个最大 20 MB）。
 
-出站媒体：GoClaw 通过 whatsmeow 将文件上传到 WhatsApp 服务器并进行适当加密。支持带标题的 image、video、audio 和 document 类型。
+出站媒体：GoClaw 将文件上传到 WhatsApp 服务器并进行适当加密。支持带标题的 image、video、audio 和 document 类型。
 
 ### 消息格式化
 
@@ -128,8 +128,8 @@ GoClaw 在 agent 处理消息时在 WhatsApp 中显示"正在输入..."。WhatsA
 
 ### 自动重连
 
-whatsmeow 自动处理重连。如果连接断开：
-- whatsmeow 内置的重连逻辑处理重试
+自动处理重连。如果连接断开：
+- 内置重连逻辑处理重试
 - Channel 健康状态更新（degraded → healthy 重连后）
 - 无需手动重连循环
 
@@ -168,4 +168,4 @@ GoClaw 会检测旧的 `bridge_url` 配置并显示清晰的迁移错误。
 - [Larksuite](/channel-feishu) — Larksuite 集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: whatsmeow-native | 更新: 2026-04-06 -->
+<!-- goclaw-source: whatsapp-direct | 更新: 2026-04-07 -->

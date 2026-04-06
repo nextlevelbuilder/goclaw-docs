@@ -11,7 +11,7 @@ Complete documentation for all messaging platform integrations in GoClaw.
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
 6. **[Zalo OA](./zalo-oa.md)** — Official Account, DM-only, pairing, images
 7. **[Zalo Personal](./zalo-personal.md)** — Personal account (unofficial), DM + groups
-8. **[WhatsApp](./whatsapp.md)** — Native (whatsmeow), QR auth, media, typing indicators, pairing
+8. **[WhatsApp](./whatsapp.md)** — Direct connection, QR auth, media, typing indicators, pairing
 9. **[WebSocket](./websocket.md)** — Direct RPC, custom clients, streaming events
 10. **[Browser Pairing](./browser-pairing.md)** — 8-char code auth, session tokens
 
@@ -20,7 +20,7 @@ Complete documentation for all messaging platform integrations in GoClaw.
 | Feature | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp | WebSocket |
 |---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
 | **Setup Complexity** | Easy | Easy | Easy | Medium | Medium | Hard | Medium | Very Easy |
-| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Native (whatsmeow) | WebSocket |
+| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Direct connection | WebSocket |
 | **DM Support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | N/A |
 | **Group Support** | Yes | Yes | Yes | Yes | No | Yes | Yes | N/A |
 | **Streaming** | Yes | Yes | Yes | Yes | No | No | No | Yes |

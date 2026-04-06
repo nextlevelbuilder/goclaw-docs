@@ -1,6 +1,6 @@
 # WhatsApp Channel
 
-Native WhatsApp integration via [whatsmeow](https://github.com/tulir/whatsmeow). GoClaw connects directly to WhatsApp's multi-device protocol — no external bridge or Node.js service required. Auth state is stored in the database (PostgreSQL or SQLite).
+Direct WhatsApp integration. GoClaw connects directly to WhatsApp's multi-device protocol — no external bridge or Node.js service required. Auth state is stored in the database (PostgreSQL or SQLite).
 
 ## Setup
 
@@ -46,14 +46,14 @@ All config keys are in `channels.whatsapp` (config file) or the instance config 
 ```mermaid
 flowchart LR
     WA["WhatsApp<br/>Servers"]
-    GC["GoClaw<br/>(whatsmeow)"]
+    GC["GoClaw"]
     UI["Web UI<br/>(QR Wizard)"]
 
     WA <-->|"Multi-device protocol"| GC
     GC -->|"QR events via WS"| UI
 ```
 
-- **GoClaw** connects directly to WhatsApp servers via whatsmeow (Go library)
+- **GoClaw** connects directly to WhatsApp servers via multi-device protocol
 - Auth state is stored in the database — survives restarts
 - One channel instance = one WhatsApp phone number
 - No bridge, no Node.js, no shared volumes
@@ -64,11 +64,11 @@ flowchart LR
 
 WhatsApp requires QR code scanning to link a device. The flow:
 
-1. GoClaw generates QR via whatsmeow's GetQRChannel()
+1. GoClaw generates QR code for device linking
 2. QR string is encoded as PNG (base64) and sent to the UI wizard via WS event
 3. Web UI displays the QR image
 4. User scans with WhatsApp (You > Linked Devices > Link a Device)
-5. whatsmeow confirms auth via Connected event
+5. Connection confirmed via auth event
 
 **Re-authentication**: Use the "Re-authenticate" button in the channels table to force a new QR scan (logs out the current WhatsApp session and deletes stored device credentials).
 
@@ -98,11 +98,11 @@ Fails closed — if the bot's JID is unknown, messages are ignored.
 
 ### Media Support
 
-GoClaw downloads incoming media directly via whatsmeow (images, video, audio, documents, stickers) to temporary files, then passes them to the agent pipeline.
+GoClaw downloads incoming media directly (images, video, audio, documents, stickers) to temporary files, then passes them to the agent pipeline.
 
 Supported inbound media types: image, video, audio, document, sticker (max 20 MB each).
 
-Outbound media: GoClaw uploads files to WhatsApp's servers via whatsmeow with proper encryption. Supports image, video, audio, and document types with captions.
+Outbound media: GoClaw uploads files to WhatsApp's servers with proper encryption. Supports image, video, audio, and document types with captions.
 
 ### Message Formatting
 
@@ -126,8 +126,8 @@ GoClaw shows "typing..." in WhatsApp while the agent processes a message. WhatsA
 
 ### Auto-Reconnect
 
-whatsmeow handles reconnection automatically. If the connection drops:
-- whatsmeow's built-in reconnect logic handles retry
+Reconnection is handled automatically. If the connection drops:
+- Built-in reconnect logic handles retry with exponential backoff
 - Channel health status updated (degraded → healthy on reconnect)
 - No manual reconnect loop needed
 
@@ -166,4 +166,4 @@ GoClaw will detect old `bridge_url` config and show a clear migration error.
 - [Larksuite](/channel-feishu) — Larksuite integration
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: whatsmeow-native | updated: 2026-04-06 -->
+<!-- goclaw-source: whatsapp-direct | updated: 2026-04-07 -->
