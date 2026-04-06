@@ -62,6 +62,17 @@ To set a default model for OpenRouter in your agent config:
 }
 ```
 
+## Identification Headers
+
+GoClaw automatically sends identification headers with every OpenRouter API request:
+
+| Header | Value | Purpose |
+|---|---|---|
+| `HTTP-Referer` | `https://goclaw.sh` | Site identification for OpenRouter rankings |
+| `X-Title` | `GoClaw` | App name shown in OpenRouter analytics |
+
+These headers are sent for both config-file and dashboard-registered OpenRouter providers. No configuration needed — they are applied automatically.
+
 ## Supported Features
 
 OpenRouter passes through most features to the underlying model provider. Availability depends on the model:
@@ -90,4 +101,4 @@ OpenRouter passes through most features to the underlying model provider. Availa
 - [OpenAI](/provider-openai) — direct OpenAI integration
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 76385f2f | updated: 2026-04-07 -->

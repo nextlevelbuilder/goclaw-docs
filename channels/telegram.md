@@ -291,6 +291,16 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 }
 ```
 
+## Group-to-Supergroup Migration
+
+When a Telegram group is upgraded to a supergroup, the chat ID changes. GoClaw handles this automatically:
+
+- **Inbound detection** — When a `MigrateToChatID` message arrives, GoClaw updates all DB references (paired_devices, sessions, channel_contacts) atomically and invalidates in-memory caches
+- **Send-path retry** — If a send fails because the group was migrated, GoClaw detects the new chat ID from the Telegram API error, updates DB, and retries the send automatically
+- **Idempotent** — Safe to trigger multiple times; duplicate migrations are no-ops
+
+No configuration needed. Check logs for `telegram: migrating group chat` entries if troubleshooting.
+
 ## Troubleshooting
 
 | Issue | Solution |
@@ -308,4 +318,4 @@ Each Telegram instance maintains an isolated HTTP transport — no shared connec
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](/sessions-and-history) — Conversation history
 
-<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->
+<!-- goclaw-source: 76385f2f | updated: 2026-04-07 -->

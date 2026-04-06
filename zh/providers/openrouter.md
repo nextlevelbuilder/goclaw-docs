@@ -64,6 +64,17 @@ GoClaw 的 `resolveModel()` 逻辑专门针对 OpenRouter：
 }
 ```
 
+## 标识 Header
+
+GoClaw 自动在每个 OpenRouter API 请求中发送标识 header：
+
+| Header | 值 | 用途 |
+|---|---|---|
+| `HTTP-Referer` | `https://goclaw.sh` | OpenRouter 排名的站点标识 |
+| `X-Title` | `GoClaw` | OpenRouter analytics 中显示的应用名称 |
+
+这些 header 同时适用于通过 config 文件和控制台注册的 OpenRouter provider。无需配置——自动应用。
+
 ## 支持的功能
 
 OpenRouter 将大多数功能透传给底层模型 provider，可用性取决于模型：
@@ -92,4 +103,4 @@ OpenRouter 将大多数功能透传给底层模型 provider，可用性取决于
 - [OpenAI](/provider-openai) — 直接 OpenAI 集成
 - [概览](/providers-overview) — provider 架构和重试逻辑
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 76385f2f | 更新: 2026-04-07 -->

@@ -97,6 +97,10 @@ GoClaw đăng ký alias để agent có thể tham chiếu tool bằng tên khá
 
 Alias xuất hiện dưới dạng mô tả một dòng trong system prompt. Chúng không phải tool riêng biệt — gọi alias sẽ kích hoạt tool gốc.
 
+### Sắp xếp xác định (Deterministic Ordering)
+
+Tất cả tên tool, alias và mô tả MCP tool được sắp xếp theo thứ tự chữ cái trước khi đưa vào system prompt. Điều này đảm bảo prompt prefix giống hệt nhau giữa các request, tối đa hóa tỷ lệ cache hit của LLM prompt (Anthropic và OpenAI cache theo exact prefix match).
+
 ## Policy Engine
 
 Ngoài profile, policy engine 7 bước cho phép kiểm soát chi tiết:
@@ -186,6 +190,16 @@ Admin có thể tắt nhóm cụ thể theo từng agent:
 }
 ```
 
+### Kiểm tra Exemption nghiêm ngặt
+
+Khi lệnh shell khớp deny pattern, GoClaw kiểm tra path exemption (ví dụ: `.goclaw/skills-store/`). Logic exemption rất chặt chẽ:
+
+- **Tất cả hoặc không** — Mọi field trong lệnh khớp deny pattern đều phải được exemption riêng lẻ. Một field không được exempt sẽ chặn toàn bộ lệnh
+- **Chặn path traversal** — Field chứa `..` không bao giờ được exempt, ngăn chặn escape qua `../../etc/passwd`
+- **Loại bỏ dấu ngoặc** — Dấu ngoặc bao quanh (`"`, `'`) được loại trước khi so khớp, vì LLM thường đặt path trong ngoặc
+
+Điều này ngăn chặn tấn công bypass qua pipe/comment như `cat /app/data/skills-store/tool.py | cat /app/data/secret` — field thứ hai khớp deny nhưng không có exemption, nên toàn bộ lệnh bị chặn.
+
 Cài đặt `tools.exec_approval` thêm một lớp phê duyệt bổ sung (`full`, `light`, hoặc `none`).
 
 ## spawn — Điều phối Subagent
@@ -257,4 +271,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 76385f2f | cập nhật: 2026-04-07 -->

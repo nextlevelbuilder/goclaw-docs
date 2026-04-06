@@ -95,6 +95,10 @@ GoClaw registers aliases so agents can reference tools by alternative names. Thi
 
 Aliases appear as one-line descriptions in the system prompt. They are not separate tools — calling an alias invokes the underlying tool.
 
+### Deterministic Ordering
+
+All tool names, aliases, and MCP tool descriptions are sorted lexicographically before being included in the system prompt. This ensures identical prompt prefixes across requests, maximizing LLM prompt cache hit rates (Anthropic and OpenAI cache by exact prefix match).
+
 ## Policy Engine
 
 Beyond profiles, a 7-step policy engine gives fine-grained control:
@@ -184,6 +188,16 @@ Admins can disable specific groups per agent:
 }
 ```
 
+### Hardened Exemption Matching
+
+When a shell command matches a deny pattern, GoClaw checks path exemptions (e.g., `.goclaw/skills-store/`). The exemption logic is strict:
+
+- **All-or-nothing** — Every field in the command that triggers the deny pattern must be individually covered by an exemption. A single unexempted field blocks the entire command
+- **Path traversal blocked** — Fields containing `..` are never exempt, preventing exemption escape via `../../etc/passwd`
+- **Quote stripping** — Surrounding quotes (`"`, `'`) are stripped before matching, since LLMs often quote paths
+
+This prevents pipe/comment bypass attacks like `cat /app/data/skills-store/tool.py | cat /app/data/secret` — the second field matches deny but has no exemption, so the entire command is blocked.
+
 The `tools.exec_approval` setting adds an additional approval layer (`full`, `light`, or `none`).
 
 ## spawn — Subagent Orchestration
@@ -255,4 +269,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 76385f2f | updated: 2026-04-07 -->

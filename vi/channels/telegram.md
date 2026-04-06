@@ -295,6 +295,16 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 }
 ```
 
+## Chuyển đổi Group sang Supergroup
+
+Khi một Telegram group được nâng cấp thành supergroup, chat ID sẽ thay đổi. GoClaw xử lý tự động:
+
+- **Phát hiện tin nhắn đến** — Khi nhận được message `MigrateToChatID`, GoClaw cập nhật tất cả tham chiếu DB (paired_devices, sessions, channel_contacts) atomically và xóa cache trong bộ nhớ
+- **Retry khi gửi** — Nếu gửi tin thất bại do group đã migrate, GoClaw phát hiện chat ID mới từ Telegram API error, cập nhật DB và tự động gửi lại
+- **Idempotent** — An toàn khi kích hoạt nhiều lần; các migration trùng lặp là no-op
+
+Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` nếu cần troubleshoot.
+
 ## Xử lý sự cố
 
 | Vấn đề | Giải pháp |
@@ -312,4 +322,4 @@ Mỗi Telegram instance duy trì HTTP transport riêng biệt — không share c
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->
+<!-- goclaw-source: 76385f2f | cập nhật: 2026-04-07 -->
