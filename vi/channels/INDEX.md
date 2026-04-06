@@ -11,7 +11,7 @@ Tài liệu đầy đủ cho tất cả các tích hợp nền tảng nhắn tin
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
 6. **[Zalo OA](./zalo-oa.md)** — Official Account, chỉ DM, pairing, hình ảnh
 7. **[Zalo Cá nhân](./zalo-personal.md)** — Tài khoản cá nhân (không chính thức), DM + nhóm
-8. **[WhatsApp](./whatsapp.md)** — Baileys bridge, xác thực QR, media, typing indicators, pairing
+8. **[WhatsApp](./whatsapp.md)** — Native (whatsmeow), xác thực QR, media, typing indicators, pairing
 9. **[WebSocket](./websocket.md)** — RPC trực tiếp, custom client, streaming events
 10. **[Ghép nối trình duyệt](./browser-pairing.md)** — Xác thực mã 8 ký tự, session token
 
@@ -20,7 +20,7 @@ Tài liệu đầy đủ cho tất cả các tích hợp nền tảng nhắn tin
 | Tính năng | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo CN | WhatsApp | WebSocket |
 |---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
 | **Độ phức tạp** | Dễ | Dễ | Dễ | Trung bình | Trung bình | Khó | Trung bình | Rất dễ |
-| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Baileys Bridge | WebSocket |
+| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Native (whatsmeow) | WebSocket |
 | **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có | Có | N/A |
 | **Hỗ trợ nhóm** | Có | Có | Có | Có | Không | Có | Có | N/A |
 | **Streaming** | Có | Có | Có | Có | Không | Không | Không | Có |

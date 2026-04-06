@@ -13,7 +13,7 @@ GoClaw 所有消息平台集成的完整文档。
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook、流式卡片、媒体
 6. **[Zalo OA](./zalo-oa.md)** — 官方账号、仅 DM、配对、图片
 7. **[Zalo 个人](./zalo-personal.md)** — 个人账号（非官方）、DM + 群组
-8. **[WhatsApp](./whatsapp.md)** — Baileys 桥接、QR 认证、媒体、输入指示器、配对
+8. **[WhatsApp](./whatsapp.md)** — 原生（whatsmeow）、QR 认证、媒体、输入指示器、配对
 9. **[WebSocket](./websocket.md)** — 直接 RPC、自定义客户端、流式事件
 10. **[Browser Pairing](./browser-pairing.md)** — 8 位码认证、session token
 
@@ -22,7 +22,7 @@ GoClaw 所有消息平台集成的完整文档。
 | 功能 | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo 个人 | WhatsApp | WebSocket |
 |---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
 | **设置复杂度** | 简单 | 简单 | 简单 | 中等 | 中等 | 困难 | 中等 | 非常简单 |
-| **传输方式** | 轮询 | Gateway | Socket Mode | WS/Webhook | 轮询 | 协议 | Baileys 桥接 | WebSocket |
+| **传输方式** | 轮询 | Gateway | Socket Mode | WS/Webhook | 轮询 | 协议 | 原生（whatsmeow） | WebSocket |
 | **DM 支持** | 是 | 是 | 是 | 是 | 是 | 是 | 是 | 无 |
 | **群组支持** | 是 | 是 | 是 | 是 | 否 | 是 | 是 | 无 |
 | **流式输出** | 是 | 是 | 是 | 是 | 否 | 否 | 否 | 是 |
@@ -144,9 +144,7 @@ GoClaw 所有消息平台集成的完整文档。
 
 ### WhatsApp
 
-- [ ] 部署桥接：`docker compose -f docker-compose.whatsapp.yml up -d`（或 `cd bridge/whatsapp && npm install && node server.js`）
 - [ ] 在 UI 中创建 channel：Channels > Add Channel > WhatsApp
-- [ ] 设置 Bridge URL（如 `ws://whatsapp-bridge:3001`）
 - [ ] 用 WhatsApp 扫描 QR 码（你 > 已关联的设备 > 关联设备）
 - [ ] 根据需要配置 DM/群组策略
 
