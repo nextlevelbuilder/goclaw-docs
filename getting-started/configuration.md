@@ -572,20 +572,22 @@ Docker-based isolation for code execution. Can be set globally or overridden per
 ```jsonc
 "whatsapp": {
   "enabled": true,
-  "bridge_url": "http://localhost:8080",
   "allow_from": [],
-  "dm_policy": "open",
-  "group_policy": "disabled",
+  "dm_policy": "pairing",
+  "group_policy": "pairing",
+  "require_mention": false,
+  "history_limit": 200,
   "block_reply": false
 }
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `bridge_url` | string | — | WhatsApp bridge service URL |
 | `allow_from` | []string | — | Allowlisted phone numbers/JIDs |
-| `dm_policy` | string | `"open"` | DM access policy |
-| `group_policy` | string | `"disabled"` | Group access policy |
+| `dm_policy` | string | `"pairing"` | DM access policy |
+| `group_policy` | string | `"pairing"` (DB) / `"open"` (config) | Group access policy |
+| `require_mention` | bool | `false` | Only respond in groups when @mentioned |
+| `history_limit` | int | `200` | Max pending group messages for context |
 | `block_reply` | bool | `false` | Suppress intermediate replies |
 
 ### Zalo

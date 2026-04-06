@@ -103,7 +103,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | `GOCLAW_LARK_APP_SECRET` | Feishu/Lark | App secret |
 | `GOCLAW_LARK_ENCRYPT_KEY` | Feishu/Lark | 事件加密密钥 |
 | `GOCLAW_LARK_VERIFICATION_TOKEN` | Feishu/Lark | 事件验证 token |
-| `GOCLAW_WHATSAPP_BRIDGE_URL` | WhatsApp | 桥接服务 URL |
+| `GOCLAW_WHATSAPP_ENABLED` | WhatsApp | 启用 WhatsApp channel（`true`/`false`） |
 
 ---
 

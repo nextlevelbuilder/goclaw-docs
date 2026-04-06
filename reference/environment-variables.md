@@ -101,7 +101,7 @@ Setting a token/credential via environment auto-enables that channel.
 | `GOCLAW_LARK_APP_SECRET` | Feishu/Lark | App secret |
 | `GOCLAW_LARK_ENCRYPT_KEY` | Feishu/Lark | Event encryption key |
 | `GOCLAW_LARK_VERIFICATION_TOKEN` | Feishu/Lark | Event verification token |
-| `GOCLAW_WHATSAPP_BRIDGE_URL` | WhatsApp | Bridge service URL |
+| `GOCLAW_WHATSAPP_ENABLED` | WhatsApp | Enable WhatsApp channel (`true`/`false`) |
 
 ---
 

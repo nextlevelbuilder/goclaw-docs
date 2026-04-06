@@ -97,19 +97,19 @@ Zalo OA Bot **仅支持私信**（不支持群聊），每条消息文本限制 
 
 ## WhatsApp
 
-WhatsApp 使用**桥接模式**——GoClaw 通过 WebSocket 连接到外部桥接（如 mautrix-whatsapp）。GoClaw 不直接连接到 WhatsApp。
+WhatsApp **直接连接**（原生多设备协议）。无需外部桥接服务。认证状态存储在数据库中。
 
 | 问题 | 原因 | 解决方案 |
 |---------|-------|----------|
-| `whatsapp bridge_url is required` | 未设置桥接 URL | 设置 `GOCLAW_WHATSAPP_BRIDGE_URL` |
-| `dial whatsapp bridge ...: ...` | 桥接未运行或 URL 错误 | 启动桥接服务；验证 URL 和端口 |
-| `initial whatsapp bridge connection failed, will retry` | 桥接尚未就绪 | 短暂性——GoClaw 自动重试 |
-| 发送时 `whatsapp bridge not connected` | 桥接连接前尝试发送消息 | 等待桥接启动；检查日志中的重连消息 |
-| `invalid whatsapp message JSON` | 桥接版本不匹配 | 将桥接更新到预期的消息格式 |
+| 没有显示 QR 码 | 无法连接 WhatsApp 服务器 | 检查网络（端口 443、5222） |
+| 扫描 QR 但未认证 | 认证状态损坏 | 使用"重新认证"按钮或重启 channel |
+| `whatsapp bridge_url is required` | 旧配置仍在 | 删除配置中的 `bridge_url` —— 不再需要 |
+| 发送时 `whatsapp not connected` | 未认证 | 先通过 UI 向导扫描 QR 码 |
+| 日志中出现 `logged out` | WhatsApp 撤销了会话 | 使用"重新认证"按钮扫描新 QR 码 |
+| 群组消息被忽略 | 策略或 @提及 限制 | 检查 `group_policy` 和 `require_mention` 设置 |
+| 媒体下载失败 | 网络或文件问题 | 检查日志；确认临时目录可写；每个文件最大 20 MB |
 
-**必填环境变量：** `GOCLAW_WHATSAPP_BRIDGE_URL=ws://localhost:29318`
-
-桥接必须与 WhatsApp 单独完成认证（通过桥接 UI 扫描二维码），GoClaw 才能发送/接收消息。
+通过 GoClaw UI 进行认证（Channels > WhatsApp > Re-authenticate）。
 
 ---
 

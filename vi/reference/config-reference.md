@@ -274,7 +274,12 @@ Cấu hình messaging channel.
 | Field | Type | Mặc định | Mô tả |
 |-------|------|----------|-------|
 | `enabled` | boolean | `false` | Bật WhatsApp channel |
-| `bridge_url` | string | — | URL WhatsApp bridge service |
+| `allow_from` | string[] | — | Danh sách trắng user/group JID |
+| `dm_policy` | string | `"pairing"` | `"pairing"`, `"open"`, `"allowlist"`, `"disabled"` |
+| `group_policy` | string | `"pairing"` (DB) / `"open"` (config) | `"open"`, `"pairing"`, `"allowlist"`, `"disabled"` |
+| `require_mention` | boolean | `false` | Chỉ trả lời trong nhóm khi được @mention |
+| `history_limit` | int | `200` | Số tin nhắn nhóm tối đa cho ngữ cảnh (0=tắt) |
+| `block_reply` | boolean | — | Ghi đè gateway block_reply (nil=kế thừa) |
 
 ### `channels.slack`
 

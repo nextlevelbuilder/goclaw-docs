@@ -103,7 +103,7 @@ API key từ environment ghi đè mọi giá trị trong `config.json`. Đặt k
 | `GOCLAW_LARK_APP_SECRET` | Feishu/Lark | App secret |
 | `GOCLAW_LARK_ENCRYPT_KEY` | Feishu/Lark | Encryption key cho event |
 | `GOCLAW_LARK_VERIFICATION_TOKEN` | Feishu/Lark | Verification token cho event |
-| `GOCLAW_WHATSAPP_BRIDGE_URL` | WhatsApp | URL bridge service |
+| `GOCLAW_WHATSAPP_ENABLED` | WhatsApp | Bật WhatsApp channel (`true`/`false`) |
 
 ---
 

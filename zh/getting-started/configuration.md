@@ -496,9 +496,12 @@ GoClaw 使用 `fsnotify` 监控 `config.json` 的变化，带 300ms 防抖。Age
 ```jsonc
 "whatsapp": {
   "enabled": true,
-  "bridge_url": "http://localhost:8080",
   "allow_from": [],
-  "dm_policy": "open"
+  "dm_policy": "pairing",
+  "group_policy": "pairing",
+  "require_mention": false,
+  "history_limit": 200,
+  "block_reply": false
 }
 ```
 

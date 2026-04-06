@@ -95,19 +95,19 @@ Zalo OA Bot is **DM only** (no group chats) with a 2000-character text limit per
 
 ## WhatsApp
 
-WhatsApp uses a **bridge pattern** — GoClaw connects to an external bridge (e.g., mautrix-whatsapp) over WebSocket. GoClaw does not connect directly to WhatsApp.
+WhatsApp connects **directly** via native multi-device protocol. No external bridge service required. Auth state is stored in the database (PostgreSQL/SQLite).
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| `whatsapp bridge_url is required` | Bridge URL not set | Set `GOCLAW_WHATSAPP_BRIDGE_URL` |
-| `dial whatsapp bridge ...: ...` | Bridge not running or wrong URL | Start your bridge service; verify URL and port |
-| `initial whatsapp bridge connection failed, will retry` | Bridge not ready yet | Transient — GoClaw retries automatically |
-| `whatsapp bridge not connected` on send | Message attempted before bridge connected | Wait for bridge startup; check logs for reconnect messages |
-| `invalid whatsapp message JSON` | Bridge version mismatch | Update bridge to expected message format |
+| No QR code appears | Server can't reach WhatsApp | Check network connectivity (ports 443, 5222) |
+| QR scanned but no auth | Auth state corrupted | Use "Re-authenticate" in UI or restart channel |
+| `whatsapp bridge_url is required` | Old config still present | Remove `bridge_url` from config/credentials — no longer needed |
+| `whatsapp not connected` on send | Not yet authenticated | Scan QR code via UI wizard first |
+| `logged out` in logs | WhatsApp revoked session | Use "Re-authenticate" button to scan new QR |
+| Group messages ignored | Policy or mention gate | Check `group_policy` and `require_mention` settings |
+| Media download failed | Network or file issue | Check logs; verify temp dir writable; max 20 MB per file |
 
-**Required env var:** `GOCLAW_WHATSAPP_BRIDGE_URL=ws://localhost:29318`
-
-The bridge must be separately authenticated with WhatsApp (QR scan via bridge UI) before GoClaw can send/receive messages.
+Authentication is done via QR scan in the GoClaw UI (Channels > WhatsApp > Re-authenticate).
 
 ---
 

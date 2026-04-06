@@ -272,7 +272,12 @@ Messaging channel configuration.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable WhatsApp channel |
-| `bridge_url` | string | — | WhatsApp bridge service URL |
+| `allow_from` | string[] | — | Allowlist of user/group JIDs |
+| `dm_policy` | string | `"pairing"` | `"pairing"`, `"open"`, `"allowlist"`, `"disabled"` |
+| `group_policy` | string | `"pairing"` (DB) / `"open"` (config) | `"open"`, `"pairing"`, `"allowlist"`, `"disabled"` |
+| `require_mention` | boolean | `false` | Only respond in groups when @mentioned |
+| `history_limit` | int | `200` | Max pending group messages for context (0=disabled) |
+| `block_reply` | boolean | — | Override gateway block_reply (nil=inherit) |
 
 ### `channels.slack`
 

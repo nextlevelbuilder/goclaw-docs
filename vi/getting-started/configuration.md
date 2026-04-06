@@ -574,20 +574,22 @@ Cô lập dựa trên Docker cho thực thi code. Có thể đặt toàn cục h
 ```jsonc
 "whatsapp": {
   "enabled": true,
-  "bridge_url": "http://localhost:8080",
   "allow_from": [],
-  "dm_policy": "open",
-  "group_policy": "disabled",
+  "dm_policy": "pairing",
+  "group_policy": "pairing",
+  "require_mention": false,
+  "history_limit": 200,
   "block_reply": false
 }
 ```
 
 | Trường | Kiểu | Mặc định | Mô tả |
 |--------|------|---------|-------|
-| `bridge_url` | string | — | URL dịch vụ bridge WhatsApp |
 | `allow_from` | []string | — | Số điện thoại/JID được phép |
-| `dm_policy` | string | `"open"` | Chính sách truy cập DM |
-| `group_policy` | string | `"disabled"` | Chính sách truy cập nhóm |
+| `dm_policy` | string | `"pairing"` | Chính sách truy cập DM |
+| `group_policy` | string | `"pairing"` (DB) / `"open"` (config) | Chính sách truy cập nhóm |
+| `require_mention` | bool | `false` | Chỉ trả lời trong nhóm khi được @mention |
+| `history_limit` | int | `200` | Số tin nhắn nhóm tối đa cho ngữ cảnh (0=tắt) |
 | `block_reply` | bool | `false` | Ẩn các phản hồi trung gian |
 
 ### Zalo
