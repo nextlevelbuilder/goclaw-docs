@@ -11,7 +11,7 @@ Complete documentation for all messaging platform integrations in GoClaw.
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
 6. **[Zalo OA](./zalo-oa.md)** — Official Account, DM-only, pairing, images
 7. **[Zalo Personal](./zalo-personal.md)** — Personal account (unofficial), DM + groups
-8. **[WhatsApp](./whatsapp.md)** — External bridge, JSON protocol, auto-reconnect
+8. **[WhatsApp](./whatsapp.md)** — Baileys bridge, QR auth, media, typing indicators, pairing
 9. **[WebSocket](./websocket.md)** — Direct RPC, custom clients, streaming events
 10. **[Browser Pairing](./browser-pairing.md)** — 8-char code auth, session tokens
 
@@ -19,15 +19,15 @@ Complete documentation for all messaging platform integrations in GoClaw.
 
 | Feature | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp | WebSocket |
 |---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
-| **Setup Complexity** | Easy | Easy | Easy | Medium | Medium | Hard | Hard | Very Easy |
-| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Bridge | WebSocket |
+| **Setup Complexity** | Easy | Easy | Easy | Medium | Medium | Hard | Medium | Very Easy |
+| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Baileys Bridge | WebSocket |
 | **DM Support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | N/A |
 | **Group Support** | Yes | Yes | Yes | Yes | No | Yes | Yes | N/A |
 | **Streaming** | Yes | Yes | Yes | Yes | No | No | No | Yes |
-| **Rich Format** | HTML | Markdown | mrkdwn | Cards | Plain | Plain | JSON | JSON |
+| **Rich Format** | HTML | Markdown | mrkdwn | Cards | Plain | Plain | WA native | JSON |
 | **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- | -- |
-| **Media** | Photos, Voice, Files | Files, Embeds | Files (20MB) | Images, Files | Images | -- | JSON | N/A |
-| **Auth Method** | Token | Token | 3 Tokens | App ID + Secret | API Key | Credentials | Bridge | Token + Pairing |
+| **Media** | Photos, Voice, Files | Files, Embeds | Files (20MB) | Images, Files | Images | -- | Images, Video, Audio, Docs | N/A |
+| **Auth Method** | Token | Token | 3 Tokens | App ID + Secret | API Key | Credentials | QR Code | Token + Pairing |
 | **Risk Level** | Low | Low | Low | Low | Low | High | Medium | Low |
 
 ## Configuration Files
@@ -142,9 +142,11 @@ Flexible format supporting:
 
 ### WhatsApp
 
-- [ ] Deploy WhatsApp bridge service (e.g., whatsapp-web.js)
-- [ ] Copy WebSocket URL
-- [ ] Enable in config
+- [ ] Deploy bridge: `docker compose -f docker-compose.whatsapp.yml up -d` (or `cd bridge/whatsapp && npm install && node server.js`)
+- [ ] Create channel in UI: Channels > Add Channel > WhatsApp
+- [ ] Set Bridge URL (e.g., `ws://whatsapp-bridge:3001`)
+- [ ] Scan QR code with WhatsApp (You > Linked Devices > Link a Device)
+- [ ] Configure DM/group policies as needed
 
 ### WebSocket
 
