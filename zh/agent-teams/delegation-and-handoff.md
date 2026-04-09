@@ -34,8 +34,8 @@ flowchart TD
 ```json
 {
   "action": "create",
-  "subject": "Analyze the market trends in the Q1 report",
-  "description": "Focus on Q1 revenue data and competitor analysis",
+  "subject": "分析 Q1 报告中的市场趋势",
+  "description": "重点关注 Q1 营收数据和竞争对手分析",
   "assignee": "analyst_agent"
 }
 ```
@@ -51,17 +51,95 @@ flowchart TD
 - 分派给 lead agent 的任务被阻塞并自动失败
 - 成员请求（非 lead）可选择在分派前要求 lead 审批
 
+> **V2 Lead**：团队 V2 lead 在当前回合未发出 spawn 前不能手动创建任务。这可防止过早创建任务破坏结构化编排流程。
+
 ## 并行委派
 
 在同一个回合中创建多个任务——它们在回合结束后同时分派：
 
 ```json
 // Lead 在一个回合中创建 2 个任务
-{"action": "create", "subject": "Extract facts", "assignee": "analyst1"}
-{"action": "create", "subject": "Extract opinions", "assignee": "analyst2"}
+{"action": "create", "subject": "提取事实", "assignee": "analyst1"}
+{"action": "create", "subject": "提取观点", "assignee": "analyst2"}
 ```
 
-所有任务完成后，结果一起收集并通报。
+结果通过**生产者-消费者通告队列**（`BatchQueue[T]`）收集，将零散完成的结果合并为单次 LLM 通告运行。Lead 收到一条合并消息，而非每个成员分别打断——显著降低 token 开销。
+
+## 并行子 Agent 增强（#600）
+
+除了向团队成员委派外，lead 还可以使用 `spawn` 工具为不需要特定团队成员的并行工作负载生成**自克隆子 agent**：
+
+```json
+{"action": "spawn", "task": "总结 PDF 报告", "label": "pdf-summarizer"}
+```
+
+并行子 agent 增强引入的关键行为：
+
+### 智能 Leader 委派
+
+leader 委派提示是**条件性的**——仅在情况真正需要委派时激活，而非强制应用于每次 spawn。这避免了在直接回复更合适时浪费 LLM 回合。
+
+### `spawn(action=wait)` — WaitAll 编排
+
+阻塞父 agent，直到所有已 spawn 的子 agent 完成：
+
+```json
+{"action": "wait", "timeout": 300}
+```
+
+- 父 agent 回合暂停，直到所有活跃子 agent 完成（或超时）
+- 支持需要 lead 先获取所有结果再继续的协调式多步骤工作流
+- 默认超时：300 秒
+
+### 线性退避自动重试
+
+子 agent LLM 失败时触发自动重试。通过 `SubagentConfig` 配置：
+
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `MaxRetries` | `2` | 每个子 agent 最大重试次数 |
+| 退避 | 线性 | 每次重试等待 `attempt × 2s` 后再运行 |
+
+### 按 Edition 的速率限制
+
+Edition 结构上的租户范围并发限制：
+
+| 限制 | 字段 | 说明 |
+|------|------|------|
+| 并发子 agent | `MaxSubagentConcurrent` | 每个租户最大同时子 agent 数 |
+| Spawn 深度 | `MaxSubagentDepth` | 最大嵌套深度（子 agent spawn 子 agent） |
+
+达到限制时，spawn 被拒绝并返回明确错误，便于 LLM 调整策略。
+
+### `subagent_tasks` 表（Migration 34）
+
+子 agent 任务状态持久化到 `subagent_tasks` 数据库表（migration 000034）。带 PostgreSQL 实现的 `SubagentTaskStore` 接口提供：
+- 跨重启的持久任务跟踪
+- 来自 `SubagentManager` 的写透持久化
+- 每个任务的 token 成本存储
+
+### Token 成本追踪
+
+每个子 agent 的输入和输出 token 数量被累计并包含在：
+- 发送给 lead 的通告消息中
+- `subagent_tasks` DB 记录中（用于计费和可观测性）
+
+### Compaction 提示持久化
+
+当 lead agent 的 context 被压缩（摘要化）时，待处理的子 agent 和团队任务状态会保留在压缩提示中。工作连续性得以维持——lead 在摘要化后不会丢失对进行中任务的跟踪。
+
+### Telegram 命令
+
+两个 Telegram bot 命令可用于监控子 agent 工作：
+
+| 命令 | 说明 |
+|------|------|
+| `/subagents` | 列出所有活跃子 agent 任务及状态 |
+| `/subagent <id>` | 从 DB 显示特定子 agent 任务的详情 |
+
+### 子 Agent 工具限制
+
+`team_tasks` 通过 `SubagentDenyAlways` 在子 agent 内部被阻止。子 agent 不能创建团队任务或执行团队编排——只有 lead 才能协调团队任务板。
 
 ## 自动完成与产出物
 
@@ -81,16 +159,14 @@ flowchart TD
 
 ## 委派搜索
 
-当 agent 的委派目标过多，超出静态 `AGENTS.md` 的范围（>15 个），使用委派搜索：
+当 agent 的委派目标过多，超出静态 `AGENTS.md` 的范围（>15 个），使用 `delegate_search` 工具：
 
 ```json
 {
-  "query": "data analysis and visualization",
+  "query": "数据分析和可视化",
   "max_results": 5
 }
 ```
-
-使用 `delegate_search` 工具并传入上述参数。
 
 **搜索范围**：
 - Agent 名称和 key（全文搜索）
@@ -138,7 +214,7 @@ flowchart TD
 {
   "action": "transfer",
   "agent": "specialist_agent",
-  "reason": "You need specialist expertise for the next part of your request",
+  "reason": "您的请求下一部分需要专家知识",
   "transfer_context": true
 }
 ```
@@ -176,10 +252,10 @@ flowchart TD
 发送给目标 agent 的 handoff 通知：
 ```
 [Handoff from researcher_agent]
-Reason: You need specialist expertise for the next part of your request
+Reason: 您的请求下一部分需要专家知识
 
 Conversation context:
-[recent conversation summary]
+[最近对话摘要]
 
 Please greet the user and continue the conversation.
 ```
@@ -196,11 +272,11 @@ Please greet the user and continue the conversation.
 对于迭代工作，使用带任务创建的评估模式：
 
 ```json
-{"action": "create", "subject": "Generate initial proposal", "assignee": "generator_agent"}
+{"action": "create", "subject": "生成初始提案", "assignee": "generator_agent"}
 
 // 等待结果，然后：
 
-{"action": "create", "subject": "Review proposal and provide feedback", "assignee": "evaluator_agent"}
+{"action": "create", "subject": "审阅提案并提供反馈", "assignee": "evaluator_agent"}
 
 // Generator 根据反馈进行优化...
 ```
@@ -225,8 +301,8 @@ Please greet the user and continue the conversation.
 2. **不要用 `spawn` 进行委派**：`spawn` 仅用于自克隆，不用于团队成员
 3. **一个回合中创建多个任务**：它们在回合结束后并行分派
 4. **使用 `blocked_by`**：通过依赖关系协调任务顺序
-5. **关联依赖**：在任务板上使用 `blocked_by` 协调执行顺序
+5. **使用 `spawn(action=wait)`**：当 lead 需要所有结果后再继续时
 6. **优雅处理 handoff**：通知用户转移；传递 context
 7. **在指令中设置迭代限制**：防止无限评估循环
 
-<!-- goclaw-source: 0dab087f | 更新: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

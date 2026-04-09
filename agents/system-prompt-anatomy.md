@@ -6,9 +6,16 @@
 
 Every time an agent runs, GoClaw assembles a **system prompt** from up to 23 sections. Sections are ordered strategically using **primacy and recency bias**: persona files appear both early (section 1.7) and late (section 16) to prevent drift in long conversations. Safety comes first, tooling next, then context. Some sections are always included; others depend on agent configuration.
 
-Two **prompt modes** exist:
-- **Full mode** (main agent): all sections, full context
-- **Minimal mode** (subagents/cron): reduced sections, faster startup
+Four **prompt modes** exist:
+
+| Mode | Used for | Description |
+|------|----------|-------------|
+| `full` | Main user-facing agents | All sections — complete context, persona, memory, skills |
+| `task` | Enterprise automation agents | Lean but capable — execution bias, skills search, safety slim |
+| `minimal` | Subagents spawned via `spawn`, cron sessions | Reduced sections, faster startup |
+| `none` | Identity-only contexts | Identity line only |
+
+Mode is resolved in priority order: runtime override → auto-detect (heartbeat/subagent/cron) → agent config → default (`full`).
 
 ## All Sections in Order
 
@@ -28,6 +35,7 @@ Two **prompt modes** exist:
 | 6 | Workspace | ✓ | ✓ | Working directory, file paths |
 | 6.3 | Team Workspace | ✓ | ✓ | Shared workspace path and auto-status guidance (team agents only) |
 | 6.4 | Team Members | ✓ | ✓ | Team roster for task assignment (team agents only) |
+| 6.45 | Delegation Targets | ✓ | ✓ | Agent link targets for `delegate` tool (ModeDelegate/ModeTeam only) |
 | 6.5 | Sandbox | ✓ | ✓ | Sandbox-specific guidance (if sandbox enabled) |
 | 7 | User Identity | ✓ | ✗ | Owner ID(s) |
 | 8 | Time | ✓ | ✓ | Current date/time |
@@ -49,26 +57,57 @@ GoClaw uses a deliberate **primacy + recency** pattern to prevent persona drift:
 
 This means persona files appear **twice**: once at the top, once at the bottom. The ~30-token cost is worth it for long conversations where the middle content can cause the model to "forget" its character.
 
-## Minimal vs. Full Mode
+## Mode Differences
 
-### When Minimal Mode Is Used
+### When Each Mode Is Used
 
-Minimal mode is used for:
-- **Subagents** spawned via the `spawn` tool
-- **Cron sessions** (scheduled/automated tasks)
+| Mode | Triggered by |
+|------|-------------|
+| `full` | Default for user-facing agents |
+| `task` | Enterprise automation agents (set via `prompt_mode` config), or cron/subagent sessions capped at task |
+| `minimal` | Subagents spawned via `spawn` (auto-detected from session key) |
+| `none` | Rare — identity-only contexts |
 
-Why? To reduce startup time and context usage. Subagents don't need user identity, memory recall, or messaging guidance — they just need tooling and safety.
+### Section Differences by Mode
 
-### Section Differences
+| Section | Full | Task | Minimal | None |
+|---------|:----:|:----:|:-------:|:----:|
+| Identity | ✓ | ✓ | ✓ | ✓ |
+| First-Run Bootstrap | ✓ | ✓ | ✓ | ✓ |
+| Persona | ✓ | ✓ | ✗ | ✗ |
+| Tooling | ✓ | ✓ | ✓ | ✓ |
+| Execution Bias | ✓ | ✓ | ✗ | ✗ |
+| Tool Call Style | ✓ | ✗ | ✗ | ✗ |
+| Safety | full | slim | slim | slim |
+| Self-Evolution | ✓ | ✗ | ✗ | ✗ |
+| Skills | ✓ | search-only | pinned only | ✗ |
+| MCP Tools | ✓ | ✓ | ✗ | search-only |
+| Workspace | ✓ | ✓ | ✓ | ✓ |
+| Team / Delegation | ✓ | ✓ | ✓ | ✗ |
+| Sandbox | ✓ | ✗ | ✗ | ✗ |
+| User Identity | ✓ | ✗ | ✗ | ✗ |
+| Time | ✓ | ✓ | ✓ | ✗ |
+| Channel Formatting | ✓ | ✗ | ✗ | ✗ |
+| Memory Recall | full | slim | minimal | ✗ |
+| Project Context | ✓ | ✓ | ✓ | ✓ |
+| Sub-Agent Spawning | ✓ | ✗ | ✗ | ✗ |
+| Recency Reinforcements | ✓ | ✗ | ✗ | ✗ |
 
-**Sections Only in Full Mode**:
-- Skills (section 4)
-- MCP Tools (section 4.5)
-- User Identity (section 7)
-- Memory Recall (section 12.5)
+## Prompt Cache Boundary
 
-**Sections in Both**:
-- All others (Identity, First-Run Bootstrap, Persona, Tooling, Tool Call Style, Credentialed CLI, Safety, Identity Anchoring, Self-Evolution, Workspace, Team Workspace, Team Members, Sandbox, Time, Channel Formatting, Group Chat Reply Hint, Additional Context, Project Context, Sub-Agent Spawning, Runtime, Recency Reinforcements)
+GoClaw splits the system prompt at a hidden marker to enable Anthropic's prompt caching:
+
+```
+<!-- GOCLAW_CACHE_BOUNDARY -->
+```
+
+**Above the boundary (stable — cached):** Identity, Persona, Tooling, Safety, Skills, MCP Tools, Workspace, Team sections, Sandbox, User Identity, Project Context stable files (AGENTS.md, AGENTS_CORE.md, AGENTS_TASK.md, CAPABILITIES.md, USER_PREDEFINED.md).
+
+**Below the boundary (dynamic — not cached):** Time, Channel Formatting Hints, Group Chat Reply Hint, Extra Prompt, Project Context dynamic files (USER.md, BOOTSTRAP.md), Sub-Agent Spawning, Runtime, Recency Reinforcements.
+
+This split is transparent to the model. For non-Anthropic providers the boundary marker is still inserted but has no effect.
+
+---
 
 ## Truncation Pipeline
 
@@ -378,4 +417,4 @@ This agent will:
 - [Context Files — Add project-specific context](/context-files)
 - [Creating Agents — Set up system prompt configuration](/creating-agents)
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

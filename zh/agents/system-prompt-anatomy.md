@@ -8,9 +8,16 @@
 
 每次 agent 运行时，GoClaw 会从最多 23 个部分组装一个 **system prompt**。各部分按策略排序，利用**首因与近因效应**：persona 文件同时出现在开头（1.7 节）和结尾（16 节），以防止长对话中的漂移。安全规则优先，其次是工具，然后是 context。部分章节始终包含；其他章节取决于 agent 配置。
 
-存在两种 **prompt 模式**：
-- **Full 模式**（主 agent）：所有部分，完整 context
-- **Minimal 模式**（子 agent/定时任务）：精简部分，快速启动
+存在四种 **prompt 模式**：
+
+| Mode | 适用对象 | 说明 |
+|------|---------|------|
+| `full` | 直接面向用户的 agent | 完整——persona、skills、memory、spawn guidance |
+| `task` | 企业自动化 agent | 精简但功能完整——execution bias、skills search |
+| `minimal` | spawn 创建的子 agent、cron session | 缩减——tooling、safety、workspace |
+| `none` | 仅 identity（罕见） | 仅 identity 行 |
+
+Mode 优先级解析：runtime override → 自动检测 → agent config → 默认（`full`）。
 
 ## 所有部分（按顺序）
 
@@ -30,6 +37,7 @@
 | 6 | Workspace | ✓ | ✓ | 工作目录、文件路径 |
 | 6.3 | Team Workspace | ✓ | ✓ | 共享 workspace 路径与自动状态引导（仅团队 agent） |
 | 6.4 | Team Members | ✓ | ✓ | 用于任务分配的团队成员列表（仅团队 agent） |
+| 6.45 | Delegation Targets | ✓ | ✓ | 可委托的 agent 列表（仅 ModeDelegate/ModeTeam） |
 | 6.5 | Sandbox | ✓ | ✓ | Sandbox 专用引导（若启用 sandbox） |
 | 7 | User Identity | ✓ | ✗ | 所有者 ID |
 | 8 | Time | ✓ | ✓ | 当前日期/时间 |
@@ -71,6 +79,22 @@ Minimal 模式用于：
 
 **两种模式都包含的部分**：
 - 其他所有部分（Identity、First-Run Bootstrap、Persona、Tooling、Tool Call Style、Credentialed CLI、Safety、Identity Anchoring、Self-Evolution、Workspace、Team Workspace、Team Members、Sandbox、Time、Channel Formatting、Group Chat Reply Hint、Additional Context、Project Context、Sub-Agent Spawning、Runtime、Recency Reinforcements）
+
+## 提示缓存边界
+
+GoClaw 在隐藏标记处分割 system prompt，以支持 Anthropic 提示缓存：
+
+```
+<!-- GOCLAW_CACHE_BOUNDARY -->
+```
+
+**边界上方（稳定——已缓存）：** Identity、Persona、Tooling、Safety、Skills、MCP Tools、Workspace、Team sections、Sandbox、User Identity、稳定 Project Context 文件（AGENTS.md、AGENTS_CORE.md、AGENTS_TASK.md、CAPABILITIES.md、USER_PREDEFINED.md）。
+
+**边界下方（动态——不缓存）：** Time、Channel Formatting Hints、Group Chat Reply Hint、Extra Prompt、动态 Project Context 文件（USER.md、BOOTSTRAP.md）、Runtime、Recency Reinforcements。
+
+该分割对模型透明。对于非 Anthropic provider，标记仍会插入但不起作用。
+
+---
 
 ## 截断流程
 
@@ -380,4 +404,4 @@ Reminder: Before answering questions about prior work, decisions, or preferences
 - [Context Files — 添加项目专属 context](/context-files)
 - [Creating Agents — 设置 system prompt 配置](/creating-agents)
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

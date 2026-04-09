@@ -8,7 +8,7 @@ GoClaw includes three subsystems that allow predefined agents to evolve their be
 
 | Subsystem | What it does | Config key |
 |---|---|---|
-| Self-Evolution | Agent refines its own tone and voice via SOUL.md | `self_evolve` |
+| Self-Evolution | Agent refines its own tone/voice (SOUL.md) and domain expertise (CAPABILITIES.md) | `self_evolve` |
 | Skill Learning Loop | Agent captures reusable workflows as skills | `skill_evolve` |
 | Skill Management | Create, patch, delete, and grant skills | `skill_manage` tool |
 
@@ -16,11 +16,16 @@ Both `self_evolve` and `skill_evolve` are disabled by default. Enable them per-a
 
 ---
 
-## Self-Evolution (SOUL.md)
+## Self-Evolution (SOUL.md + CAPABILITIES.md)
 
 ### What it does
 
-When `self_evolve` is enabled, an agent can update its own `SOUL.md` file during conversation to refine how it communicates. There is no dedicated tool for this — the agent uses the standard `write_file` tool. A context file interceptor ensures only `SOUL.md` is writable; `IDENTITY.md` and `AGENTS.md` remain locked regardless.
+When `self_evolve` is enabled, an agent can update two of its own context files during conversation:
+
+- **`SOUL.md`** — to refine communication style (tone, voice, vocabulary, response style)
+- **`CAPABILITIES.md`** — to refine domain expertise, technical skills, and specialized knowledge
+
+There is no dedicated tool for this — the agent uses the standard `write_file` tool. A context file interceptor ensures only `SOUL.md` and `CAPABILITIES.md` are writable; `IDENTITY.md` and `AGENTS.md` remain locked regardless.
 
 Changes happen incrementally. The agent is guided to update only when it notices clear patterns in user feedback — not on every turn.
 
@@ -39,30 +44,20 @@ When `self_evolve=true`, GoClaw injects this guidance into the system prompt (~9
 ```
 ## Self-Evolution
 
-You have self-evolution enabled. You may update your SOUL.md file to
-refine your communication style over time.
-
-What you CAN evolve in SOUL.md:
-- Tone, voice, and manner of speaking
-- Response style and formatting preferences
-- Vocabulary and phrasing patterns
-- Interaction patterns based on user feedback
-
-What you MUST NOT change:
-- Your name, identity, or contact information
-- Your core purpose or role
-- Any content in IDENTITY.md or AGENTS.md (these remain locked)
-
-Make changes incrementally. Only update SOUL.md when you notice clear
-patterns in user feedback or interaction style preferences.
+You may update SOUL.md to refine communication style (tone, voice, vocabulary, response style).
+You may update CAPABILITIES.md to refine domain expertise, technical skills, and specialized knowledge.
+MUST NOT change: name, identity, contact info, core purpose, IDENTITY.md, or AGENTS.md.
+Make changes incrementally based on clear user feedback patterns.
 ```
+
+> Source: `buildSelfEvolveSection()` in `internal/agent/systemprompt.go`.
 
 ### Security
 
 | Layer | What it enforces |
 |---|---|
 | System prompt guidance | CAN/MUST NOT rules limit scope |
-| Context file interceptor | Validates that only SOUL.md is written |
+| Context file interceptor | Validates that only SOUL.md or CAPABILITIES.md is written |
 | File locking | IDENTITY.md and AGENTS.md are always read-only |
 
 ---
@@ -332,6 +327,89 @@ Maximum overhead per run with both features enabled: ~305 tokens for skill learn
 
 ---
 
+## v3: Evolution Metrics and Suggestion Engine
+
+v3 adds automated, metrics-driven evolution for predefined agents. This operates separately from the manual skill learning loop above.
+
+### How It Works
+
+```
+Metrics collected during agent runs (7-day rolling window)
+    ↓
+SuggestionEngine.Analyze() — runs daily via cron
+    ├─ LowRetrievalUsageRule  (avg recall < threshold)
+    ├─ ToolFailureRule         (single tool failure rate > 20%)
+    └─ RepeatedToolRule        (tool called 5+ consecutive times)
+    ↓
+Suggestion created with status "pending"
+    ↓
+Admin reviews → approve / reject / rollback
+```
+
+### Metric Types
+
+| Type | What is tracked | Examples |
+|------|----------------|---------|
+| `tool` | Per-tool performance | invocation_count, success_rate, failure_count, avg_duration_ms |
+| `retrieval` | Knowledge retrieval quality | recall_rate, precision, relevance_score |
+| `feedback` | User satisfaction signals | rating, sentiment, effectiveness_score |
+
+Metrics aggregate over 7-day rolling windows. At least 100 data points are required before a suggestion can be auto-applied (configurable via `min_data_points` guardrail).
+
+### Suggestion Types
+
+| Type | Trigger | Recommendation |
+|------|---------|----------------|
+| `low_retrieval_usage` | Avg recall below threshold for 7 days | Lower `retrieval_threshold` by ≤ 0.1 |
+| `tool_failure` | Single tool failure rate > 20% | Review tool config or add fallback |
+| `repeated_tool` | Same tool called 5+ consecutive times | Extract workflow as a skill |
+
+Only one pending suggestion of each type per agent exists at a time (duplicate prevention).
+
+### Auto-Adapt Guardrails
+
+Suggestions can be auto-applied when approved. Guardrails prevent runaway parameter changes:
+
+| Guardrail | Default | Purpose |
+|-----------|---------|---------|
+| `max_delta_per_cycle` | 0.1 | Max parameter change per apply cycle |
+| `min_data_points` | 100 | Minimum metrics required before applying |
+| `rollback_on_drop_pct` | 20.0 | Auto-rollback if quality drops >20% after apply |
+| `locked_params` | `[]` | Parameters that cannot be auto-changed |
+
+Baseline parameter values are stored in the suggestion's `parameters._baseline` field for rollback.
+
+### Evolution Cron
+
+Analysis runs on a configurable schedule (default: daily at 02:00). Set via `evolution_cron_schedule` in agent config:
+
+```json
+{
+  "evolution_enabled": true,
+  "evolution_cron_schedule": "every day at 02:00",
+  "evolution_guardrails": {
+    "max_delta_per_cycle": 0.1,
+    "min_data_points": 100,
+    "rollback_on_drop_pct": 20.0,
+    "locked_params": []
+  }
+}
+```
+
+Set `evolution_enabled: false` to disable all metrics collection for an agent.
+
+### HTTP API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/evolution/metrics` | Query/aggregate metrics |
+| `GET` | `/v1/agents/{id}/evolution/suggestions` | List suggestions |
+| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{sid}` | Approve / reject / rollback |
+
+WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`, `agent.evolution.apply`, `agent.evolution.rollback`.
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -351,4 +429,4 @@ Maximum overhead per run with both features enabled: ~305 tokens for skill learn
 - [Predefined Agents](../core-concepts/predefined-agents.md) — how predefined agents differ from open agents
 - [publish_skill](./skill-publishing.md) — directory-based skill publishing
 
-<!-- goclaw-source: b9d8754 | updated: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

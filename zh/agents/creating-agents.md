@@ -175,10 +175,33 @@ curl -X POST http://localhost:8080/v1/agents \
 | Summoning 耗时过长或失败 | 检查 LLM provider 连接和模型可用性，失败后模板文件仍作为备用 |
 | Provider 或 model 未识别 | 确保 provider 已在 `GOCLAW_CONFIG` 中配置，参阅 provider 文档确认正确的模型名称 |
 
+## 启动模板（Bootstrap Templates）
+
+创建 agent 时，GoClaw 从内置模板 seed context 文件。seed 的文件集取决于 agent 类型：
+
+**Open agents（用户首次聊天时）：**
+
+| 文件 | 模板 | 用途 |
+|------|------|------|
+| `SOUL.md` | `SOUL.md` 模板 | Personality、tone、边界 |
+| `IDENTITY.md` | `IDENTITY.md` 模板 | 名称、creature、emoji |
+| `USER.md` | `USER.md` 模板 | 用户上下文（姓名、语言、时区） |
+| `BOOTSTRAP.md` | `BOOTSTRAP.md` 模板 | 首次运行对话脚本 |
+| `AGENTS_CORE.md` | `AGENTS_CORE.md` 模板 | 核心操作规则 |
+| `AGENTS_TASK.md` | `AGENTS_TASK.md` 模板 | 任务/自动化规则 |
+| `CAPABILITIES.md` | `CAPABILITIES.md` 模板 | 领域专业知识占位符 |
+
+**v3 新增模板：**
+- **`AGENTS_CORE.md`** — 向所有 agent 注入核心操作规则（语言匹配、系统消息处理）
+- **`AGENTS_TASK.md`** — 补充任务/自动化规则（memory、调度）
+- **`CAPABILITIES.md`** — 将领域专业知识与 persona 分离（SOUL.md 是*你是谁*；CAPABILITIES.md 是*你知道什么*）
+
+---
+
 ## 下一步
 
 - [Open vs. Predefined](/open-vs-predefined) — 了解 context 隔离差异
 - [Context Files](/context-files) — 学习 SOUL.md、IDENTITY.md 等系统文件
 - [Summoning & Bootstrap](/summoning-bootstrap) — LLM 如何在首次使用时生成 personality 文件
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

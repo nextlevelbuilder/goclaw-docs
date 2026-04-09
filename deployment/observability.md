@@ -33,13 +33,20 @@ Traces and spans are linked by `trace_id`. Each agent run creates one trace; LLM
 |-----------|-----------------|
 | `llm_call` | Model, tokens in/out, finish reason, latency |
 | `tool_call` | Tool name, call ID, duration, status |
-| `agent_run` | Full run lifecycle, output preview |
+| `agent` | Full run lifecycle, output preview |
+| `embedding` | Embedding generation for vector store operations |
+| `event` | Discrete event marker (no duration) |
 
 ## Viewing Traces
 
 ### Dashboard
 
 Open the **Traces** section in the web UI (default: `http://localhost:18790`). You can filter by agent, date range, and status.
+
+The Traces UI includes:
+- **Timestamps** on each span for precise timing
+- **Copy button** on span details for easy export of trace data
+- **Syntax highlighting** on JSON payloads in span previews
 
 ### Verbose Mode
 
@@ -50,11 +57,50 @@ export GOCLAW_TRACE_VERBOSE=1
 ./goclaw
 ```
 
+In verbose mode, LLM spans store full input/output up to 200 KB; tool spans store full input and output up to 200 KB.
+
 > Use verbose mode only in dev — full messages can be large.
+
+## Trace Export
+
+Individual traces (including all spans and sub-traces) can be exported via HTTP:
+
+```
+GET /v1/traces/{traceID}/export
+```
+
+The response is **gzip-compressed JSON** containing the trace, its spans, and recursively collected child traces (`sub_traces`). This is useful for offline analysis, bug reports, or archiving long agent runs.
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:18790/v1/traces/{traceID}/export \
+  --output trace.json.gz
+
+gunzip trace.json.gz
+```
+
+## Trace HTTP API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/traces` | List traces with pagination and filters |
+| GET | `/v1/traces/{id}` | Get trace details with all spans |
+| GET | `/v1/traces/{id}/export` | Export trace + sub-traces as gzip JSON |
+
+### Query Filters (GET /v1/traces)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agent_id` | UUID | Filter by agent |
+| `user_id` | string | Filter by user |
+| `status` | string | `running`, `success`, `error`, `cancelled` |
+| `from` / `to` | timestamp | Date range filter |
+| `limit` | int | Page size (default 50) |
+| `offset` | int | Pagination offset |
 
 ## OpenTelemetry Export
 
-The OTel exporter is compiled in only when you add `-tags otel`. The default build has zero OTel dependencies.
+The OTel exporter is compiled in only when you add `-tags otel`. The default build has zero OTel dependencies, saving approximately 15–20 MB from the binary.
 
 ### Build with OTel support
 
@@ -87,6 +133,8 @@ Or via `config.json`:
 ```
 
 Spans are exported using `gen_ai.*` semantic conventions (OpenTelemetry GenAI SIG), plus `goclaw.*` custom attributes for correlation with the PostgreSQL trace store.
+
+The OTel exporter batches spans with a max batch size of 100 and a 5-second timeout.
 
 ## Jaeger Integration
 
@@ -136,16 +184,16 @@ services:
 | `gen_ai.usage.input_tokens` | Tokens consumed as input |
 | `gen_ai.usage.output_tokens` | Tokens produced as output |
 | `gen_ai.response.finish_reason` | Why the model stopped |
-| `goclaw.span_type` | `llm_call`, `tool_call`, `agent_run` |
+| `goclaw.span_type` | `llm_call`, `tool_call`, `agent`, `embedding`, `event` |
 | `goclaw.tool.name` | Tool name for tool spans |
 | `goclaw.trace_id` | UUID linking back to PostgreSQL |
 | `goclaw.duration_ms` | Wall-clock duration |
 
 ## Usage Analytics
 
-GoClaw aggregates token counts and costs into hourly snapshots via a background worker. These power the dashboard's usage charts and the `/v1/usage` API endpoint.
+GoClaw aggregates token counts and costs into hourly snapshots via a background worker (runs at HH:05:00 UTC). These power the dashboard's usage charts and the `/v1/usage` API endpoint.
 
-The `usage_snapshots` table stores pre-computed aggregates per agent, user, and provider — so dashboard queries stay fast even with millions of spans.
+The `usage_snapshots` table stores pre-computed aggregates per agent, user, and provider — so dashboard queries stay fast even with millions of spans. On startup, the worker backfills any missed hours automatically.
 
 An `activity_logs` table records admin actions, config changes, and security events as an audit trail.
 
@@ -175,4 +223,4 @@ This means dashboard users see real-time logs without SSH access, and secrets ne
 - [Docker Compose Setup](/deploy-docker-compose) — full compose file reference
 - [Security Hardening](/deploy-security) — securing your deployment
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

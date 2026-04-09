@@ -2,11 +2,11 @@
 
 # Thiết lập Database
 
-> GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` để lưu trữ đa tenant, tìm kiếm memory, và theo dõi usage.
+> GoClaw yêu cầu **PostgreSQL 15+** với `pgvector` để lưu trữ đa tenant, tìm kiếm memory ngữ nghĩa, và tính năng Knowledge Vault. Backend **SQLite** cũng có cho bản desktop (single-user) với tính năng bị giới hạn — xem [SQLite vs PostgreSQL](#sqlite-vs-postgresql) bên dưới.
 
 ## Tổng quan
 
-Toàn bộ state lâu dài đều nằm trong PostgreSQL: agents, sessions, memory, traces, skills, cron jobs, và channel configs. Schema được quản lý qua các file migration đánh số trong `migrations/`. Cần hai extension: `pgcrypto` (tạo UUID) và `vector` (tìm kiếm memory theo ngữ nghĩa qua pgvector).
+Toàn bộ state lâu dài đều nằm trong PostgreSQL: agents, sessions, memory, traces, skills, cron jobs, channel configs, tài liệu Knowledge Vault, và episodic summaries. Schema được quản lý qua các file migration đánh số trong `migrations/`. Cần hai extension: `pgcrypto` (tạo UUID) và `vector` (tìm kiếm memory theo ngữ nghĩa qua pgvector).
 
 ---
 
@@ -136,10 +136,37 @@ docker compose \
 | `000019_team_id_columns` | FK `team_id` trên memory, KG, traces, spans, cron, sessions (9 bảng) |
 | `000020_secure_cli_and_api_keys` | `secure_cli_binaries` để exec có xác thực; `api_keys` cho auth chi tiết |
 | `000021_paired_devices_expiry` | `expires_at` trên paired devices; `confidence_score` trên team tasks, messages, comments |
+| `000022`–`000036` | Heartbeats, hard-delete agent, team attachments refactor, KG semantic search, tenant foundation, subagent tasks, CLI grants — xem [Database Schema → Lịch sử Migration](/database-schema) |
+| `000037_v3_memory_evolution` | **v3** — `episodic_summaries`, `agent_evolution_metrics`, `agent_evolution_suggestions`; cột temporal KG; 12 trường agent promote từ `other_config` JSONB |
+| `000038_vault_tables` | **v3** — `vault_documents`, `vault_links`, `vault_versions` cho Knowledge Vault |
+| `000039_episodic_summaries` | Xóa dữ liệu `agent_links` cũ |
+| `000040_episodic_search_index` | Thêm cột FTS generated `search_vector` + HNSW index vào `episodic_summaries` |
+| `000041_episodic_promoted` | Thêm cột `promoted_at` cho long-term memory promotion pipeline |
+| `000042_vault_tsv_summary` | Thêm cột `summary` vào `vault_documents`; tái tạo FTS bao gồm summary |
+| `000043_vault_team_custom_scope` | Thêm `team_id`, `custom_scope` vào `vault_documents` và 9 bảng khác; unique constraint hỗ trợ team; trigger sửa scope |
+| `000044_seed_agents_core_task_files` | Seed `AGENTS_CORE.md` và `AGENTS_TASK.md`; xóa `AGENTS_MINIMAL.md` |
 
 > **Data hooks:** GoClaw theo dõi các Go transform sau migration trong bảng `data_migrations` riêng. Chạy `./goclaw upgrade --status` để xem cả phiên bản SQL migration và các data hook đang chờ.
 
-Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản 20.
+Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **44**.
+
+---
+
+## SQLite vs PostgreSQL
+
+GoClaw v3 hỗ trợ hai backend database:
+
+| Tính năng | PostgreSQL | SQLite (desktop) |
+|-----------|-----------|-----------------|
+| Schema đầy đủ (44 migration) | Có | Có |
+| Tìm kiếm vector similarity (HNSW) | Có — pgvector | Không |
+| Tìm kiếm vector episodic summaries | Có | Chỉ FTS |
+| Knowledge Vault tự động liên kết | Có — ngưỡng 0.7 | Không (chỉ tóm tắt) |
+| Tìm kiếm ngữ nghĩa `kg_entities` | Có | Không |
+| Multi-tenant | Có | Single-tenant |
+| Connection pooling | Có — pgx/v5, 25 max | N/A (embedded) |
+
+Dùng PostgreSQL cho tất cả triển khai production và multi-user. SQLite chỉ hỗ trợ trong bản desktop (single-binary) và không có vector operations.
 
 ---
 
@@ -155,16 +182,21 @@ Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện 
 | `embedding_cache` | Cached embeddings theo content hash + model |
 | `llm_providers` | LLM provider configs (API key mã hóa AES-256-GCM) |
 | `mcp_servers` | Kết nối MCP server bên ngoài |
-| `custom_tools` | Dynamic shell-backed tools |
 | `cron_jobs` / `cron_run_logs` | Scheduled tasks và lịch sử chạy |
 | `skills` | Skill files với BM25 + vector search |
 | `channel_instances` | Cấu hình messaging channel (Telegram, Discord, v.v.) |
 | `activity_logs` | Audit trail — hành động admin, thay đổi config, sự kiện bảo mật |
 | `usage_snapshots` | Tổng hợp token count và chi phí theo giờ mỗi agent/user |
-| `kg_entities` / `kg_relations` | Knowledge graph — entity và quan hệ theo ngữ nghĩa |
+| `kg_entities` / `kg_relations` | Knowledge graph — entity và quan hệ (v3: temporal validity qua `valid_from`/`valid_until`) |
 | `channel_contacts` | Danh bạ liên lạc thống nhất đồng bộ từ tất cả channel |
 | `channel_pending_messages` | Buffer tin nhắn nhóm đang chờ để xử lý hàng loạt |
 | `api_keys` | API key có phạm vi với SHA-256 hash lookup và thu hồi |
+| `episodic_summaries` | **v3** — Bộ nhớ Tầng 2: tóm tắt session nén với FTS và vector search |
+| `agent_evolution_metrics` | **v3** — Self-evolution Giai đoạn 1: quan sát metric thô |
+| `agent_evolution_suggestions` | **v3** — Self-evolution Giai đoạn 2: đề xuất thay đổi hành vi |
+| `vault_documents` | **v3** — Registry tài liệu Knowledge Vault (path, hash, embedding, FTS) |
+| `vault_links` | **v3** — Liên kết hai chiều wikilink giữa tài liệu vault |
+| `subagent_tasks` | Lưu trữ subagent task cho theo dõi vòng đời, phân bổ chi phí |
 
 ---
 
@@ -265,4 +297,4 @@ VACUUM ANALYZE traces, spans;
 - [Security Hardening](/deploy-security) — mã hóa AES-256-GCM cho secrets trong database
 - [Observability](/deploy-observability) — query traces và spans để theo dõi chi phí LLM
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

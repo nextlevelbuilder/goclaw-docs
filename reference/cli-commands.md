@@ -31,6 +31,19 @@ GOCLAW_CONFIG=/etc/goclaw.json ./goclaw
 
 On first run (no config file), the setup wizard launches automatically.
 
+The `gateway` command is internally decomposed into focused files for maintainability:
+
+| File | Responsibility |
+|------|---------------|
+| `gateway_deps.go` | Dependency wiring and initialization |
+| `gateway_http_wiring.go` | HTTP server setup and route registration |
+| `gateway_events.go` | Event bus wiring |
+| `gateway_lifecycle.go` | Startup, shutdown, and signal handling |
+| `gateway_tools_wiring.go` | Tool registration and exec workspace setup |
+| `gateway_providers.go` | Provider registration from config and database |
+| `gateway_vault_wiring.go` | Vault and memory store wiring |
+| `gateway_evolution_cron.go` | Scheduled evolution and background cron jobs |
+
 ---
 
 ## `version`
@@ -63,6 +76,8 @@ Steps:
 Saves `config.json` (no secrets) and `.env.local` (secrets only).
 
 **Environment-based auto-onboard** — if the required env vars are set, the wizard is skipped and setup runs non-interactively (useful for Docker/CI).
+
+A TUI-based onboard is available when the terminal supports it (`tui_onboard.go`). Falls back to plain interactive mode automatically.
 
 ---
 
@@ -212,6 +227,64 @@ goclaw upgrade --status     # show current upgrade status
 | `--status` | Show current schema version and pending hooks |
 
 Gateway startup also checks schema compatibility. Set `GOCLAW_AUTO_UPGRADE=true` to auto-upgrade on startup.
+
+---
+
+## `backup`
+
+Back up the GoClaw database and config to an archive file.
+
+```bash
+goclaw backup
+goclaw backup --output /path/to/backup.tar.gz
+```
+
+| Flag | Description |
+|------|-------------|
+| `--output <path>` | Output archive path (default: timestamped file in current dir) |
+
+---
+
+## `restore`
+
+Restore from a backup archive.
+
+```bash
+goclaw restore /path/to/backup.tar.gz
+```
+
+---
+
+## `tenant_backup`
+
+Back up a single tenant's data.
+
+```bash
+goclaw tenant_backup --tenant <tenant-id>
+goclaw tenant_backup --tenant <tenant-id> --output /path/to/backup.tar.gz
+```
+
+---
+
+## `tenant_restore`
+
+Restore a single tenant from a backup archive.
+
+```bash
+goclaw tenant_restore --tenant <tenant-id> /path/to/backup.tar.gz
+```
+
+---
+
+## `doctor`
+
+Check system environment and configuration health.
+
+```bash
+goclaw doctor
+```
+
+Checks: binary version, config file, database connectivity, schema version, providers, channels, external binaries (docker, curl, git), workspace directory. Prints a pass/fail summary for each check.
 
 ---
 
@@ -374,6 +447,23 @@ Output columns: `CHANNEL`, `ENABLED`, `CREDENTIALS` (ok/missing).
 
 ---
 
+## `providers`
+
+List configured LLM providers and their status.
+
+```bash
+goclaw providers list
+goclaw providers list --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+Shows provider name, type, default model, and whether an API key is configured.
+
+---
+
 ## `skills`
 
 List and inspect skills.
@@ -426,18 +516,6 @@ Shows default model, per-agent overrides, and which providers have API keys conf
 
 ---
 
-## `doctor`
-
-Check system environment and configuration health.
-
-```bash
-goclaw doctor
-```
-
-Checks: binary version, config file, database connectivity, schema version, providers, channels, external binaries (docker, curl, git), workspace directory.
-
----
-
 ## `auth`
 
 Manage OAuth authentication for LLM providers. Requires the gateway to be running.
@@ -463,10 +541,60 @@ goclaw auth logout openai
 
 ---
 
+## `setup` commands
+
+Guided setup wizards for individual components. Each runs interactively and writes to `config.json`.
+
+### `setup agent`
+
+Add or reconfigure an agent interactively.
+
+```bash
+goclaw setup agent
+```
+
+### `setup channel`
+
+Configure a messaging channel (Telegram, Zalo OA, Feishu/Lark, etc.).
+
+```bash
+goclaw setup channel
+```
+
+### `setup provider`
+
+Add or reconfigure an LLM provider.
+
+```bash
+goclaw setup provider
+```
+
+### `setup` (general)
+
+Run the full setup flow (equivalent to `onboard` for an existing install).
+
+```bash
+goclaw setup
+```
+
+---
+
+## TUI commands
+
+Terminal UI versions of the setup and onboard flows. Available when the terminal supports interactive TUI rendering. Falls back to plain CLI automatically on unsupported terminals.
+
+```bash
+goclaw tui           # launch TUI app
+goclaw tui onboard   # TUI-based onboarding wizard
+goclaw tui setup     # TUI-based setup wizard
+```
+
+---
+
 ## What's Next
 
 - [WebSocket Protocol](/websocket-protocol) — wire protocol reference for the gateway
 - [REST API](/rest-api) — HTTP API endpoint listing
 - [Config Reference](/config-reference) — full `config.json` schema
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

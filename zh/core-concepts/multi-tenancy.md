@@ -259,6 +259,47 @@ API key 使用 scope 控制访问级别：
 
 **Master 租户**（UUID `0193a5b0-7000-7000-8000-000000000001`）：所有遗留和默认数据。单租户部署只使用这个。
 
+### v3 租户隔离存储
+
+v3 新增四个存储，全部强制租户隔离：
+
+| 存储 | 用途 | 租户隔离 |
+|------|------|---------|
+| `EvolutionMetrics` | 跟踪 agent 改进信号 | `WHERE tenant_id = $N` |
+| `EvolutionSuggestions` | 存储 LLM 生成的优化建议 | `WHERE tenant_id = $N` |
+| `Vault` | Agent 结构化数据持久化 | `WHERE tenant_id = $N` |
+| `Episodic` | 情节记忆（完整 session 摘要） | `WHERE tenant_id = $N` |
+| `AgentLink` | Agent 之间的委托链接 | `WHERE tenant_id = $N` |
+
+---
+
+## 版本模型（Edition）
+
+GoClaw 提供两个版本，按部署限制资源。版本在启动时设置，全局生效（不按租户区分）。
+
+| 功能 | Standard | Lite |
+|------|:--------:|:----:|
+| 最大 agent 数 | 无限 | 5 |
+| 最大团队数 | 无限 | 1 |
+| 最大团队成员数 | 无限 | 5 |
+| 最大子 agent 并发数 | 无限 | 2 |
+| 最大子 agent 深度 | 无限 | 1 |
+| 知识图谱 | ✓ | ✗ |
+| RBAC | ✓ | ✗ |
+| 向量搜索 | ✓ | ✗ |
+
+**`MaxSubagentConcurrent`** — 限制每次请求并行运行的子 agent 数。Lite 版本为 2，防止自托管部署资源峰值。
+
+**`MaxSubagentDepth`** — 限制 spawn 递归深度。Lite 版本中子 agent 不能继续 spawn 子 agent（深度=1）。
+
+---
+
+## i18n（按请求本地化）
+
+GoClaw 支持按请求本地化错误消息和系统提示。Locale 从 HTTP `Accept-Language` 头或 WebSocket `locale` 字段解析。支持值：`en`、`vi`、`zh`。
+
+Agent 提示（预算警告、skill 进化建议、团队进度提醒）均通过 `i18n.T(locale, msgKey)` 支持 i18n，用户将收到其语言的通知。
+
 ---
 
 ## 环境变量
@@ -290,4 +331,4 @@ API key 使用 scope 控制访问级别：
 - [Agent 详解](agents-explained.md) — Agent 类型和访问控制
 - [API Keys](../getting-started/api-keys.md) — 创建和管理 API key
 
-<!-- goclaw-source: b9d8754 | 更新: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

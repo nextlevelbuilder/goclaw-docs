@@ -114,7 +114,46 @@ flowchart TD
 
 Tiền tố `teammate:` trong sender ID cho consumer biết cần định tuyến tin nhắn đến session của thành viên team đúng, không phải session người dùng chung.
 
-## Broadcast Sự kiện
+## Domain Event Bus
+
+Ngoài tin nhắn mailbox, GoClaw còn sử dụng **Domain Event Bus** có kiểu (`eventbus.DomainEventBus`) để lan truyền sự kiện nội bộ qua pipeline v3. Bus này tách biệt với message bus channel dùng cho routing.
+
+Domain event bus được định nghĩa trong `internal/eventbus/domain_event_bus.go`:
+
+```go
+type DomainEventBus interface {
+    Publish(event DomainEvent)                                    // enqueue không chặn
+    Subscribe(eventType EventType, handler DomainEventHandler) func() // trả về fn hủy đăng ký
+    Start(ctx context.Context)
+    Drain(timeout time.Duration) error
+}
+```
+
+**Đặc điểm chính**:
+- Worker pool bất đồng bộ (mặc định 2 worker, độ sâu hàng đợi 1000)
+- Cửa sổ dedup theo `SourceID` (mặc định 5 phút) — ngăn xử lý trùng lặp
+- Retry có thể cấu hình (mặc định 3 lần với backoff theo cấp số nhân)
+- Drain nhẹ nhàng khi tắt
+
+**Danh mục loại sự kiện** (định nghĩa trong `eventbus/event_types.go`):
+
+| Loại sự kiện | Kích hoạt khi |
+|-------------|--------------|
+| `session.completed` | Session kết thúc hoặc context được compaction |
+| `episodic.created` | Tóm tắt bộ nhớ episodic được lưu |
+| `entity.upserted` | Entity trong knowledge graph được cập nhật |
+| `run.completed` | Agent pipeline run kết thúc |
+| `tool.executed` | Tool call hoàn thành (để thu thập metrics) |
+| `vault.doc_upserted` | Tài liệu vault được đăng ký hoặc cập nhật |
+| `delegate.sent` | Delegation được dispatch đến member |
+| `delegate.completed` | Delegatee hoàn thành thành công |
+| `delegate.failed` | Delegation thất bại |
+
+Các sự kiện này cung cấp năng lượng cho pipeline enrichment v3 (bộ nhớ episodic, knowledge graph, lập chỉ mục vault) độc lập với các WebSocket team event dùng cho UI.
+
+## Sự kiện Team WebSocket
+
+Để cập nhật UI theo thời gian thực, hoạt động team phát sự kiện WebSocket qua `msgBus.Broadcast`. Các sự kiện này tách biệt với domain event bus và nhắm đến các client dashboard đang kết nối.
 
 Khi tin nhắn được gửi, sự kiện thời gian thực được broadcast đến UI:
 
@@ -136,6 +175,16 @@ Khi tin nhắn được gửi, sự kiện thời gian thực được broadcast
 }
 ```
 
+### API Sự kiện Vòng đời Task
+
+Sự kiện vòng đời task (tạo, giao, hoàn thành, phê duyệt, từ chối, comment, thất bại, v.v.) cũng có sẵn qua REST endpoint:
+
+```
+GET /v1/teams/{id}/events
+```
+
+Endpoint này trả về nhật ký kiểm toán phân trang của tất cả thay đổi trạng thái task cho team, hữu ích để xem xét tuân thủ hoặc xây dựng dashboard tùy chỉnh.
+
 ## Trường hợp Sử dụng
 
 **Member → Member**: "Task 123 đã sẵn sàng cho bạn review. Dữ liệu cho thấy..."
@@ -148,8 +197,6 @@ Khi tin nhắn được gửi, sự kiện thời gian thực được broadcast
 
 ## Tự động Fail khi Loop Kill
 
-### Tự động Fail khi Loop Kill
-
 Nếu run của agent thành viên bị loop detector terminate (loop vô hạn hoặc bị kẹt), task tự động chuyển sang `failed`:
 
 - Loop detector nhận diện pattern bị kẹt — cùng tool call với cùng args và result lặp lại, hoặc chuỗi read-only không có tiến triển
@@ -158,7 +205,7 @@ Nếu run của agent thành viên bị loop detector terminate (loop vô hạn 
 
 Điều này ngăn vòng lặp vô hạn chặn tiến trình team — agent có thể an toàn thử các task thăm dò mà không lo bị kẹt vĩnh viễn.
 
-## Cấu hình thông báo team
+## Cấu hình Thông báo Team
 
 Các sự kiện task trong team có thể được chuyển tiếp đến kênh chat. Mặc định, chỉ các sự kiện quan trọng được bật để tránh ồn ào.
 
@@ -207,4 +254,4 @@ Tất cả tin nhắn được lưu vào database:
 - Timestamps và trạng thái đọc được theo dõi
 - Toàn bộ lịch sử tin nhắn có sẵn để kiểm tra/xem xét
 
-<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

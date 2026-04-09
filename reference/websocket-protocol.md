@@ -159,6 +159,8 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 
 ### Chat
 
+> **Session ownership (v3):** All five `chat.*` methods enforce session ownership. Non-admin callers can only access sessions they own (matched by `user_id`). Attempting to access another user's session returns `UNAUTHORIZED`. Admins and gateway-owner connections bypass this check. This is implemented via the `requireSessionOwner` helper in `internal/gateway/methods/access.go`.
+
 | Method | Params | Description |
 |--------|--------|-------------|
 | `chat.send` | `{message, sessionKey?, agentId?}` | Send a message; response streams via `agent`/`chat` events |
@@ -492,4 +494,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: 04dc34e3 | updated: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

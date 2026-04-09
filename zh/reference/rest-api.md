@@ -497,6 +497,85 @@ POST /v1/tools/invoke
 
 ---
 
+## V3 Agent 能力
+
+> v3 新增。通过 [V3 Feature Flags](#v3-feature-flags) 按 agent 启用。
+
+### Evolution（Agent 进化）
+
+跟踪 tool 使用指标并接收自动改进建议。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/evolution/metrics` | 列出原始或聚合进化指标 |
+| `GET` | `/v1/agents/{id}/evolution/suggestions` | 列出进化建议 |
+| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | 更新建议状态（`pending` → `approved`/`rejected`/`rolled_back`） |
+| `POST` | `/v1/agents/{id}/evolution/skill-apply` | 将已批准的建议应用为新 skill |
+
+**`GET .../evolution/metrics` 查询参数：** `type`（过滤：`tool`/`retrieval`/`feedback`）、`aggregate`（布尔值）、`since`（ISO 8601）、`limit`
+
+**`GET .../evolution/suggestions` 查询参数：** `status`、`limit`
+
+---
+
+### Episodic Memory（情节记忆）
+
+按用户 session 存储对话摘要，用于长期上下文延续。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/episodic` | 列出情节摘要 |
+| `POST` | `/v1/agents/{id}/episodic/search` | BM25+向量混合搜索情节摘要 |
+
+**查询参数：** `user_id`、`limit`（默认：20，最大：500）、`offset`
+
+**搜索请求体：** `{ "query": "...", "user_id": "可选", "max_results": 10, "min_score": 0.5 }`
+
+---
+
+### Knowledge Vault（知识库）
+
+持久化文档存储，包含向量嵌入和图谱链接。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/vault/documents` | 列出全系统文档 |
+| `GET` | `/v1/agents/{id}/vault/documents` | 列出指定 agent 的文档 |
+| `GET` | `/v1/agents/{id}/vault/documents/{docID}` | 获取单个文档（完整内容）|
+| `POST` | `/v1/agents/{id}/vault/search` | FTS+向量混合搜索 |
+| `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | 获取文档的出链和反链 |
+
+**列表响应格式：** `{ "documents": [...], "total": 42 }`
+
+**搜索请求体：** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
+
+---
+
+### Orchestration（编排）
+
+控制 agent 如何路由请求。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/orchestration` | 获取当前编排模式和目标 |
+
+**mode 取值：** `standalone`（直接处理）、`delegate`（通过 agent link 委托）、`team`（通过团队任务系统路由）
+
+---
+
+### V3 Feature Flags（v3 功能开关）
+
+按 agent 控制 v3 子系统的功能开关。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/v3-flags` | 获取 agent 的所有 v3 标志 |
+| `PATCH` | `/v1/agents/{id}/v3-flags` | 更新标志（支持部分更新）|
+
+**标志键：** `evolution_enabled`、`episodic_enabled`、`vault_enabled`、`orchestration_enabled`、`skill_evolve`、`self_evolve`
+
+---
+
 ## 知识图谱
 
 按 agent 的实体-关系图谱。
@@ -1061,6 +1140,41 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 
 ---
 
+## 备份与恢复
+
+### 系统备份（管理员）
+
+用于灾难恢复的全系统备份。需要管理员权限。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `POST` | `/v1/system/backup` | 触发系统备份（返回 archive 或 SSE 进度）|
+| `GET` | `/v1/system/backup/preflight` | 检查备份前置条件 |
+| `GET` | `/v1/system/backup/download/{token}` | 通过短期 token 下载备份 archive |
+
+### 系统备份 S3
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/system/backup/s3/config` | 获取 S3 备份配置 |
+| `PUT` | `/v1/system/backup/s3/config` | 更新 S3 备份配置 |
+| `GET` | `/v1/system/backup/s3/list` | 列出 S3 可用备份 |
+| `POST` | `/v1/system/backup/s3/upload` | 将本地备份上传到 S3 |
+| `POST` | `/v1/system/backup/s3/backup` | 直接触发备份到 S3 |
+
+### 租户备份
+
+按租户备份和恢复。需要管理员权限。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `POST` | `/v1/tenant/backup` | 触发租户备份 |
+| `GET` | `/v1/tenant/backup/preflight` | 检查租户备份前置条件 |
+| `GET` | `/v1/tenant/backup/download/{token}` | 通过短期 token 下载租户备份 archive |
+| `POST` | `/v1/tenant/restore` | 从备份 archive 恢复租户 |
+
+---
+
 ## 活动与审计
 
 | 方法 | 路径 | 说明 |
@@ -1177,4 +1291,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

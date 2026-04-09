@@ -4,7 +4,7 @@
 
 ## Overview
 
-An agent in GoClaw is an LLM with a personality, tools, and memory. You configure what it knows (context files), what it can do (tools), and which LLM powers it (provider + model). Each agent runs in its own loop, handling conversations independently.
+An agent in GoClaw is an LLM with a personality, tools, and memory. You configure what it knows (context files), what it can do (tools), and which LLM powers it (provider + model). Each agent runs in its own pipeline, handling conversations independently.
 
 ## What Makes an Agent
 
@@ -14,6 +14,24 @@ An agent combines four things:
 2. **Context Files** — Markdown files that define personality, knowledge, and rules
 3. **Tools** — What the agent can do (search, code, browse, etc.)
 4. **Memory** — Long-term facts persisted across conversations
+
+## How the Agent Pipeline Works
+
+Every turn runs through the **8-stage pipeline** (context → think → prune → act → observe → checkpoint → memory → finalize). There is no legacy "think → act → observe" shortcut — all agents always use the full pipeline.
+
+```mermaid
+graph LR
+    CTX[ContextStage<br/>inject workspace] --> TH[ThinkStage<br/>call LLM]
+    TH --> PR[PruneStage<br/>trim context]
+    PR --> AC{Tools needed?}
+    AC -->|Yes| TO[ToolStage<br/>execute tools]
+    TO --> OB[ObserveStage<br/>process results]
+    OB --> TH
+    AC -->|No| CP[CheckpointStage<br/>exit check]
+    CP --> FI[FinalizeStage<br/>sanitize + flush]
+```
+
+The loop repeats up to 20 iterations per turn. GoClaw detects tool loop patterns: a **warning** is raised after 3 identical consecutive calls, and the loop is **force-stopped** after 5 identical no-progress calls. `exec`/`bash` tools and MCP bridge tools (`mcp_*` prefix) are treated as **neutral** — they neither reset nor increment the read-only streak.
 
 ## Agent Types
 
@@ -142,6 +160,8 @@ An agent can be in one of four states:
 
 Predefined agents with `self_evolve` enabled can update their own `SOUL.md` during conversations. This allows the agent's tone and style to evolve over time based on interactions. The update is applied at the agent level and affects all users. Other shared files (IDENTITY.md, AGENTS.md) remain protected and can only be edited from the dashboard.
 
+In v3, evolution goes further: agents with `self_evolution_metrics` enabled track tool usage and retrieval patterns, and agents with `self_evolution_suggestions` enabled can auto-apply prompt/tool adaptations. See [Agent Evolution](/agent-evolution) for details.
+
 ## System Prompt Modes
 
 GoClaw builds the system prompt in two modes:
@@ -164,6 +184,8 @@ After each conversation run, GoClaw evaluates whether to compact session history
 - **Trigger**: history exceeds 50 messages OR estimated tokens exceed 75% of context window
 - **Memory flush first** (synchronous): agent writes important facts to `memory/YYYY-MM-DD.md` files before history is truncated
 - **Summarize** (background): LLM summarizes older messages; history is truncated to the last 4 messages; summary is saved for the next session
+
+In v3, the [3-Tier Memory](/memory-system) system adds async consolidation on top: episodic workers extract facts, semantic workers abstract them, and dreaming workers synthesize novel insights — all driven by the DomainEventBus.
 
 ## Identity Anchoring
 
@@ -210,4 +232,4 @@ Staggered subagent results are queued and merged into a single LLM run announcem
 - [Tools Overview](/tools-overview) — What tools agents can use
 - [Memory System](/memory-system) — Long-term memory and search
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

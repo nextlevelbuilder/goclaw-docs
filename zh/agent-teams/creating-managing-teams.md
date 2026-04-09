@@ -30,6 +30,8 @@
 
 **Dashboard**：Teams → Create Team → 选择 Lead → 添加成员 → Save
 
+Teams 列表页支持**卡片/列表切换**，可在可视卡片布局与紧凑列表视图之间切换。
+
 ## 创建时发生了什么
 
 创建团队时，系统会：
@@ -93,6 +95,8 @@ flowchart TD
 # analyst_agent    member      Data Analyst
 # writer_agent     member      Content Writer
 ```
+
+API 返回的成员信息包含完整的 **agent 元数据**（display name、emoji、描述、模型），便于 dashboard 渲染丰富的成员卡片。
 
 ## Lead 与 Member 角色对比
 
@@ -192,15 +196,21 @@ flowchart TD
 
 ## System Prompt 中的团队成员
 
-团队激活时，GoClaw 会在 lead agent 的 system prompt 中注入 `## Team Members` 部分，列出所有队友：
+团队激活时，GoClaw 会在 lead agent 的 system prompt 中注入 `## Team Members` 部分，列出所有队友。每条记录包含 agent 元数据，包括 emoji 图标（来自 `other_config`）：
 
 ```
 ## Team Members
-- agent_key: analyst_agent | display_name: Data Analyst | role: member | expertise: Data analysis and visualization...
-- agent_key: writer_agent | display_name: Content Writer | role: member | expertise: Technical writing...
+- agent_key: analyst_agent | display_name: 🔍 Data Analyst | role: member | expertise: Data analysis and visualization...
+- agent_key: writer_agent | display_name: ✍️ Content Writer | role: member | expertise: Technical writing...
 ```
 
 这让 lead 可以通过 key 正确分配任务，无需猜测。成员添加或移除时，该部分自动更新。
+
+## Lead Workspace 解析
+
+分派团队任务时，lead agent 会为 lead 和成员解析各自的团队 workspace 目录。此解析过程完全透明——agent 使用普通文件路径，**WorkspaceInterceptor** 会自动将请求重写到正确的团队 workspace context。
+
+isolated 模式（`workspace_scope: "isolated"`）下，每次对话拥有独立文件夹；shared 模式下，所有成员读写同一个团队目录。
 
 ## 媒体自动复制
 
@@ -231,4 +241,4 @@ flowchart TD
 - [Team Messaging](./team-messaging.md) — 成员间通信
 - [Delegation & Handoff](./delegation-and-handoff.md) — 编排工作
 
-<!-- goclaw-source: 19eef35 | 更新: 2026-03-25 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

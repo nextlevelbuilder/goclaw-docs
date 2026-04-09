@@ -175,10 +175,33 @@ Hệ thống sẽ kích hoạt summoning bằng LLM ở nền để tạo ra cá
 | Summoning mất quá lâu hoặc thất bại | Kiểm tra kết nối tới LLM provider và sự khả dụng của model. Summoning thất bại sẽ dùng template file làm fallback. |
 | Provider hoặc model không được nhận dạng | Đảm bảo provider đã được cấu hình trong `GOCLAW_CONFIG`. Kiểm tra tài liệu provider để biết tên model đúng. |
 
+## Template Bootstrap
+
+Khi tạo agent, GoClaw seed các file context từ template tích hợp sẵn. Tập file được seed phụ thuộc vào loại agent:
+
+**Open agents (lần chat đầu tiên của user):**
+
+| File | Template | Mục đích |
+|------|----------|---------|
+| `SOUL.md` | Template `SOUL.md` | Personality, tone, giới hạn |
+| `IDENTITY.md` | Template `IDENTITY.md` | Tên, creature, emoji |
+| `USER.md` | Template `USER.md` | Context user (tên, ngôn ngữ, múi giờ) |
+| `BOOTSTRAP.md` | Template `BOOTSTRAP.md` | Script hội thoại lần đầu |
+| `AGENTS_CORE.md` | Template `AGENTS_CORE.md` | Quy tắc vận hành cốt lõi |
+| `AGENTS_TASK.md` | Template `AGENTS_TASK.md` | Quy tắc tác vụ/tự động hóa |
+| `CAPABILITIES.md` | Template `CAPABILITIES.md` | Placeholder chuyên môn domain |
+
+**Template mới trong v3:**
+- **`AGENTS_CORE.md`** — inject quy tắc vận hành cốt lõi vào tất cả agent (khớp ngôn ngữ, xử lý system message)
+- **`AGENTS_TASK.md`** — bổ sung quy tắc tác vụ/tự động hóa (memory, lập lịch)
+- **`CAPABILITIES.md`** — tách biệt chuyên môn domain khỏi persona (SOUL.md là *bạn là ai*; CAPABILITIES.md là *bạn biết gì*)
+
+---
+
 ## Tiếp theo
 
 - [Open vs. Predefined](/open-vs-predefined) — hiểu sự khác biệt về context isolation
 - [Context Files](/context-files) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách LLM tạo ra file personality khi lần đầu sử dụng
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

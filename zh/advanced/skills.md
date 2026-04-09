@@ -345,4 +345,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

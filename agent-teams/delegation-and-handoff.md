@@ -49,6 +49,8 @@ The system validates and auto-dispatches:
 - Task dispatched to lead agent is blocked and auto-failed
 - Member requests (non-lead) can optionally require leader approval before dispatch
 
+> **V2 leads**: Team V2 leads cannot manually create tasks before a spawn has been issued in the current turn. This prevents premature task creation that would break the structured orchestration flow.
+
 ## Parallel Delegation
 
 Create multiple tasks in the same turn — they dispatch simultaneously after the turn:
@@ -59,7 +61,83 @@ Create multiple tasks in the same turn — they dispatch simultaneously after th
 {"action": "create", "subject": "Extract opinions", "assignee": "analyst2"}
 ```
 
-Results are collected and announced together when all complete.
+Results are collected via a **producer-consumer announce queue** (`BatchQueue[T]`) that merges staggered completions into a single LLM announcement run. This means the lead receives one combined message rather than separate interruptions per member — reducing token overhead significantly.
+
+## Parallel Sub-Agent Enhancement (#600)
+
+Beyond team member delegation, the lead can spawn **self-clone subagents** using the `spawn` tool for parallel workloads that don't require a specific team member:
+
+```json
+{"action": "spawn", "task": "Summarize the PDF report", "label": "pdf-summarizer"}
+```
+
+Key behaviors introduced in the parallel sub-agent enhancement:
+
+### Smart Leader Delegation
+
+The leader delegation prompt is **conditional** — it only activates when the situation genuinely requires delegation, rather than being forced on every spawn. This avoids wasted LLM turns when a direct response is more appropriate.
+
+### `spawn(action=wait)` — WaitAll Orchestration
+
+Block the parent until all spawned children complete:
+
+```json
+{"action": "wait", "timeout": 300}
+```
+
+- Parent turn pauses until all active subagents finish (or timeout expires)
+- Enables coordinated multi-step workflows where the lead needs results before proceeding
+- Default timeout: 300 seconds
+
+### Auto-Retry with Linear Backoff
+
+Subagent LLM failures trigger automatic retry. Configuration via `SubagentConfig`:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `MaxRetries` | `2` | Maximum retry attempts per subagent |
+| Backoff | linear | Each retry waits `attempt × 2s` before re-running |
+
+### Per-Edition Rate Limiting
+
+Tenant-scoped concurrency limits on the Edition struct:
+
+| Limit | Field | Description |
+|-------|-------|-------------|
+| Concurrent subagents | `MaxSubagentConcurrent` | Max simultaneous subagents per tenant |
+| Spawn depth | `MaxSubagentDepth` | Max nesting depth (subagent spawning subagents) |
+
+When limits are hit, the spawn is rejected with a clear error so the LLM can adjust.
+
+### `subagent_tasks` Table (Migration 34)
+
+Subagent task state is persisted to the `subagent_tasks` database table (migration 000034). The `SubagentTaskStore` interface with PostgreSQL implementation provides:
+- Durable task tracking across restarts
+- Write-through persistence from `SubagentManager`
+- Token cost storage per task
+
+### Token Cost Tracking
+
+Per-subagent input and output token counts are accumulated and included in:
+- The announce message delivered to the lead
+- The `subagent_tasks` DB record for billing and observability
+
+### Compaction Prompt Persistence
+
+When the lead agent's context is compacted (summarized), pending subagent and team task state is preserved in the compaction prompt. Work continuity is maintained — the lead does not lose track of in-flight tasks after summarization.
+
+### Telegram Commands
+
+Two Telegram bot commands are available for monitoring subagent work:
+
+| Command | Description |
+|---------|-------------|
+| `/subagents` | Lists all active subagent tasks with status |
+| `/subagent <id>` | Shows detailed view of a specific subagent task from DB |
+
+### Subagent Tool Restrictions
+
+`team_tasks` is blocked inside subagents via `SubagentDenyAlways`. Subagents cannot create team tasks or perform team orchestration — only the lead can coordinate the team board.
 
 ## Auto-Completion & Artifacts
 
@@ -223,8 +301,8 @@ For async delegations, the lead receives periodic grouped updates (if progress n
 2. **Don't use `spawn` for delegation**: `spawn` is self-clone only, not for team members
 3. **Create multiple tasks in one turn**: they dispatch in parallel after the turn ends
 4. **Use `blocked_by`**: coordinate task ordering with dependencies
-5. **Link dependencies**: Use `blocked_by` on task board to coordinate order
+5. **Use `spawn(action=wait)`**: when lead needs all results before continuing
 6. **Handle handoffs gracefully**: Notify user of transfer; pass context
 7. **Set iteration limits in instructions**: Prevent infinite evaluate loops
 
-<!-- goclaw-source: 0dab087f | updated: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

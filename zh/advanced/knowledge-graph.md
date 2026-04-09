@@ -380,7 +380,24 @@ Agent 随后可以回答"谁在负责 Project Alpha？"这类问题，只需遍�
 
 ## 下一步
 
+## 知识图谱 vs 知识库
+
+知识图谱与[知识库 (Knowledge Vault)](knowledge-vault) 是互补的两个系统：
+
+| | 知识图谱 | 知识库 |
+|--|----------------|-----------------|
+| **存储内容** | 提取的实体和类型化关系 | 完整文档（笔记、规格说明、context 文件） |
+| **构建方式** | LLM 从对话中自动提取 | Agent 写入文件；VaultSyncWorker 注册 |
+| **搜索** | 实体名称 / 关系遍历 | title、path、内容的 FTS + 向量混合搜索 |
+| **链接** | 类型化关系边（`works_on`、`manages` 等） | Wikilink `[[target]]` 和显式引用 |
+| **范围** | 按 agent，可选在团队内共享 | 每个文档独立的 personal / team / shared 范围 |
+
+当 agent 使用 `vault_search` 时，VaultSearchService 会**同时**向 vault 和 knowledge graph 展开查询，通过加权评分合并结果。
+
+---
+
+- [知识库 (Knowledge Vault)](knowledge-vault) — 支持 wikilink 和语义搜索的文档级知识存储
 - [记忆系统](/memory-system) — 基于向量的长期记忆
 - [会话与历史](/sessions-and-history) — 对话存储
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

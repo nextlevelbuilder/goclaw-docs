@@ -6,7 +6,7 @@
 
 ## 概览
 
-GoClaw 需要 PostgreSQL 15+，并安装 `pgvector` 和 `pgcrypto` 扩展。数据库连接仅通过 `GOCLAW_POSTGRES_DSN` 配置（从不存储在 `config.json` 中）。迁移由 `golang-migrate` 管理，通过 `./goclaw migrate up` 运行。
+GoClaw 需要 PostgreSQL 15+，并安装 `pgvector` 和 `pgcrypto` 扩展。数据库连接仅通过 `GOCLAW_POSTGRES_DSN` 配置（从不存储在 `config.json` 中）。迁移由 `golang-migrate` 管理，通过 `./goclaw migrate up` 运行。当前 schema 版本：**44**。
 
 ## 连接失败
 
@@ -174,10 +174,52 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" --clean goclaw_backup.dump
 SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
 
+## v3 迁移故障（037–044）
+
+Migration 037–044 是 v3 批次迁移。如有失败：
+
+| Migration | 常见错误 | 解决方案 |
+|-----------|---------|---------|
+| `000037` | `column already exists`（agents 表） | 安全——`ADD COLUMN IF NOT EXISTS` 是幂等的；重新运行 `./goclaw migrate up` |
+| `000038` | `relation "vault_documents" already exists` | 表在部分运行中已存在；从备份恢复或手动删除后重新运行 |
+| `000040` | `function immutable_array_to_string already exists` | 安全——`CREATE OR REPLACE FUNCTION` 是幂等的 |
+| `000043` | `constraint "vault_documents_agent_id_scope_path_key" does not exist` | 约束已被删除；可安全继续；使用 `./goclaw migrate force 43` 再 `migrate up` |
+| `000044` | Seed INSERT 失败 | 通常是缺少 `agent_context_files` 表；确保 migration 001 已正确运行 |
+
+**通用恢复：**
+
+```bash
+# 检查 dirty 状态
+./goclaw migrate version
+
+# 强制回退到最后已知的正常版本，然后重新运行
+./goclaw migrate force <失败前的版本>
+./goclaw migrate up
+```
+
+如不确定，在 v3 升级前从备份恢复再重试。
+
+## SQLite（桌面版）注意事项
+
+SQLite 构建不支持 `pgvector` 操作，存在以下限制：
+
+- `episodic_summaries`：`embedding` 向量列存在但不创建 HNSW 索引；向量搜索被禁用。通过 `search_vector` 的关键词 FTS 正常工作。
+- `vault_documents`：基于向量相似度的自动链接被禁用；LLM 摘要生成仍然运行。
+- `kg_entities`：不创建 HNSW 索引；仅支持关键词 FTS。
+
+日志中出现 `vault enrich: vector ops disabled (SQLite)` 警告是正常的，不是错误。
+
+检查构建是否使用 SQLite：
+
+```bash
+./goclaw version
+# SQLite 构建将显示：storage=sqlite
+```
+
 ## 下一步
 
 - [常见问题](/troubleshoot-common)
 - [Provider 问题](/troubleshoot-providers)
 - [Channel 问题](/troubleshoot-channels)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

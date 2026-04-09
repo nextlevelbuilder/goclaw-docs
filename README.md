@@ -92,6 +92,7 @@
 - [Media Generation](advanced/media-generation.md)
 - [TTS & Voice](advanced/tts-voice.md)
 - [Knowledge Graph](advanced/knowledge-graph.md)
+- [Knowledge Vault](advanced/knowledge-vault.md)
 - [Caching](advanced/caching.md)
 - [Browser Automation](advanced/browser-automation.md)
 - [Extended Thinking](advanced/extended-thinking.md)

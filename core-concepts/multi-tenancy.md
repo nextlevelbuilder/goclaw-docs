@@ -257,6 +257,48 @@ In SaaS mode, the above user-level isolation applies within each tenant, and **4
 
 **Master tenant** (UUID `0193a5b0-7000-7000-8000-000000000001`): All legacy and default data. Single-tenant deployments use this exclusively.
 
+### v3 Tenant-Scoped Stores
+
+v3 adds four new stores — all enforce tenant isolation:
+
+| Store | Purpose | Tenant Scoping |
+|-------|---------|----------------|
+| `EvolutionMetrics` | Track agent improvement signals | `WHERE tenant_id = $N` |
+| `EvolutionSuggestions` | Store LLM-generated optimization suggestions | `WHERE tenant_id = $N` |
+| `Vault` | Persistent structured data for agents | `WHERE tenant_id = $N` |
+| `Episodic` | Episodic memory (full session summaries) | `WHERE tenant_id = $N` |
+| `AgentLink` | Delegation links between agents | `WHERE tenant_id = $N` |
+
+---
+
+## Edition Model
+
+GoClaw ships with two editions that cap resource usage per deployment. Editions are set at startup and apply globally (not per-tenant).
+
+| Feature | Standard | Lite |
+|---------|:--------:|:----:|
+| Max agents | unlimited | 5 |
+| Max teams | unlimited | 1 |
+| Max team members | unlimited | 5 |
+| Max subagent concurrent | unlimited | 2 |
+| Max subagent depth | unlimited | 1 |
+| Knowledge graph | ✓ | ✗ |
+| RBAC | ✓ | ✗ |
+| Team full mode | ✓ | ✗ |
+| Vector search | ✓ | ✗ |
+
+**`MaxSubagentConcurrent`** — caps how many subagents can run in parallel per request. In Lite edition this is 2, preventing resource spikes on self-hosted deployments.
+
+**`MaxSubagentDepth`** — caps the spawn recursion depth. In Lite edition, subagents cannot themselves spawn further subagents (depth=1).
+
+---
+
+## i18n (Per-Request Localization)
+
+GoClaw supports per-request localization for error messages and system nudges. The locale is resolved from the `Accept-Language` HTTP header (or `locale` WebSocket field). Supported values: `en`, `vi`, `zh`.
+
+Agent nudges (budget warnings, skill evolution suggestions, team progress prompts) are all i18n-aware via `i18n.T(locale, msgKey)`. Budget and skill nudges are automatically delivered in the requesting user's language.
+
 ---
 
 ## Environment Variables
@@ -288,4 +330,4 @@ In SaaS mode, the above user-level isolation applies within each tenant, and **4
 - [Agents Explained](agents-explained.md) — Agent types and access control
 - [API Keys](../getting-started/api-keys.md) — Creating and managing API keys
 
-<!-- goclaw-source: b9d8754 | updated: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

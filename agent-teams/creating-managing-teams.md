@@ -28,6 +28,8 @@ Create teams via API, Dashboard, or CLI. The system automatically establishes de
 
 **Dashboard**: Teams → Create Team → Select Lead → Add Members → Save
 
+The Teams list page supports a **card/list toggle** for switching between visual card layout and a compact list view.
+
 ## What Happens on Creation
 
 When you create a team, the system:
@@ -92,6 +94,8 @@ flowchart TD
 # analyst_agent    member      Data Analyst
 # writer_agent     member      Content Writer
 ```
+
+Member info returned by the API is enriched with full **agent metadata** (display name, emoji, description, model) so the dashboard can render rich member cards.
 
 ## Lead vs Member Roles
 
@@ -191,15 +195,21 @@ To fully remove a team, use the delete operation — it hard-deletes the record 
 
 ## Team Members in System Prompt
 
-When a team is active, GoClaw injects a `## Team Members` section into the lead agent's system prompt listing all teammates:
+When a team is active, GoClaw injects a `## Team Members` section into the lead agent's system prompt listing all teammates. Each entry is enriched with agent metadata including emoji icon (from `other_config`):
 
 ```
 ## Team Members
-- agent_key: analyst_agent | display_name: Data Analyst | role: member | expertise: Data analysis and visualization...
-- agent_key: writer_agent | display_name: Content Writer | role: member | expertise: Technical writing...
+- agent_key: analyst_agent | display_name: 🔍 Data Analyst | role: member | expertise: Data analysis and visualization...
+- agent_key: writer_agent | display_name: ✍️ Content Writer | role: member | expertise: Technical writing...
 ```
 
 This lets the lead assign tasks to the correct agent by key without guessing. The section updates automatically when members are added or removed.
+
+## Lead Workspace Resolution
+
+When a team task is dispatched, the lead agent resolves the per-team workspace directory for both lead and member agents. This resolution is transparent — agents use normal file paths and the **WorkspaceInterceptor** rewrites requests to the correct team workspace context automatically.
+
+For isolated scope (`workspace_scope: "isolated"`), each conversation gets its own folder. For shared scope, all members read and write to the same team directory.
 
 ## Media Auto-Copy
 
@@ -230,4 +240,4 @@ The context refreshes automatically when team configuration changes (members add
 - [Team Messaging](./team-messaging.md) - Communicate between members
 - [Delegation & Handoff](./delegation-and-handoff.md) - Orchestrate work
 
-<!-- goclaw-source: 19eef35 | updated: 2026-03-25 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -10,7 +10,7 @@ GoClaw 包含三个子系统，允许预定义 agent 在对话中不断进化其
 
 | 子系统 | 作用 | 配置键 |
 |---|---|---|
-| 自我进化 | Agent 通过 SOUL.md 优化自身语气和风格 | `self_evolve` |
+| 自我进化 | Agent 通过 SOUL.md 优化语气风格，通过 CAPABILITIES.md 优化专业能力 | `self_evolve` |
 | Skill 学习循环 | Agent 将可复用工作流捕获为 skill | `skill_evolve` |
 | Skill 管理 | 创建、修补、删除和授权 skill | `skill_manage` tool |
 
@@ -18,11 +18,16 @@ GoClaw 包含三个子系统，允许预定义 agent 在对话中不断进化其
 
 ---
 
-## 自我进化（SOUL.md）
+## 自我进化（SOUL.md + CAPABILITIES.md）
 
 ### 作用
 
-启用 `self_evolve` 后，agent 可以在对话中更新自己的 `SOUL.md` 文件，以优化沟通方式。没有专用 tool — agent 使用标准的 `write_file` tool。上下文文件拦截器确保只有 `SOUL.md` 可写；`IDENTITY.md` 和 `AGENTS.md` 无论如何都保持锁定。
+启用 `self_evolve` 后，agent 可以在对话中更新自己的两个上下文文件：
+
+- **`SOUL.md`** — 优化沟通风格（语气、嗓音、词汇、回复风格）
+- **`CAPABILITIES.md`** — 优化专业知识、技术技能和专门能力
+
+没有专用 tool — agent 使用标准的 `write_file` tool。上下文文件拦截器确保只有 `SOUL.md` 和 `CAPABILITIES.md` 可写；`IDENTITY.md` 和 `AGENTS.md` 无论如何都保持锁定。
 
 变更是渐进式的。Agent 被引导为只在注意到用户反馈中出现明显规律时才更新，而非每轮都更新。
 
@@ -41,30 +46,20 @@ GoClaw 包含三个子系统，允许预定义 agent 在对话中不断进化其
 ```
 ## Self-Evolution
 
-You have self-evolution enabled. You may update your SOUL.md file to
-refine your communication style over time.
-
-What you CAN evolve in SOUL.md:
-- Tone, voice, and manner of speaking
-- Response style and formatting preferences
-- Vocabulary and phrasing patterns
-- Interaction patterns based on user feedback
-
-What you MUST NOT change:
-- Your name, identity, or contact information
-- Your core purpose or role
-- Any content in IDENTITY.md or AGENTS.md (these remain locked)
-
-Make changes incrementally. Only update SOUL.md when you notice clear
-patterns in user feedback or interaction style preferences.
+You may update SOUL.md to refine communication style (tone, voice, vocabulary, response style).
+You may update CAPABILITIES.md to refine domain expertise, technical skills, and specialized knowledge.
+MUST NOT change: name, identity, contact info, core purpose, IDENTITY.md, or AGENTS.md.
+Make changes incrementally based on clear user feedback patterns.
 ```
+
+> 源码：`internal/agent/systemprompt.go` 中的 `buildSelfEvolveSection()`。
 
 ### 安全
 
 | 层级 | 作用 |
 |---|---|
 | 系统提示词引导 | CAN/MUST NOT 规则限制范围 |
-| 上下文文件拦截器 | 验证只有 SOUL.md 被写入 |
+| 上下文文件拦截器 | 验证只有 SOUL.md 或 CAPABILITIES.md 被写入 |
 | 文件锁定 | IDENTITY.md 和 AGENTS.md 始终为只读 |
 
 ---
@@ -334,6 +329,75 @@ skills-store/
 
 ---
 
+## v3：进化指标与建议引擎
+
+v3 为预定义 agent 新增自动化、基于指标的进化。该系统独立于上述手动 skill 学习循环运行。
+
+### 工作原理
+
+```
+运行期间收集指标（7 天滚动窗口）
+    ↓
+SuggestionEngine.Analyze() — 每日通过 cron 运行
+    ├─ LowRetrievalUsageRule  (avg recall < 阈值)
+    ├─ ToolFailureRule         (单个 tool 失败率 > 20%)
+    └─ RepeatedToolRule        (tool 连续调用 5+ 次)
+    ↓
+创建状态为"pending"的建议
+    ↓
+管理员审核 → approve / reject / rollback
+```
+
+### 指标类型
+
+| 类型 | 跟踪内容 | 示例 |
+|------|---------|------|
+| `tool` | 每个 tool 的性能 | invocation_count, success_rate, failure_count |
+| `retrieval` | 知识检索质量 | recall_rate, precision, relevance_score |
+| `feedback` | 用户满意度信号 | rating, sentiment, effectiveness_score |
+
+### 建议类型
+
+| 类型 | 触发条件 | 建议 |
+|------|---------|------|
+| `low_retrieval_usage` | 7 天内 avg recall 低于阈值 | 降低 `retrieval_threshold` ≤ 0.1 |
+| `tool_failure` | 单个 tool 失败率 > 20% | 检查 tool 配置或添加 fallback |
+| `repeated_tool` | 同一 tool 连续调用 5+ 次 | 将工作流提取为 skill |
+
+### 自动适应护栏
+
+| 护栏 | 默认值 | 用途 |
+|------|-------|------|
+| `max_delta_per_cycle` | 0.1 | 每个应用周期的最大参数变化 |
+| `min_data_points` | 100 | 应用前所需的最少指标数 |
+| `rollback_on_drop_pct` | 20.0 | 应用后质量下降 >20% 则自动回滚 |
+| `locked_params` | `[]` | 不可自动更改的参数 |
+
+### 进化 Cron 配置
+
+```json
+{
+  "evolution_enabled": true,
+  "evolution_cron_schedule": "every day at 02:00",
+  "evolution_guardrails": {
+    "max_delta_per_cycle": 0.1,
+    "min_data_points": 100,
+    "rollback_on_drop_pct": 20.0,
+    "locked_params": []
+  }
+}
+```
+
+### HTTP API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/v1/agents/{id}/evolution/metrics` | 查询指标 |
+| `GET` | `/v1/agents/{id}/evolution/suggestions` | 列出建议 |
+| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{sid}` | Approve / reject / rollback |
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -353,4 +417,4 @@ skills-store/
 - [预定义 Agent](#predefined-agents) — 预定义 agent 与 open agent 的区别
 - [publish_skill](#skill-publishing) — 基于目录的 skill 发布
 
-<!-- goclaw-source: b9d8754 | 更新: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

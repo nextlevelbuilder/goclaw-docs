@@ -345,4 +345,4 @@ Xem [Agent Evolution](agent-evolution.md) để biết chi tiết về tool `ski
 - [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

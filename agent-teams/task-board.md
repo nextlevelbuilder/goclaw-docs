@@ -2,6 +2,8 @@
 
 The task board is a shared work tracker accessible to all team members. Tasks can be created with priorities, dependencies, and blocking constraints. Members claim pending tasks, work independently, and mark them complete with results.
 
+The dashboard renders the board as a **Kanban layout** with columns per status. The board toolbar includes a workspace button and agent emoji display for quick identification of who owns each task.
+
 ## Task Lifecycle
 
 ```mermaid
@@ -28,7 +30,7 @@ All team members access the task board via the `team_tasks` tool. Available acti
 
 | Action | Required Params | Description |
 |--------|-----------------|-------------|
-| `list` | `action` | Show active tasks (pagination: 30 per page) |
+| `list` | `action` | Show tasks (default filter: all statuses; page size: 30) |
 | `get` | `action`, `task_id` | Get full task detail with comments, events, attachments (result: 8,000 char limit) |
 | `create` | `action`, `subject`, `assignee` | Create new task (lead only); `assignee` is **mandatory**; optional: `description`, `priority`, `blocked_by`, `require_approval` |
 | `claim` | `action`, `task_id` | Atomically claim a pending task |
@@ -46,6 +48,7 @@ All team members access the task board via the `team_tasks` tool. Available acti
 | `ask_user` | `action`, `task_id`, `text` | Set a periodic follow-up reminder sent to user (owner only) |
 | `clear_followup` | `action`, `task_id` | Clear ask_user reminders (owner or lead) |
 | `retry` | `action`, `task_id` | Re-dispatch a `stale` or `failed` task back to `pending` (admin/lead) |
+| `delete` | `action`, `task_id` | Hard-delete a task in terminal status (completed/cancelled/failed) from the board |
 
 ## Create a Task
 
@@ -54,6 +57,8 @@ All team members access the task board via the `team_tasks` tool. Available acti
 > **Note**: The `assignee` field is **mandatory** at task creation. Omitting it returns an error: `"assignee is required — specify which team member should handle this task"`.
 
 > **Note**: Agents must call `search` before `create` to avoid duplicate tasks. Creating without checking first returns an error prompting the search.
+
+> **Note**: Team V2 leads cannot manually create tasks before a spawn has been issued in the current turn — this prevents premature task creation that breaks the structured orchestration flow.
 
 ```json
 {
@@ -80,6 +85,7 @@ The `identifier` field (e.g. `TSK-1`) is a short human-readable reference genera
   "action": "create",
   "subject": "Write summary",
   "priority": 5,
+  "assignee": "writer_agent",
   "blocked_by": ["<first-task-uuid>"]
 }
 ```
@@ -92,11 +98,12 @@ This task stays `blocked` until the first task is `completed`. When you complete
 {
   "action": "create",
   "subject": "Deploy to production",
+  "assignee": "devops_agent",
   "require_approval": true
 }
 ```
 
-Task starts in `in_review` status and must be approved before it becomes `pending`.
+Task starts in `pending` status with `require_approval` flag set. After the member calls `review`, it enters `in_review` and must be approved before completing.
 
 ## Claim & Complete a Task
 
@@ -125,6 +132,19 @@ Task starts in `in_review` status and must be approved before it becomes `pendin
 
 > **Note**: Delegate agents cannot call `complete` directly — their results are auto-completed when delegation finishes.
 
+## Task Delete
+
+Terminal-status tasks (completed, cancelled, failed) can be hard-deleted from the board:
+
+```json
+{
+  "action": "delete",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+Delete is only permitted when the task is in a terminal state. Attempting to delete an active task returns an error. The dashboard also exposes a delete button in the task detail view. A `team.task.deleted` WebSocket event is emitted on success.
+
 ## Task Dependencies & Auto-Unblock
 
 When you create a task with `blocked_by: [task_A, task_B]`:
@@ -144,6 +164,8 @@ flowchart LR
     B_DONE --> UNBLOCK
     UNBLOCK -->|all done| C_READY["Task C: pending<br/>(ready to claim)"]
 ```
+
+**Blocked_by validation**: The system validates that `blocked_by` references do not create circular dependencies or reference tasks in terminal states that would make the block unresolvable.
 
 ## Blocker Escalation
 
@@ -181,35 +203,36 @@ For tasks requiring human approval, set `require_approval: true` at creation:
 
 1. **Member submits**: `action="review"` → task moves to `in_review`
 2. **Human approves** (dashboard): `action="approve"` → task moves to `completed`
-3. **Human rejects** (dashboard): `action="reject"` → task moves to `cancelled`; lead receives notification
+3. **Human rejects** (dashboard): `action="reject"` → task moves to `cancelled`; lead receives notification with reason
 
 Without `require_approval`, tasks move directly to `completed` after `complete` (no in_review stage).
 
+**Filtering**: The dashboard supports filtering by all task statuses including `in_review`, `cancelled`, and `failed`. The default status filter shows **all** tasks (page size: 30).
+
+## Task Snapshots
+
+Completed tasks automatically store snapshots in their `metadata` field for board visualization:
+
+```json
+{
+  "snapshot": {
+    "completed_at": "2026-03-16T12:34:56Z",
+    "result_preview": "First 100 chars of result...",
+    "final_status": "completed",
+    "ai_summary": "Brief AI-generated summary of what was accomplished"
+  }
+}
+```
+
+The Kanban board displays these snapshots as cards, allowing users to review completed work at a glance without opening the full task detail.
+
 ## List & Search
 
-**List active tasks** (default):
+**List tasks** (default shows all statuses, 30 per page):
 
 ```json
 {
   "action": "list"
-}
-```
-
-**Response**:
-```json
-{
-  "tasks": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "subject": "Extract key points",
-      "description": "Read PDF and summarize...",
-      "status": "pending",
-      "priority": 10,
-      "owner_agent_id": null,
-      "created_at": "2025-03-08T10:00:00Z"
-    }
-  ],
-  "count": 1
 }
 ```
 
@@ -218,7 +241,7 @@ Without `require_approval`, tasks move directly to `completed` after `complete` 
 ```json
 {
   "action": "list",
-  "status": "all"
+  "status": "in_review"
 }
 ```
 
@@ -226,10 +249,10 @@ Valid `status` filter values:
 
 | Value | Returns |
 |-------|---------|
-| `""` (default) | Active tasks: pending, in_progress, blocked |
+| `""` or `"all"` (default) | All tasks regardless of status |
+| `"active"` | Active tasks: pending, in_progress, blocked |
 | `"completed"` | Completed and cancelled tasks |
 | `"in_review"` | Tasks awaiting approval |
-| `"all"` | All tasks regardless of status |
 
 **Search** for specific tasks:
 
@@ -250,6 +273,7 @@ Tasks are ordered by priority (highest first), then by creation time. Higher pri
 {
   "action": "create",
   "subject": "Urgent fix needed",
+  "assignee": "fixer_agent",
   "priority": 100
 }
 ```
@@ -276,9 +300,9 @@ Results are truncated:
 ```
 
 **Response** includes:
-- Full task metadata (including `identifier`, `task_number`, `progress_percent`)
+- Full task metadata (including `identifier`, `task_number`, `progress_percent`, snapshot)
 - Complete result text (truncated at 8,000 chars if needed)
-- Owner agent key
+- Owner agent key and display name with emoji
 - Timestamps
 - Comments, audit events, and attachments (if any)
 
@@ -301,6 +325,14 @@ Note: the cancel reason is passed via the `text` parameter (not `reason`).
 - If delegation is running for this task, it's stopped immediately
 - Any dependent tasks (with `blocked_by` pointing here) become unblocked
 
+## Improved Task Dispatch Concurrency
+
+Task dispatch uses a post-turn queue to avoid race conditions: tasks created by the lead during a turn are queued and dispatched together after the turn ends. This means:
+
+- Dependencies set via `blocked_by` are fully resolved before any dispatch fires
+- Only one task per assignee is dispatched per round (priority-ordered) to prevent cancellation conflicts
+- Completed blocker results are automatically appended to the dispatch content for unblocked tasks
+
 ## Best Practices
 
 1. **Create tasks first**: Always create a task before delegating work (lead only)
@@ -310,5 +342,6 @@ Note: the cancel reason is passed via the `text` parameter (not `reason`).
 5. **Add dependencies**: Link related tasks with `blocked_by` to enforce order
 6. **Include context**: Write clear descriptions so members know what to do
 7. **Use blocker comments**: If stuck, post a `type="blocker"` comment — the lead is automatically notified
+8. **Delete completed clutter**: Use `action=delete` on terminal tasks to keep the board clean
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

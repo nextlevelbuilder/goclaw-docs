@@ -4,7 +4,7 @@
 
 ## Overview
 
-GoClaw requires PostgreSQL 15+ with the `pgvector` and `pgcrypto` extensions. The database connection is configured exclusively via `GOCLAW_POSTGRES_DSN` (never stored in `config.json`). Migrations are managed with `golang-migrate` and run via `./goclaw migrate up`.
+GoClaw requires PostgreSQL 15+ with the `pgvector` and `pgcrypto` extensions. The database connection is configured exclusively via `GOCLAW_POSTGRES_DSN` (never stored in `config.json`). Migrations are managed with `golang-migrate` and run via `./goclaw migrate up`. Current schema version: **44**.
 
 ## Connection Failures
 
@@ -172,10 +172,52 @@ After restoring, verify the pgvector extension is present:
 SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
 
+## v3 Migration Failures (037–044)
+
+Migrations 037–044 are the v3 batch. If any fails:
+
+| Migration | Common failure | Fix |
+|-----------|---------------|-----|
+| `000037` | `column already exists` on `agents` | Safe — the `ADD COLUMN IF NOT EXISTS` guards are idempotent; re-run `./goclaw migrate up` |
+| `000038` | `relation "vault_documents" already exists` | Table exists from a partial run; restore from backup or manually drop and re-run |
+| `000040` | `function immutable_array_to_string already exists` | Safe — `CREATE OR REPLACE FUNCTION` is idempotent |
+| `000043` | `constraint "vault_documents_agent_id_scope_path_key" does not exist` | Constraint was already dropped; safe to continue; force version with `./goclaw migrate force 43` then `migrate up` |
+| `000044` | Seed INSERT fails | Usually indicates a missing `agent_context_files` table; ensure migration 001 ran correctly |
+
+**General recovery:**
+
+```bash
+# Check dirty state
+./goclaw migrate version
+
+# Force last good version then re-run
+./goclaw migrate force <version_before_failed>
+./goclaw migrate up
+```
+
+When in doubt, restore from backup before the v3 upgrade and retry.
+
+## SQLite (Desktop) Caveats
+
+The SQLite build does not support `pgvector` operations. The following limitations apply:
+
+- `episodic_summaries`: vector (`embedding`) column exists but HNSW index is not created; vector search is disabled. Keyword FTS via `search_vector` works normally.
+- `vault_documents`: auto-linking via vector similarity is disabled; LLM summarisation still runs.
+- `kg_entities`: HNSW index not created; only keyword FTS available.
+
+If you see warnings like `vault enrich: vector ops disabled (SQLite)` in logs, this is expected and not an error.
+
+To check whether your build uses SQLite:
+
+```bash
+./goclaw version
+# SQLite builds will show: storage=sqlite
+```
+
 ## What's Next
 
 - [Common Issues](/troubleshoot-common)
 - [Provider issues](/troubleshoot-providers)
 - [Channel issues](/troubleshoot-channels)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

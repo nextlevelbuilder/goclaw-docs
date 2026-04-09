@@ -385,6 +385,47 @@ flowchart TD
 
 ---
 
+## Hệ Thống Mode Prompt
+
+Ngoài các tầng điều hướng runtime, GoClaw còn áp dụng **điều hướng ở cấp prompt** bằng cách thay đổi các phần được đưa vào system prompt tùy theo ngữ cảnh. Điều này giảm chi phí token cho các tác vụ nền trong khi vẫn giữ đầy đủ hướng dẫn cho tương tác trực tiếp với người dùng.
+
+### Prompt Mode
+
+| Mode | Đối tượng | Phần bao gồm |
+|------|-----------|--------------|
+| `full` | Agent tương tác trực tiếp với người dùng | Tất cả — persona, skills, MCP, memory, spawn guidance |
+| `task` | Agent tự động hóa doanh nghiệp | Gọn nhẹ nhưng đủ năng lực — execution bias, skills search, safety slim |
+| `minimal` | Subagent spawn bởi `spawn` | Rút gọn — tooling, safety, workspace, chỉ pinned skills |
+| `none` | Chỉ identity (hiếm dùng) | Chỉ dòng identity |
+
+**Ưu tiên phân giải** (cao nhất thắng): runtime override → auto-detect (heartbeat/subagent/cron) → agent config → mặc định (`full`).
+
+### Orchestration Mode
+
+Mỗi agent được gán orchestration mode dựa trên khả năng của nó. Mode này xác định tool inter-agent nào khả dụng:
+
+| Mode | Điều kiện | Tool khả dụng | Phần prompt |
+|------|-----------|--------------|-------------|
+| `spawn` | Mặc định (không có link hay team) | Chỉ `spawn` | Sub-Agent Spawning |
+| `delegate` | Agent có AgentLink targets | `spawn` + `delegate` | Delegation Targets |
+| `team` | Agent thuộc một team | `spawn` + `delegate` + `team_tasks` | Team Workspace + Team Members |
+
+Ưu tiên: team > delegate > spawn. Tool `delegate` và `team_tasks` bị ẩn khỏi LLM nếu mode không cho phép.
+
+### Cache Boundary
+
+Với Anthropic provider, GoClaw chia system prompt tại một marker ẩn:
+
+```
+<!-- GOCLAW_CACHE_BOUNDARY -->
+```
+
+**Phía trên boundary (ổn định — được cache):** Identity, Persona, Tooling, Safety, Skills, MCP Tools, Workspace, Team sections, Sandbox, User Identity, Project Context (các file ổn định như AGENTS.md, CAPABILITIES.md).
+
+**Phía dưới boundary (động — không cache):** Time, Channel Formatting Hints, Extra Prompt, Project Context (USER.md, BOOTSTRAP.md), Runtime, Recency Reinforcements.
+
+---
+
 ## Các vấn đề Thường gặp
 
 | Vấn đề | Nguyên nhân | Cách xử lý |
@@ -403,4 +444,4 @@ flowchart TD
 - [Agent Teams](../agent-teams/overview.md) — phối hợp đa agent, nơi Track và Hint hoạt động tích cực nhất
 - [Scheduling & Cron](scheduling-cron.md) — cách cron lane request được định tuyến qua Track
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

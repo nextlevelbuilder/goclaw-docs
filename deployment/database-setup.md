@@ -1,10 +1,10 @@
 # Database Setup
 
-> GoClaw requires PostgreSQL 15+ with the `pgvector` extension for multi-tenant storage, memory search, and usage tracking.
+> GoClaw requires **PostgreSQL 15+** with `pgvector` for multi-tenant storage, semantic memory search, and Knowledge Vault features. A **SQLite** backend is also available for desktop (single-user) deployments with reduced feature set — see [SQLite vs PostgreSQL](#sqlite-vs-postgresql) below.
 
 ## Overview
 
-All persistent state lives in PostgreSQL: agents, sessions, memory, traces, skills, cron jobs, and channel configs. The schema is managed via numbered migration files in `migrations/`. Two extensions are required: `pgcrypto` (UUID generation) and `vector` (semantic memory search via pgvector).
+All persistent state lives in PostgreSQL: agents, sessions, memory, traces, skills, cron jobs, channel configs, Knowledge Vault documents, and episodic summaries. The schema is managed via numbered migration files in `migrations/`. Two extensions are required: `pgcrypto` (UUID generation) and `vector` (semantic memory search via pgvector).
 
 ---
 
@@ -134,10 +134,37 @@ docker compose \
 | `000019_team_id_columns` | `team_id` FK on memory, KG, traces, spans, cron, sessions (9 tables) |
 | `000020_secure_cli_and_api_keys` | `secure_cli_binaries` for credentialed exec; `api_keys` for fine-grained auth |
 | `000021_paired_devices_expiry` | `expires_at` on paired devices; `confidence_score` on team tasks, messages, comments |
+| `000022`–`000036` | Heartbeats, agent hard-delete, team attachments refactor, KG semantic search, tenant foundation, subagent tasks, CLI grants, and more — see [Database Schema → Migration History](/database-schema) |
+| `000037_v3_memory_evolution` | **v3** — `episodic_summaries`, `agent_evolution_metrics`, `agent_evolution_suggestions`; KG temporal columns; 12 agent config fields promoted from `other_config` JSONB |
+| `000038_vault_tables` | **v3** — `vault_documents`, `vault_links`, `vault_versions` for Knowledge Vault |
+| `000039_episodic_summaries` | Clears stale `agent_links` data |
+| `000040_episodic_search_index` | Adds `search_vector` generated FTS column + HNSW index to `episodic_summaries` |
+| `000041_episodic_promoted` | Adds `promoted_at` column for long-term memory promotion pipeline |
+| `000042_vault_tsv_summary` | Adds `summary` column to `vault_documents`; rebuilds FTS to include summary |
+| `000043_vault_team_custom_scope` | Adds `team_id`, `custom_scope` to `vault_documents`; team-safe unique constraint; scope-fix trigger; `custom_scope` on 9 other tables |
+| `000044_seed_agents_core_task_files` | Seeds `AGENTS_CORE.md` and `AGENTS_TASK.md` context files; removes deprecated `AGENTS_MINIMAL.md` |
 
 > **Data hooks:** GoClaw tracks post-migration Go transforms in a separate `data_migrations` table. Run `./goclaw upgrade --status` to see both SQL migration version and pending data hooks.
 
-Run `./goclaw migrate status` after deployment to confirm the current schema is version 21.
+Run `./goclaw migrate status` after deployment to confirm the current schema is version **44**.
+
+---
+
+## SQLite vs PostgreSQL
+
+GoClaw v3 supports two database backends:
+
+| Feature | PostgreSQL | SQLite (desktop) |
+|---------|-----------|-----------------|
+| Full schema (all 44 migrations) | Yes | Yes |
+| Vector similarity search (HNSW) | Yes — pgvector | No |
+| Episodic summaries vector search | Yes | Keyword (FTS) only |
+| Knowledge Vault auto-linking | Yes — similarity threshold 0.7 | No (summarise only) |
+| `kg_entities` semantic search | Yes | No |
+| Multi-tenant isolation | Yes | Single-tenant only |
+| Connection pooling | Yes — pgx/v5, 25 max | N/A (embedded) |
+
+Use PostgreSQL for all production and multi-user deployments. SQLite is supported only in the desktop (single-binary) build and lacks vector operations.
 
 ---
 
@@ -153,16 +180,21 @@ Run `./goclaw migrate status` after deployment to confirm the current schema is 
 | `embedding_cache` | Cached embeddings keyed by content hash + model |
 | `llm_providers` | LLM provider configs (API keys encrypted AES-256-GCM) |
 | `mcp_servers` | External MCP server connections |
-| `custom_tools` | Dynamic shell-backed tools |
 | `cron_jobs` / `cron_run_logs` | Scheduled tasks and run history |
 | `skills` | Skill files with BM25 + vector search |
 | `channel_instances` | Messaging channel configs (Telegram, Discord, etc.) |
 | `activity_logs` | Audit trail — admin actions, config changes, security events |
 | `usage_snapshots` | Hourly aggregated token counts and costs per agent/user |
-| `kg_entities` / `kg_relations` | Knowledge graph — semantic entities and relationships |
+| `kg_entities` / `kg_relations` | Knowledge graph — semantic entities and relationships (v3: temporal validity via `valid_from`/`valid_until`) |
 | `channel_contacts` | Unified contact directory synced from all channels |
 | `channel_pending_messages` | Pending group messages buffer for batch processing |
 | `api_keys` | Scoped API keys with SHA-256 hash lookup and revocation |
+| `episodic_summaries` | **v3** — Tier 2 memory: compressed session summaries with FTS and vector search |
+| `agent_evolution_metrics` | **v3** — Self-evolution Stage 1: raw metric observations per session |
+| `agent_evolution_suggestions` | **v3** — Self-evolution Stage 2: proposed behavioural changes for review |
+| `vault_documents` | **v3** — Knowledge Vault document registry (path, hash, embedding, FTS) |
+| `vault_links` | **v3** — Bidirectional wikilinks between vault documents |
+| `subagent_tasks` | Subagent task persistence for lifecycle tracking, cost attribution |
 
 ---
 
@@ -263,4 +295,4 @@ VACUUM ANALYZE traces, spans;
 - [Security Hardening](/deploy-security) — AES-256-GCM encryption for secrets in the database
 - [Observability](/deploy-observability) — querying traces and spans for LLM cost monitoring
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

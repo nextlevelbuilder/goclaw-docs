@@ -178,6 +178,7 @@ const DOC_MAP = {
   'media-generation': docEntry('advanced', 'media-generation', 'Media Generation', 'Tạo Media', '媒体生成'),
   'tts-voice': docEntry('advanced', 'tts-voice', 'TTS & Voice', 'Chuyển văn bản thành giọng nói', 'TTS 与语音'),
   'knowledge-graph': docEntry('advanced', 'knowledge-graph', 'Knowledge Graph', 'Knowledge Graph', '知识图谱'),
+  'knowledge-vault': docEntry('advanced', 'knowledge-vault', 'Knowledge Vault', 'Kho Tri Thức (Knowledge Vault)', '知识库 (Knowledge Vault)'),
   'caching': docEntry('advanced', 'caching', 'Caching', 'Caching', '缓存'),
   'browser-automation': docEntry('advanced', 'browser-automation', 'Browser Automation', 'Browser Automation', '浏览器自动化'),
   'extended-thinking': docEntry('advanced', 'extended-thinking', 'Extended Thinking', 'Extended Thinking', '扩展思考'),

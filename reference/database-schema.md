@@ -13,7 +13,18 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **44**.
+
+### v3 Store Unification
+
+In v3, GoClaw introduced a shared `internal/store/base/` package containing a `Dialect` interface plus common helpers (`NilStr`, `BuildMapUpdate`, `BuildScopeClause`, `execMapUpdate`, etc.). Both `pg/` (PostgreSQL) and `sqlitestore/` (SQLite desktop) implement this interface via type aliases, eliminating code duplication. This is an internal refactor — no database schema changes are required and no user action is needed.
+
+SQLite (desktop build) does not support `pgvector` operations. The following features are **PostgreSQL-only**:
+- `episodic_summaries` vector search (HNSW index on `embedding`)
+- `vault_documents` semantic linking (auto-link via vector similarity)
+- `kg_entities` semantic search (HNSW index on `embedding`)
+
+On SQLite, these tables exist but vector columns are unused. Keyword (FTS) search and all other features function normally.
 
 ---
 
@@ -999,6 +1010,14 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 34 | `subagent_tasks` — subagent task persistence for DB-backed task lifecycle tracking, cost attribution, and restart recovery |
 | 35 | `contact_thread_id` — adds `thread_id` and `thread_type` to `channel_contacts`; cleans `sender_id` format; rebuilds unique index to include thread scope |
 | 36 | `secure_cli_agent_grants` — restructures CLI credentials from per-binary agent assignment to a grants model; creates `secure_cli_agent_grants` table; adds `is_global` to `secure_cli_binaries`; removes `agent_id` column from `secure_cli_binaries` |
+| 37 | V3 memory evolution — creates `episodic_summaries`, `agent_evolution_metrics`, `agent_evolution_suggestions`; adds `valid_from`/`valid_until` temporal columns to `kg_entities`/`kg_relations`; promotes 12 agent config fields from `other_config` JSONB to dedicated `agents` columns (`emoji`, `agent_description`, `thinking_level`, `max_tokens`, `self_evolve`, `skill_evolve`, `skill_nudge_interval`, `reasoning_config`, `workspace_sharing`, `chatgpt_oauth_routing`, `shell_deny_groups`, `kg_dedup_config`) |
+| 38 | Knowledge Vault — creates `vault_documents`, `vault_links`, `vault_versions` tables; HNSW vector index and FTS on vault docs |
+| 39 | Clears stale `agent_links` data (`TRUNCATE agent_links`); `episodic_summaries` already created in 037 |
+| 40 | Adds `search_vector tsvector GENERATED` column + GIN index and optimised HNSW index to `episodic_summaries` for full-text and vector search |
+| 41 | Adds `promoted_at TIMESTAMPTZ` to `episodic_summaries` for the dreaming/long-term memory promotion pipeline |
+| 42 | Adds `summary TEXT` column to `vault_documents`; rebuilds `tsv` generated column to include summary for richer FTS |
+| 43 | Adds `team_id` and `custom_scope` to `vault_documents`; replaces old unique constraint with team-aware composite; adds `trg_vault_docs_team_null_scope` trigger; adds `custom_scope` to `vault_links`, `vault_versions`, `memory_documents`, `memory_chunks`, `team_tasks`, `team_task_attachments`, `team_task_comments`, `team_task_events`, `subagent_tasks` |
+| 44 | Seeds `AGENTS_CORE.md` and `AGENTS_TASK.md` context files for all existing agents that lack them; removes deprecated `AGENTS_MINIMAL.md` entries |
 
 ---
 
@@ -1069,9 +1088,150 @@ Per-agent access grants for secure CLI binaries. Separates "which agents can use
 
 ---
 
+### `episodic_summaries`
+
+Tier 2 memory: compressed session summaries stored per agent/user, searchable via full-text and vector similarity. (migration 037; columns `search_vector`, `promoted_at` added in migrations 040–041)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | Owning agent |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | User scope |
+| `session_key` | TEXT | NOT NULL | Source session key |
+| `summary` | TEXT | NOT NULL | Compressed session summary |
+| `l0_abstract` | TEXT | NOT NULL DEFAULT `''` | One-line abstract |
+| `key_topics` | TEXT[] | DEFAULT `{}` | Extracted topic labels |
+| `embedding` | vector(1536) | | Semantic embedding of summary |
+| `source_type` | TEXT | NOT NULL DEFAULT `session` | Source kind (`session`, etc.) |
+| `source_id` | TEXT | | Source identifier (for dedup) |
+| `turn_count` | INT | NOT NULL DEFAULT 0 | Turns in summarised session |
+| `token_count` | INT | NOT NULL DEFAULT 0 | Tokens in summarised session |
+| `search_vector` | tsvector GENERATED | STORED | FTS on `summary + key_topics` (migration 040) |
+| `promoted_at` | TIMESTAMPTZ | | NULL = not yet promoted to long-term memory (migration 041) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `expires_at` | TIMESTAMPTZ | | Optional TTL |
+
+**Indexes:** `(agent_id, user_id)`, `tenant_id`, unique `(agent_id, user_id, source_id) WHERE source_id IS NOT NULL`, GIN on `search_vector`, HNSW cosine on `embedding WHERE embedding IS NOT NULL`, `expires_at` (partial), `(agent_id, user_id, created_at) WHERE promoted_at IS NULL` (for dreaming pipeline)
+
+---
+
+### `agent_evolution_metrics`
+
+Stage 1 self-evolution: raw metric observations per session collected by the evolution pipeline. (migration 037)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `session_key` | TEXT | NOT NULL | Source session |
+| `metric_type` | TEXT | NOT NULL | Metric category |
+| `metric_key` | TEXT | NOT NULL | Specific metric name |
+| `value` | JSONB | NOT NULL | Metric value |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `(agent_id, metric_type)`, `created_at`, `tenant_id`
+
+---
+
+### `agent_evolution_suggestions`
+
+Stage 2 self-evolution: proposed behavioural changes derived from metrics, pending review. (migration 037)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `suggestion_type` | TEXT | NOT NULL | e.g. `prompt_tweak`, `tool_config` |
+| `suggestion` | TEXT | NOT NULL | The proposed change |
+| `rationale` | TEXT | NOT NULL | Why this change is suggested |
+| `parameters` | JSONB | | Optional structured parameters |
+| `status` | TEXT | NOT NULL DEFAULT `pending` | `pending`, `approved`, `rejected` |
+| `reviewed_by` | TEXT | | Reviewer ID |
+| `reviewed_at` | TIMESTAMPTZ | | Review timestamp |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `(agent_id, status)`, `tenant_id`
+
+> **Migration 037 also alters:** `kg_entities` and `kg_relations` gain `valid_from TIMESTAMPTZ` and `valid_until TIMESTAMPTZ` for temporal validity windows. Current-entity indexes filter `WHERE valid_until IS NULL`.
+>
+> **Migration 037 also promotes** 12 agent config fields from `other_config` JSONB to dedicated `agents` columns: `emoji`, `agent_description`, `thinking_level`, `max_tokens`, `self_evolve`, `skill_evolve`, `skill_nudge_interval`, `reasoning_config`, `workspace_sharing`, `chatgpt_oauth_routing`, `shell_deny_groups`, `kg_dedup_config`.
+
+---
+
+### `vault_documents`
+
+Knowledge Vault document registry. Filesystem holds content; the database holds path, hash, embedding, and links. (migration 038; `summary` column added migration 042; `team_id`, `custom_scope` added migration 043)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `scope` | TEXT | NOT NULL DEFAULT `personal` | `personal`, `team`, or custom |
+| `path` | TEXT | NOT NULL | Logical file path within vault |
+| `title` | TEXT | NOT NULL DEFAULT `''` | Document title |
+| `doc_type` | TEXT | NOT NULL DEFAULT `note` | e.g. `note`, `reference`, `log` |
+| `content_hash` | TEXT | NOT NULL DEFAULT `''` | SHA-256 of file content |
+| `embedding` | vector(1536) | | Semantic embedding of summary |
+| `summary` | TEXT | NOT NULL DEFAULT `''` | LLM-generated summary (migration 042) |
+| `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
+| `team_id` | UUID FK → agent_teams (nullable) | ON DELETE SET NULL | Team scope; NULL = personal (migration 043) |
+| `custom_scope` | VARCHAR(255) | | Future extensibility (migration 043) |
+| `tsv` | tsvector GENERATED | STORED | FTS on `title + path + summary` (rebuilt migration 042) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Unique:** `(agent_id, COALESCE(team_id, '00000000-0000-0000-0000-000000000000'), scope, path)` (migration 043 replaced original unique on `(agent_id, scope, path)`)
+
+**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null)
+
+> **Trigger:** `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
+
+---
+
+### `vault_links`
+
+Bidirectional wikilink-style connections between vault documents. (migration 038; `custom_scope` added migration 043)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `from_doc_id` | UUID FK → vault_documents | NOT NULL ON DELETE CASCADE | Source document |
+| `to_doc_id` | UUID FK → vault_documents | NOT NULL ON DELETE CASCADE | Target document |
+| `link_type` | TEXT | NOT NULL DEFAULT `wikilink` | `wikilink` or `reference` |
+| `context` | TEXT | NOT NULL DEFAULT `''` | Surrounding text context |
+| `custom_scope` | VARCHAR(255) | | Future extensibility (migration 043) |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
+
+**Unique:** `(from_doc_id, to_doc_id, link_type)`
+
+**Indexes:** `from_doc_id`, `to_doc_id`
+
+---
+
+### `vault_versions`
+
+Document version history — schema created in migration 038 for v3.1 (empty placeholder). (migration 038; `custom_scope` added migration 043)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID PK | |
+| `doc_id` | UUID FK → vault_documents ON DELETE CASCADE | |
+| `version` | INT DEFAULT 1 | Version number |
+| `content` | TEXT DEFAULT `''` | Snapshot content |
+| `changed_by` | TEXT DEFAULT `''` | Actor who made the change |
+| `custom_scope` | VARCHAR(255) | Future extensibility (migration 043) |
+| `created_at` | TIMESTAMPTZ | |
+
+**Unique:** `(doc_id, version)`
+
+---
+
 ### `subagent_tasks`
 
-Persists subagent task lifecycle for audit trail, cost attribution, and restart recovery. (migration 034)
+Persists subagent task lifecycle for audit trail, cost attribution, and restart recovery. (migration 034; `custom_scope` added migration 043)
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -1114,4 +1274,4 @@ Persists subagent task lifecycle for audit trail, cost attribution, and restart 
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

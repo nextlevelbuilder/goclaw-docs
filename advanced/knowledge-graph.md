@@ -376,9 +376,26 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 
 ---
 
+## Knowledge Graph vs Knowledge Vault
+
+The Knowledge Graph and [Knowledge Vault](knowledge-vault) are complementary systems:
+
+| | Knowledge Graph | Knowledge Vault |
+|--|----------------|-----------------|
+| **What it stores** | Extracted entities and typed relations | Full documents (notes, specs, context files) |
+| **How it's built** | Automatic LLM extraction from conversations | Agent writes files; VaultSyncWorker registers them |
+| **Search** | Entity name / relationship traversal | Hybrid FTS + vector on title, path, content |
+| **Links** | Typed relation edges (`works_on`, `manages`, …) | Wikilinks `[[target]]` and explicit references |
+| **Scope** | Per-agent, optionally shared across team | personal / team / shared scope per document |
+
+When an agent uses `vault_search`, the VaultSearchService fans out to **both** the vault and the knowledge graph simultaneously, merging results with weighted scoring.
+
+---
+
 ## What's Next
 
+- [Knowledge Vault](knowledge-vault) — Document-level knowledge store with wikilinks and semantic search
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Sessions & History](/sessions-and-history) — Conversation storage
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

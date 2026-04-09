@@ -333,7 +333,24 @@ Agent có thể trả lời câu hỏi như *"Ai đang làm việc trên Project
 
 ## Tiếp theo
 
+## Knowledge Graph vs Knowledge Vault
+
+Knowledge Graph và [Kho Tri Thức (Knowledge Vault)](knowledge-vault) là hai hệ thống bổ trợ nhau:
+
+| | Knowledge Graph | Knowledge Vault |
+|--|----------------|-----------------|
+| **Lưu trữ gì** | Thực thể được trích xuất và quan hệ có kiểu | Tài liệu đầy đủ (ghi chú, tài liệu đặc tả, context file) |
+| **Cách xây dựng** | LLM tự động trích xuất từ hội thoại | Agent ghi file; VaultSyncWorker đăng ký tài liệu |
+| **Tìm kiếm** | Tên thực thể / duyệt quan hệ | Hybrid FTS + vector trên title, path, nội dung |
+| **Liên kết** | Cạnh quan hệ có kiểu (`works_on`, `manages`, …) | Wikilink `[[target]]` và tham chiếu tường minh |
+| **Phạm vi** | Theo agent, tùy chọn chia sẻ trong team | Phạm vi personal / team / shared theo từng tài liệu |
+
+Khi agent dùng `vault_search`, VaultSearchService fan-out đồng thời sang **cả** vault lẫn knowledge graph, hợp nhất kết quả theo điểm số có trọng số.
+
+---
+
+- [Kho Tri Thức (Knowledge Vault)](knowledge-vault) — Kho tài liệu cấp document với wikilink và tìm kiếm ngữ nghĩa
 - [Hệ thống bộ nhớ](/memory-system) — Bộ nhớ dài hạn dựa trên vector
 - [Sessions & History](/sessions-and-history) — Lưu trữ cuộc hội thoại
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

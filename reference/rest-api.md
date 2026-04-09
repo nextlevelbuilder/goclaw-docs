@@ -527,6 +527,112 @@ Optional query parameter `?user_id=` for per-user scoping.
 
 ---
 
+## V3 Agent Capabilities
+
+> New in v3. Enable per-agent via [V3 Feature Flags](#v3-feature-flags).
+
+### Evolution
+
+Track tool-usage metrics and receive automated improvement suggestions.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/evolution/metrics` | List raw or aggregated evolution metrics |
+| `GET` | `/v1/agents/{id}/evolution/suggestions` | List evolution suggestions |
+| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | Update suggestion status (`pending` → `approved`/`rejected`/`rolled_back`) |
+| `POST` | `/v1/agents/{id}/evolution/skill-apply` | Apply an approved evolution suggestion as a new skill |
+
+**`GET /v1/agents/{id}/evolution/metrics` query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `type` | string | Filter: `tool`, `retrieval`, `feedback` |
+| `aggregate` | boolean | Return aggregated metrics grouped by tool/metric (default: `false`) |
+| `since` | ISO 8601 | Start timestamp (default: 7 days ago) |
+| `limit` | integer | Max results (default: 100, max: 500) |
+
+**`GET /v1/agents/{id}/evolution/suggestions` query params:** `status` (filter: `pending`/`approved`/`applied`/`rejected`/`rolled_back`), `limit`
+
+---
+
+### Episodic Memory
+
+Conversation summaries per user session for long-term context continuity.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/episodic` | List episodic summaries |
+| `POST` | `/v1/agents/{id}/episodic/search` | Hybrid BM25+vector search over episodic summaries |
+
+**`GET /v1/agents/{id}/episodic` query params:** `user_id`, `limit` (default: 20, max: 500), `offset`
+
+**`POST /v1/agents/{id}/episodic/search` body:**
+
+```json
+{ "query": "Docker optimization", "user_id": "optional", "max_results": 10, "min_score": 0.5 }
+```
+
+---
+
+### Knowledge Vault
+
+Persistent document store with vector embeddings and graph link connections.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/vault/documents` | List documents across all agents |
+| `GET` | `/v1/agents/{id}/vault/documents` | List documents for a specific agent |
+| `GET` | `/v1/agents/{id}/vault/documents/{docID}` | Get a single document (full content) |
+| `POST` | `/v1/agents/{id}/vault/search` | Hybrid FTS+vector search |
+| `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | Get outlinks and backlinks for a document |
+
+**List query params:** `scope`, `doc_type` (comma-separated), `limit`, `offset`, `agent_id` (cross-agent only)
+
+**Response shape** (list):
+
+```json
+{ "documents": [...], "total": 42 }
+```
+
+**Search body:** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
+
+---
+
+### Orchestration
+
+Controls how an agent routes requests (standalone, delegation, or team-based).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/orchestration` | Get current orchestration mode and targets |
+
+**Response:**
+
+```json
+{
+  "mode": "delegate",
+  "delegate_targets": [{"agent_key": "research-agent", "display_name": "Research Specialist"}],
+  "team": null
+}
+```
+
+**Mode values:** `standalone` (direct), `delegate` (routes to agent links), `team` (routes via team task system)
+
+---
+
+### V3 Feature Flags
+
+Per-agent flags controlling v3 subsystems.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/agents/{id}/v3-flags` | Get all v3 flags for an agent |
+| `PATCH` | `/v1/agents/{id}/v3-flags` | Update flags (partial update accepted) |
+
+**Flag keys:** `evolution_enabled`, `episodic_enabled`, `vault_enabled`, `orchestration_enabled`, `skill_evolve`, `self_evolve`
+
+---
+
 ## Knowledge Graph
 
 Per-agent entity-relation graph.
@@ -1091,6 +1197,41 @@ Multi-tenant management (gateway token scope only).
 
 ---
 
+## Backup & Restore
+
+### System Backup (Admin)
+
+Full system backup for disaster recovery. Requires admin role.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/system/backup` | Trigger system backup (returns archive or SSE progress) |
+| `GET` | `/v1/system/backup/preflight` | Check backup preconditions |
+| `GET` | `/v1/system/backup/download/{token}` | Download backup archive by short-lived token |
+
+### System Backup S3
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/system/backup/s3/config` | Get S3 backup configuration |
+| `PUT` | `/v1/system/backup/s3/config` | Update S3 backup configuration |
+| `GET` | `/v1/system/backup/s3/list` | List available S3 backup archives |
+| `POST` | `/v1/system/backup/s3/upload` | Upload local backup to S3 |
+| `POST` | `/v1/system/backup/s3/backup` | Trigger backup directly to S3 |
+
+### Tenant Backup
+
+Per-tenant backup and restore. Admin role required.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/tenant/backup` | Trigger tenant backup (returns archive or SSE progress) |
+| `GET` | `/v1/tenant/backup/preflight` | Check tenant backup preconditions |
+| `GET` | `/v1/tenant/backup/download/{token}` | Download tenant backup archive by short-lived token |
+| `POST` | `/v1/tenant/restore` | Restore tenant from a backup archive |
+
+---
+
 ## Activity & Audit
 
 | Method | Path | Description |
@@ -1207,4 +1348,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

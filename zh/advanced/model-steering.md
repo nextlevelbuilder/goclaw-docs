@@ -387,6 +387,47 @@ flowchart TD
 
 ---
 
+## Mode Prompt 系统
+
+除了运行时引导层之外，GoClaw 还通过根据上下文改变 system prompt 中包含的部分来应用**提示级引导**。这在保持用户交互完整引导的同时降低了后台任务的 token 成本。
+
+### Prompt Mode
+
+| Mode | 适用对象 | 包含的部分 |
+|------|---------|-----------|
+| `full` | 直接面向用户的 agent | 全部——persona、skills、MCP、memory、spawn guidance |
+| `task` | 企业自动化 agent | 精简但功能完整——execution bias、skills search、safety slim |
+| `minimal` | 通过 `spawn` 创建的子 agent | 缩减——tooling、safety、workspace |
+| `none` | 仅 identity（罕见） | 仅 identity 行 |
+
+**优先级解析**（最高优先级优先）：runtime override → 自动检测 → agent config → 默认（`full`）。
+
+### 编排模式（Orchestration Mode）
+
+每个 agent 根据其能力分配编排模式，决定可用的 inter-agent tool：
+
+| Mode | 条件 | 可用 tool | Prompt 部分 |
+|------|------|-----------|------------|
+| `spawn` | 默认（无链接或团队） | 仅 `spawn` | Sub-Agent Spawning |
+| `delegate` | Agent 有 AgentLink 目标 | `spawn` + `delegate` | Delegation Targets |
+| `team` | Agent 属于团队 | `spawn` + `delegate` + `team_tasks` | Team Workspace + Team Members |
+
+优先级：team > delegate > spawn。模式不允许时，`delegate` 和 `team_tasks` 对 LLM 隐藏。
+
+### 提示缓存边界
+
+对于 Anthropic provider，GoClaw 在隐藏标记处分割 system prompt：
+
+```
+<!-- GOCLAW_CACHE_BOUNDARY -->
+```
+
+**边界上方（稳定——已缓存）：** Identity、Persona、Tooling、Safety、Skills、MCP Tools、Workspace、Team sections、Sandbox、User Identity、稳定 Project Context 文件（AGENTS.md、CAPABILITIES.md 等）。
+
+**边界下方（动态——不缓存）：** Time、Channel Formatting Hints、Extra Prompt、动态 Project Context 文件（USER.md、BOOTSTRAP.md）、Runtime、Recency Reinforcements。
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -405,4 +446,4 @@ flowchart TD
 - [Agent 团队](../agent-teams/overview.md) — Track 和 Hint 最活跃的多 agent 协调
 - [定时任务与 Cron](scheduling-cron.md) — cron lane 请求如何通过 Track 路由
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

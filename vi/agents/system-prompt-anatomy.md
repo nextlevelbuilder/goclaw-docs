@@ -8,9 +8,16 @@
 
 Mỗi khi agent chạy, GoClaw lắp ráp **system prompt** từ tối đa 23 phần. Các phần được sắp xếp có chiến lược theo **primacy và recency bias**: các file persona xuất hiện cả ở đầu (phần 1.7) lẫn cuối (phần 16) để ngăn persona bị trôi trong các cuộc hội thoại dài. Safety đến trước, tooling tiếp theo, rồi mới đến context. Một số phần luôn được bao gồm; một số khác phụ thuộc vào cấu hình agent.
 
-Có hai **prompt mode**:
-- **Full mode** (agent chính): tất cả các phần, đầy đủ context
-- **Minimal mode** (subagent/cron): ít phần hơn, khởi động nhanh hơn
+Có bốn **prompt mode**:
+
+| Mode | Dùng cho | Mô tả |
+|------|----------|-------|
+| `full` | Agent tương tác trực tiếp | Đầy đủ — persona, skills, memory, spawn guidance |
+| `task` | Agent tự động hóa | Gọn nhẹ — execution bias, skills search, safety slim |
+| `minimal` | Subagent spawn, cron session | Rút gọn — tooling, safety, workspace |
+| `none` | Chỉ identity (hiếm) | Chỉ dòng identity |
+
+Mode được phân giải theo thứ tự ưu tiên: runtime override → auto-detect → agent config → mặc định (`full`).
 
 ## Tất cả các phần theo thứ tự
 
@@ -30,6 +37,7 @@ Có hai **prompt mode**:
 | 6 | Workspace | ✓ | ✓ | Thư mục làm việc, đường dẫn file |
 | 6.3 | Team Workspace | ✓ | ✓ | Đường dẫn workspace chung và hướng dẫn auto-status (chỉ team agent) |
 | 6.4 | Team Members | ✓ | ✓ | Danh sách thành viên team để phân công task (chỉ team agent) |
+| 6.45 | Delegation Targets | ✓ | ✓ | Danh sách agent được phép delegate (chỉ ModeDelegate/ModeTeam) |
 | 6.5 | Sandbox | ✓ | ✓ | Hướng dẫn dành riêng cho sandbox (nếu bật) |
 | 7 | User Identity | ✓ | ✗ | ID chủ sở hữu |
 | 8 | Time | ✓ | ✓ | Ngày/giờ hiện tại |
@@ -71,6 +79,22 @@ Tại sao? Để giảm thời gian khởi động và mức sử dụng context
 
 **Phần có trong cả hai**:
 - Tất cả phần còn lại (Identity, First-Run Bootstrap, Persona, Tooling, Tool Call Style, Credentialed CLI, Safety, Identity Anchoring, Self-Evolution, Workspace, Team Workspace, Team Members, Sandbox, Time, Channel Formatting, Group Chat Reply Hint, Additional Context, Project Context, Sub-Agent Spawning, Runtime, Recency Reinforcements)
+
+## Cache Boundary của Prompt
+
+GoClaw chia system prompt tại một marker ẩn để hỗ trợ prompt caching của Anthropic:
+
+```
+<!-- GOCLAW_CACHE_BOUNDARY -->
+```
+
+**Phía trên boundary (ổn định — được cache):** Identity, Persona, Tooling, Safety, Skills, MCP Tools, Workspace, Team sections, Sandbox, User Identity, các file Project Context ổn định (AGENTS.md, AGENTS_CORE.md, AGENTS_TASK.md, CAPABILITIES.md, USER_PREDEFINED.md).
+
+**Phía dưới boundary (động — không cache):** Time, Channel Formatting Hints, Group Chat Reply Hint, Extra Prompt, các file Project Context động (USER.md, BOOTSTRAP.md), Runtime, Recency Reinforcements.
+
+Cách chia này trong suốt với model. Với provider không phải Anthropic, marker vẫn được chèn nhưng không có tác dụng.
+
+---
 
 ## Pipeline Truncation
 
@@ -380,4 +404,4 @@ Agent này sẽ:
 - [Context Files — Thêm context dành riêng cho dự án](/context-files)
 - [Creating Agents — Thiết lập cấu hình system prompt](/creating-agents)
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

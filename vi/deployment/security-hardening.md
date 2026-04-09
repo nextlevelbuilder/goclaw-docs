@@ -14,7 +14,7 @@ flowchart TD
     L1 --> L2["Lớp 2: Input\nInjection detection · message truncation · ILIKE escape"]
     L2 --> L3["Lớp 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval · file serving protection"]
     L3 --> L4["Lớp 4: Output\nCredential scrubbing · web content tagging · MCP content tagging"]
-    L4 --> L5["Lớp 5: Isolation\nPer-user workspace · Docker sandbox"]
+    L4 --> L5["Lớp 5: Isolation\nPer-user workspace · Docker sandbox · privilege separation"]
 ```
 
 ---
@@ -30,6 +30,7 @@ Kiểm soát những gì đến được gateway ở cấp network và HTTP.
 | Giới hạn HTTP body | 1 MB — áp dụng trước khi decode JSON |
 | Token auth | `crypto/subtle.ConstantTimeCompare` — kiểm tra bearer token an toàn về thời gian |
 | Rate limiting | Token bucket mỗi user/IP; cấu hình qua `gateway.rate_limit_rpm` (0 = tắt) |
+| Dev mode | Gateway token trống → cấp quyền admin (chỉ dùng cho môi trường local/single-user — không dùng trong production) |
 
 **Hành động hardening:**
 
@@ -159,7 +160,7 @@ Lệnh thực thi trên host có stdout và stderr giới hạn **1 MB** mỗi l
 
 ### XML parsing (phòng chống XXE)
 
-GoClaw đã thay thế parser `xml.etree.ElementTree` của stdlib bằng `defusedxml` trong tất cả các đường dẫn xử lý XML. `defusedxml` chặn các cuộc tấn công XML eXternal Entity (XXE) — nơi payload XML được tạo thủ công tham chiếu đến external entity để đọc file cục bộ hoặc kích hoạt SSRF. Áp dụng cho mọi agent tool hoặc skill xử lý XML input.
+GoClaw đã thay thế parser `xml.etree.ElementTree` của stdlib bằng `defusedxml` trong tất cả các đường dẫn xử lý XML. `defusedxml` chặn các cuộc tấn công XML eXternal Entity (XXE). Áp dụng cho mọi agent tool hoặc skill xử lý XML input.
 
 ### Exec approval
 
@@ -209,18 +210,6 @@ Scrubbing bật mặc định. Để tắt (không khuyến nghị):
 
 Bạn cũng có thể đăng ký runtime values để scrub động (ví dụ server IP phát hiện lúc runtime) qua `AddDynamicScrubValues()` trong custom tool integrations.
 
-### MCP content tagging
-
-Kết quả từ MCP tool call được bọc trong cùng untrusted-content marker như web fetch:
-
-```
-<<<EXTERNAL_UNTRUSTED_CONTENT>>>
-[kết quả MCP tool ở đây]
-<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
-```
-
-Điều này ngăn chặn prompt injection từ MCP server độc hại — LLM được hướng dẫn không coi nội dung được tag là instructions.
-
 ### Web content tagging
 
 Nội dung fetch từ URL bên ngoài được bọc:
@@ -262,6 +251,61 @@ Mỗi user có một thư mục sandbox riêng. Hai cấp độ:
 
 User ID được sanitize — ký tự ngoài `[a-zA-Z0-9_-]` trở thành gạch dưới. Ví dụ: `group:telegram:-1001234` → `group_telegram_-1001234`.
 
+### Docker entrypoint — tách biệt đặc quyền
+
+Container Docker của GoClaw dùng mô hình ba giai đoạn đặc quyền:
+
+**Giai đoạn 1: Root (`docker-entrypoint.sh`)**
+- Cài lại system package đã lưu từ `/app/data/.runtime/apk-packages`
+- Khởi động `pkg-helper` (service chạy quyền root trên Unix socket `/tmp/pkg.sock`, mode 0660, group `goclaw`)
+- Thiết lập thư mục runtime cho Python và Node.js
+
+**Giai đoạn 2: Chuyển sang user `goclaw` (`su-exec`)**
+- App chính chạy với tư cách `goclaw` (UID 1000) qua `su-exec goclaw /app/goclaw`
+- Tất cả thao tác agent thực hiện trong context này
+- Yêu cầu system package được ủy quyền cho `pkg-helper` qua Unix socket
+
+**Giai đoạn 3: Sandbox tùy chọn (per-agent)**
+- Thực thi shell có thể được sandbox trong Docker container (có thể cấu hình)
+
+### pkg-helper — root service
+
+`pkg-helper` chạy với quyền root trên Unix socket (`/tmp/pkg.sock`, 0660 `root:goclaw`). Chỉ chấp nhận yêu cầu `apk add` / `apk del` từ user `goclaw`. Các capability Docker Compose cần thiết:
+
+| Capability | Mục đích |
+|-----------|---------|
+| `SETUID` | `su-exec` chuyển đặc quyền |
+| `SETGID` | Membership group cho socket |
+| `CHOWN` | Thiết lập ownership thư mục runtime |
+| `DAC_OVERRIDE` | Truy cập socket pkg-helper |
+
+Tất cả capability còn lại bị drop (`cap_drop: ALL`). Cấu hình compose đầy đủ:
+
+```yaml
+cap_drop:
+  - ALL
+cap_add:
+  - SETUID
+  - SETGID
+  - CHOWN
+  - DAC_OVERRIDE
+security_opt:
+  - no-new-privileges:true
+tmpfs:
+  - /tmp:size=256m,noexec,nosuid
+```
+
+### Thư mục runtime
+
+Package và dữ liệu runtime được lưu trong `/app/data/.runtime`, tồn tại qua các lần tái tạo container:
+
+| Đường dẫn | Owner | Mục đích |
+|-----------|-------|---------|
+| `/app/data/.runtime/apk-packages` | 0666 | Danh sách apk package đã lưu |
+| `/app/data/.runtime/pip` | goclaw | Python packages (`$PIP_TARGET`) |
+| `/app/data/.runtime/npm-global` | goclaw | npm packages (`$NPM_CONFIG_PREFIX`) |
+| `/tmp/pkg.sock` | root:goclaw 0660 | Unix socket pkg-helper |
+
 ### Docker sandbox
 
 Để agent thực thi shell trong môi trường cô lập, bật Docker sandbox:
@@ -296,6 +340,25 @@ Container hardening áp dụng tự động:
 | Timeout | 300 giây |
 
 Sandbox modes: `off` (exec trực tiếp trên host), `non-main` (sandbox tất cả trừ main agent), `all` (sandbox mọi agent).
+
+---
+
+## Sửa lỗi Session IDOR
+
+Tất cả năm `chat.*` WebSocket method (`chat.send`, `chat.abort`, `chat.stop`, `chat.stopall`, `chat.reset`) đều xác minh caller sở hữu session trước khi thực hiện. Helper `requireSessionOwner` trong `internal/gateway/methods/access.go` thực hiện kiểm tra này. User không phải admin cung cấp `sessionKey` thuộc về user khác sẽ nhận lỗi phân quyền — thao tác không bao giờ được thực thi.
+
+---
+
+## Pairing Auth — Tăng cường bảo mật
+
+Device pairing của browser hoạt động theo nguyên tắc fail-closed:
+
+| Kiểm soát | Chi tiết |
+|---------|---------|
+| Fail-closed | Kiểm tra `IsPaired()` chặn session chưa pair — không fallback sang truy cập mở |
+| Rate limiting | Tối đa 3 pairing request đang chờ mỗi tài khoản; ngăn chặn enumeration spam |
+| TTL enforcement | Pairing code hết hạn sau 60 phút; token thiết bị đã pair hết hạn sau 30 ngày |
+| Approval flow | Yêu cầu `device.pair.approve` qua WebSocket từ session admin đã xác thực |
 
 ---
 
@@ -341,7 +404,7 @@ WebSocket RPC method và HTTP endpoint được kiểm soát theo role. Role có
 Thứ tự ưu tiên xác thực:
 1. **Gateway token** → Admin role (toàn quyền)
 2. **API key** → Role được suy ra từ scopes
-3. **Không có token** → Operator (tương thích ngược)
+3. **Không có token** → Operator (tương thích ngược); nếu không cấu hình gateway token → Admin (dev mode)
 
 Các scope có sẵn:
 
@@ -359,71 +422,27 @@ API key được truyền qua header `Authorization: Bearer {key}`, giống như
 
 ## Bảo vệ Ghi đè File Memory
 
-Memory interceptor ngăn chặn mất dữ liệu âm thầm khi agent cố gắng ghi đè file memory hiện có bằng nội dung khác. Khi thực hiện ghi ở chế độ replace (không phải append) và mục tiêu đã có nội dung khác, giá trị cũ được capture và trả về cho caller để agent có thể được cảnh báo trước khi dữ liệu bị mất.
-
-**Cách hoạt động:**
-
-- `appendMode = true` — nội dung mới được gộp vào nội dung hiện có với dấu phân cách `---`. Không có cảnh báo ghi đè.
-- `appendMode = false` — nếu file đích đã chứa nội dung khác, `PreviousContent` được điền vào kết quả ghi. Caller quyết định có hiển thị cảnh báo cho agent không.
-
-Điều này đảm bảo agent không thể âm thầm ghi đè file memory bằng nội dung không liên quan trong quá trình ghi song song hoặc tuần tự. Thao tác ghi vẫn thực hiện theo kiểu atomic qua `PutDocument`, nhưng cảnh báo cung cấp một hook phát hiện xung đột.
+Memory interceptor ngăn chặn mất dữ liệu âm thầm khi agent cố gắng ghi đè file memory hiện có bằng nội dung khác. Khi ghi ở chế độ replace và mục tiêu đã có nội dung khác, giá trị cũ được capture và trả về để agent có thể được cảnh báo trước khi dữ liệu bị mất.
 
 ---
 
 ## Hệ thống Config Permissions
 
-GoClaw cung cấp ba RPC method để kiểm soát người dùng nào có thể thay đổi cấu hình của agent (heartbeat interval, lịch cron, v.v.):
+GoClaw cung cấp ba RPC method để kiểm soát người dùng nào có thể thay đổi cấu hình của agent:
 
 | Method | Mô tả |
 |--------|-------|
-| `config.permissions.list` | Liệt kê tất cả quyền đã cấp cho agent, có thể lọc theo `configType` |
-| `config.permissions.grant` | Cấp quyền cho một user cụ thể để thay đổi config type |
+| `config.permissions.list` | Liệt kê tất cả quyền đã cấp cho agent |
+| `config.permissions.grant` | Cấp quyền cho user cụ thể thay đổi config type |
 | `config.permissions.revoke` | Thu hồi quyền đã cấp trước đó |
 
-**Mô hình quyền — deny → allow fallback:**
-
-Mặc định, việc thay đổi cấu hình yêu cầu quyền admin. Việc cấp quyền cho `userId` với `scope` và `configType` cụ thể cho phép user đó thực hiện thay đổi cụ thể mà không cần toàn quyền admin.
-
-**Tham số Grant:**
-
-| Tham số | Bắt buộc | Mô tả |
-|---------|----------|-------|
-| `agentId` | có | UUID của agent |
-| `scope` | có | Định danh scope (ví dụ: `"heartbeat"`, `"cron"`) |
-| `configType` | có | Loại config được kiểm soát |
-| `userId` | có | User được cấp quyền |
-| `permission` | có | Cấp độ quyền (ví dụ: `"write"`) |
-| `grantedBy` | không | Tự động điền từ danh tính caller nếu bỏ trống |
-
-**Ví dụ — cho phép user thay đổi heartbeat config:**
-
-```json
-{
-  "method": "config.permissions.grant",
-  "params": {
-    "agentId": "3f2a1b4c-0000-0000-0000-000000000000",
-    "scope": "heartbeat",
-    "configType": "interval",
-    "userId": "user:telegram:123456789",
-    "permission": "write"
-  }
-}
-```
-
-Kiểm tra config permission được thực thi trong Telegram channel và các channel handler khác trước khi áp dụng cập nhật heartbeat hoặc agent configuration từ tin nhắn user.
+Mặc định, việc thay đổi cấu hình yêu cầu quyền admin. Cấp quyền cho `userId` với `scope` và `configType` cụ thể cho phép user đó thực hiện thay đổi mà không cần toàn quyền admin.
 
 ---
 
 ## Goroutine Panic Recovery
 
-GoClaw bọc tất cả goroutine nền (thực thi tool, cron job, summarization) trong panic recovery handler qua package `safego`. Nếu một goroutine bị panic, lỗi được bắt và ghi log thay vì crash toàn bộ server.
-
-Áp dụng tự động cho:
-- Goroutine thực thi tool
-- Thực thi cron job
-- Tác vụ summarization nền
-
-Không cần cấu hình — panic recovery luôn hoạt động.
+GoClaw bọc tất cả goroutine nền trong panic recovery handler qua package `safego`. Nếu một goroutine bị panic, lỗi được bắt và ghi log thay vì crash toàn bộ server. Không cần cấu hình — panic recovery luôn hoạt động.
 
 ---
 
@@ -445,7 +464,8 @@ Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ
 - [ ] Tạo scoped API key cho các integration thay vì chia sẻ gateway token
 - [ ] Cấu hình `tools.credentialed_exec` cho các CLI tool integration an toàn (gh, aws, v.v.)
 - [ ] Review shell deny groups — cả 15 group đều bật theo mặc định; chỉ nới lỏng cho agent cụ thể cần thiết
-- [ ] Xác minh sandbox mode không fallback sang thực thi host (fail-closed từ v0.x)
+- [ ] Xác minh sandbox mode không fallback sang thực thi host (fail-closed)
+- [ ] Xác nhận `GOCLAW_GATEWAY_TOKEN` đã được đặt — token trống bật dev mode (admin cho tất cả)
 
 ---
 
@@ -480,6 +500,7 @@ journalctl -u goclaw | grep 'security\.'
 | Credentials xuất hiện trong tool output | `scrub_credentials: false` | Xóa override đó — scrubbing bật mặc định |
 | Sandbox không cô lập được | Sandbox mode là `"off"` | Đặt `sandbox.mode` thành `"non-main"` hoặc `"all"` |
 | Encryption key chưa đặt | `GOCLAW_ENCRYPTION_KEY` trống | Đặt trước lần chạy đầu; rotate cần re-encrypt stored secrets |
+| Tất cả user có quyền admin | `GOCLAW_GATEWAY_TOKEN` chưa đặt | Đặt token mạnh; để trống = dev mode |
 
 ---
 
@@ -490,4 +511,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploy với security settings qua compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS và encrypted secret storage
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

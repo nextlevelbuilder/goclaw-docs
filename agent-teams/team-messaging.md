@@ -112,7 +112,46 @@ flowchart TD
 
 The `teammate:` prefix in the sender ID tells the consumer to route the message to the correct team member's session, not the general user session.
 
-## Event Broadcasting
+## Domain Event Bus
+
+In addition to mailbox messages, GoClaw uses a typed **Domain Event Bus** (`eventbus.DomainEventBus`) for internal event propagation across the v3 pipeline. This is separate from the channel message bus used for routing.
+
+The domain event bus is defined in `internal/eventbus/domain_event_bus.go`:
+
+```go
+type DomainEventBus interface {
+    Publish(event DomainEvent)                                    // non-blocking enqueue
+    Subscribe(eventType EventType, handler DomainEventHandler) func() // returns unsubscribe fn
+    Start(ctx context.Context)
+    Drain(timeout time.Duration) error
+}
+```
+
+**Key properties**:
+- Async worker pool (default 2 workers, queue depth 1000)
+- Per-`SourceID` dedup window (default 5 minutes) — prevents duplicate processing
+- Configurable retry (default 3 attempts with exponential backoff)
+- Graceful drain on shutdown
+
+**Event types catalog** (defined in `eventbus/event_types.go`):
+
+| Event Type | Trigger |
+|-----------|---------|
+| `session.completed` | Session ends or context is compacted |
+| `episodic.created` | Episodic memory summary stored |
+| `entity.upserted` | Knowledge graph entity updated |
+| `run.completed` | Agent pipeline run finishes |
+| `tool.executed` | Tool call completes (for metrics) |
+| `vault.doc_upserted` | Vault document registered or updated |
+| `delegate.sent` | Delegation dispatched to member |
+| `delegate.completed` | Delegatee finishes successfully |
+| `delegate.failed` | Delegation fails |
+
+These events power the v3 enrichment pipeline (episodic memory, knowledge graph, vault indexing) independently from the WebSocket team events used by the UI.
+
+## WebSocket Team Events
+
+For UI real-time updates, team activity emits WebSocket events via `msgBus.Broadcast`. These are separate from the domain event bus and target connected dashboard clients.
 
 When messages are sent, real-time events are broadcast to UI:
 
@@ -134,6 +173,16 @@ When messages are sent, real-time events are broadcast to UI:
 }
 ```
 
+### Task Lifecycle Events API
+
+Task lifecycle events (create, assign, complete, approve, reject, comment, fail, etc.) are also available via the REST endpoint:
+
+```
+GET /v1/teams/{id}/events
+```
+
+This returns a paginated audit log of all task state changes for the team, useful for compliance review or building custom dashboards.
+
 ## Use Cases
 
 **Member → Member**: "Task 123 is ready for your review. The data shows..."
@@ -145,8 +194,6 @@ When messages are sent, real-time events are broadcast to UI:
 > **Note**: Leads coordinate via `team_tasks`, not `team_message`. Use `team_tasks(action="progress")` to report status updates instead of direct messages.
 
 ## Auto-Fail on Loop Kill
-
-### Auto-Fail on Loop Kill
 
 If a member agent's run is terminated by the loop detector (stuck or infinite loop), the task automatically transitions to `failed`:
 
@@ -205,4 +252,4 @@ All messages are persisted to the database:
 - Timestamps and read status tracked
 - Full message history available for audit/review
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

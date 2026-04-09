@@ -173,10 +173,41 @@ The system will trigger background LLM summoning to generate personality files. 
 | Summoning takes a long time or fails | Check LLM provider connectivity and model availability. Failed summoning keeps template files as fallback. |
 | Provider or model not recognized | Ensure the provider is configured in `GOCLAW_CONFIG`. Check provider docs for correct model names. |
 
+## Bootstrap Templates
+
+When an agent is created, GoClaw seeds context files from built-in templates. The set of files seeded depends on agent type:
+
+**Open agents (first user chat):**
+
+| File | Template | Purpose |
+|------|----------|---------|
+| `SOUL.md` | `SOUL.md` template | Personality, tone, boundaries |
+| `IDENTITY.md` | `IDENTITY.md` template | Name, creature, emoji |
+| `USER.md` | `USER.md` template | User-specific context (name, language, timezone) |
+| `BOOTSTRAP.md` | `BOOTSTRAP.md` template | First-run conversation script |
+| `AGENTS.md` | `AGENTS_V1.md` template | Subagent list |
+| `AGENTS_CORE.md` | `AGENTS_CORE.md` template | Core operating rules (language matching, internal messages) |
+| `AGENTS_TASK.md` | `AGENTS_TASK.md` template | Task/automation rules (memory, scheduling) |
+| `CAPABILITIES.md` | `CAPABILITIES.md` template | Domain expertise placeholder |
+| `TOOLS.md` | `TOOLS.md` template | User guidance on tool usage |
+
+**Predefined agents (at creation):**
+
+Same files seeded to `agent_context_files` (agent-level, shared across users), minus `USER.md` and `BOOTSTRAP.md` which are per-user. Users get `USER.md` + `BOOTSTRAP_PREDEFINED.md` on first chat.
+
+**Key templates added in v3:**
+- **`AGENTS_CORE.md`** — injects core operating rules into all agents (language matching, internal system messages, write-tool requirement for saves)
+- **`AGENTS_TASK.md`** — supplements core rules with task/automation guidance (memory, scheduling)
+- **`CAPABILITIES.md`** — separates domain expertise from persona (SOUL.md covers who the agent is; CAPABILITIES.md covers what it knows)
+
+These files are placed in the stable portion of the system prompt (above the cache boundary) because they rarely change between users.
+
+---
+
 ## What's Next
 
 - [Open vs. Predefined](/open-vs-predefined) — understand context isolation differences
 - [Context Files](/context-files) — learn about SOUL.md, IDENTITY.md, and other system files
 - [Summoning & Bootstrap](/summoning-bootstrap) — how LLM generates personality files on first use
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

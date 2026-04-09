@@ -12,7 +12,7 @@ flowchart TD
     L1 --> L2["Layer 2: Input\nInjection detection · message truncation · ILIKE escape"]
     L2 --> L3["Layer 3: Tools\nShell deny patterns · path traversal · SSRF · exec approval · file serving protection"]
     L3 --> L4["Layer 4: Output\nCredential scrubbing · web content tagging · MCP content tagging"]
-    L4 --> L5["Layer 5: Isolation\nPer-user workspace · Docker sandbox"]
+    L4 --> L5["Layer 5: Isolation\nPer-user workspace · Docker sandbox · privilege separation"]
 ```
 
 ---
@@ -28,6 +28,7 @@ Controls what reaches the gateway at the network and HTTP level.
 | HTTP body limit | 1 MB — enforced before JSON decode |
 | Token auth | `crypto/subtle.ConstantTimeCompare` — timing-safe bearer token check |
 | Rate limiting | Token bucket per user/IP; configurable via `gateway.rate_limit_rpm` (0 = disabled) |
+| Dev mode | Empty gateway token → admin role granted (single-user / local dev only — never use in production) |
 
 **Hardening actions:**
 
@@ -207,18 +208,6 @@ Scrubbing is enabled by default. To disable (not recommended):
 
 You can also register runtime values for dynamic scrubbing (e.g., server IPs discovered at runtime) via `AddDynamicScrubValues()` in custom tool integrations.
 
-### MCP content tagging
-
-Results returned by MCP tool calls are wrapped in the same untrusted-content markers as web fetches:
-
-```
-<<<EXTERNAL_UNTRUSTED_CONTENT>>>
-[MCP tool result here]
-<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>
-```
-
-This prevents prompt injection from malicious MCP servers — the LLM is instructed not to treat tagged content as instructions.
-
 ### Web content tagging
 
 Content fetched from external URLs is wrapped:
@@ -260,6 +249,61 @@ Every user gets a sandboxed directory. Two levels:
 
 User IDs are sanitized — characters outside `[a-zA-Z0-9_-]` become underscores. Example: `group:telegram:-1001234` → `group_telegram_-1001234`.
 
+### Docker entrypoint — privilege separation
+
+GoClaw's Docker container uses a three-phase privilege model:
+
+**Phase 1: Root (`docker-entrypoint.sh`)**
+- Re-installs persisted system packages from `/app/data/.runtime/apk-packages`
+- Starts `pkg-helper` (root-privileged service listening on Unix socket `/tmp/pkg.sock`, mode 0660, group `goclaw`)
+- Sets up Python and Node.js runtime directories
+
+**Phase 2: Drop to `goclaw` user (`su-exec`)**
+- Main app runs as `goclaw` (UID 1000) via `su-exec goclaw /app/goclaw`
+- All agent operations execute in this context
+- System package requests are delegated to `pkg-helper` via Unix socket
+
+**Phase 3: Optional sandbox (per-agent)**
+- Shell execution can be sandboxed in Docker containers (configurable)
+
+### pkg-helper — root service
+
+`pkg-helper` runs as root on a Unix socket (`/tmp/pkg.sock`, 0660 `root:goclaw`). It accepts only `apk add` / `apk del` requests from the `goclaw` user. Required Docker Compose capabilities:
+
+| Capability | Purpose |
+|-----------|---------|
+| `SETUID` | `su-exec` privilege drop |
+| `SETGID` | Group membership for socket |
+| `CHOWN` | Runtime directory ownership setup |
+| `DAC_OVERRIDE` | pkg-helper socket access |
+
+All other capabilities are dropped (`cap_drop: ALL`). The full compose security config:
+
+```yaml
+cap_drop:
+  - ALL
+cap_add:
+  - SETUID
+  - SETGID
+  - CHOWN
+  - DAC_OVERRIDE
+security_opt:
+  - no-new-privileges:true
+tmpfs:
+  - /tmp:size=256m,noexec,nosuid
+```
+
+### Runtime directories
+
+Packages and runtime data are stored under `/app/data/.runtime`, which survives container recreation:
+
+| Path | Owner | Purpose |
+|------|-------|---------|
+| `/app/data/.runtime/apk-packages` | 0666 | Persisted apk package list |
+| `/app/data/.runtime/pip` | goclaw | Python packages (`$PIP_TARGET`) |
+| `/app/data/.runtime/npm-global` | goclaw | npm packages (`$NPM_CONFIG_PREFIX`) |
+| `/tmp/pkg.sock` | root:goclaw 0660 | pkg-helper Unix socket |
+
 ### Docker sandbox
 
 For agent shell execution, enable the Docker sandbox to run commands in an isolated container:
@@ -294,6 +338,25 @@ Container hardening applied automatically:
 | Timeout | 300 seconds |
 
 Sandbox modes: `off` (direct host exec), `non-main` (sandbox all except the main agent), `all` (sandbox every agent).
+
+---
+
+## Session IDOR Fix
+
+All five `chat.*` WebSocket methods (`chat.send`, `chat.abort`, `chat.stop`, `chat.stopall`, `chat.reset`) verify that the caller owns the session before acting on it. The `requireSessionOwner` helper in `internal/gateway/methods/access.go` performs this check. Non-admin users supplying a `sessionKey` that belongs to another user receive an authorization error — the operation is never executed.
+
+---
+
+## Pairing Auth Hardening
+
+Browser device pairing is fail-closed:
+
+| Control | Detail |
+|---------|--------|
+| Fail-closed | `IsPaired()` check blocks unpaired sessions — no fallback to open access |
+| Rate limiting | Max 3 pending pairing requests per account; prevents enumeration spam |
+| TTL enforcement | Pairing codes expire after 60 minutes; paired device tokens expire after 30 days |
+| Approval flow | Requires WebSocket `device.pair.approve` from an authenticated admin session |
 
 ---
 
@@ -339,7 +402,7 @@ For fine-grained access control, create scoped API keys instead of sharing the g
 Authentication priority:
 1. **Gateway token** → Admin role (full access)
 2. **API key** → Role derived from scopes
-3. **No token** → Operator (backward compatibility)
+3. **No token** → Operator (backward compatibility); if no gateway token is configured at all → Admin (dev mode)
 
 Available scopes:
 
@@ -359,69 +422,25 @@ API keys are passed via `Authorization: Bearer {key}` header, same as the gatewa
 
 The memory interceptor prevents silent data loss when an agent attempts to overwrite an existing memory file with different content. When a write is issued in replace mode (not append) and the target already contains different content, the previous value is captured and returned to the caller so the agent can be warned before data is lost.
 
-**How it works:**
-
-- `appendMode = true` — new content is merged onto existing content with a `---` separator. No overwrite warning.
-- `appendMode = false` — if the target file already contains different content, `PreviousContent` is populated in the write result. The caller decides whether to surface a warning to the agent.
-
-This ensures agents cannot silently clobber memory files with unrelated content during concurrent or sequential writes. The write still proceeds atomically via `PutDocument`, but the warning provides a conflict-detection hook.
-
 ---
 
 ## Config Permissions System
 
-GoClaw exposes three RPC methods to control which users can modify an agent's configuration (heartbeat intervals, cron schedules, etc.):
+GoClaw exposes three RPC methods to control which users can modify an agent's configuration:
 
 | Method | Description |
 |--------|-------------|
-| `config.permissions.list` | List all granted permissions for an agent, optionally filtered by `configType` |
+| `config.permissions.list` | List all granted permissions for an agent |
 | `config.permissions.grant` | Grant a specific user permission to modify a config type |
 | `config.permissions.revoke` | Revoke a previously granted permission |
 
-**Permission model — deny → allow fallback:**
-
-By default, config modifications require admin access. Granting a permission to a `userId` for a given `scope` and `configType` allows that user to make the specific change without full admin rights.
-
-**Grant parameters:**
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `agentId` | yes | UUID of the agent |
-| `scope` | yes | Scope identifier (e.g. `"heartbeat"`, `"cron"`) |
-| `configType` | yes | Config type being controlled |
-| `userId` | yes | User to grant permission to |
-| `permission` | yes | Permission level (e.g. `"write"`) |
-| `grantedBy` | no | Auto-filled from caller's identity if omitted |
-
-**Example — allow a user to modify heartbeat config:**
-
-```json
-{
-  "method": "config.permissions.grant",
-  "params": {
-    "agentId": "3f2a1b4c-0000-0000-0000-000000000000",
-    "scope": "heartbeat",
-    "configType": "interval",
-    "userId": "user:telegram:123456789",
-    "permission": "write"
-  }
-}
-```
-
-Config permission checks are enforced in the Telegram channel and other channel handlers before applying heartbeat or agent configuration updates from user messages.
+By default, config modifications require admin access. Granting permission to a `userId` for a given `scope` and `configType` allows that user to make the specific change without full admin rights.
 
 ---
 
 ## Goroutine Panic Recovery
 
-GoClaw wraps all background goroutines (tool execution, cron jobs, summarization) in a panic recovery handler via the `safego` package. If a goroutine panics, the error is caught and logged instead of crashing the entire server process.
-
-This applies automatically to:
-- Tool execution goroutines
-- Cron job execution
-- Background summarization tasks
-
-No configuration is required — panic recovery is always active.
+GoClaw wraps all background goroutines (tool execution, cron jobs, summarization) in a panic recovery handler via the `safego` package. If a goroutine panics, the error is caught and logged instead of crashing the entire server process. No configuration required — panic recovery is always active.
 
 ---
 
@@ -443,7 +462,8 @@ Use this before exposing GoClaw to the internet or shared users:
 - [ ] Create scoped API keys for integrations instead of sharing the gateway token
 - [ ] Configure `tools.credentialed_exec` for secure CLI tool integrations (gh, aws, etc.)
 - [ ] Review shell deny groups — all 15 are on by default; only relax for specific agents that need it
-- [ ] Verify sandbox mode does not fall back to host execution (fail-closed since v0.x)
+- [ ] Verify sandbox mode does not fall back to host execution (fail-closed)
+- [ ] Confirm `GOCLAW_GATEWAY_TOKEN` is set — empty token enables dev mode (admin for all)
 
 ---
 
@@ -478,6 +498,7 @@ journalctl -u goclaw | grep 'security\.'
 | Credentials appear in tool output | `scrub_credentials: false` | Remove that override — scrubbing is on by default |
 | Sandbox not isolating | Sandbox mode is `"off"` | Set `sandbox.mode` to `"non-main"` or `"all"` |
 | Encryption key not set | `GOCLAW_ENCRYPTION_KEY` empty | Set before first run; rotating requires re-encrypting stored secrets |
+| All users have admin access | `GOCLAW_GATEWAY_TOKEN` not set | Set a strong token; empty = dev mode |
 
 ---
 
@@ -488,4 +509,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

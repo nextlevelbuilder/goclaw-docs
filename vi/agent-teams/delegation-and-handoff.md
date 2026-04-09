@@ -51,6 +51,8 @@ Hệ thống validate và auto-dispatch:
 - Task dispatch đến lead agent bị chặn và auto-fail
 - Member request (non-lead) có thể yêu cầu leader phê duyệt trước khi dispatch
 
+> **Lead V2**: Lead V2 không thể tạo task thủ công trước khi spawn được phát ra trong turn hiện tại. Điều này ngăn việc tạo task sớm làm hỏng luồng điều phối có cấu trúc.
+
 ## Delegation Song song
 
 Tạo nhiều task trong cùng một turn — chúng dispatch đồng thời sau turn:
@@ -61,7 +63,83 @@ Tạo nhiều task trong cùng một turn — chúng dispatch đồng thời sau
 {"action": "create", "subject": "Trích xuất ý kiến", "assignee": "analyst2"}
 ```
 
-Kết quả được thu thập và thông báo cùng nhau khi tất cả hoàn thành.
+Kết quả được thu thập qua **hàng đợi producer-consumer** (`BatchQueue[T]`) gộp các kết quả hoàn thành lẻ tẻ thành một lần chạy LLM thông báo duy nhất. Lead nhận một tin nhắn kết hợp thay vì bị gián đoạn riêng lẻ theo từng member — giảm đáng kể chi phí token.
+
+## Cải tiến Sub-Agent Song song (#600)
+
+Ngoài delegation cho team member, lead có thể spawn **self-clone subagent** bằng tool `spawn` cho các khối lượng công việc song song không yêu cầu một team member cụ thể:
+
+```json
+{"action": "spawn", "task": "Tóm tắt báo cáo PDF", "label": "pdf-summarizer"}
+```
+
+Các hành vi chính được giới thiệu trong cải tiến sub-agent song song:
+
+### Delegation Thông minh của Leader
+
+Prompt delegation của leader là **có điều kiện** — chỉ kích hoạt khi tình huống thực sự yêu cầu delegation, thay vì bắt buộc với mọi lần spawn. Điều này tránh lãng phí turn LLM khi phản hồi trực tiếp phù hợp hơn.
+
+### `spawn(action=wait)` — Điều phối WaitAll
+
+Chặn parent cho đến khi tất cả children đã spawn hoàn thành:
+
+```json
+{"action": "wait", "timeout": 300}
+```
+
+- Turn của parent tạm dừng cho đến khi tất cả subagent đang hoạt động kết thúc (hoặc hết timeout)
+- Cho phép các workflow đa bước phối hợp khi lead cần kết quả trước khi tiếp tục
+- Timeout mặc định: 300 giây
+
+### Auto-Retry với Linear Backoff
+
+Lỗi LLM của subagent kích hoạt retry tự động. Cấu hình qua `SubagentConfig`:
+
+| Trường | Mặc định | Mô tả |
+|-------|---------|-------|
+| `MaxRetries` | `2` | Số lần retry tối đa mỗi subagent |
+| Backoff | linear | Mỗi lần retry chờ `attempt × 2s` trước khi chạy lại |
+
+### Giới hạn Rate theo Edition
+
+Giới hạn đồng thời theo phạm vi tenant trên struct Edition:
+
+| Giới hạn | Trường | Mô tả |
+|---------|-------|-------|
+| Subagent đồng thời | `MaxSubagentConcurrent` | Số subagent đồng thời tối đa mỗi tenant |
+| Độ sâu spawn | `MaxSubagentDepth` | Độ sâu lồng tối đa (subagent spawn subagent) |
+
+Khi đạt giới hạn, spawn bị từ chối với thông báo lỗi rõ ràng để LLM có thể điều chỉnh.
+
+### Bảng `subagent_tasks` (Migration 34)
+
+Trạng thái subagent task được lưu vào bảng database `subagent_tasks` (migration 000034). Interface `SubagentTaskStore` với implementation PostgreSQL cung cấp:
+- Theo dõi task bền vững qua các lần khởi động lại
+- Persistence write-through từ `SubagentManager`
+- Lưu trữ chi phí token theo từng task
+
+### Theo dõi Chi phí Token
+
+Số token đầu vào và đầu ra mỗi subagent được tích lũy và bao gồm trong:
+- Tin nhắn thông báo gửi đến lead
+- Bản ghi DB `subagent_tasks` để thanh toán và quan sát
+
+### Persistence Prompt Compaction
+
+Khi context của lead agent được compaction (tóm tắt), trạng thái subagent và team task đang chờ được bảo tồn trong compaction prompt. Tính liên tục công việc được duy trì — lead không mất dấu các task đang thực hiện sau khi tóm tắt.
+
+### Lệnh Telegram
+
+Hai lệnh bot Telegram có sẵn để theo dõi công việc subagent:
+
+| Lệnh | Mô tả |
+|------|-------|
+| `/subagents` | Liệt kê tất cả subagent task đang hoạt động kèm trạng thái |
+| `/subagent <id>` | Hiển thị chi tiết của một subagent task cụ thể từ DB |
+
+### Hạn chế Tool của Subagent
+
+`team_tasks` bị chặn bên trong subagent qua `SubagentDenyAlways`. Subagent không thể tạo team task hoặc thực hiện điều phối team — chỉ lead mới có thể quản lý board của team.
 
 ## Tự động Hoàn thành & Artifacts
 
@@ -89,8 +167,6 @@ Khi một agent có quá nhiều target để liệt kê tĩnh trong `AGENTS.md`
   "max_results": 5
 }
 ```
-
-Gọi tool `delegate_search` với các tham số trên.
 
 **Tìm kiếm trên**:
 - Tên và key của agent (full-text search)
@@ -225,8 +301,8 @@ Với delegation bất đồng bộ, lead nhận cập nhật nhóm định kỳ
 2. **Không dùng `spawn` để delegation**: `spawn` chỉ dùng cho self-clone, không dùng cho team member
 3. **Tạo nhiều task trong một turn**: chúng dispatch song song sau turn
 4. **Dùng `blocked_by`**: phối hợp thứ tự task với dependency
-5. **Liên kết phụ thuộc**: Dùng `blocked_by` trên task board để phối hợp thứ tự
+5. **Dùng `spawn(action=wait)`**: khi lead cần tất cả kết quả trước khi tiếp tục
 6. **Xử lý handoff khéo léo**: Thông báo người dùng về việc chuyển giao; truyền context
 7. **Đặt giới hạn vòng lặp trong hướng dẫn**: Tránh vòng lặp evaluate vô hạn
 
-<!-- goclaw-source: 0dab087f | cập nhật: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

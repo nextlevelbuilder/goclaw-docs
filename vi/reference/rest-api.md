@@ -529,6 +529,85 @@ Query param tùy chọn `?user_id=` để scope theo user.
 
 ---
 
+## Khả năng Agent V3
+
+> Tính năng mới trong v3. Bật theo từng agent qua [V3 Feature Flags](#v3-feature-flags).
+
+### Evolution (Tiến hóa agent)
+
+Theo dõi metric sử dụng tool và nhận gợi ý cải thiện tự động.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/agents/{id}/evolution/metrics` | Liệt kê metric evolution thô hoặc tổng hợp |
+| `GET` | `/v1/agents/{id}/evolution/suggestions` | Liệt kê gợi ý evolution |
+| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | Cập nhật trạng thái gợi ý (`pending` → `approved`/`rejected`/`rolled_back`) |
+| `POST` | `/v1/agents/{id}/evolution/skill-apply` | Áp dụng gợi ý đã duyệt thành skill mới |
+
+**Query params của `GET .../evolution/metrics`:** `type` (lọc: `tool`/`retrieval`/`feedback`), `aggregate` (boolean), `since` (ISO 8601), `limit`
+
+**Query params của `GET .../evolution/suggestions`:** `status`, `limit`
+
+---
+
+### Episodic Memory (Bộ nhớ theo tập)
+
+Tóm tắt cuộc trò chuyện theo session người dùng cho ngữ cảnh dài hạn.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/agents/{id}/episodic` | Liệt kê tóm tắt episodic |
+| `POST` | `/v1/agents/{id}/episodic/search` | Tìm kiếm hybrid BM25+vector trên episodic |
+
+**Query params:** `user_id`, `limit` (mặc định: 20, tối đa: 500), `offset`
+
+**Body tìm kiếm:** `{ "query": "...", "user_id": "tùy chọn", "max_results": 10, "min_score": 0.5 }`
+
+---
+
+### Knowledge Vault (Kho kiến thức)
+
+Lưu trữ tài liệu bền vững với embedding vector và liên kết đồ thị.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/vault/documents` | Liệt kê tài liệu toàn hệ thống |
+| `GET` | `/v1/agents/{id}/vault/documents` | Liệt kê tài liệu của agent |
+| `GET` | `/v1/agents/{id}/vault/documents/{docID}` | Lấy một tài liệu (nội dung đầy đủ) |
+| `POST` | `/v1/agents/{id}/vault/search` | Tìm kiếm hybrid FTS+vector |
+| `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | Lấy outlink và backlink của tài liệu |
+
+**Response dạng danh sách:** `{ "documents": [...], "total": 42 }`
+
+**Body tìm kiếm:** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
+
+---
+
+### Orchestration (Điều phối)
+
+Kiểm soát cách agent định tuyến yêu cầu.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/agents/{id}/orchestration` | Lấy mode và target điều phối hiện tại |
+
+**Giá trị mode:** `standalone` (trực tiếp), `delegate` (qua agent link), `team` (qua hệ thống task team)
+
+---
+
+### V3 Feature Flags
+
+Các cờ tính năng theo từng agent kiểm soát các hệ thống con v3.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/agents/{id}/v3-flags` | Lấy tất cả v3 flag của agent |
+| `PATCH` | `/v1/agents/{id}/v3-flags` | Cập nhật flag (chấp nhận partial update) |
+
+**Các flag:** `evolution_enabled`, `episodic_enabled`, `vault_enabled`, `orchestration_enabled`, `skill_evolve`, `self_evolve`
+
+---
+
 ## Knowledge Graph
 
 Đồ thị entity-relation per-agent.
@@ -1093,6 +1172,41 @@ Quản lý multi-tenant (chỉ gateway token scope).
 
 ---
 
+## Backup & Restore
+
+### System Backup (Admin)
+
+Backup toàn hệ thống để phục hồi sau sự cố. Yêu cầu quyền admin.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/system/backup` | Kích hoạt backup hệ thống (trả về archive hoặc SSE progress) |
+| `GET` | `/v1/system/backup/preflight` | Kiểm tra điều kiện trước khi backup |
+| `GET` | `/v1/system/backup/download/{token}` | Tải archive backup theo token ngắn hạn |
+
+### System Backup S3
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/system/backup/s3/config` | Lấy cấu hình S3 backup |
+| `PUT` | `/v1/system/backup/s3/config` | Cập nhật cấu hình S3 backup |
+| `GET` | `/v1/system/backup/s3/list` | Liệt kê các backup có trên S3 |
+| `POST` | `/v1/system/backup/s3/upload` | Upload backup lên S3 |
+| `POST` | `/v1/system/backup/s3/backup` | Kích hoạt backup trực tiếp lên S3 |
+
+### Tenant Backup
+
+Backup và khôi phục theo tenant. Yêu cầu quyền admin.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/tenant/backup` | Kích hoạt backup tenant |
+| `GET` | `/v1/tenant/backup/preflight` | Kiểm tra điều kiện trước khi backup tenant |
+| `GET` | `/v1/tenant/backup/download/{token}` | Tải archive backup tenant theo token ngắn hạn |
+| `POST` | `/v1/tenant/restore` | Khôi phục tenant từ archive backup |
+
+---
+
 ## Activity & Audit
 
 | Method | Path | Mô tả |
@@ -1209,4 +1323,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

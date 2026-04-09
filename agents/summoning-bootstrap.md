@@ -64,6 +64,15 @@ If timeout: fallback handles each phase separately.
 
 ### What Gets Generated
 
+Summoning generates up to four files:
+
+| File | Generated? | Content |
+|------|:----------:|---------|
+| `SOUL.md` | Always | Personality, tone, boundaries, expertise |
+| `IDENTITY.md` | Always | Name, creature, emoji, purpose |
+| `CAPABILITIES.md` | Always | Domain expertise and technical skills (v3) |
+| `USER_PREDEFINED.md` | If description mentions users/policies | Baseline user-handling rules |
+
 **SOUL.md:**
 ```markdown
 # SOUL.md - Who You Are
@@ -97,6 +106,9 @@ If timeout: fallback handles each phase separately.
 - **Vibe:** (personality descriptor)
 - **Emoji:** (chosen to match personality)
 ```
+
+**CAPABILITIES.md** (v3):
+Separates domain expertise from personality. SOUL.md covers *who* the agent is; CAPABILITIES.md covers *what* it knows — technical skills, tools, methodologies. The agent can evolve this file over time (when `self_evolve=true`), just like SOUL.md.
 
 **USER_PREDEFINED.md** (optional):
 Generated only if description mentions owner/creator, users/groups, or communication policies. Contains baseline user-handling rules shared across all users.
@@ -334,8 +346,10 @@ Both summoning and bootstrap rely on `SeedUserFiles()` and `SeedToStore()`:
 - Predefined: AGENTS.md, SOUL.md (template), IDENTITY.md (template), etc. → agent_context_files
 
 **On first user chat:**
-- Open: All 7 templates → user_context_files
-- Predefined: USER.md, `BOOTSTRAP_PREDEFINED.md` (user-focused variant, different from open agent's BOOTSTRAP.md) → user_context_files
+- Open: All templates → user_context_files (SOUL.md, IDENTITY.md, USER.md, BOOTSTRAP.md, AGENTS.md, AGENTS_CORE.md, AGENTS_TASK.md, CAPABILITIES.md, TOOLS.md)
+- Predefined: USER.md + `BOOTSTRAP_PREDEFINED.md` → user_context_files
+
+`BOOTSTRAP_PREDEFINED.md` is a user-focused onboarding script for predefined agents (different from the open agent's `BOOTSTRAP.md` — it's more restrained since the agent's personality is already set at the agent level).
 - Agent-level files (SOUL.md, IDENTITY.md) already loaded from agent_context_files
 
 **Predefined with pre-configured USER.md:**
@@ -357,4 +371,4 @@ If you manually set USER.md at agent level before the first user chats, it's use
 - [Open vs. Predefined](/open-vs-predefined) — understand when to use each type
 - [Creating Agents](/creating-agents) — step-by-step agent creation
 
-<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

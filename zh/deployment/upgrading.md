@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **36**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **44**。
 
 ```mermaid
 graph LR
@@ -210,6 +210,34 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 ## 近期迁移
 
+### v3 迁移（037–044）— v2→v3 升级指南
+
+这些迁移通过 `./goclaw upgrade` 自动应用，构成 **v3 主版本**。从 v2 升级前请仔细阅读以下重大变更。
+
+| 版本 | 变更内容 |
+|------|---------|
+| 037 | **V3 内存进化** — 创建 `episodic_summaries`、`agent_evolution_metrics`、`agent_evolution_suggestions`；为 KG 表添加 temporal 列；将 12 个 agent 配置字段从 `other_config` JSONB 提升为独立列 |
+| 038 | **Knowledge Vault** — 创建 `vault_documents`、`vault_links`、`vault_versions` |
+| 039 | 清除过期的 `agent_links` 数据 |
+| 040 | 为 `episodic_summaries` 添加 `search_vector` 生成 FTS 列 + HNSW 索引 |
+| 041 | 为 `episodic_summaries` 添加 `promoted_at` 列（用于 dreaming pipeline） |
+| 042 | 为 `vault_documents` 添加 `summary` 列；重建 FTS |
+| 043 | 为 `vault_documents` 和其他 9 张表添加 `team_id`、`custom_scope`；支持团队的唯一约束；scope 修复触发器 |
+| 044 | 为所有 agent 播种 `AGENTS_CORE.md` 和 `AGENTS_TASK.md` 上下文文件；删除 `AGENTS_MINIMAL.md` |
+
+#### v3 重大变更
+
+| 变更 | 影响 | 所需操作 |
+|------|------|---------|
+| 删除旧版 `runLoop()`（约 745 行） | 所有 agent 现在运行统一的 v3 8 阶段 pipeline | 无——自动处理 |
+| 移除 `v3PipelineEnabled` flag | 该 flag 不再被接受；v3 pipeline 始终激活 | 如有设置，从 `config.json` 中删除 `v3PipelineEnabled` |
+| 移除 Web UI v2/v3 切换开关 | 设置页面不再显示 pipeline 切换 | 无 |
+| 删除 `workspace_read`/`workspace_write` 工具 | 文件访问改用标准文件工具（`read_file`、`write_file`、`edit`） | 更新引用这些工具名称的 agent prompt |
+| 移除 WhatsApp `bridge_url` | 直接进程内 WhatsApp 协议取代 Baileys bridge sidecar | 从 channel 配置中删除 `bridge_url`；参见 [WhatsApp 设置](/channels/whatsapp) |
+| 删除 `docker-compose.whatsapp.yml` | bridge sidecar Docker Compose overlay 不再存在 | 从部署脚本中删除 |
+| 文件工具自动解析团队工作区 | 指向团队工作区路径的 `read_file`/`write_file` 直接工作 | 无——透明处理 |
+| Store 统一（`internal/store/base/`） | 仅内部重构 | 无——无 schema 或配置变更 |
+
 ### v2.x 迁移（024–032）
 
 升级到 v2.x 时，这五个迁移在启动时自动应用。标准升级无需手动步骤——像往常一样运行 `./goclaw upgrade`。只有在主要版本跨越的情况下才需要手动迁移，此时推荐使用备份恢复方案。
@@ -283,4 +311,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

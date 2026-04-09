@@ -1,10 +1,36 @@
 # Memory System
 
-> How agents remember facts across conversations using hybrid search.
+> How agents remember facts across conversations using a 3-tier architecture with automatic consolidation.
 
 ## Overview
 
-GoClaw gives agents long-term memory that persists across sessions. When an agent learns something important — your name, preferences, project details — it stores that as a memory document. Later, the agent retrieves relevant memories using a combination of full-text search and vector similarity.
+GoClaw v3 gives agents long-term memory that persists across sessions. Memory is organized into three tiers — working memory, episodic memory, and semantic memory — each serving a distinct purpose in the recall lifecycle. A background consolidation pipeline automatically promotes memories across tiers without any agent action required.
+
+## 3-Tier Memory Architecture
+
+```mermaid
+graph TD
+    L0["L0 — Working Memory<br/>(MEMORY.md, memory/*.md)<br/>FTS + Vector, per-agent/user"]
+    L1["L1 — Episodic Memory<br/>(episodic_summaries table)<br/>Session summaries, 90-day TTL"]
+    L2["L2 — Semantic Memory<br/>(Knowledge Graph)<br/>Entities + relations, temporal"]
+
+    L0 -->|"dreaming_worker promotes<br/>after ≥5 unpromoted episodes"| L0
+    L1 -->|"episodic_worker creates<br/>on session.completed"| L1
+    L1 -->|"semantic_worker extracts<br/>KG facts on episodic.created"| L2
+    L1 -->|"dreaming_worker synthesizes<br/>into long-term MEMORY.md"| L0
+```
+
+| Tier | Storage | Content | Lifespan | Search |
+|------|---------|---------|---------|--------|
+| **L0 Working** | `memory_documents` + `memory_embeddings` | Agent-curated facts, auto-flush notes, dreaming output | Permanent until deleted | FTS + vector hybrid |
+| **L1 Episodic** | `episodic_summaries` | Session summaries, key topics, L0 abstracts | 90 days (configurable) | FTS + HNSW vector |
+| **L2 Semantic** | Knowledge Graph tables | Entities, relations, temporal validity windows | Permanent | Graph traversal |
+
+### Tier Boundaries and Promotion Rules
+
+- **Session → L1**: When a session completes, `episodic_worker` summarizes it into an `episodic_summaries` row. Uses the compaction summary if available; otherwise calls the LLM with the session messages (30-second timeout, max 1,024 tokens).
+- **L1 → L2**: After each episodic summary is created, `semantic_worker` extracts KG entities and relations from the summary text and ingests them into the knowledge graph with temporal validity (`valid_from` = now).
+- **L1 → L0**: When ≥5 unpromoted episodic entries accumulate for an agent/user pair, `dreaming_worker` synthesizes them into a long-term Markdown document written to `_system/dreaming/YYYYMMDD-consolidated.md` and marks the episodes as promoted.
 
 ## How It Works
 
@@ -18,7 +44,7 @@ graph LR
     DB --> R[Ranked Results]
 ```
 
-### Writing Memory
+### Writing Memory (L0)
 
 When an agent writes to `MEMORY.md` or files in `memory/*`, GoClaw:
 
@@ -53,6 +79,107 @@ Results are then ranked:
 ### Knowledge Graph Search
 
 `knowledge_graph_search` complements `memory_search` for relationship and entity queries. While `memory_search` retrieves factual text chunks, `knowledge_graph_search` traverses entity relationships — useful for questions like "what projects is Alice working on?" or "which tools does this agent use?"
+
+## Consolidation Workers
+
+The consolidation pipeline runs entirely in the background, event-driven via the internal event bus. Workers are registered once at startup via `consolidation.Register()` and subscribe to domain events.
+
+```mermaid
+sequenceDiagram
+    participant S as Session
+    participant EW as episodic_worker
+    participant SW as semantic_worker
+    participant DW as dedup_worker
+    participant DR as dreaming_worker
+    participant L0A as l0_abstract
+
+    S->>EW: session.completed event
+    EW->>EW: LLM summarize (or use compaction summary)
+    EW->>EW: l0_abstract (extractive, no LLM)
+    EW-->>SW: episodic.created event
+    EW-->>DR: episodic.created event
+    SW->>SW: Extract KG entities + relations
+    SW-->>DW: entity.upserted event
+    DW->>DW: Merge/flag duplicate entities
+    DR->>DR: Count unpromoted (debounce 10min, threshold 5)
+    DR->>DR: LLM synthesis → _system/dreaming/YYYYMMDD.md
+    DR->>DR: Mark episodes as promoted
+```
+
+### `episodic_worker`
+
+**Trigger**: `session.completed` event
+**Action**: Creates an `episodic_summaries` row for each completed session.
+
+- Checks `source_id` (`sessionKey:compactionCount`) to prevent duplicate summaries.
+- Uses the compaction summary if present; otherwise reads session messages and calls the LLM with a 30-second timeout.
+- Generates an **L0 abstract** — a 1-sentence extractive summary (~200 runes) for fast context injection, with no LLM call.
+- Extracts `key_topics` as capitalized proper noun phrases for FTS boosting.
+- Sets `expires_at` to 90 days from creation (configurable via `episodic_ttl_days`).
+- Publishes `episodic.created` for downstream workers.
+
+### `semantic_worker`
+
+**Trigger**: `episodic.created` event
+**Action**: Extracts knowledge graph entities and relations from the episodic summary text.
+
+- Calls the `EntityExtractor` (KG extraction, not a raw LLM call).
+- Stamps extracted entities with `valid_from = now()` and scopes them to `agent_id` + `user_id`.
+- Ingests into the KG store via `IngestExtraction`.
+- Publishes `entity.upserted` for the dedup worker.
+- Failures are non-fatal — extraction errors are logged as warnings and do not block the pipeline.
+
+### `dedup_worker`
+
+**Trigger**: `entity.upserted` event
+**Action**: Detects and merges duplicate KG entities after each extraction batch.
+
+- Calls `kgStore.DedupAfterExtraction` with the newly upserted entity IDs.
+- Merges semantically equivalent entities and flags ambiguous ones.
+- Terminal worker — no downstream events.
+- Failures are non-fatal.
+
+### `dreaming_worker`
+
+**Trigger**: `episodic.created` event
+**Action**: Consolidates unpromoted episodic summaries into long-term L0 memory.
+
+- **Debounce**: skips if already ran within the last 10 minutes for the same agent/user pair.
+- **Threshold**: requires ≥5 unpromoted episodic entries before running (configurable).
+- Fetches up to 10 unpromoted entries and calls the LLM to synthesize long-term facts (max 4,096 tokens).
+- Synthesis prompt extracts: user preferences, project facts, recurring patterns, key decisions.
+- Writes output to `_system/dreaming/YYYYMMDD-consolidated.md` in L0 memory and indexes it for search.
+- Marks all processed entries as `promoted_at = now()`.
+
+### `l0_abstract`
+
+Not a standalone worker — a utility called by `episodic_worker` to produce a brief L0 abstract from a full summary. Uses an extractive sentence-splitting approach (no LLM call, no latency). The abstract is stored in the `l0_abstract` column of `episodic_summaries` and used by the auto-injector.
+
+**Periodic pruning**: A goroutine runs every 6 hours to delete episodic summaries past their `expires_at` date.
+
+## Auto-Injector
+
+The **auto-injector** automatically surfaces relevant memories into the agent's system prompt at the start of each turn, before the LLM call.
+
+- **Interface**: `AutoInjector.Inject(ctx, InjectParams)` — called once per turn in the context build stage.
+- **How it works**: Checks the user's message against the memory index. Returns a formatted section for the system prompt (empty string if nothing is relevant). Budget: max ~200 tokens of L0 abstracts.
+- **Default parameters** (overridable per agent in `agents.settings` JSONB):
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `auto_inject_enabled` | `true` | Enable/disable auto-injection |
+| `auto_inject_threshold` | `0.3` | Minimum relevance score (0–1) for a memory to be injected |
+| `auto_inject_max_tokens` | `200` | Token budget for injected memory section |
+| `episodic_ttl_days` | `90` | Days before episodic summaries expire |
+| `consolidation_enabled` | `true` | Enable/disable consolidation pipeline |
+
+The injector returns an `InjectResult` with observability fields: `MatchCount`, `Injected`, and `TopScore`.
+
+## Trivial Filter
+
+The **trivial filter** prevents low-value messages from triggering memory injection, reducing unnecessary database lookups.
+
+`isTrivialMessage(msg)` returns `true` when the message contains fewer than 3 meaningful words after removing stopwords (greetings like "hi", "ok", "thanks", acknowledgments, single-word responses). Trivial messages skip the auto-injector entirely.
 
 ## Memory vs Sessions
 
@@ -120,11 +247,14 @@ This allows knowledge sharing within a team without duplication. The leader accu
 | Memory search returns nothing | Check that pgvector extension is installed; verify embedding provider is configured |
 | Agent forgets things | Ensure `memory: true` in config; check if auto-compaction is running |
 | Irrelevant memories surfacing | Memory accumulates over time; consider clearing old memories via the API |
+| Episodic summaries not created | Verify consolidation workers are registered at startup; check event bus is running |
+| Dreaming worker never promotes | Check that ≥5 sessions have completed for the agent/user pair; review debounce logs |
 
 ## What's Next
 
 - [Multi-Tenancy](/multi-tenancy) — Per-user memory isolation
 - [Sessions and History](/sessions-and-history) — How conversation history works
+- [Context Pruning](/context-pruning) — How pruning integrates with the consolidation pipeline
 - [Agents Explained](/agents-explained) — Agent types and context files
 
-<!-- goclaw-source: 6551c2d1 | updated: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

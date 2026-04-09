@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **36**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **44**.
 
 ```mermaid
 graph LR
@@ -208,6 +208,35 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
+### v3 Migrations (037–044) — v2→v3 Upgrade Guide
+
+These migrations are applied automatically via `./goclaw upgrade`. They constitute the **v3 major release**. Read the breaking changes below before upgrading from v2.
+
+| Version | What changed |
+|---------|-------------|
+| 037 | **V3 memory evolution** — creates `episodic_summaries`, `agent_evolution_metrics`, `agent_evolution_suggestions`; adds `valid_from`/`valid_until` to KG tables; promotes 12 agent fields from `other_config` JSONB to dedicated columns |
+| 038 | **Knowledge Vault** — creates `vault_documents`, `vault_links`, `vault_versions` |
+| 039 | Truncates stale `agent_links` data |
+| 040 | Adds `search_vector` FTS generated column + HNSW index to `episodic_summaries` |
+| 041 | Adds `promoted_at` column to `episodic_summaries` for dreaming pipeline |
+| 042 | Adds `summary` column to `vault_documents`; rebuilds FTS |
+| 043 | Adds `team_id`, `custom_scope` to `vault_documents` and 9 other tables; team-safe unique constraint; scope-fix trigger |
+| 044 | Seeds `AGENTS_CORE.md` and `AGENTS_TASK.md` context files for all agents; removes `AGENTS_MINIMAL.md` |
+
+#### Breaking Changes in v3
+
+| Change | Impact | Action required |
+|--------|--------|-----------------|
+| Legacy `runLoop()` deleted (~745 LOC) | All agents now run the unified 8-stage v3 pipeline | None — automatic |
+| `v3PipelineEnabled` flag removed | Flag is no longer accepted; v3 pipeline is always active | Remove `v3PipelineEnabled` from `config.json` if set |
+| Web UI v2/v3 toggle removed | Settings page no longer shows pipeline toggle | None |
+| `workspace_read` / `workspace_write` tools removed | File access now uses the standard file tools (`read_file`, `write_file`, `edit`) | Update any agent prompts that reference these tool names |
+| WhatsApp `bridge_url` removed | Direct in-process WhatsApp protocol replaces Baileys bridge sidecar | Remove `bridge_url` from channel config; see [WhatsApp setup](/channels/whatsapp) |
+| `docker-compose.whatsapp.yml` removed | The bridge sidecar Docker Compose overlay no longer exists | Remove from deployment scripts |
+| Team workspace files: file tools auto-resolve | `read_file`/`write_file` targeting team workspace paths work directly | None — transparent |
+| Store unification (`internal/store/base/`) | Internal refactor only | None — no schema or config changes |
+| Gateway decomposed into modules | Internal refactor only | None |
+
 ### v2.x Migrations (024–032)
 
 These five migrations are auto-applied on startup when upgrading to v2.x. No manual steps are needed for standard upgrades — run `./goclaw upgrade` as usual. Manual migration is only required for major version jumps where a backup-and-restore approach is recommended.
@@ -281,4 +310,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

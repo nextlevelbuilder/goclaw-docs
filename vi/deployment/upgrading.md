@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **36**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **44**.
 
 ```mermaid
 graph LR
@@ -210,6 +210,34 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ## Migration gần đây
 
+### Migration v3 (037–044) — Hướng dẫn nâng cấp v2→v3
+
+Các migration này được áp dụng tự động qua `./goclaw upgrade`. Đây là **phiên bản major v3**. Đọc kỹ các breaking change trước khi nâng cấp từ v2.
+
+| Phiên bản | Thay đổi |
+|-----------|----------|
+| 037 | **V3 memory evolution** — tạo `episodic_summaries`, `agent_evolution_metrics`, `agent_evolution_suggestions`; thêm `valid_from`/`valid_until` vào bảng KG; chuyển 12 trường agent từ `other_config` JSONB sang cột riêng |
+| 038 | **Knowledge Vault** — tạo `vault_documents`, `vault_links`, `vault_versions` |
+| 039 | Xóa dữ liệu `agent_links` cũ |
+| 040 | Thêm cột generated FTS `search_vector` + HNSW index vào `episodic_summaries` |
+| 041 | Thêm cột `promoted_at` vào `episodic_summaries` cho dreaming pipeline |
+| 042 | Thêm cột `summary` vào `vault_documents`; tái tạo FTS |
+| 043 | Thêm `team_id`, `custom_scope` vào `vault_documents` và 9 bảng khác; unique constraint hỗ trợ team; trigger sửa scope |
+| 044 | Seed file context `AGENTS_CORE.md` và `AGENTS_TASK.md` cho tất cả agent; xóa `AGENTS_MINIMAL.md` |
+
+#### Breaking Changes trong v3
+
+| Thay đổi | Ảnh hưởng | Hành động cần làm |
+|----------|-----------|------------------|
+| Xóa `runLoop()` cũ (~745 LOC) | Tất cả agent giờ chạy pipeline v3 thống nhất 8 giai đoạn | Không cần — tự động |
+| Xóa flag `v3PipelineEnabled` | Flag không còn được chấp nhận | Xóa `v3PipelineEnabled` khỏi `config.json` nếu có |
+| Xóa toggle v2/v3 trên Web UI | Trang Settings không còn hiển thị toggle pipeline | Không cần |
+| Xóa tool `workspace_read`/`workspace_write` | Truy cập file dùng tool chuẩn (`read_file`, `write_file`, `edit`) | Cập nhật prompt agent tham chiếu tên tool này |
+| Xóa `bridge_url` WhatsApp | Giao thức WhatsApp trực tiếp thay sidecar Baileys | Xóa `bridge_url` khỏi config channel; xem [Cài đặt WhatsApp](/channels/whatsapp) |
+| Xóa `docker-compose.whatsapp.yml` | File Docker Compose sidecar không còn tồn tại | Xóa khỏi deployment scripts |
+| File tools tự resolve workspace team | `read_file`/`write_file` với path workspace team hoạt động trực tiếp | Không cần — minh bạch |
+| Thống nhất store (`internal/store/base/`) | Tái cấu trúc nội bộ | Không cần — không thay đổi schema hay config |
+
 ### Migration v2.x (024–032)
 
 Năm migration này được tự động áp dụng khi khởi động khi nâng cấp lên v2.x. Không cần bước thủ công cho upgrade thông thường — chạy `./goclaw upgrade` như bình thường. Chỉ cần migration thủ công cho các bước nhảy phiên bản lớn nơi nên backup-and-restore.
@@ -283,4 +311,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

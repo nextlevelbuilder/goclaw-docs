@@ -259,6 +259,47 @@ Trong SaaS mode, cô lập theo user_id như trên vẫn áp dụng bên trong m
 
 **Master tenant** (UUID `0193a5b0-7000-7000-8000-000000000001`): Toàn bộ dữ liệu legacy và mặc định. Triển khai single-tenant dùng duy nhất tenant này.
 
+### Các store mới trong v3
+
+v3 bổ sung bốn store mới — tất cả đều thực thi tenant isolation:
+
+| Store | Mục đích | Phạm vi tenant |
+|-------|---------|----------------|
+| `EvolutionMetrics` | Theo dõi tín hiệu cải tiến agent | `WHERE tenant_id = $N` |
+| `EvolutionSuggestions` | Lưu trữ gợi ý tối ưu do LLM tạo ra | `WHERE tenant_id = $N` |
+| `Vault` | Lưu trữ dữ liệu có cấu trúc cho agent | `WHERE tenant_id = $N` |
+| `Episodic` | Bộ nhớ episodic (tóm tắt session đầy đủ) | `WHERE tenant_id = $N` |
+| `AgentLink` | Liên kết delegation giữa các agent | `WHERE tenant_id = $N` |
+
+---
+
+## Mô hình Edition
+
+GoClaw có hai edition giới hạn tài nguyên theo từng triển khai. Edition được thiết lập khi khởi động và áp dụng toàn cục (không theo từng tenant).
+
+| Tính năng | Standard | Lite |
+|-----------|:--------:|:----:|
+| Số agent tối đa | không giới hạn | 5 |
+| Số team tối đa | không giới hạn | 1 |
+| Số thành viên team tối đa | không giới hạn | 5 |
+| Subagent concurrent tối đa | không giới hạn | 2 |
+| Độ sâu subagent tối đa | không giới hạn | 1 |
+| Knowledge graph | ✓ | ✗ |
+| RBAC | ✓ | ✗ |
+| Vector search | ✓ | ✗ |
+
+**`MaxSubagentConcurrent`** — giới hạn số subagent chạy song song mỗi request. Trong Lite edition là 2, ngăn tình trạng quá tải trên các triển khai tự host.
+
+**`MaxSubagentDepth`** — giới hạn độ sâu spawn đệ quy. Trong Lite edition, subagent không thể tiếp tục spawn subagent khác (depth=1).
+
+---
+
+## i18n (Bản địa hóa theo request)
+
+GoClaw hỗ trợ bản địa hóa thông báo lỗi và gợi ý hệ thống theo từng request. Locale được xác định từ header HTTP `Accept-Language` hoặc trường `locale` trên WebSocket. Các giá trị hỗ trợ: `en`, `vi`, `zh`.
+
+Các gợi ý của agent (cảnh báo budget, gợi ý tạo skill, nhắc báo cáo tiến độ nhóm) đều hỗ trợ i18n qua `i18n.T(locale, msgKey)`. Người dùng sẽ nhận thông báo bằng ngôn ngữ của họ.
+
 ---
 
 ## Biến môi trường
@@ -290,4 +331,4 @@ Trong SaaS mode, cô lập theo user_id như trên vẫn áp dụng bên trong m
 - [Agents Explained](agents-explained.md) — Các loại agent và kiểm soát truy cập
 - [API Keys](../getting-started/api-keys.md) — Tạo và quản lý API key
 
-<!-- goclaw-source: b9d8754 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

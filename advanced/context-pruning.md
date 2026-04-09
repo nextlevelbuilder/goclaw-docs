@@ -178,6 +178,28 @@ Trigger earlier and keep less context per tool result:
 
 ---
 
+## Pruning and the Consolidation Pipeline
+
+Context pruning and memory consolidation serve complementary roles — pruning manages live context during a session; consolidation manages long-term recall across sessions.
+
+```
+Within a session:          pruning trims tool results → keeps LLM context lean
+On session.completed:      episodic_worker summarizes → L1 episodic memory
+After ≥5 episodes:         dreaming_worker promotes → L0 long-term memory
+```
+
+**Key distinction**: pruning never touches the persisted session store. Once a session completes, the consolidation pipeline (not pruning) takes over and determines what is worth keeping long-term. This means:
+
+- Pruned tool results are still visible to `episodic_worker` via the session store when it reads messages for summarization.
+- Content that was hard-cleared from live context is still summarized into episodic memory on session completion — nothing is permanently lost by pruning.
+- For content that has been promoted to episodic or long-term memory by `dreaming_worker`, the **auto-injector** re-surfaces it as concise L0 abstracts at the start of the next turn. This replaces the need to keep bulky tool results alive in context.
+
+### Practical consequence
+
+Once the consolidation pipeline has promoted a body of knowledge to L0 (via dreaming) or L1 (via episodic), you can allow pruning to be more aggressive for that agent. The agent will not lose information — it will be re-injected from memory rather than carried forward in raw session history.
+
+---
+
 ## Impact on Agent Behavior
 
 - **No session data is modified.** Pruning only affects the message slice passed to the LLM. The original tool results remain in the session store.
@@ -223,7 +245,7 @@ Tool output is now capped at the source before being added to context. Rather th
 ## What's Next
 
 - [Sessions & History](/sessions-and-history) — session compaction, history limits
-- [Memory System](/memory-system) — persistent memory across sessions
+- [Memory System](/memory-system) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

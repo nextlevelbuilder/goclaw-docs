@@ -160,12 +160,15 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 
 ### Chat
 
+> **Kiểm tra quyền sở hữu session (v3):** Tất cả 5 method `chat.*` đều xác minh quyền sở hữu session. Người dùng không phải admin chỉ có thể truy cập session của chính họ (khớp theo `user_id`). Truy cập session của người khác trả về lỗi `UNAUTHORIZED`. Admin và kết nối gateway-owner bỏ qua kiểm tra này.
+
 | Method | Params | Mô tả |
 |--------|--------|-------|
 | `chat.send` | `{message, sessionKey?, agentId?}` | Gửi tin nhắn; response stream qua event `agent`/`chat` |
 | `chat.history` | `{sessionKey}` | Lấy lịch sử tin nhắn |
 | `chat.abort` | `{sessionKey}` | Hủy run đang diễn ra |
 | `chat.inject` | `{sessionKey, content}` | Inject tin nhắn không trigger run |
+| `chat.session.status` | `{sessionKey}` | Lấy trạng thái run và phase hoạt động của session |
 
 ### Quản lý Agents
 
@@ -483,4 +486,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

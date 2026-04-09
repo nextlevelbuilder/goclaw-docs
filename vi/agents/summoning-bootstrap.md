@@ -66,6 +66,15 @@ Nếu timeout: fallback xử lý từng giai đoạn riêng.
 
 ### Kết quả tạo ra
 
+Summoning tạo ra tối đa bốn file:
+
+| File | Có tạo không? | Nội dung |
+|------|:------------:|---------|
+| `SOUL.md` | Luôn luôn | Personality, tone, giới hạn, chuyên môn |
+| `IDENTITY.md` | Luôn luôn | Tên, creature, emoji, mục đích |
+| `CAPABILITIES.md` | Luôn luôn | Chuyên môn domain và kỹ năng kỹ thuật (v3) |
+| `USER_PREDEFINED.md` | Nếu mô tả đề cập người dùng/chính sách | Quy tắc xử lý user chung |
+
 **SOUL.md:**
 ```markdown
 # SOUL.md - Who You Are
@@ -99,6 +108,9 @@ Nếu timeout: fallback xử lý từng giai đoạn riêng.
 - **Vibe:** (mô tả personality)
 - **Emoji:** (chọn để khớp với personality)
 ```
+
+**CAPABILITIES.md** (v3):
+Tách biệt chuyên môn domain khỏi personality. SOUL.md mô tả *bạn là ai*; CAPABILITIES.md mô tả *bạn biết gì* — kỹ năng kỹ thuật, công cụ, phương pháp. Agent có thể cập nhật file này theo thời gian (khi `self_evolve=true`), giống như SOUL.md.
 
 **USER_PREDEFINED.md** (tuỳ chọn):
 Chỉ tạo nếu mô tả đề cập chủ sở hữu/người tạo, user/nhóm, hoặc chính sách giao tiếp. Chứa quy tắc xử lý user cơ bản dùng chung cho tất cả user.
@@ -336,8 +348,10 @@ Cả summoning và bootstrap đều dựa vào `SeedUserFiles()` và `SeedToStor
 - Predefined: AGENTS.md, SOUL.md (template), IDENTITY.md (template), v.v. → agent_context_files
 
 **Khi user đầu tiên chat:**
-- Open: Tất cả 7 template → user_context_files
-- Predefined: USER.md, `BOOTSTRAP_PREDEFINED.md` (biến thể hướng người dùng, khác với BOOTSTRAP.md của open agent) → user_context_files
+- Open: Tất cả template → user_context_files (SOUL.md, IDENTITY.md, USER.md, BOOTSTRAP.md, AGENTS.md, AGENTS_CORE.md, AGENTS_TASK.md, CAPABILITIES.md, TOOLS.md)
+- Predefined: USER.md + `BOOTSTRAP_PREDEFINED.md` → user_context_files
+
+`BOOTSTRAP_PREDEFINED.md` là script onboarding hướng người dùng dành cho predefined agents (khác với `BOOTSTRAP.md` của open agent — kín đáo hơn vì personality của agent đã được thiết lập ở cấp agent).
 - File cấp agent (SOUL.md, IDENTITY.md) đã được load từ agent_context_files
 
 **Predefined với USER.md đã cấu hình sẵn:**
@@ -359,4 +373,4 @@ Nếu bạn đặt thủ công USER.md ở cấp agent trước khi user đầu 
 - [Open vs. Predefined](/open-vs-predefined) — hiểu khi nào dùng loại nào
 - [Creating Agents](/creating-agents) — hướng dẫn tạo agent từng bước
 
-<!-- goclaw-source: 6551c2d1 | cập nhật: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

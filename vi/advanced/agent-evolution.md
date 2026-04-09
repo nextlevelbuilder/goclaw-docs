@@ -8,7 +8,7 @@ GoClaw cung cấp ba hệ thống con cho phép predefined agents phát triển 
 
 | Hệ thống con | Chức năng | Config key |
 |---|---|---|
-| Self-Evolution | Agent tinh chỉnh giọng điệu và phong cách qua SOUL.md | `self_evolve` |
+| Self-Evolution | Agent tinh chỉnh giọng điệu/phong cách (SOUL.md) và chuyên môn (CAPABILITIES.md) | `self_evolve` |
 | Skill Learning Loop | Agent ghi lại quy trình có thể tái sử dụng thành skill | `skill_evolve` |
 | Skill Management | Tạo, vá, xóa và cấp quyền skill | `skill_manage` tool |
 
@@ -16,11 +16,16 @@ Cả `self_evolve` và `skill_evolve` đều tắt theo mặc định. Bật ch�
 
 ---
 
-## Self-Evolution (SOUL.md)
+## Self-Evolution (SOUL.md + CAPABILITIES.md)
 
 ### Chức năng
 
-Khi `self_evolve` được bật, agent có thể cập nhật file `SOUL.md` của chính nó trong cuộc hội thoại để tinh chỉnh cách giao tiếp. Không có tool riêng cho việc này — agent sử dụng `write_file` tiêu chuẩn. Một context file interceptor đảm bảo chỉ có `SOUL.md` được phép ghi; `IDENTITY.md` và `AGENTS.md` luôn bị khóa.
+Khi `self_evolve` được bật, agent có thể cập nhật hai file context của chính nó trong cuộc hội thoại:
+
+- **`SOUL.md`** — để tinh chỉnh phong cách giao tiếp (tone, voice, từ vựng, style)
+- **`CAPABILITIES.md`** — để tinh chỉnh chuyên môn, kỹ năng kỹ thuật, và kiến thức chuyên biệt
+
+Không có tool riêng cho việc này — agent sử dụng `write_file` tiêu chuẩn. Một context file interceptor đảm bảo chỉ có `SOUL.md` và `CAPABILITIES.md` được phép ghi; `IDENTITY.md` và `AGENTS.md` luôn bị khóa.
 
 Thay đổi diễn ra dần dần. Agent được hướng dẫn chỉ cập nhật khi nhận thấy rõ ràng các xu hướng từ phản hồi của người dùng — không phải mỗi lượt.
 
@@ -39,30 +44,20 @@ Khi `self_evolve=true`, GoClaw tiêm hướng dẫn này vào system prompt (~95
 ```
 ## Self-Evolution
 
-You have self-evolution enabled. You may update your SOUL.md file to
-refine your communication style over time.
-
-What you CAN evolve in SOUL.md:
-- Tone, voice, and manner of speaking
-- Response style and formatting preferences
-- Vocabulary and phrasing patterns
-- Interaction patterns based on user feedback
-
-What you MUST NOT change:
-- Your name, identity, or contact information
-- Your core purpose or role
-- Any content in IDENTITY.md or AGENTS.md (these remain locked)
-
-Make changes incrementally. Only update SOUL.md when you notice clear
-patterns in user feedback or interaction style preferences.
+You may update SOUL.md to refine communication style (tone, voice, vocabulary, response style).
+You may update CAPABILITIES.md to refine domain expertise, technical skills, and specialized knowledge.
+MUST NOT change: name, identity, contact info, core purpose, IDENTITY.md, or AGENTS.md.
+Make changes incrementally based on clear user feedback patterns.
 ```
+
+> Nguồn: `buildSelfEvolveSection()` trong `internal/agent/systemprompt.go`.
 
 ### Bảo mật
 
 | Lớp | Chức năng bảo vệ |
 |---|---|
 | Hướng dẫn system prompt | Quy tắc CAN/MUST NOT giới hạn phạm vi thay đổi |
-| Context file interceptor | Xác nhận chỉ SOUL.md được ghi |
+| Context file interceptor | Xác nhận chỉ SOUL.md hoặc CAPABILITIES.md được ghi |
 | Khóa file | IDENTITY.md và AGENTS.md luôn ở chế độ chỉ đọc |
 
 ---
@@ -332,6 +327,75 @@ Chi phí tối đa mỗi lần chạy với cả hai tính năng bật: ~305 tok
 
 ---
 
+## v3: Metrics Tiến Hóa và Suggestion Engine
+
+v3 bổ sung tiến hóa tự động dựa trên metrics cho predefined agents. Hệ thống này hoạt động độc lập với vòng lặp skill learning thủ công ở trên.
+
+### Cách hoạt động
+
+```
+Metrics thu thập trong quá trình chạy agent (cửa sổ 7 ngày)
+    ↓
+SuggestionEngine.Analyze() — chạy hàng ngày theo cron
+    ├─ LowRetrievalUsageRule  (avg recall < ngưỡng)
+    ├─ ToolFailureRule         (tỷ lệ lỗi tool > 20%)
+    └─ RepeatedToolRule        (tool gọi liên tiếp 5+ lần)
+    ↓
+Suggestion được tạo với trạng thái "pending"
+    ↓
+Admin xem xét → approve / reject / rollback
+```
+
+### Loại Metrics
+
+| Loại | Nội dung theo dõi | Ví dụ |
+|------|------------------|-------|
+| `tool` | Hiệu suất từng tool | invocation_count, success_rate, failure_count |
+| `retrieval` | Chất lượng truy xuất kiến thức | recall_rate, precision, relevance_score |
+| `feedback` | Tín hiệu hài lòng của người dùng | rating, sentiment, effectiveness_score |
+
+### Loại Suggestion
+
+| Loại | Điều kiện kích hoạt | Khuyến nghị |
+|------|---------------------|-------------|
+| `low_retrieval_usage` | Avg recall dưới ngưỡng 7 ngày | Giảm `retrieval_threshold` ≤ 0.1 |
+| `tool_failure` | Tỷ lệ lỗi tool đơn > 20% | Xem lại cấu hình tool hoặc thêm fallback |
+| `repeated_tool` | Tool gọi liên tiếp 5+ lần | Trích xuất workflow thành skill |
+
+### Guardrail Tự Động
+
+| Guardrail | Mặc định | Mục đích |
+|-----------|---------|---------|
+| `max_delta_per_cycle` | 0.1 | Thay đổi tham số tối đa mỗi chu kỳ |
+| `min_data_points` | 100 | Số lượng metrics tối thiểu trước khi áp dụng |
+| `rollback_on_drop_pct` | 20.0 | Tự động rollback nếu chất lượng giảm >20% |
+| `locked_params` | `[]` | Tham số không thể tự động thay đổi |
+
+### Cấu hình Evolution Cron
+
+```json
+{
+  "evolution_enabled": true,
+  "evolution_cron_schedule": "every day at 02:00",
+  "evolution_guardrails": {
+    "max_delta_per_cycle": 0.1,
+    "min_data_points": 100,
+    "rollback_on_drop_pct": 20.0,
+    "locked_params": []
+  }
+}
+```
+
+### HTTP API
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/agents/{id}/evolution/metrics` | Truy vấn metrics |
+| `GET` | `/v1/agents/{id}/evolution/suggestions` | Danh sách suggestion |
+| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{sid}` | Approve / reject / rollback |
+
+---
+
 ## Các Vấn Đề Thường Gặp
 
 | Vấn đề | Nguyên nhân | Cách khắc phục |
@@ -351,4 +415,4 @@ Chi phí tối đa mỗi lần chạy với cả hai tính năng bật: ~305 tok
 - [Predefined Agents](../core-concepts/predefined-agents.md) — sự khác biệt giữa predefined agents và open agents
 - [publish_skill](./skill-publishing.md) — publishing skill dựa trên thư mục
 
-<!-- goclaw-source: b9d8754 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` và `pgcrypto`. Kết nối database được cấu hình duy nhất qua `GOCLAW_POSTGRES_DSN` (không bao giờ lưu trong `config.json`). Migration được quản lý bởi `golang-migrate` và chạy qua `./goclaw migrate up`.
+GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` và `pgcrypto`. Kết nối database được cấu hình duy nhất qua `GOCLAW_POSTGRES_DSN` (không bao giờ lưu trong `config.json`). Migration được quản lý bởi `golang-migrate` và chạy qua `./goclaw migrate up`. Phiên bản schema hiện tại: **44**.
 
 ## Lỗi Kết Nối
 
@@ -174,10 +174,52 @@ Sau khi restore, xác minh pgvector extension có mặt:
 SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
 
+## Lỗi migration v3 (037–044)
+
+Migrations 037–044 là loạt migration v3. Nếu gặp lỗi:
+
+| Migration | Lỗi thường gặp | Cách xử lý |
+|-----------|---------------|------------|
+| `000037` | `column already exists` trên `agents` | An toàn — `ADD COLUMN IF NOT EXISTS` là idempotent; chạy lại `./goclaw migrate up` |
+| `000038` | `relation "vault_documents" already exists` | Bảng tồn tại từ lần chạy bị lỗi; restore từ backup hoặc xóa thủ công rồi chạy lại |
+| `000040` | `function immutable_array_to_string already exists` | An toàn — `CREATE OR REPLACE FUNCTION` là idempotent |
+| `000043` | `constraint "vault_documents_agent_id_scope_path_key" does not exist` | Constraint đã bị xóa; an toàn để tiếp tục; force version với `./goclaw migrate force 43` rồi `migrate up` |
+| `000044` | Seed INSERT lỗi | Thường do thiếu bảng `agent_context_files`; đảm bảo migration 001 đã chạy đúng |
+
+**Khôi phục chung:**
+
+```bash
+# Kiểm tra dirty state
+./goclaw migrate version
+
+# Force về version tốt cuối, rồi chạy lại
+./goclaw migrate force <version_truoc_khi_loi>
+./goclaw migrate up
+```
+
+Khi không chắc, restore từ backup trước khi upgrade v3 rồi thử lại.
+
+## SQLite (Desktop) — Lưu ý
+
+Bản SQLite không hỗ trợ `pgvector`. Các giới hạn:
+
+- `episodic_summaries`: cột vector `embedding` tồn tại nhưng không tạo HNSW index; tìm kiếm vector bị tắt. FTS từ khóa qua `search_vector` hoạt động bình thường.
+- `vault_documents`: tự động liên kết qua vector similarity bị tắt; LLM tóm tắt vẫn chạy.
+- `kg_entities`: không tạo HNSW index; chỉ có FTS từ khóa.
+
+Cảnh báo `vault enrich: vector ops disabled (SQLite)` trong log là bình thường, không phải lỗi.
+
+Để kiểm tra bản build có dùng SQLite không:
+
+```bash
+./goclaw version
+# Bản SQLite sẽ hiển thị: storage=sqlite
+```
+
 ## Tiếp theo
 
 - [Các vấn đề thường gặp](/troubleshoot-common)
 - [Vấn đề provider](/troubleshoot-providers)
 - [Vấn đề channel](/troubleshoot-channels)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

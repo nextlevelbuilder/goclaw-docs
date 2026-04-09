@@ -10,55 +10,62 @@ GoClaw is a gateway that sits between your users and LLM providers. It manages t
 
 ```mermaid
 graph TD
-    U[Users] --> CH[Channels<br/>Telegram / Discord / WS]
-    CH --> GW[Gateway<br/>HTTP + WebSocket]
+    U[Users] --> CH[Channels<br/>Telegram / Discord / WS / ...]
+    CH --> GW[Gateway<br/>7 modules · HTTP + WebSocket]
+    GW --> BUS[Domain Event Bus]
     GW --> SC[Scheduler<br/>4 lanes]
-    SC --> AL[Agent Loop<br/>Think → Act → Observe]
-    AL --> PR[Provider Registry<br/>18+ LLM providers]
-    AL --> TR[Tool Registry<br/>50+ built-in tools]
-    AL --> SS[Session Store<br/>PostgreSQL]
-    AL --> MM[Memory Store<br/>Vector + FTS]
+    SC --> PL[8-Stage Pipeline<br/>context → history → prompt → think → act → observe → memory → summarize]
+    PL --> PR[Provider Adapter System<br/>18+ LLM providers]
+    PL --> TR[Tool Registry<br/>50+ built-in tools]
+    PL --> SS[Store Layer<br/>PostgreSQL + SQLite · dual-DB]
+    PL --> MM[3-Tier Memory<br/>episodic · semantic · dreaming]
+    BUS --> CW[Consolidation Workers]
+    CW --> MM
     PR --> LLM[LLM APIs<br/>OpenAI / Anthropic / ...]
 ```
 
-## The Agent Loop
+## The 8-Stage Pipeline
 
-Every conversation turn goes through the **Think → Act → Observe** cycle:
+In v3, every agent run goes through a **pluggable 8-stage pipeline**. The legacy two-mode gate has been removed — all agents always use this pipeline.
 
-### 1. Think
-
-The agent assembles a system prompt (20+ sections including identity, tools, memory, context files) and sends the conversation to an LLM provider. The LLM decides what to do next.
-
-### 2. Act
-
-If the LLM wants to use a tool (search the web, read a file, run code), GoClaw executes it. Multiple tool calls run in parallel when possible.
-
-### 3. Observe
-
-The tool results go back to the LLM. It can call more tools or generate a final response. This loop repeats up to 20 iterations per turn.
-
-GoClaw detects tool loop patterns: a **warning** is raised after 3 identical consecutive calls, and the loop is **force-stopped** after 5 identical no-progress calls. Note: `exec`/`bash` tools and MCP bridge tools (`mcp_*` prefix) are treated as **neutral** — they neither reset nor increment the read-only streak, since their side effects are ambiguous.
-
-```mermaid
-graph LR
-    T[Think<br/>Call LLM] --> A{Tools needed?}
-    A -->|Yes| B[Act<br/>Execute tools]
-    B --> O[Observe<br/>Return results]
-    O --> T
-    A -->|No| R[Respond<br/>Send to user]
 ```
+Setup (runs once)
+└─ ContextStage — inject agent/user/workspace context
+
+Iteration loop (up to 20 × per turn)
+├─ ThinkStage   — build system prompt, filter tools, call LLM
+├─ PruneStage   — soft/hard trim context, trigger memory flush if needed
+├─ ToolStage    — execute tool calls (parallel where possible)
+├─ ObserveStage — process tool results, append to message buffer
+└─ CheckpointStage — track iterations, check exit conditions
+
+Finalize (runs once, survives cancellation)
+└─ FinalizeStage — sanitize output, flush messages, update session metadata
+```
+
+### Stage Details
+
+| Stage | Phase | What it does |
+|-------|-------|-------------|
+| **ContextStage** | Setup | Injects agent/user/workspace context; resolves per-user files |
+| **ThinkStage** | Iteration | Builds system prompt (15+ sections), calls LLM, emits streaming chunks |
+| **PruneStage** | Iteration | Trims context when ≥ 30% full (soft) or ≥ 50% full (hard); triggers memory flush |
+| **ToolStage** | Iteration | Executes tool calls — parallel goroutines for multiple calls |
+| **ObserveStage** | Iteration | Processes tool results; handles `NO_REPLY` silent completion |
+| **CheckpointStage** | Iteration | Increments counter; breaks loop on max-iter or context cancellation |
+| **FinalizeStage** | Finalize | Runs 7-step output sanitization; atomically flushes messages; updates session metadata |
 
 ## Message Flow
 
 Here's what happens when a user sends a message:
 
 1. **Receive** — Message arrives via channel (Telegram, WebSocket, etc.)
-2. **Validate** — Input guard checks for injection patterns; message truncated at 32KB
+2. **Validate** — Input guard checks for injection patterns; message truncated at 32 KB
 3. **Route** — Scheduler assigns the message to an agent based on channel bindings
-4. **Queue** — Per-session queue manages concurrency (1 per session, serial processing by default)
-5. **Build Context** — System prompt assembled: identity + tools + memory + history
-6. **LLM Loop** — Think → Act → Observe cycle (max 20 iterations)
-7. **Sanitize** — Response cleaned (remove thinking tags, garbled XML, duplicates)
+4. **Queue** — Per-session queue manages concurrency (1 per DM session by default; up to 3 for groups)
+5. **Build Context** — ContextStage injects identity, workspace, per-user files
+6. **Pipeline Loop** — 8-stage pipeline runs up to 20 iterations per turn
+7. **Sanitize** — FinalizeStage cleans output (removes thinking tags, garbled XML, duplicates)
 8. **Deliver** — Response sent back through the originating channel
 
 ## Scheduler Lanes
@@ -80,14 +87,28 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 
 | Component | What It Does |
 |-----------|-------------|
-| **Gateway** | HTTP + WebSocket server on port 18790 |
-| **Provider Registry** | Manages 18+ LLM provider connections and credentials |
+| **Gateway** | HTTP + WebSocket server; decomposed into 7 modules (deps, http_wiring, events, lifecycle, tools_wiring, methods, router) |
+| **Domain Event Bus** | Typed event publishing with worker pool, dedup, and retry — drives consolidation workers |
+| **Provider Adapter System** | Manages 18+ LLM providers; Anthropic native, OpenAI-compatible, ACP (stdio JSON-RPC) |
 | **Tool Registry** | 50+ built-in tools with policy-based access control (extensible via MCP and custom tools) |
-| **Session Store** | Write-behind cache + PostgreSQL persistence |
-| **Memory Store** | Hybrid search with pgvector + tsvector |
-| **Channel Managers** | Telegram, Discord, WhatsApp, Zalo, Feishu adapters |
+| **Store Layer** | Dual-DB: PostgreSQL (`pgx/v5`) for production + SQLite (`modernc.org/sqlite`) for desktop; shared base/ dialect |
+| **3-Tier Memory** | Episodic (recent facts) → Semantic (abstracted summaries) → Dreaming (novel synthesis); driven by consolidation workers |
+| **Orchestration Module** | `BatchQueue[T]` generic for result aggregation; ChildResult capture; media conversion helpers |
+| **Consolidation Workers** | Episodic, semantic, dreaming, dedup workers consume events from DomainEventBus |
+| **Channel Managers** | Telegram, Discord, WhatsApp (native via Baileys bridge), Zalo, Feishu adapters |
 | **Scheduler** | 4-lane concurrency with per-session queues |
-| **Bootstrap** | Template system for context files (SOUL, IDENTITY, TOOLS, etc.) |
+
+## v3 System Overview
+
+GoClaw v3 ships five new systems — each has its own dedicated page:
+
+| System | What it adds |
+|--------|-------------|
+| [Knowledge Vault](/knowledge-vault) | Wikilinks semantic mesh, BM25 + vector hybrid search, L0 auto-injection into prompts |
+| [3-Tier Memory](/memory-system) | Episodic → Semantic → Dreaming consolidation pipeline driven by DomainEventBus |
+| [Agent Evolution](/agent-evolution) | Tracks tool/retrieval patterns; auto-suggests and applies prompt/tool adaptations |
+| [Mode Prompt System](/mode-prompt-system) | Switchable prompt modes (PromptFull vs PromptMinimal) with per-agent overrides |
+| [Multi-Tenant v3](/multi-tenant) | Compound user ID scoping across all 22+ store interfaces; vault grants; skill grants |
 
 ## Common Issues
 
@@ -103,4 +124,4 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 - [Tools Overview](/tools-overview) — The full tool catalog
 - [Sessions and History](/sessions-and-history) — How conversations persist
 
-<!-- goclaw-source: 9168e4b4 | updated: 2026-03-26 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
