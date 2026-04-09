@@ -174,16 +174,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for writing guidelines and bilingual proc
 ├── getting-started/        # Onboarding (6 pages)
 ├── core-concepts/          # Architecture & concepts (6 pages)
 ├── agents/                 # Agent configuration (8 pages)
-├── providers/              # LLM provider guides (23 pages)
-├── channels/               # Messaging channel setup (11 pages)
-├── agent-teams/            # Team collaboration (5 pages)
-├── advanced/               # Power-user features (21 pages)
+├── providers/              # LLM provider guides (24 pages)
+├── channels/               # Messaging channel setup (12 pages)
+├── agent-teams/            # Team collaboration (6 pages)
+├── advanced/               # Power-user features (24 pages)
 ├── deployment/             # Deploy & operate (7 pages)
 ├── recipes/                # Step-by-step tutorials (5 pages)
 ├── showcases/              # Gallery & examples (1 page)
 ├── reference/              # API, CLI & config reference (15 pages)
 ├── troubleshooting/        # Debug & FAQ (7 pages)
-├── vi/                     # Vietnamese mirror (~96 pages)
+├── vi/                     # Vietnamese mirror
+├── zh/                     # Chinese mirror
 ├── archive/                # Old technical docs (DO NOT reference)
 └── images/dashboard/       # Dashboard screenshots
 ```
