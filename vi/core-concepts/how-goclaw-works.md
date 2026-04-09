@@ -109,8 +109,8 @@ GoClaw v3 đi kèm năm hệ thống mới — mỗi hệ thống có trang riê
 | [Knowledge Vault](/knowledge-vault) | Mạng lưới wikilink ngữ nghĩa, hybrid search BM25 + vector, tự động inject vào prompt (L0) |
 | [Memory 3 tầng](/memory-system) | Pipeline consolidation episodic → semantic → dreaming điều phối bởi DomainEventBus |
 | [Agent Evolution](/agent-evolution) | Theo dõi pattern sử dụng tool/retrieval; tự động đề xuất và áp dụng thay đổi prompt/tool |
-| [Mode Prompt System](/mode-prompt-system) | Chế độ prompt có thể chuyển đổi (PromptFull và PromptMinimal) với override theo từng agent |
-| [Multi-Tenant v3](/multi-tenant) | Phạm vi user ID phức hợp trên toàn bộ 22+ store interface; vault grant; skill grant |
+| [Mode Prompt System](/model-steering) | Chế độ prompt có thể chuyển đổi (PromptFull và PromptMinimal) với override theo từng agent |
+| [Multi-Tenant v3](/multi-tenancy) | Phạm vi user ID phức hợp trên toàn bộ 22+ store interface; vault grant; skill grant |
 
 ## Các vấn đề thường gặp
 

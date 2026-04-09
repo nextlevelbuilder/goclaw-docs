@@ -107,8 +107,8 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 | [Knowledge Vault](/knowledge-vault) | Wikilinks semantic mesh, BM25 + vector hybrid search, L0 auto-injection into prompts |
 | [3-Tier Memory](/memory-system) | Episodic → Semantic → Dreaming consolidation pipeline driven by DomainEventBus |
 | [Agent Evolution](/agent-evolution) | Tracks tool/retrieval patterns; auto-suggests and applies prompt/tool adaptations |
-| [Mode Prompt System](/mode-prompt-system) | Switchable prompt modes (PromptFull vs PromptMinimal) with per-agent overrides |
-| [Multi-Tenant v3](/multi-tenant) | Compound user ID scoping across all 22+ store interfaces; vault grants; skill grants |
+| [Mode Prompt System](/model-steering) | Switchable prompt modes (PromptFull vs PromptMinimal) with per-agent overrides |
+| [Multi-Tenant v3](/multi-tenancy) | Compound user ID scoping across all 22+ store interfaces; vault grants; skill grants |
 
 ## Common Issues
 
