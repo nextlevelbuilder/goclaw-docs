@@ -81,6 +81,8 @@ Nội dung suy luận đến trong `reasoning_content` trong quá trình streami
 
 Thinking được bật qua `enable_thinking: true` cộng với tham số `thinking_budget`.
 
+**Per-model guard**: GoClaw kiểm tra xem model đang dùng có trong danh sách model hỗ trợ thinking không trước khi gửi `enable_thinking`. Nếu model không hỗ trợ (ví dụ Qwen2 cũ hơn), các tham số được bỏ qua và ghi debug log. Điều này có nghĩa `thinking_level` trên DashScope agent an toàn để đặt ngay cả khi sau đó bạn chuyển sang model Qwen không hỗ trợ thinking.
+
 **Giới hạn quan trọng**: DashScope không thể stream phản hồi khi có tool — đây là giới hạn ở cấp provider, không liên quan đến thinking. Bất cứ khi nào agent có tool được định nghĩa, GoClaw tự động fallback sang chế độ non-streaming (một lần gọi `Chat()`) và tổng hợp các stream chunk callback để luồng sự kiện vẫn nhất quán cho client.
 
 ---
@@ -204,4 +206,4 @@ Cài đặt này đặt `budget_tokens: 32,000`. Dùng cho các tác vụ yêu c
 - [Agents Overview](/agents-explained) — tài liệu tham khảo cấu hình mỗi agent
 - [Hooks & Quality Gates](/hooks-quality-gates) — validate đầu ra agent sau khi suy luận
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

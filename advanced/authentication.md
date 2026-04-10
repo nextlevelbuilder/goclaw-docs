@@ -10,6 +10,22 @@ This flow is distinct from standard API key providers — it is only needed if y
 
 ---
 
+## OAuth Provider Routing (v3)
+
+GoClaw supports routing OAuth tokens to multiple provider types beyond OpenAI/Codex. In v3, the provider type `media` covers services like **Suno** (AI music) and **DashScope** (Alibaba media generation) that use OAuth or session tokens rather than plain API keys.
+
+### Media Provider Types
+
+| Provider type | Services | Auth method |
+|---------------|----------|-------------|
+| `openai-codex` | ChatGPT via Responses API | OAuth 2.0 PKCE |
+| `suno` | Suno AI music generation | Session token |
+| `dashscope` | Alibaba DashScope (when OAuth-based) | OAuth or API key |
+
+Media provider types are registered in the `llm_providers` table with the appropriate `provider_type` value. The gateway resolves the correct token source and refresh logic based on `provider_type` at request time.
+
+---
+
 ## How It Works
 
 ```mermaid
@@ -195,4 +211,4 @@ source .env.local
 - [Providers Overview](/providers-overview) — all supported LLM providers and how to configure them
 - [Hooks & Quality Gates](/hooks-quality-gates) — add validation to agent outputs
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

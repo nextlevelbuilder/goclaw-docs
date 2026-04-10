@@ -48,6 +48,24 @@ Agent team cho phép một lead agent điều phối công việc qua nhiều me
 | `failed to auto-create task` từ broadcast (log) | Tạo task tự động khi nhận broadcast thất bại | Không nghiêm trọng — tin nhắn vẫn được giao nhưng không tạo task; tạo task thủ công nếu cần |
 | `failed to get unread messages` | Lỗi đọc DB cho hộp thư | Kiểm tra kết nối PostgreSQL |
 
+## Điều Phối Subagent (v3)
+
+GoClaw v3 bổ sung quản lý subagent có cấu trúc. Các lỗi sau xuất hiện khi dùng `spawn` với `action=wait` hoặc hệ thống retry/concurrency tự động.
+
+| Vấn đề | Nguyên nhân | Giải pháp |
+|--------|-------------|-----------|
+| `spawn` với `action=wait` không bao giờ trả về | Tất cả subagent con thất bại hoặc timeout | Kiểm tra log subagent; parent unblock khi tất cả con hoàn thành hoặc khi `timeout` hết |
+| Kết quả subagent mất sau context compaction | Task đang chạy không có trong compaction prompt | Task được lưu vào bảng `subagent_tasks` DB (migration 000034) — kết quả tồn tại qua summarization |
+| `max concurrent subagents reached` | Tenant đạt giới hạn edition `MaxSubagentConcurrent` | Giảm số spawn song song hoặc nâng cấp edition; giới hạn scoped per-tenant |
+| `max subagent depth reached` | Spawn lồng nhau vượt `MaxSubagentDepth` | Làm phẳng chuỗi delegation; subagent không thể spawn sâu hơn độ sâu đã cấu hình |
+| Subagent auto-retry nhưng output sai | Mặc định `MaxRetries=2` chạy khi LLM thất bại | Bình thường — retry cải thiện độ tin cậy; nếu output sai, kiểm tra instructions của agent |
+| Lệnh Telegram `/subagents` hiển thị trống | Bảng `subagent_tasks` chưa migrate | Chạy các DB migration còn tồn đọng; migration 000034 tạo bảng này |
+| Kết quả `BatchQueue` không theo thứ tự | BatchQueue xử lý theo batch tenant:agent, không theo thứ tự chèn | Bình thường — dùng `blocked_by` task dependency nếu cần thứ tự |
+
+**Kiểm tra trạng thái subagent:**
+- Telegram: `/subagents` liệt kê tất cả task đang hoạt động; `/subagent <id>` hiển thị chi tiết từ DB
+- Dashboard: Teams → task board hiển thị trạng thái task subagent theo thời gian thực
+
 ## Chẩn Đoán
 
 Dùng tab **Teams** trong Dashboard để xem trạng thái task, event, và trạng thái member theo thời gian thực — lọc theo `team_id` để thu hẹp phạm vi.
@@ -65,4 +83,4 @@ Lệnh này trả về toàn bộ lịch sử thay đổi trạng thái của ta
 - [Hướng dẫn Agent Teams](/teams-what-are-teams) — thiết lập team, role, và task board
 - [Sự Cố Thường Gặp](/troubleshoot-common) — khắc phục sự cố gateway và agent chung
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -216,10 +216,27 @@ agents, err := agentStore.ListAccessible(ctx, userID)
 | 忘记谁有访问权 | 使用 `GET /v1/agents/:id/shares` 或 Dashboard → Sharing 标签审计 |
 | 角色限制不起作用 | 基于角色的执行计划中，尚未实现——今天所有共享用户具有相同访问权限 |
 
+## 权限缓存
+
+GoClaw 在内存中缓存热点权限查询，以减少高流量部署下的数据库压力。`PermissionCache`（位于 `internal/cache/permission_cache.go`）维护三个短 TTL 缓存：
+
+| 缓存 | Key | TTL |
+|-------|-----|-----|
+| **Tenant 角色** | `tenantID:userID` | 30 秒 |
+| **Agent 访问** | `agentID:userID` | 30 秒 |
+| **Team 访问** | `teamID:userID` | 30 秒 |
+
+缓存通过 pubsub 事件失效：
+- `CacheKindTenantUsers` — 清除所有 tenant 角色条目（用户级变更）
+- `CacheKindAgentAccess` — 删除已变更 agent 的所有条目（前缀匹配 `agentID:`）
+- `CacheKindTeamAccess` — 删除已变更 team 的所有条目（前缀匹配 `teamID:`）
+
+> **Session IDOR 修复：** v3 之前，在同一 30 秒窗口内撤销共享后，会话可能保留过期的访问权限。pubsub 失效路径现在确保撤销立即在所有运行中的会话中生效。
+
 ## 下一步
 
 - [User Overrides — 让用户按 agent 自定义 LLM provider/model](/user-overrides)
 - [System Prompt Anatomy — 权限如何影响 system prompt 各部分](/system-prompt-anatomy)
 - [Creating Agents — 创建 agent 并立即共享](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

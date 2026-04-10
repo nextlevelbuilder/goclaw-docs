@@ -63,6 +63,24 @@ Tin nhắn được bảo vệ (không bao giờ bị prune): 3 tin nhắn assis
 
 Sửa các cặp tool_use/tool_result bị tách vỡ do truncation. LLM kỳ vọng các cặp khớp nhau — tool call mồ côi gây lỗi.
 
+## Kiến trúc Pipeline V3
+
+Trong v3 (bật qua feature flag `pipeline_enabled`), agent loop được tái cấu trúc thành **pipeline 8 giai đoạn** thay thế `runLoop()` monolithic của v2. Luồng session tương ứng với các giai đoạn sau:
+
+| Giai đoạn | Nội dung |
+|-----------|---------|
+| **ContextStage** (một lần) | Inject context, resolve workspace per-user, đảm bảo file per-user tồn tại |
+| **ThinkStage** | Xây dựng system prompt, chạy history pipeline, lọc tool (PolicyEngine), gọi LLM |
+| **PruneStage** | Ước tính token ratio; soft trim ≥30%, hard clear ≥50%; trigger memory flush nếu vượt ngưỡng compaction |
+| **ToolStage** | Thực thi tool call — một tool tuần tự, nhiều tool song song với sắp xếp kết quả |
+| **ObserveStage** | Xử lý kết quả tool, xử lý `NO_REPLY`, thêm tin nhắn assistant |
+| **CheckpointStage** | Tăng counter iteration; dừng khi đạt max iteration hoặc bị hủy |
+| **FinalizeStage** (một lần) | Sanitize output, flush tin nhắn nguyên tử, cập nhật metadata session, emit run event |
+
+**Memory consolidation trong v3**: PruneStage kích hoạt memory flush **đồng bộ trong vòng lặp iteration** (không chỉ cuối session). Điều này có nghĩa là các lượt chạy dài trích xuất episodic fact trước khi history bị prune, thay vì chờ giai đoạn compaction sau lượt. Ngưỡng 75% context window vẫn áp dụng.
+
+Cả v2 và v3 đều có hành vi bên ngoài giống hệt nhau; sự khác biệt pipeline là kiến trúc nội bộ.
+
 ## Auto-Compaction
 
 Cuộc hội thoại dài kích hoạt nén tự động:
@@ -130,4 +148,4 @@ Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị
 - [Tools Overview](/tools-overview) — Tool có sẵn cho agent
 - [Multi-Tenancy](/multi-tenancy) — Cách ly session per-user
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

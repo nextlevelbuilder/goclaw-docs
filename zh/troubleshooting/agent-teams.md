@@ -50,6 +50,24 @@ Agent team 让 lead agent 通过共享任务板、消息和共享工作区目录
 | 广播时日志出现 `failed to auto-create task` | 收到广播后自动创建任务失败 | 非致命——消息已送达但未创建任务；如需要手动创建任务 |
 | `failed to get unread messages` | 邮箱 DB 读取错误 | 检查 PostgreSQL 连接 |
 
+## 子 Agent 编排（v3）
+
+GoClaw v3 新增结构化子 Agent 管理。使用 `spawn` 配合 `action=wait` 或自动重试/并发系统时可能出现以下问题。
+
+| 问题 | 原因 | 解决方案 |
+|---------|-------|----------|
+| `spawn` 配合 `action=wait` 永不返回 | 所有子 agent 均失败或超时 | 检查子 agent 日志；所有子节点完成或 `timeout` 到期后父节点才解除阻塞 |
+| context 压缩后子 agent 结果丢失 | 进行中的任务不在压缩 prompt 中 | 任务已持久化到 `subagent_tasks` DB 表（migration 000034）——结果在摘要化后仍保留 |
+| `max concurrent subagents reached` | 租户达到 edition `MaxSubagentConcurrent` 限制 | 减少并行 spawn 数量或升级 edition；限制按租户划分范围 |
+| `max subagent depth reached` | 嵌套 spawn 超过 `MaxSubagentDepth` | 扁平化委派链；子 agent 不能超过配置深度进行 spawn |
+| 子 Agent 自动重试但输出有误 | LLM 失败时默认 `MaxRetries=2` 线性退避触发 | 正常——重试提高可靠性；如输出错误，检查 agent 指令 |
+| Telegram `/subagents` 命令显示空 | `subagent_tasks` 表未迁移 | 运行待处理的 DB migration；migration 000034 创建该表 |
+| `BatchQueue` 结果乱序 | BatchQueue 按 tenant:agent 批次处理，不按插入顺序 | 正常——如需排序，使用 `blocked_by` 任务依赖 |
+
+**检查子 Agent 状态：**
+- Telegram：`/subagents` 列出所有活跃任务；`/subagent <id>` 显示 DB 详情
+- 仪表盘：Teams → 任务板实时显示子 agent 任务状态
+
 ## 诊断
 
 使用仪表盘的 **Teams** 视图检查任务状态、事件和成员状态。服务器端事件实时流式传输——按 `team_id` 过滤以缩小排查范围。
@@ -67,4 +85,4 @@ team_tasks(action="events", task_id="<uuid>")
 - [Agent Teams 指南](/teams-what-are-teams) — 团队设置、角色和任务板
 - [常见问题](/troubleshoot-common) — 通用 gateway 和 agent 故障排除
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

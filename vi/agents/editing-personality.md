@@ -229,10 +229,39 @@ console.log(response.file.name, response.file.size, 'bytes');
 | Agent quá trang trọng/thân mật | Chỉnh sửa mục Style trong SOUL.md; chỉ định rõ Tone và Humor |
 | Tên/emoji không cập nhật | Đảm bảo IDENTITY.md đã được lưu; kiểm tra định dạng file (dùng dấu hai chấm: `Name: ...`) |
 
+## CAPABILITIES.md — File kỹ năng
+
+Ngoài SOUL.md và IDENTITY.md, predefined agent còn có file **CAPABILITIES.md** mô tả kiến thức chuyên môn, kỹ năng kỹ thuật và chuyên môn đặc thù.
+
+```markdown
+# CAPABILITIES.md - What You Can Do
+
+## Expertise
+
+_(Các lĩnh vực kiến thức sâu và những gì bạn giúp được.)_
+
+## Tools & Methods
+
+_(Công cụ, workflow, phương pháp ưa dùng.)_
+```
+
+**Điểm khác biệt quan trọng:**
+- **SOUL.md** = bạn là ai (giọng điệu, giá trị, personality)
+- **CAPABILITIES.md** = bạn có thể làm gì (kỹ năng, kiến thức chuyên môn)
+
+## Self-Evolution
+
+Predefined agent với `self_evolve` được bật có thể tự cập nhật file personality dựa trên phản hồi của user. Agent có thể chỉnh sửa:
+
+- **SOUL.md** — để tinh chỉnh phong cách giao tiếp (giọng điệu, cách diễn đạt, phong cách phản hồi)
+- **CAPABILITIES.md** — để tinh chỉnh kiến thức chuyên môn, kỹ năng kỹ thuật
+
+**Những gì agent KHÔNG được thay đổi:** tên, danh tính, thông tin liên hệ, mục đích cốt lõi, IDENTITY.md, hoặc AGENTS.md. Thay đổi phải tăng dần và dựa trên phản hồi rõ ràng từ user.
+
 ## Tiếp theo
 
 - [Context Files — Mở rộng personality với per-user context](/context-files)
 - [System Prompt Anatomy — Cách personality được inject vào prompt](/system-prompt-anatomy)
 - [Creating Agents — Thiết lập personality khi tạo agent](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

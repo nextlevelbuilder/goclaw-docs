@@ -170,6 +170,9 @@ Khi kết nối lại, dùng token đã lưu:
 - **Phê duyệt từ owner**: Chỉ owner gateway mới có thể phê duyệt mã (yêu cầu quyền admin)
 - **Session token**: Được cấp sau khi phê duyệt; gắn với thiết bị và user
 - **Debouncing**: Thông báo phê duyệt pairing được debounce theo người gửi (60 giây)
+- **Xác thực từ chối mặc định**: Khi xác thực thất bại, mặc định là từ chối — không có trạng thái phê duyệt một phần hay mơ hồ
+- **Giới hạn tốc độ**: Yêu cầu mã pairing được giới hạn theo người gửi để ngăn bruteforce
+- **Xử lý lỗi DB tạm thời**: Kiểm tra `IsPaired` xử lý gracefully lỗi database tạm thời — lỗi DB trả về từ chối thay vì vô tình cho phép truy cập
 
 ## Ví dụ JavaScript
 
@@ -245,4 +248,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Thiết lập Telegram
 - [WebSocket Protocol](/websocket-protocol) — Tài liệu giao thức đầy đủ
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

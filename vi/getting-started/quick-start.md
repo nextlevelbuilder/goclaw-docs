@@ -118,4 +118,4 @@ Trường `media` chỉ xuất hiện trong payload khi agent trả về file me
 - [Dashboard Tour](/dashboard-tour) — Khám phá giao diện trực quan
 - [Agents Explained](/agents-explained) — Hiểu về loại agent và context
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

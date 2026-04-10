@@ -163,11 +163,14 @@ On reconnect, use stored token:
 ## Security Properties
 
 - **One-time use**: Each pairing code is used once and invalidated
-- **Expiring**: Codes expire after 60 minutes
+- **Expiring**: Codes expire after 60 minutes (TTL enforced server-side)
 - **Limited pending**: Max 3 pending requests per account (prevents spam)
 - **Owner approval**: Only gateway owner can approve codes (admin role required)
 - **Session tokens**: Issued after approval; tied to device and user
 - **Debouncing**: Pairing approval notifications debounced per sender (60 seconds)
+- **Fail-closed auth**: Authentication failures default to deny — no partial or ambiguous approval states
+- **Rate limiting**: Pairing code requests are rate-limited per sender to prevent brute-force enumeration
+- **Transient DB error handling**: `IsPaired` checks handle transient database errors gracefully — a DB error returns denied rather than accidentally allowing access
 
 ## JavaScript Example
 
@@ -243,4 +246,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Telegram setup
 - [WebSocket Protocol](/websocket-protocol) — Full protocol reference
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

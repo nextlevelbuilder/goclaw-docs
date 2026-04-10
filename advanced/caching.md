@@ -70,6 +70,26 @@ Values are serialized as JSON. Pattern deletion uses SCAN with batch size of 100
 
 ---
 
+## Permission Cache
+
+GoClaw includes a dedicated `PermissionCache` for hot permission lookups that happen on every request. Unlike the context file caches, the permission cache is always in-memory — it does not use Redis.
+
+| Cache | TTL | Key format | What it caches |
+|---|---|---|---|
+| `tenantRole` | 30s | `tenantID:userID` | User's role within a tenant |
+| `agentAccess` | 30s | `agentID:userID` | Whether user can access an agent + their role |
+| `teamAccess` | 30s | `teamID:userID` | Whether user can access a team |
+
+**Invalidation via pubsub**: When a user's permissions change (e.g., role update, agent access revoked), GoClaw publishes a `CacheInvalidate` event on the internal bus. The permission cache processes these events:
+
+- `CacheKindTenantUsers` — clears all tenant role entries (short TTL makes a full clear acceptable)
+- `CacheKindAgentAccess` — removes all entries for that `agentID` prefix
+- `CacheKindTeamAccess` — removes all entries for that `teamID` prefix
+
+Permission changes take effect within 30 seconds at most, with immediate invalidation on write paths.
+
+---
+
 ## Cache Behavior
 
 Both backends implement the same interface:
@@ -91,4 +111,4 @@ Both backends implement the same interface:
 - [Database Setup](/deploy-database) — PostgreSQL configuration
 - [Production Checklist](/deploy-checklist) — Deploy with confidence
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

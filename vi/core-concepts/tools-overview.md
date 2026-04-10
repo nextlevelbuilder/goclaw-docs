@@ -15,8 +15,9 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Filesystem** (`group:fs`) | read_file, write_file, edit, list_files, search, glob | Đọc, ghi, chỉnh sửa và tìm kiếm file trong workspace của agent |
 | **Runtime** (`group:runtime`) | exec, credentialed_exec | Chạy lệnh shell; thực thi CLI tool với credentials được inject |
 | **Web** (`group:web`) | web_search, web_fetch | Tìm kiếm web (Brave/DuckDuckGo) và fetch trang |
-| **Memory** (`group:memory`) | memory_search, memory_get | Truy vấn memory dài hạn (hybrid vector + FTS search) |
-| **Knowledge** (`group:knowledge`) | knowledge_graph_search, skill_search | Tìm kiếm thực thể knowledge graph; khám phá skill |
+| **Memory** (`group:memory`) | memory_search, memory_get, memory_expand | Truy vấn memory dài hạn (hybrid vector + FTS search); mở rộng nội dung episodic đầy đủ theo ID (L2 retrieval) |
+| **Knowledge** (`group:knowledge`) | vault_search, knowledge_graph_search, skill_search | Tìm kiếm thống nhất vault/memory/knowledge-graph; tìm kiếm thực thể và quan hệ; khám phá skill |
+| **Vault** | vault_link, vault_backlinks | Tạo liên kết wikilink giữa các vault document; truy vết backlink của document |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Quản lý conversation session; spawn subagent |
 | **Teams** (`group:teams`) | team_tasks, team_message | Cộng tác với agent team qua task board và mailbox chung |
 | **Automation** (`group:automation`) | cron, datetime | Lên lịch job định kỳ; lấy ngày/giờ hiện tại |
@@ -27,6 +28,24 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Skills** (`group:skills`) | use_skill, publish_skill | Gọi và xuất bản skill |
 | **Workspace** | workspace_dir | Resolve workspace directory theo team/user context |
 | **AI** | openai_compat_call | Gọi endpoint tương thích OpenAI với định dạng request tùy chỉnh |
+
+### Tool Memory & Vault mới trong V3
+
+**Memory layers** (v3 hai tầng retrieval):
+
+| Tool | Tầng | Mô tả |
+|------|------|-------|
+| `memory_search` | L1 | BM25 + hybrid vector search; trả về abstract và điểm số |
+| `memory_expand` | L2 | Load nội dung episodic đầy đủ theo ID từ kết quả `memory_search` |
+
+Dùng `memory_search` trước để khám phá ID episodic liên quan, sau đó `memory_expand` để lấy nội dung đầy đủ. Cách này tiết kiệm token khi chỉ cần một vài entry.
+
+**Tool vault link** (tích hợp knowledge graph v3):
+
+| Tool | Mô tả |
+|------|-------|
+| `vault_link` | Tạo liên kết tường minh giữa hai vault document (kiểu `wikilink` hoặc `reference`). Tự động đăng ký document chưa có trong vault. Document thuộc team khác nhau không thể link chéo. |
+| `vault_backlinks` | Liệt kê tất cả document liên kết đến một đường dẫn document cụ thể. Tuân thủ ranh giới scope team/personal. |
 
 **Tool media BytePlus** (`create_image_byteplus`, `create_video_byteplus`) khả dụng khi cấu hình provider `byteplus`. Cả hai dùng async job polling: tạo ảnh qua Seedream trả về URL sau khi job hoàn thành; tạo video qua Seedance polling `/text-to-video-pro/status/{id}` để lấy kết quả.
 
@@ -271,4 +290,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 76385f2f | cập nhật: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

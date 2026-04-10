@@ -193,7 +193,8 @@ Wizard hướng dẫn bạn qua:
 2. **Kiểm tra kết nối** — xác nhận PostgreSQL hoạt động
 3. **Migrations** — tạo các bảng cần thiết tự động
 4. **Tạo khóa bảo mật** — tự động tạo `GOCLAW_GATEWAY_TOKEN` và `GOCLAW_ENCRYPTION_KEY`
-5. **Lưu secrets** — ghi tất cả vào `.env.local`
+5. **Seed providers** — tạo các bản ghi provider placeholder để dashboard UI sẵn sàng ngay lần đầu đăng nhập
+6. **Lưu secrets** — ghi tất cả vào `.env.local`
 
 ### Bước 4: Khởi động gateway
 
@@ -321,6 +322,8 @@ docker compose \
 > **Lưu ý:** Overlay Redis và OTel yêu cầu rebuild image GoClaw với build args tương ứng (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). Đặt `ENABLE_EMBEDUI=false` để tắt UI nhúng (ví dụ khi dùng overlay nginx selfservice). Xem chi tiết trong các file overlay.
 
 > **Python runtime:** File `docker-compose.yml` mặc định build GoClaw với `ENABLE_PYTHON: "true"`, nên các skills dùng Python hoạt động sẵn khi dùng Docker.
+
+> **Phân tách đặc quyền:** Docker image chạy GoClaw với user không phải root `goclaw` (UID 1000). Binary `pkg-helper` riêng biệt chạy với quyền root để quản lý cài đặt gói hệ thống (apk) qua Unix socket (`/tmp/pkg.sock`), giữ cho tiến trình ứng dụng không có quyền đặc biệt. Script `docker-entrypoint.sh` xử lý việc này tự động.
 
 ---
 
@@ -579,4 +582,4 @@ docker compose logs goclaw
 - [Quick Start](/quick-start) — Chạy agent đầu tiên của bạn
 - [Configuration](/configuration) — Tùy chỉnh cài đặt GoClaw
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

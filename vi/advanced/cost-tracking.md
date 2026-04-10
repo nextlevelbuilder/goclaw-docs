@@ -199,6 +199,19 @@ Method `quota.usage` trả về chi phí hôm nay cùng với usage counter:
 
 ---
 
+## Theo Dõi Chi Phí Token Per-Sub-Agent
+
+Từ v3 (#600), chi phí token được tích lũy theo từng sub-agent và đưa vào announce message. Điều này có nghĩa:
+
+- Mỗi sub-agent được spawn tích lũy `input_tokens` và `output_tokens` độc lập
+- Khi sub-agent hoàn thành, tổng token được đưa vào announce message gửi đến LLM context của agent cha
+- Chi phí token được lưu vào bảng `subagent_tasks` (migration 000034) để truy vấn billing và observability
+- Chi phí sub-agent rollup vào chi phí trace cha qua phân cấp trace span hiện có
+
+Chi phí sub-agent xuất hiện trong cùng REST endpoint (`/v1/usage/timeseries`, `/v1/usage/breakdown`) dưới `agent_id` của sub-agent. Để xem tổng chi phí của workflow nhiều agent, hãy tổng hợp chi phí trên tất cả `agent_id` có cùng root trace.
+
+---
+
 ## Giới Hạn Ngân Sách Hàng Tháng
 
 Bạn có thể giới hạn chi tiêu hàng tháng của một agent bằng cách đặt `budget_monthly_cents` trên agent record. Khi được đặt, GoClaw truy vấn chi phí tích lũy trong tháng hiện tại trước mỗi lần chạy và chặn thực thi nếu vượt ngân sách.
@@ -239,4 +252,4 @@ Kiểm tra chạy một lần mỗi request, trước bất kỳ lần gọi LLM
 - [Observability](/deploy-observability) — xuất OpenTelemetry cho span bao gồm các trường chi phí
 - [Tham Chiếu Cấu Hình](/config-reference) — đầy đủ các tùy chọn cấu hình `telemetry`
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

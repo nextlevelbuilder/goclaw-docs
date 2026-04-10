@@ -166,4 +166,4 @@ GoClaw will detect old `bridge_url` config and show a clear migration error.
 - [Larksuite](/channel-feishu) — Larksuite integration
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: whatsapp-direct | updated: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

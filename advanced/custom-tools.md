@@ -185,10 +185,44 @@ The check runs on the **fully rendered command** after all `{{.param}}` substitu
 | Tool not visible to agent | Wrong `agent_id` or `enabled: false` | Verify agent ID; re-enable if disabled |
 | Execution timeout | Default 60 s too short for the task | Increase `timeout_seconds` |
 
+## Built-in Vault Tools
+
+In addition to custom shell tools, GoClaw includes built-in vault tools for knowledge management. These are always available when the vault store is enabled.
+
+### `vault_link` — link vault documents
+
+Creates an explicit link between two vault documents, similar to `[[wikilinks]]` in Obsidian or Roam.
+
+| Parameter | Required | Description |
+|---|---|---|
+| `from` | Yes | Source document path (workspace-relative) |
+| `to` | Yes | Target document path (workspace-relative) |
+| `context` | No | Note describing the relationship |
+| `link_type` | No | `wikilink` (default) or `reference` |
+
+**Doc-type inference**: If either document is not already registered in the vault, GoClaw auto-registers it as a stub, inferring `doc_type` from the file path (e.g., `.md` → `note`, media extensions → `media`). Cross-team links are blocked — both documents must belong to the same team.
+
+```json
+{
+  "from": "projects/goclaw/overview.md",
+  "to": "projects/goclaw/architecture.md",
+  "context": "Architecture details expand on the overview",
+  "link_type": "reference"
+}
+```
+
+### `vault_backlinks` — find documents linking to a doc
+
+Returns all documents that link to the specified path. Respects team boundaries — team context only shows same-team documents; personal context only shows personal documents.
+
+| Parameter | Required | Description |
+|---|---|---|
+| `path` | Yes | Document path to find backlinks for |
+
 ## What's Next
 
 - [MCP Integration](/mcp-integration) — connect external tool servers instead of writing shell commands
 - [Exec Approval](/exec-approval) — require human approval before commands run
 - [Sandbox](/sandbox) — run commands inside Docker for extra isolation
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

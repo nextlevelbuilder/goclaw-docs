@@ -61,6 +61,24 @@ Protected messages (never pruned): last 3 assistant messages. System message(s) 
 
 Repair broken tool_use/tool_result pairs that were split by truncation. The LLM expects matched pairs — orphaned tool calls cause errors.
 
+## V3 Pipeline Architecture
+
+In v3 (enabled via `pipeline_enabled` feature flag), the agent loop is restructured into an **8-stage pipeline** that replaces the v2 monolithic `runLoop()`. The session flow maps to these stages:
+
+| Stage | What happens |
+|-------|-------------|
+| **ContextStage** (once) | Inject context values, resolve per-user workspace, ensure per-user files |
+| **ThinkStage** | Build system prompt, run history pipeline, filter tools (PolicyEngine), call LLM |
+| **PruneStage** | Estimate token ratio; soft trim at ≥30%, hard clear at ≥50%; trigger memory flush if compaction threshold hit |
+| **ToolStage** | Execute tool calls — single tool sequential, multiple tools parallel with result sorting |
+| **ObserveStage** | Process tool results, handle `NO_REPLY`, append assistant message |
+| **CheckpointStage** | Increment iteration counter; break on max iterations or cancellation |
+| **FinalizeStage** (once) | Sanitize output, flush messages atomically, update session metadata, emit run event |
+
+**Memory consolidation in v3**: The PruneStage triggers memory flush **synchronously during the iteration loop** (not only at end-of-session). This means long-running turns extract episodic facts before history is pruned, rather than waiting for the post-turn compaction phase. The same 75% context window threshold applies.
+
+Both v2 and v3 expose identical external behavior; the pipeline difference is internal architecture.
+
 ## Auto-Compaction
 
 Long conversations trigger automatic compaction:
@@ -128,4 +146,4 @@ Queue capacity is 10 by default. When full, the oldest message is dropped (drop 
 - [Tools Overview](/tools-overview) — Available tools for agents
 - [Multi-Tenancy](/multi-tenancy) — Per-user session isolation
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

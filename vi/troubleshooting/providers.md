@@ -132,10 +132,21 @@ Cấu hình trong `config.json` dưới `providers.acp`:
 INFO registered provider name=acp binary=claude
 ```
 
+## Hệ Thống Provider Adapter (v3)
+
+GoClaw v3 giới thiệu `SSEScanner` thống nhất (`providers/sse_reader.go`) dùng chung cho các provider streaming OpenAI, Anthropic, và Codex. Điều này loại bỏ sự khác biệt trong phân tích SSE theo từng provider.
+
+| Vấn đề | Nguyên nhân | Giải pháp |
+|--------|-------------|-----------|
+| Streaming bị cắt giữa chừng | Frame SSE upstream bị tách qua buffer scanner | Hiếm gặp — scanner dùng buffer 512 KB; nếu tái hiện, kiểm tra payload kết quả tool quá lớn |
+| Streaming hoạt động với OpenAI nhưng không phải Anthropic | Proxy tùy chỉnh xóa các dòng `event:` | Đảm bảo proxy truyền nguyên dòng SSE thô; GoClaw dùng cùng parser cho tất cả provider |
+
+Credential provider thêm lúc runtime (dashboard) được lưu trong `llm_providers` với mã hóa AES-256-GCM và được resolve tại thời điểm request. Override per-agent trong agent config được ưu tiên hơn cài đặt provider toàn cục.
+
 ## Tiếp theo
 
 - [Vấn đề database](/troubleshoot-database)
 - [Các vấn đề thường gặp](/troubleshoot-common)
 - [Vấn đề channel](/troubleshoot-channels)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -12,6 +12,22 @@ Luồng này khác với các provider API key tiêu chuẩn — chỉ cần thi
 
 ---
 
+## Định tuyến OAuth Provider (v3)
+
+GoClaw hỗ trợ định tuyến OAuth token đến nhiều loại provider ngoài OpenAI/Codex. Trong v3, loại provider `media` bao gồm các dịch vụ như **Suno** (nhạc AI) và **DashScope** (tạo media của Alibaba) sử dụng OAuth hoặc session token thay vì API key thông thường.
+
+### Các loại Media Provider
+
+| Loại provider | Dịch vụ | Phương thức xác thực |
+|---------------|----------|---------------------|
+| `openai-codex` | ChatGPT qua Responses API | OAuth 2.0 PKCE |
+| `suno` | Suno AI music generation | Session token |
+| `dashscope` | Alibaba DashScope (khi dùng OAuth) | OAuth hoặc API key |
+
+Các loại media provider được đăng ký trong bảng `llm_providers` với giá trị `provider_type` phù hợp. Gateway giải quyết nguồn token và logic refresh đúng dựa trên `provider_type` vào lúc request.
+
+---
+
 ## Cách hoạt động
 
 ```mermaid
@@ -197,4 +213,4 @@ source .env.local
 - [Providers Overview](/providers-overview) — tất cả provider LLM được hỗ trợ và cách cấu hình
 - [Hooks & Quality Gates](/hooks-quality-gates) — thêm validation cho đầu ra agent
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

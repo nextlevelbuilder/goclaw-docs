@@ -23,7 +23,7 @@ Do you want each user to have:
 
 | Aspect | Open | Predefined |
 |--------|------|-----------|
-| **Context isolation** | Per-user: 5 seeded files + MEMORY.md (separate) | Agent-level: 4 shared files + per-user USER.md + BOOTSTRAP.md |
+| **Context isolation** | Per-user: 5 seeded files + MEMORY.md (separate) | Agent-level: 5 shared files + per-user USER.md + BOOTSTRAP.md |
 | **SOUL.md** | Per-user (seeded from template on first chat) | Agent-level (shared by all users) |
 | **IDENTITY.md** | Per-user (seeded from template on first chat) | Agent-level (shared by all users) |
 | **USER.md** | Per-user (seeded from template on first chat) | Per-user (seeded from agent-level fallback or template) |
@@ -148,9 +148,12 @@ Agent-level via `SeedToStore()` — iterates `templateFiles` but **skips USER.md
 ```
 AGENTS.md          — how to operate
 SOUL.md            — personality (optionally generated via summoning)
+CAPABILITIES.md    — domain expertise & skills (seeded from template; backfilled at startup for existing agents)
 IDENTITY.md        — who you are (optionally generated via summoning)
 USER_PREDEFINED.md — baseline user handling rules (seeded separately)
 ```
+
+> **Capabilities backfill:** At startup, GoClaw runs `BackfillCapabilities()` once to seed `CAPABILITIES.md` for any existing agents that were created before this file was introduced. This is idempotent — agents that already have the file are unaffected.
 
 Per-user via `SeedUserFiles()` (`userSeedFilesPredefined`):
 ```
@@ -180,4 +183,4 @@ Or switch to **predefined** later if the agent outgrows single-user use.
 - [Summoning & Bootstrap](/summoning-bootstrap) — how personality is generated for predefined agents
 - [Creating Agents](/creating-agents) — agent creation walkthrough
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -195,6 +195,40 @@ curl -X DELETE http://localhost:8080/v1/channels/instances/3f2a1b4c-... \
 
 ---
 
+## Channel Health
+
+Each channel instance exposes a runtime health snapshot. GoClaw tracks the current lifecycle state, failure classification, failure counters, and an operator remediation hint.
+
+### Health states
+
+| State | Meaning |
+|---|---|
+| `registered` | Instance created but not yet started |
+| `starting` | Channel is initializing (connecting to upstream) |
+| `healthy` | Channel is running and accepting messages |
+| `degraded` | Channel is running but experiencing issues |
+| `failed` | Channel failed to start or crashed |
+| `stopped` | Channel was intentionally stopped |
+
+### Failure classification
+
+When a channel enters `failed` or `degraded` state, GoClaw classifies the error into one of four kinds:
+
+| Kind | Examples | Retryable |
+|---|---|---|
+| `auth` | 401 Unauthorized, invalid token | No |
+| `config` | Missing credentials, invalid proxy URL, agent not found | No |
+| `network` | Timeout, connection refused, DNS failure, EOF | Yes |
+| `unknown` | Unexpected errors | Yes |
+
+### Remediation hints
+
+Each failed channel includes a `remediation` object with a `code`, `headline`, and `hint` pointing to the relevant UI surface (`credentials`, `advanced`, `reauth`, or `details`). For example, a Zalo Personal auth failure suggests re-opening the sign-in flow rather than checking credentials.
+
+Health data is available in the channel instance detail view in the Web UI and via the `GET /v1/channels/instances/{id}` endpoint.
+
+---
+
 ## Group file writers
 
 Each channel instance exposes writer-management endpoints that delegate to its bound agent. Writers control who can upload files through the group file feature.
@@ -248,4 +282,4 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 - [Multi-Channel Setup](/recipe-multi-channel)
 - [Multi-Tenancy](/multi-tenancy)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

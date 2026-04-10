@@ -63,6 +63,24 @@ agent:{agentId}:{channel}:{kind}:{chatId}
 
 修复被截断拆分的 tool_use/tool_result 对。LLM 期望匹配的对——孤立的工具调用会导致错误。
 
+## V3 管道架构
+
+在 v3（通过 `pipeline_enabled` 特性标志启用）中，agent loop 重构为 **8 阶段管道**，取代 v2 的单体 `runLoop()`。Session 流程对应以下阶段：
+
+| 阶段 | 内容 |
+|------|------|
+| **ContextStage**（一次） | 注入 context，解析 per-user workspace，确保 per-user 文件存在 |
+| **ThinkStage** | 构建 system prompt，运行历史管道，过滤工具（PolicyEngine），调用 LLM |
+| **PruneStage** | 估算 token 比例；≥30% 软裁剪，≥50% 硬清除；若达到压缩阈值则触发 memory flush |
+| **ToolStage** | 执行工具调用——单工具顺序执行，多工具并行并按索引排序结果 |
+| **ObserveStage** | 处理工具结果，处理 `NO_REPLY`，追加 assistant 消息 |
+| **CheckpointStage** | 递增 iteration 计数器；达到最大次数或取消时中断 |
+| **FinalizeStage**（一次） | 净化输出，原子刷新消息，更新 session 元数据，emit run event |
+
+**v3 中的记忆整合**：PruneStage 在**迭代循环中同步**触发 memory flush（而非仅在 session 结束时）。这意味着长轮次在历史被裁剪前提取 episodic 事实，无需等待轮次后的压缩阶段。同样的 75% 上下文窗口阈值适用。
+
+v2 和 v3 的外部行为完全相同；管道差异属于内部架构。
+
 ## 自动压缩
 
 长对话触发自动压缩：
@@ -130,4 +148,4 @@ graph LR
 - [工具概览](/tools-overview) — Agent 可用的工具
 - [多租户](/multi-tenancy) — 每用户 session 隔离
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

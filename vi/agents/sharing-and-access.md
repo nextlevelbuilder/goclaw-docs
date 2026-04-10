@@ -216,10 +216,27 @@ agents, err := agentStore.ListAccessible(ctx, userID)
 | Quên ai có quyền truy cập | Dùng `GET /v1/agents/:id/shares` hoặc Dashboard → tab Sharing để kiểm tra |
 | Hạn chế vai trò không hoạt động | Thực thi dựa trên vai trò đang được lên kế hoạch, chưa được triển khai — tất cả shared user có quyền truy cập ngang nhau hiện nay |
 
+## Permission Cache
+
+GoClaw cache các kết quả kiểm tra quyền hot trong bộ nhớ để giảm tải database. `PermissionCache` (trong `internal/cache/permission_cache.go`) duy trì ba cache TTL ngắn:
+
+| Cache | Key | TTL |
+|-------|-----|-----|
+| **Tenant role** | `tenantID:userID` | 30 giây |
+| **Agent access** | `agentID:userID` | 30 giây |
+| **Team access** | `teamID:userID` | 30 giây |
+
+Cache được invalidate qua sự kiện pubsub:
+- `CacheKindTenantUsers` — xoá tất cả tenant role entry (thay đổi cấp user)
+- `CacheKindAgentAccess` — xoá tất cả entry của agent bị thay đổi (prefix match trên `agentID:`)
+- `CacheKindTeamAccess` — xoá tất cả entry của team bị thay đổi (prefix match trên `teamID:`)
+
+> **Sửa lỗi session IDOR:** Trước v3, một session có thể giữ quyền truy cập cũ sau khi share bị thu hồi trong cùng khoảng 30 giây. Pubsub invalidation hiện đảm bảo thu hồi được phản ánh ngay lập tức trên tất cả session đang chạy.
+
 ## Tiếp theo
 
 - [User Overrides — Cho phép user tuỳ chỉnh LLM provider/model theo từng agent](/user-overrides)
 - [System Prompt Anatomy — Cách quyền hạn ảnh hưởng đến phần system prompt](/system-prompt-anatomy)
 - [Creating Agents — Tạo agent và chia sẻ ngay lập tức](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

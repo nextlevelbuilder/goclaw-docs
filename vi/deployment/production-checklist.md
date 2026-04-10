@@ -18,6 +18,9 @@ Checklist này bao gồm các bước quan trọng để hardening, bảo mật,
 - [ ] Connection pool database dùng tối đa 25 kết nối mở / 10 kết nối nhàn rỗi (cố định) — đảm bảo `max_connections` của PostgreSQL đủ chỗ cho số này cộng với các client khác
 - [ ] Backup tự động đã cấu hình (tối thiểu hàng ngày, test restore mỗi quý)
 - [ ] Schema đã cập nhật: `./goclaw upgrade --status` hiển thị `UP TO DATE`
+- [ ] **Nâng cấp v3:** Migration 37–44 đã được áp dụng (subagent tasks, vault tables, evolution tables, edition tables). Chạy `./goclaw upgrade` trước khi khởi động binary mới
+- [ ] **Nâng cấp v3:** Vault tables đã tồn tại (`vault_documents`, `vault_links`) — cần thiết nếu bất kỳ agent nào có bật vault
+- [ ] **Nâng cấp v3:** Backup database trước khi nâng cấp từ v2 lên v3
 
 ```bash
 # Kiểm tra trạng thái schema
@@ -241,4 +244,4 @@ curl http://localhost:18790/health
 - [Security Hardening](/deploy-security) — cấu hình bảo mật sâu hơn
 - [Docker Compose Setup](/deploy-docker-compose) — các pattern compose cho production
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

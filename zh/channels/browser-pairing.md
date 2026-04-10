@@ -245,4 +245,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Telegram 设置
 - [WebSocket 协议](/websocket-protocol) — 完整协议参考
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

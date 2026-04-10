@@ -75,7 +75,7 @@ Create agent teams for collaborative tasks. The teams list supports card/list vi
 
 Click a team to see the **kanban board** with drag-and-drop task management:
 - **Board** — Visual task board with columns for each status (pending, in_progress, in_review, completed, failed, cancelled, blocked, stale)
-- **Members** — Assign agents to the team, view member enrichment with agent metadata and emoji
+- **Members** — Assign agents to the team, view member enrichment with agent metadata and emoji; agent emoji is displayed in the board toolbar
 - **Tasks** — Task list view with filtering, approval workflow (approve/reject), and blocker escalation
 - **Workspace** — Shared file workspace with lazy-load folder UI and storage depth control
 - **Settings** — Team configuration, blocker escalation, escalation mode, workspace scope
@@ -162,6 +162,14 @@ Vector memory document management powered by pgvector. Store, search, and manage
 
 Knowledge graph management — view and manage entity relationships that agents build over conversations.
 
+#### Vault
+
+Knowledge Vault — store and manage structured documents (notes, references, guides) that agents can link and retrieve. Features:
+- Document list with pagination (100 per page, Previous/Next navigation with "Showing X-Y of Z" indicator)
+- Team filter dropdown alongside agent selector for multi-team document filtering
+- Interactive knowledge graph visualizing document relationships (degree centrality limited for performance)
+- `vault_link` tool infers document type from file path and supports `link_type` param (`wikilink` or `reference`)
+
 #### Storage
 
 File and storage management for agent-uploaded or user-uploaded files.
@@ -193,6 +201,15 @@ Usage metrics and cost tracking — monitor token consumption, API calls, and co
 System logs for debugging and monitoring gateway operations.
 
 ### System
+
+#### Packages
+
+Manage runtime packages installed in the Docker container. Three categories:
+- **System** — apk packages (managed by the root-privileged `pkg-helper` binary via Unix socket)
+- **Python** — pip packages
+- **Node** — npm packages
+
+Shows installed versions and allows install/uninstall without rebuilding the image.
 
 #### Providers
 
@@ -307,7 +324,7 @@ Footer actions:
 - [How GoClaw Works](/how-goclaw-works) — Understand the architecture
 - [Agents Explained](/agents-explained) — Learn about agent types
 
-<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
 <!-- TODO: Screenshots needed for v2.x UI — run a GoClaw instance and capture:
   1. Team kanban board with task cards in columns
   2. Cron detail page with markdown rendering

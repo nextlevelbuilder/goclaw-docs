@@ -143,10 +143,40 @@ err := agentStore.DeleteUserOverride(ctx, agentID, userID)
 
 如不确定哪些已启用，请询问管理员。
 
+## 用户身份解析
+
+Agent 运行时，GoClaw 必须确定使用哪个 tenant 用户身份进行凭据查询。这与 LLM 覆盖无关——它是关于从传入的 channel 消息中解析*凭据用户*。
+
+`UserIdentityResolver` 接口（位于 `internal/agent/user_identity_resolver.go`）处理此操作：
+
+```go
+type UserIdentityResolver interface {
+    ResolveTenantUserID(ctx context.Context, channelType, senderID string) (string, error)
+}
+```
+
+### 解析逻辑
+
+Agent 循环在工具执行前调用 `resolveCredentialUserID()`：
+
+| 场景 | 解析方式 |
+|----------|-----------|
+| **DM / HTTP / cron** | 通过 channel 类型解析 `UserID` → 使用解析后的 ID，回退到原始 `UserID` |
+| **群聊 — 个人发送者** | 先解析数字发送者 ID（去除 `senderID\|suffix` 格式） |
+| **群聊 — 群组联系人** | 从 `group:{channel}:{chatID}` 格式提取 `chatID`，通过联系人 store 解析 |
+
+这确保跨 channel 联系人（例如同一人在 Telegram 和 WhatsApp 上）能解析到相同的 tenant 用户身份，实现一致的凭据查询。
+
+### 影响范围
+
+- agent 可访问哪些存储的凭据（API key、token）
+- 依赖 tenant 用户身份的每用户工具权限
+- **不影响**使用哪个 LLM 模型或 provider（见上文）
+
 ## 下一步
 
 - [System Prompt Anatomy — 模型选择如何影响 system prompt 大小](/system-prompt-anatomy)
 - [Sharing and Access — 控制谁可以访问 agent](/sharing-and-access)
 - [Creating Agents — 创建 agent 时设置默认 provider/model](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

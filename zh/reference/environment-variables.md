@@ -130,6 +130,20 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 
 ---
 
+## 运行时包（Docker v3）
+
+这些变量配置容器内按需运行时包（pip/npm）的安装位置。由 Docker 入口点自动设置——仅在自定义安装布局时覆盖。
+
+| 变量 | 默认值（Docker） | 描述 |
+|----------|-----------------|-------------|
+| `PIP_TARGET` | `/app/data/.runtime/pip` | pip 在运行时安装 Python 包的目录 |
+| `PYTHONPATH` | `/app/data/.runtime/pip` | Python 模块搜索路径——必须包含 `PIP_TARGET`，已安装的包才可导入 |
+| `NPM_CONFIG_PREFIX` | `/app/data/.runtime/npm-global` | 运行时 Node.js 包安装的 npm 全局前缀 |
+
+> 这些目录挂载在数据卷上，容器重建后包依然存在。`pkg-helper` 二进制文件（以 root 运行）管理系统包（`apk`）；pip/npm 安装以 `goclaw` 用户运行。
+
+---
+
 ## 沙箱（Docker）
 
 | 变量 | 说明 |
@@ -224,4 +238,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI 命令](/cli-commands) — `goclaw onboard` 自动生成 `.env.local`
 - [数据库 Schema](/database-schema) — 密钥如何加密存储在 PostgreSQL 中
 
-<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

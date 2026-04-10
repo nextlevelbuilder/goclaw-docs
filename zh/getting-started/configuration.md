@@ -537,6 +537,55 @@ JSON key：`"feishu"`
 | `domain` | `"lark"`、`"feishu"` 或自定义 base URL |
 | `connection_mode` | `"websocket"` 或 `"webhook"` |
 
+### Zalo Personal（Zalo 个人版）
+
+```jsonc
+"zalo_personal": {
+  "enabled": true,
+  "allow_from": [],
+  "dm_policy": "pairing",
+  "group_policy": "disabled",
+  "require_mention": false,
+  "history_limit": 50,
+  "credentials_path": "./zalo-creds.json",
+  "block_reply": false
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|-------|------|---------|-------------|
+| `allow_from` | []string | — | 白名单用户 ID |
+| `dm_policy` | string | `"pairing"` | 私信访问策略 |
+| `group_policy` | string | `"disabled"` | 群组访问策略 |
+| `require_mention` | bool | `false` | 群组中是否需要 @提及 |
+| `history_limit` | int | `50` | 上下文历史限制 |
+| `credentials_path` | string | — | Zalo 会话凭据文件路径 |
+| `block_reply` | bool | `false` | 抑制中间回复 |
+
+### 待处理压缩（Pending Compaction）
+
+自动压缩过长的 channel 历史记录。
+
+```jsonc
+"channels": {
+  "pending_compaction": {
+    "threshold": 50,
+    "keep_recent": 15,
+    "max_tokens": 4096,
+    "provider": "openrouter",
+    "model": "anthropic/claude-haiku-4-5-20251001"
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|-------|------|---------|-------------|
+| `threshold` | int | `50` | 待处理消息超过此数量时触发压缩 |
+| `keep_recent` | int | `15` | 始终保留最近的消息条数 |
+| `max_tokens` | int | `4096` | 压缩摘要的最大 token 数 |
+| `provider` | string | — | 压缩 LLM 调用使用的 provider |
+| `model` | string | — | 压缩 LLM 调用使用的模型 |
+
 ## Tools（工具）
 
 ```jsonc
@@ -772,4 +821,4 @@ JSON key：`"feishu"`
 - [Agent 详解](/agents-explained) — 深入了解 agent 配置
 - [Tools 概览](/tools-overview) — 可用的 tool 及其分类
 
-<!-- goclaw-source: 0bce640 | 更新: 2026-03-24 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

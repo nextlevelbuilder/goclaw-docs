@@ -16,12 +16,15 @@ This checklist covers the critical steps to harden, secure, and reliably operate
 - [ ] Database connection pool uses 25 max open / 10 max idle connections (hard-coded) — ensure your PostgreSQL `max_connections` accommodates this plus other clients
 - [ ] Automated backups are configured (daily minimum, test restore quarterly)
 - [ ] Schema is up to date: `./goclaw upgrade --status` shows `UP TO DATE`
+- [ ] **v3 upgrade:** Migrations 37–44 have been applied (subagent tasks, vault tables, evolution tables, edition tables). Run `./goclaw upgrade` before starting the new binary
+- [ ] **v3 upgrade:** Vault tables exist (`vault_documents`, `vault_links`) — required if any agent has vault enabled
+- [ ] **v3 upgrade:** Back up the database before upgrading from v2 to v3
 
 ```bash
 # Verify schema status
 ./goclaw upgrade --status
 
-# Apply any pending migrations
+# Apply any pending migrations (required for v3)
 ./goclaw upgrade
 ```
 
@@ -239,4 +242,4 @@ curl http://localhost:18790/health
 - [Security Hardening](/deploy-security) — deeper security configuration
 - [Docker Compose Setup](/deploy-docker-compose) — production compose patterns
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

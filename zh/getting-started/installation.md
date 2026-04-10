@@ -193,7 +193,8 @@ go build -tags "otel,tsnet" -o goclaw .      # 组合多个
 2. **连接测试** — 验证 PostgreSQL 可访问
 3. **迁移** — 自动创建所有必需的表
 4. **密钥生成** — 自动生成 `GOCLAW_GATEWAY_TOKEN` 和 `GOCLAW_ENCRYPTION_KEY`
-5. **保存密钥** — 将所有内容写入 `.env.local`
+5. **初始化 provider** — 插入 provider 占位记录，确保首次登录时 dashboard UI 即可使用
+6. **保存密钥** — 将所有内容写入 `.env.local`
 
 ### 第四步：启动 Gateway
 
@@ -321,6 +322,8 @@ docker compose \
 > **注意：** Redis 和 OTel overlay 需要使用对应的构建参数重新构建 GoClaw 镜像（`ENABLE_REDIS=true`、`ENABLE_OTEL=true`）。设置 `ENABLE_EMBEDUI=false` 可禁用内嵌 UI（例如使用 selfservice nginx overlay 时）。详见各 overlay 文件。
 
 > **Python 运行时：** 默认 `docker-compose.yml` 使用 `ENABLE_PYTHON: "true"` 构建 GoClaw，因此基于 Python 的 skills 在 Docker 中开箱即用。
+
+> **权限分离：** Docker 镜像以非 root 用户 `goclaw`（UID 1000）运行 GoClaw。独立的 `pkg-helper` 二进制以 root 权限通过 Unix socket（`/tmp/pkg.sock`）管理系统（apk）包安装，确保应用进程不具备特权。`docker-entrypoint.sh` 脚本自动处理此流程。
 
 ---
 
@@ -579,4 +582,4 @@ docker compose logs goclaw
 - [快速开始](/quick-start) — 运行你的第一个 agent
 - [配置](/configuration) — 自定义 GoClaw 设置
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -45,6 +45,15 @@ The default API base is `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
 | `qwen3-turbo` | Fastest Qwen3 model |
 | `qwen3-235b-a22b` | Open-weight, MoE architecture |
 | `qwq-32b` | Extended thinking / reasoning model |
+| `qwen3.5-max` | Qwen 3.5 series, highest capability |
+| `qwen3.5-plus` | Qwen 3.5 series, balanced |
+| `qwen3.5-turbo` | Qwen 3.5 series, fastest |
+
+## Per-Model Thinking Guard
+
+GoClaw uses a simplified per-model guard to decide whether to send `enable_thinking` and `thinking_budget` parameters. Only models that actually support extended thinking receive these parameters — other models silently ignore the `thinking_level` setting. In v3, this logic was simplified (previously had redundant checks that could cause incorrect behavior for some model names).
+
+**Models that support thinking:** `qwq-32b`, and Qwen 3.5 series models with thinking capability.
 
 ## Thinking (Extended Reasoning)
 
@@ -118,4 +127,4 @@ GoClaw maps `thinking_level` to DashScope's `thinking_budget`:
 - [Claude CLI](/provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

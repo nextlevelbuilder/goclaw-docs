@@ -47,6 +47,15 @@ API base mặc định là `https://dashscope-intl.aliyuncs.com/compatible-mode/
 | `qwen3-turbo` | Model Qwen3 nhanh nhất |
 | `qwen3-235b-a22b` | Open-weight, kiến trúc MoE |
 | `qwq-32b` | Extended thinking / reasoning model |
+| `qwen3.5-max` | Dòng Qwen 3.5, khả năng cao nhất |
+| `qwen3.5-plus` | Dòng Qwen 3.5, cân bằng |
+| `qwen3.5-turbo` | Dòng Qwen 3.5, nhanh nhất |
+
+## Per-Model Thinking Guard
+
+GoClaw dùng guard đơn giản theo từng model để quyết định có gửi tham số `enable_thinking` và `thinking_budget` hay không. Chỉ các model thực sự hỗ trợ extended thinking mới nhận các tham số này — các model khác im lặng bỏ qua cài đặt `thinking_level`. Trong v3, logic này được đơn giản hóa (trước đó có các kiểm tra dư thừa có thể gây hành vi không đúng với một số tên model).
+
+**Các model hỗ trợ thinking:** `qwq-32b` và các model dòng Qwen 3.5 có khả năng thinking.
 
 ## Thinking (Extended Reasoning)
 
@@ -120,4 +129,4 @@ GoClaw ánh xạ `thinking_level` sang `thinking_budget` của DashScope:
 - [Claude CLI](/provider-claude-cli) — provider đặc biệt gọi CLI binary của Claude Code
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

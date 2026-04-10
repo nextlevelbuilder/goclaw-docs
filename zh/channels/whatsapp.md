@@ -168,4 +168,4 @@ GoClaw 会检测旧的 `bridge_url` 配置并显示清晰的迁移错误。
 - [Larksuite](/channel-feishu) — Larksuite 集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: whatsapp-direct | 更新: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -104,6 +104,9 @@ API key từ environment ghi đè mọi giá trị trong `config.json`. Đặt k
 | `GOCLAW_LARK_ENCRYPT_KEY` | Feishu/Lark | Encryption key cho event |
 | `GOCLAW_LARK_VERIFICATION_TOKEN` | Feishu/Lark | Verification token cho event |
 | `GOCLAW_WHATSAPP_ENABLED` | WhatsApp | Bật WhatsApp channel (`true`/`false`) |
+| `GOCLAW_SLACK_BOT_TOKEN` | Slack | Bot User OAuth Token (`xoxb-...`) — tự bật Slack |
+| `GOCLAW_SLACK_APP_TOKEN` | Slack | App-Level Token cho Socket Mode (`xapp-...`) |
+| `GOCLAW_SLACK_USER_TOKEN` | Slack | User OAuth Token tùy chọn (`xoxp-...`) |
 
 ---
 
@@ -127,6 +130,18 @@ API key từ environment ghi đè mọi giá trị trong `config.json`. Đặt k
 | `GOCLAW_SKILLS_DIR` | Thư mục skills global. Mặc định: `~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | Đường dẫn đến định nghĩa built-in skill. Mặc định: `./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | Đường dẫn đến gói bundled skill. Mặc định: `./bundled-skills` |
+
+## Runtime Packages (Docker v3)
+
+Các biến này cấu hình nơi cài đặt các runtime package (pip/npm) theo yêu cầu bên trong container. Được tự động đặt bởi Docker entrypoint — chỉ ghi đè nếu bạn có layout cài đặt tùy chỉnh.
+
+| Biến | Mặc định (Docker) | Mô tả |
+|------|------------------|-------|
+| `PIP_TARGET` | `/app/data/.runtime/pip` | Thư mục pip cài Python package vào lúc runtime |
+| `PYTHONPATH` | `/app/data/.runtime/pip` | Đường dẫn tìm module Python — phải bao gồm `PIP_TARGET` để package đã cài có thể import được |
+| `NPM_CONFIG_PREFIX` | `/app/data/.runtime/npm-global` | npm global prefix cho cài đặt Node.js package runtime |
+
+> Các thư mục này được mount trên data volume để package tồn tại qua các lần tạo lại container. Binary `pkg-helper` (chạy với quyền root) quản lý package hệ thống (`apk`); pip/npm cài dưới quyền user `goclaw`.
 
 ---
 
@@ -224,4 +239,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` tự tạo `.env.local`
 - [Database Schema](/database-schema) — secrets được lưu mã hóa trong PostgreSQL như thế nào
 
-<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

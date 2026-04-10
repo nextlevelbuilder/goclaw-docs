@@ -58,6 +58,35 @@ Each team has a shared workspace for files produced during task execution. Works
 
 Configure via `workspace_scope: "shared"` in team settings. Files written during task execution are automatically stored in the workspace and linked to the active task.
 
+## v3 Orchestration Changes
+
+In v3, teams use a **task-board-driven dispatch model** instead of the old `spawn(agent=...)` flow.
+
+### Post-Turn Dispatch (BatchQueue)
+
+Tasks created during a lead's turn are queued (`PendingTeamDispatchFromCtx`) and dispatched **after the turn ends** — not inline. This ensures `blocked_by` dependencies are fully wired before any member receives work.
+
+```
+Lead turn ends
+  → BatchQueue flushes pending dispatches
+  → Each assignee receives inbound message via bus
+  → Member agents execute in isolated sessions
+```
+
+### Domain Event Bus
+
+All task state changes emit typed events (`team_task.created`, `team_task.assigned`, `team_task.completed`, etc.) on the domain event bus. The dashboard updates in real-time via WebSocket without polling.
+
+### Circuit Breaker
+
+Tasks auto-fail after **3 dispatch attempts** (`maxTaskDispatches`). This prevents infinite loops when a member agent repeatedly fails or rejects a task. The dispatch count is tracked in `metadata.dispatch_count`.
+
+### WaitAll Pattern
+
+The lead can create multiple tasks in parallel and they dispatch concurrently. When all member tasks complete, `DispatchUnblockedTasks` auto-dispatches any waiting dependent tasks (ordered by priority). The lead synthesizes results only after all branches resolve.
+
+> **Spawn tool change**: `spawn(agent="member")` is no longer valid in v3. Leads must use `team_tasks(action="create", assignee="member")` instead. The system will reject direct spawn-to-agent calls with an instructive error.
+
 ## Real-World Example
 
 **Scenario**: User asks the lead to analyze a research paper and write a summary.
@@ -95,4 +124,4 @@ Configure via `workspace_scope: "shared"` in team settings. Files written during
 - Conversation needs to transfer between agents
 - No task board or orchestration needed
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

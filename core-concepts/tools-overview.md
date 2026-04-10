@@ -13,8 +13,9 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Filesystem** (`group:fs`) | read_file, write_file, edit, list_files, search, glob | Read, write, edit, and search files in the agent workspace |
 | **Runtime** (`group:runtime`) | exec, credentialed_exec | Run shell commands; execute CLI tools with injected credentials |
 | **Web** (`group:web`) | web_search, web_fetch | Search the web (Brave/DuckDuckGo) and fetch pages |
-| **Memory** (`group:memory`) | memory_search, memory_get | Query long-term memory (hybrid vector + FTS search) |
-| **Knowledge** (`group:knowledge`) | knowledge_graph_search, skill_search | Search knowledge graph entities and relationships; discover skills |
+| **Memory** (`group:memory`) | memory_search, memory_get, memory_expand | Query long-term memory (hybrid vector + FTS search); expand full episodic content by ID (L2 retrieval) |
+| **Knowledge** (`group:knowledge`) | vault_search, knowledge_graph_search, skill_search | Unified vault/memory/knowledge-graph search; search entities and relationships; discover skills |
+| **Vault** | vault_link, vault_backlinks | Create explicit wikilinks between vault documents; trace document backlinks |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Manage conversation sessions; spawn subagents |
 | **Teams** (`group:teams`) | team_tasks, team_message | Collaborate with agent teams via shared task board and mailbox |
 | **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
@@ -25,6 +26,24 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
 | **Workspace** | workspace_dir | Resolve workspace directory for team/user context |
 | **AI** | openai_compat_call | Call OpenAI-compatible endpoints with custom request formats |
+
+### v3 Memory & Vault Tools
+
+**Memory layers** (v3 two-tier retrieval):
+
+| Tool | Layer | Description |
+|------|-------|-------------|
+| `memory_search` | L1 | BM25 + vector hybrid search; returns abstracts and scores |
+| `memory_expand` | L2 | Load full episodic summary by ID from `memory_search` results |
+
+Use `memory_search` first to discover relevant episodic IDs, then `memory_expand` for the complete content. This saves tokens when only a few entries are relevant.
+
+**Vault link tools** (v3 knowledge graph integration):
+
+| Tool | Description |
+|------|-------------|
+| `vault_link` | Create an explicit link between two vault documents (`wikilink` or `reference` type). Auto-registers documents not yet in the vault. Team-scoped docs cannot link across different teams. |
+| `vault_backlinks` | List all documents that link to a given document path. Respects team/personal scope boundaries. |
 
 **BytePlus media tools** (`create_image_byteplus`, `create_video_byteplus`) are available when a `byteplus` provider is configured. Both use async job polling: image generation via Seedream returns a URL once the job completes; video generation via Seedance polls `/text-to-video-pro/status/{id}` for the result.
 
@@ -269,4 +288,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: 76385f2f | updated: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

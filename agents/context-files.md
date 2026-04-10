@@ -1,6 +1,6 @@
 # Context Files
 
-> The 7 markdown files that define an agent's personality, knowledge, and behavior.
+> The 8 markdown files that define an agent's personality, knowledge, and behavior.
 
 ## Overview
 
@@ -12,6 +12,7 @@ Each agent loads context files that define how it thinks and acts. These files a
 |------|---------|-------|------|-----------|-----------|
 | **AGENTS.md** | Operating instructions & conversational style | Shared | Per-user | Agent-level | No |
 | **SOUL.md** | Personality, tone, boundaries, expertise | Per-user | Per-user | Agent-level | No |
+| **CAPABILITIES.md** | Domain knowledge, technical skills, specialized expertise | Per-user | Per-user | Agent-level | No |
 | **IDENTITY.md** | Name, creature, emoji, vibe | Per-user | Per-user | Agent-level | No |
 | **TOOLS.md** | Local tool notes (camera names, SSH hosts) | Per-user | Per-user (loaded from workspace; not template-seeded by default) | Agent-level | No |
 | **USER.md** | About the human user | Per-user | Per-user | Per-user | No |
@@ -103,6 +104,38 @@ _(Domain-specific knowledge goes here: coding standards, image generation techni
 
 **Open agent:** Per-user (generated on first chat, customizable)
 **Predefined agent:** Agent-level (optionally generated via LLM summoning)
+
+### CAPABILITIES.md
+
+**Purpose:** What you can do. Domain expertise, technical skills, tools, and methodologies.
+
+**Who writes it:** Seeded from template at agent creation; updated by the agent via self-evolution or manual edits.
+
+**Template content:**
+```markdown
+# CAPABILITIES.md - What You Can Do
+
+_Domain knowledge, technical skills, and specialized expertise._
+
+## Expertise
+
+_(Describe your areas of expertise. What do you know deeply? What can you help with?)_
+
+## Tools & Methods
+
+_(Optional — preferred tools, workflows, methodologies you follow.)_
+
+---
+
+_Updated by evolution or user edits. Focus on what you DO, not who you ARE (that's SOUL.md)._
+```
+
+**Key difference from SOUL.md:** SOUL.md defines *who you are* (tone, personality, values). CAPABILITIES.md defines *what you can do* (skills, domain knowledge, expertise). Self-evolution can update both files independently.
+
+**Backfill:** When GoClaw starts, `BackfillCapabilities` runs once and seeds `CAPABILITIES.md` for any existing agents that don't already have it. This is idempotent and O(1) regardless of agent count.
+
+**Open agent:** Per-user (seeded from template, customizable)
+**Predefined agent:** Agent-level (seeded from template, shared across users)
 
 ### IDENTITY.md
 
@@ -280,11 +313,12 @@ Files are loaded in this order and concatenated into the system prompt:
 
 1. **AGENTS.md** — how to operate
 2. **SOUL.md** — who you are
-3. **IDENTITY.md** — name, emoji
-4. **TOOLS.md** — local notes
-5. **USER.md** — about the user
-6. **BOOTSTRAP.md** — first-run ritual (optional, deleted when complete)
-7. **MEMORY.md** — long-term memory (optional)
+3. **CAPABILITIES.md** — what you can do
+4. **IDENTITY.md** — name, emoji
+5. **TOOLS.md** — local notes
+6. **USER.md** — about the user
+7. **BOOTSTRAP.md** — first-run ritual (optional, deleted when complete)
+8. **MEMORY.md** — long-term memory (optional)
 
 Subagent and cron sessions load only: AGENTS.md, TOOLS.md (minimal context).
 
@@ -340,6 +374,7 @@ FAQ bot creation with summoning:
 2. LLM generates agent-level files:
    ```
    SOUL.md → "Patient, friendly, helpful tone. Multilingual support."
+   CAPABILITIES.md → "Product FAQ expertise, pricing, escalation procedures."
    IDENTITY.md → "FAQ Assistant, 🤖"
    ```
 
@@ -374,4 +409,4 @@ FAQ bot creation with summoning:
 - [Summoning & Bootstrap](/summoning-bootstrap) — how SOUL.md and IDENTITY.md are LLM-generated
 - [Creating Agents](/creating-agents) — step-by-step agent creation
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

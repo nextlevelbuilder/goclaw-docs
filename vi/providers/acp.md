@@ -127,6 +127,16 @@ Mỗi lời gọi ToolBridge được kiểm tra qua:
 
 ---
 
+## Session Tracking
+
+Mỗi ACP subprocess duy trì một session ID được server gán. Vòng đời session là:
+
+1. **`session/new`** — được gọi ngay sau `initialize`; server trả về `sessionID`
+2. **`session/prompt`** — gửi nội dung user với `sessionID`; server emit thông báo `SessionUpdate` trong quá trình thực thi
+3. **`session/cancel`** — gửi như notification khi caller hủy context
+
+Session ID được lưu per-process trong `ACPProcess.sessionID` và được đưa vào mọi prompt request. Điều này cho phép ACP agent duy trì lịch sử hội thoại và trạng thái file qua nhiều lượt trong cùng một process lifetime.
+
 ## Session Sequencing
 
 Các request đồng thời đến cùng session có thể làm hỏng trạng thái file. ACP serialize các request per-session qua mutex `sessionMu`:
@@ -226,4 +236,4 @@ Với response, GoClaw:
 - [Claude CLI](/provider-claude-cli)
 - [Custom / OpenAI-Compatible](/provider-custom)
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

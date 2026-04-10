@@ -116,4 +116,4 @@ The `media` field appears in the payload only when the agent returns generated m
 - [Dashboard Tour](/dashboard-tour) — Explore the visual interface
 - [Agents Explained](/agents-explained) — Understand agent types and context
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

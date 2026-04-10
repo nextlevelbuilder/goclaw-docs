@@ -311,6 +311,27 @@ When a session's conversation history exceeds **60% of the context window**, the
 | Duplicate executions | Clock skew between restarts (edge case) | The scheduler clears `next_run_at` in the DB before dispatch; on restart, stale jobs are recomputed automatically |
 | Run log is empty | Job hasn't fired yet | Trigger manually via `cron.run` method with `mode: "force"` |
 
+## Evolution Cron (v3 Background Worker)
+
+GoClaw runs an internal background cron for the v3 agent evolution engine. This is not a user-managed job — it starts automatically when the gateway starts.
+
+| Cadence | Action |
+|---------|--------|
+| 1 minute after startup (warm-up) | Initial suggestion analysis for all evolution-enabled agents |
+| Every 24 hours | Re-run suggestion analysis (`SuggestionEngine.Analyze`) for all active agents with `evolution_metrics: true` |
+| Every 7 days | Evaluate applied suggestions; roll back if quality metrics regressed (`EvaluateApplied`) |
+
+**How it works:**
+
+1. On startup, `runEvolutionCron` starts as a background goroutine in `cmd/gateway_evolution_cron.go`
+2. It lists all active agents and checks the `evolution_metrics` v3 flag on each
+3. For eligible agents, `SuggestionEngine.Analyze` generates improvement suggestions based on conversation metrics
+4. Weekly, `EvaluateApplied` checks applied suggestions against guardrail thresholds and auto-rolls back regressions
+
+**To enable evolution for an agent**, set `evolution_metrics: true` in the agent's `other_config` via the dashboard. No config.json changes are needed.
+
+> The evolution cron runs with a 5-minute per-cycle timeout. Errors for individual agents are logged at debug level and do not abort the cycle for other agents.
+
 ## What's Next
 
 - [Heartbeat](heartbeat.md) — proactive periodic check-ins with smart suppression
@@ -318,4 +339,4 @@ When a session's conversation history exceeds **60% of the context window**, the
 - [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
-<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -141,10 +141,40 @@ Check your gateway config to see which providers/models are available. Common on
 
 Ask your admin if you're unsure which are enabled.
 
+## User Identity Resolution
+
+When an agent runs, GoClaw must determine which tenant user identity to use for credential lookups. This is separate from the LLM override — it's about resolving the *credential user* from the incoming channel message.
+
+The `UserIdentityResolver` interface (in `internal/agent/user_identity_resolver.go`) handles this:
+
+```go
+type UserIdentityResolver interface {
+    ResolveTenantUserID(ctx context.Context, channelType, senderID string) (string, error)
+}
+```
+
+### Resolution Logic
+
+The agent loop calls `resolveCredentialUserID()` before tool execution:
+
+| Scenario | Resolution |
+|----------|-----------|
+| **DM / HTTP / cron** | Resolve `UserID` via channel type → use resolved ID, fallback to raw `UserID` |
+| **Group chat — individual sender** | Resolve numeric sender ID first (strips `senderID\|suffix` format) |
+| **Group chat — group contact** | Extract `chatID` from `group:{channel}:{chatID}` format, resolve via contact store |
+
+This ensures that cross-channel contacts (e.g., the same person on Telegram and WhatsApp) resolve to the same tenant user identity for consistent credential lookups.
+
+### What It Affects
+
+- Which stored credentials (API keys, tokens) the agent can access
+- Per-user tool permissions that depend on tenant user identity
+- Does **not** affect which LLM model or provider is used (see above)
+
 ## What's Next
 
 - [System Prompt Anatomy — How model choice affects system prompt size](/system-prompt-anatomy)
 - [Sharing and Access — Control who can access agents](/sharing-and-access)
 - [Creating Agents — Set default provider/model when creating an agent](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

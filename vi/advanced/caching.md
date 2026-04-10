@@ -72,6 +72,26 @@ Giá trị được serialize dưới dạng JSON. Xóa theo pattern sử dụng
 
 ---
 
+## Permission Cache
+
+GoClaw có `PermissionCache` chuyên dụng cho các tra cứu quyền thường xuyên xảy ra trên mỗi request. Khác với context file cache, permission cache luôn là in-memory — không dùng Redis.
+
+| Cache | TTL | Định dạng key | Lưu trữ gì |
+|---|---|---|---|
+| `tenantRole` | 30s | `tenantID:userID` | Vai trò người dùng trong tenant |
+| `agentAccess` | 30s | `agentID:userID` | Người dùng có quyền truy cập agent không + vai trò của họ |
+| `teamAccess` | 30s | `teamID:userID` | Người dùng có quyền truy cập team không |
+
+**Invalidation qua pubsub**: Khi quyền người dùng thay đổi (ví dụ cập nhật vai trò, thu hồi quyền truy cập agent), GoClaw publish sự kiện `CacheInvalidate` trên internal bus. Permission cache xử lý các sự kiện này:
+
+- `CacheKindTenantUsers` — xóa tất cả entry tenant role (TTL ngắn nên clear toàn bộ là chấp nhận được)
+- `CacheKindAgentAccess` — xóa tất cả entry có prefix `agentID` đó
+- `CacheKindTeamAccess` — xóa tất cả entry có prefix `teamID` đó
+
+Thay đổi quyền có hiệu lực trong tối đa 30 giây, với invalidation tức thì trên các write path.
+
+---
+
 ## Hành vi Cache
 
 Cả hai backend cùng implement một interface:
@@ -93,4 +113,4 @@ Cả hai backend cùng implement một interface:
 - [Cài đặt Database](/deploy-database) — Cấu hình PostgreSQL
 - [Production Checklist](/deploy-checklist) — Triển khai an toàn
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

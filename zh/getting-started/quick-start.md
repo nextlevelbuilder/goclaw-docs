@@ -118,4 +118,4 @@ websocat ws://localhost:18790/ws
 - [Dashboard 导览](/dashboard-tour) — 探索可视化界面
 - [Agent 详解](/agents-explained) — 了解 agent 类型和上下文
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -60,6 +60,35 @@ Mỗi team có một workspace chung để lưu trữ file được tạo trong 
 
 Cấu hình qua `workspace_scope: "shared"` trong team settings. File được ghi trong quá trình thực thi task tự động lưu vào workspace và liên kết với task đang hoạt động.
 
+## Thay đổi Orchestration trong V3
+
+Trong v3, team sử dụng mô hình **dispatch dựa trên task board** thay cho luồng `spawn(agent=...)` cũ.
+
+### Post-Turn Dispatch (BatchQueue)
+
+Task được tạo trong lượt của lead sẽ được xếp hàng (`PendingTeamDispatchFromCtx`) và dispatch **sau khi lượt kết thúc** — không phải inline. Điều này đảm bảo các phụ thuộc `blocked_by` được cài đặt đầy đủ trước khi member nhận việc.
+
+```
+Lead kết thúc lượt
+  → BatchQueue flush các dispatch đang chờ
+  → Mỗi assignee nhận tin nhắn qua bus
+  → Member agent thực thi trong session riêng biệt
+```
+
+### Domain Event Bus
+
+Mọi thay đổi trạng thái task đều emit typed event (`team_task.created`, `team_task.assigned`, `team_task.completed`, ...) trên domain event bus. Dashboard cập nhật thời gian thực qua WebSocket mà không cần polling.
+
+### Circuit Breaker
+
+Task tự động fail sau **3 lần dispatch** (`maxTaskDispatches`). Điều này ngăn vòng lặp vô hạn khi member agent liên tục thất bại hoặc từ chối task. Số lần dispatch được theo dõi trong `metadata.dispatch_count`.
+
+### Pattern WaitAll
+
+Lead có thể tạo nhiều task song song và chúng dispatch đồng thời. Khi tất cả task của member hoàn thành, `DispatchUnblockedTasks` tự động dispatch các task phụ thuộc đang chờ (theo thứ tự ưu tiên). Lead tổng hợp kết quả chỉ sau khi tất cả nhánh giải quyết xong.
+
+> **Thay đổi spawn tool**: `spawn(agent="member")` không còn hợp lệ trong v3. Lead phải dùng `team_tasks(action="create", assignee="member")` thay thế. Hệ thống sẽ từ chối lệnh spawn trực tiếp tới agent kèm thông báo hướng dẫn.
+
 ## Ví dụ Thực tế
 
 **Tình huống**: Người dùng yêu cầu lead phân tích một bài nghiên cứu và viết tóm tắt.
@@ -97,4 +126,4 @@ Cấu hình qua `workspace_scope: "shared"` trong team settings. File được g
 - Hội thoại cần chuyển giao giữa các agent
 - Không cần task board hay điều phối
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

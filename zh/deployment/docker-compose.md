@@ -267,6 +267,48 @@ docker compose \
 
 ---
 
+## 权限分离（v3）
+
+从 v3 起，Docker 镜像通过 `su-exec` 实现**权限分离**：
+
+```
+docker-entrypoint.sh（以 root 运行）
+  ├── 安装持久化的 apk 包（读取 /app/data/.runtime/apk-packages）
+  ├── 以 root 启动 pkg-helper（Unix socket /tmp/pkg.sock，权限 0660 root:goclaw）
+  └── su-exec goclaw → 启动 /app/goclaw serve（降权为非 root）
+```
+
+### pkg-helper
+
+`pkg-helper` 是一个小型 root 特权二进制文件，代表 `goclaw` 进程处理系统包管理。它监听 Unix socket 并接受安装/卸载 Alpine 包（`apk`）的请求。`goclaw` 用户无法直接调用 `apk`，但可以通过此 helper 请求。
+
+使用 pkg-helper 时所需的 Docker capability（compose 设置中默认添加）：
+
+```yaml
+cap_add:
+  - SETUID
+  - SETGID
+  - CHOWN
+  - DAC_OVERRIDE
+```
+
+> 如果你在安全加固的 compose 设置中使用了 `cap_drop: ALL`，必须明确添加这四个 capability，否则 pkg-helper 将失败，通过管理 UI 安装包的功能将无法使用。
+
+### 运行时包目录
+
+通过管理 UI 按需安装的包（pip/npm）存储在数据卷中：
+
+| 路径 | 所有者 | 内容 |
+|------|-------|---------|
+| `/app/data/.runtime/pip` | `goclaw` | pip 安装的 Python 包 |
+| `/app/data/.runtime/npm-global` | `goclaw` | npm 全局包 |
+| `/app/data/.runtime/pip-cache` | `goclaw` | pip 下载缓存 |
+| `/app/data/.runtime/apk-packages` | `root:goclaw` | 持久化的 apk 包列表（0640） |
+
+这些目录位于 `goclaw-data` 卷上，容器重建后依然保留。
+
+---
+
 ## 卷
 
 | 卷 | 挂载路径 | 内容 |
@@ -423,4 +465,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [可观测性](/deploy-observability) — OpenTelemetry 和 Jaeger 配置
 - [Tailscale](/deploy-tailscale) — 通过 Tailscale 实现安全远程访问
 
-<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

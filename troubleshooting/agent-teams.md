@@ -48,6 +48,24 @@ Agent teams let a lead agent coordinate work across multiple member agents using
 | `failed to auto-create task` from broadcast (log) | Task auto-creation on broadcast receipt failed | Non-fatal — message is delivered but no task is created; create the task manually if needed |
 | `failed to get unread messages` | DB read error for the mailbox | Check PostgreSQL connectivity |
 
+## Subagent Orchestration (v3)
+
+GoClaw v3 adds structured subagent management. These issues appear when using `spawn` with `action=wait` or the automatic retry/concurrency system.
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `spawn` with `action=wait` never returns | All spawned children failed or timed out | Check subagent logs; the parent unblocks when all children complete or when `timeout` elapses |
+| Subagent results lost after context compaction | In-flight tasks not in compaction prompt | Tasks are now persisted in `subagent_tasks` DB table (migration 000034) — results survive summarization |
+| `max concurrent subagents reached` | Tenant hit `MaxSubagentConcurrent` edition limit | Reduce parallel spawns or upgrade edition; limit is scoped per tenant to prevent resource exhaustion |
+| `max subagent depth reached` | Nested spawn exceeded `MaxSubagentDepth` | Flatten delegation chain; subagents cannot spawn deeper than the configured depth |
+| Subagent auto-retried but produced wrong output | Default `MaxRetries=2` with linear backoff ran on LLM failure | Expected — retries improve reliability; if output is wrong, check agent instructions |
+| `/subagents` Telegram command shows empty | `subagent_tasks` table not migrated | Run pending DB migrations; migration 000034 creates the table |
+| `BatchQueue` results out of order | BatchQueue processes by tenant:agent batch, not insertion order | Expected — use task `blocked_by` dependencies if ordering is required |
+
+**Checking subagent status:**
+- Telegram: `/subagents` lists all active tasks; `/subagent <id>` shows detail from DB
+- Dashboard: Teams → task board shows subagent task state in real time
+
 ## Diagnostics
 
 Use the Dashboard **Teams** view to inspect task status, events, and member state. Server-side events stream in real time — filter by `team_id` to narrow down issues.
@@ -65,4 +83,4 @@ This returns the full state-change history for a task, including dispatch count 
 - [Agent Teams guide](/teams-what-are-teams) — team setup, roles, and task board
 - [Common Issues](/troubleshoot-common) — general gateway and agent troubleshooting
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

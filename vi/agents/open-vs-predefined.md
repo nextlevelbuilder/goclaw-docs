@@ -25,7 +25,7 @@ Bạn có muốn mỗi user có:
 
 | Khía cạnh | Open | Predefined |
 |--------|------|-----------|
-| **Context isolation** | Theo user: 5 file seeded + MEMORY.md (riêng) | Theo agent: 4 file dùng chung + USER.md theo user + BOOTSTRAP.md |
+| **Context isolation** | Theo user: 5 file seeded + MEMORY.md (riêng) | Theo agent: 5 file dùng chung + USER.md theo user + BOOTSTRAP.md |
 | **SOUL.md** | Theo user (seeded từ template khi chat lần đầu) | Theo agent (dùng chung cho tất cả user) |
 | **IDENTITY.md** | Theo user (seeded từ template khi chat lần đầu) | Theo agent (dùng chung cho tất cả user) |
 | **USER.md** | Theo user (seeded từ template khi chat lần đầu) | Theo user (seeded từ fallback cấp agent hoặc template) |
@@ -150,9 +150,12 @@ Cấp agent qua `SeedToStore()` — lặp `templateFiles` nhưng **bỏ qua USER
 ```
 AGENTS.md          — cách vận hành
 SOUL.md            — personality (tuỳ chọn tạo qua summoning)
+CAPABILITIES.md    — kiến thức chuyên môn & kỹ năng (seeded từ template; backfilled khi khởi động cho agent cũ)
 IDENTITY.md        — bạn là ai (tuỳ chọn tạo qua summoning)
 USER_PREDEFINED.md — quy tắc xử lý user cơ bản (seeded riêng)
 ```
+
+> **Capabilities backfill:** Khi khởi động, GoClaw chạy `BackfillCapabilities()` một lần để seed `CAPABILITIES.md` cho các agent hiện có chưa có file này. Quá trình này idempotent — agent đã có file sẽ không bị ảnh hưởng.
 
 Theo user qua `SeedUserFiles()` (`userSeedFilesPredefined`):
 ```
@@ -182,4 +185,4 @@ Hoặc chuyển sang **predefined** sau nếu agent vượt ra ngoài phạm vi 
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách personality được tạo ra cho predefined agent
 - [Creating Agents](/creating-agents) — hướng dẫn tạo agent
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

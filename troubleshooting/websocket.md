@@ -113,9 +113,20 @@ Most WebSocket libraries (browser native, `ws` for Node.js, gorilla) handle ping
 
 **Reconnect pattern:** on any close event, wait 1 s → re-connect → re-authenticate with `connect` → resume.
 
+## Session Ownership (v2.66+)
+
+All 5 `chat.*` WebSocket methods (`chat.send`, `chat.history`, `chat.inject`, `chat.abort`, `chat.session.status`) now enforce session ownership via `requireSessionOwner`. Non-admin users can only access their own sessions.
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `FORBIDDEN: session does not belong to user` | Non-admin user tried to read or write another user's session | Use the session ID that belongs to the authenticated user; admins bypass this check |
+| Suddenly getting ownership errors after upgrade | Upgraded to v2.66+ with shared session IDs | Each user must use their own session ID; admin tokens bypass ownership checks |
+
+This is a security fix (Session IDOR). If your integration uses shared session IDs across users, each user must authenticate with their own token and session.
+
 ## What's Next
 
 - [Common Issues](/troubleshoot-common) — startup, agent, memory problems
 - [Channels Troubleshooting](/troubleshoot-channels) — Telegram, Discord, WhatsApp issues
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -80,4 +80,4 @@ Tools are registered under the name `{prefix}__{tool_name}`. The prefix defaults
 - [Common Issues](/troubleshoot-common) — general startup and connectivity problems
 - [Dashboard Tour](/dashboard-tour) — manage MCP servers and grants in the UI
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

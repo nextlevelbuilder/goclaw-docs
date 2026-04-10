@@ -229,10 +229,41 @@ console.log(response.file.name, response.file.size, 'bytes');
 | Agent 过于正式/随意 | 编辑 SOUL.md 的 Style 部分；明确指定 Tone 和 Humor 偏好 |
 | 名称/emoji 未更新 | 确保 IDENTITY.md 已保存；检查文件格式（冒号分隔：`Name: ...`） |
 
+## CAPABILITIES.md — 技能文件
+
+除 SOUL.md 和 IDENTITY.md 外，predefined agent 还有一个 **CAPABILITIES.md** 文件，用于描述领域知识、技术技能和专业能力。
+
+```markdown
+# CAPABILITIES.md - What You Can Do
+
+## Expertise
+
+_(Your areas of deep knowledge and what you help with.)_
+
+## Tools & Methods
+
+_(Preferred tools, workflows, methodologies.)_
+```
+
+**关键区别：**
+- **SOUL.md** = 你是谁（语调、价值观、personality）
+- **CAPABILITIES.md** = 你能做什么（技能、领域知识）
+
+## 自我进化
+
+启用了 `self_evolve` 的 predefined agent 可以根据用户反馈模式自动更新自己的 personality 文件。Agent 可以修改：
+
+- **SOUL.md** — 优化沟通风格（语调、语气、用词、回复风格）
+- **CAPABILITIES.md** — 优化领域专业知识、技术技能和专业能力
+
+**Agent 绝不能修改的内容：** 名称、身份、联系信息、核心目的、IDENTITY.md 或 AGENTS.md。修改必须是渐进式的，并基于明确的用户反馈模式——而非自发的重写。
+
+此功能由 `internal/agent/systemprompt.go` 中的 `buildSelfEvolveSection()` 管控，仅对 `SelfEvolve: true` 的 predefined agent 生效。
+
 ## 下一步
 
 - [Context Files — 用每用户 context 扩展 personality](/context-files)
 - [System Prompt Anatomy — personality 如何注入到 prompt 中](/system-prompt-anatomy)
 - [Creating Agents — agent 创建时设置 personality](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

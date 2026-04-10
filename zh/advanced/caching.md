@@ -72,6 +72,26 @@ redis://:password@redis.example.com:6379/1
 
 ---
 
+## 权限缓存
+
+GoClaw 包含一个专用的 `PermissionCache`，用于每次请求都会发生的热点权限查询。与 context 文件缓存不同，权限缓存始终在内存中——不使用 Redis。
+
+| 缓存 | TTL | Key 格式 | 缓存内容 |
+|---|---|---|---|
+| `tenantRole` | 30s | `tenantID:userID` | 用户在 tenant 中的角色 |
+| `agentAccess` | 30s | `agentID:userID` | 用户是否可以访问某 agent 及其角色 |
+| `teamAccess` | 30s | `teamID:userID` | 用户是否可以访问某 team |
+
+**通过 pubsub 失效**：当用户权限发生变化时（如角色更新、agent 访问被撤销），GoClaw 在内部总线上发布 `CacheInvalidate` 事件。权限缓存处理这些事件：
+
+- `CacheKindTenantUsers` — 清除所有 tenant 角色条目（短 TTL 使完全清除可接受）
+- `CacheKindAgentAccess` — 删除该 `agentID` 前缀的所有条目
+- `CacheKindTeamAccess` — 删除该 `teamID` 前缀的所有条目
+
+权限变更最多在 30 秒内生效，写入路径上立即失效。
+
+---
+
 ## 缓存行为
 
 两种后端实现相同的接口：
@@ -93,4 +113,4 @@ redis://:password@redis.example.com:6379/1
 - [数据库设置](/deploy-database) — PostgreSQL 配置
 - [生产部署清单](/deploy-checklist) — 自信部署
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -201,6 +201,19 @@ curl -H "Authorization: Bearer your-token" \
 
 ---
 
+## 每子 Agent Token 成本追踪
+
+从 v3（#600）起，token 成本按子 agent 累积并包含在通知消息中。具体表现为：
+
+- 每个 spawn 的子 agent 独立累积自己的 `input_tokens` 和 `output_tokens`
+- 子 agent 完成时，其 token 总计包含在发送给父 agent LLM context 的通知消息中
+- Token 成本持久化到 `subagent_tasks` 表（迁移 000034），用于计费和可观测性查询
+- 子 agent token 成本通过现有 trace span 层级汇总到父 trace 的成本中
+
+子 agent 成本出现在相同的 REST 端点（`/v1/usage/timeseries`、`/v1/usage/breakdown`）下，使用子 agent 自己的 `agent_id`。要查看多 agent 工作流的总成本，需汇总所有共享同一根 trace 的 `agent_id` 的成本。
+
+---
+
 ## 月度预算执行
 
 你可以通过在 agent 记录上设置 `budget_monthly_cents` 来限制 agent 的月度支出。设置后，GoClaw 在每次运行前查询当月累计成本，如超出预算则阻止执行。
@@ -241,4 +254,4 @@ monthly budget exceeded ($5.02 / $5.00)
 - [可观测性](/deploy-observability) — 包含成本字段的 OpenTelemetry span 导出
 - [配置参考](/config-reference) — 完整的 `telemetry` 配置选项
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

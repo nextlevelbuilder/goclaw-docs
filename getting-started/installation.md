@@ -191,7 +191,8 @@ The wizard guides you through:
 2. **Connection test** — verifies PostgreSQL is reachable
 3. **Migrations** — creates all required tables automatically
 4. **Key generation** — auto-generates `GOCLAW_GATEWAY_TOKEN` and `GOCLAW_ENCRYPTION_KEY`
-5. **Save secrets** — writes everything to `.env.local`
+5. **Seed providers** — inserts placeholder provider records so the dashboard UI is ready on first login
+6. **Save secrets** — writes everything to `.env.local`
 
 ### Step 4: Start the Gateway
 
@@ -319,6 +320,8 @@ docker compose \
 > **Note:** Redis and OTel overlays require rebuilding the GoClaw image with the corresponding build args (`ENABLE_REDIS=true`, `ENABLE_OTEL=true`). Set `ENABLE_EMBEDUI=false` to disable the embedded UI (e.g. when using the selfservice nginx overlay). See the overlay files for details.
 
 > **Python runtime:** The default `docker-compose.yml` builds GoClaw with `ENABLE_PYTHON: "true"`, so Python-based skills work out of the box in Docker.
+
+> **Privilege separation:** The Docker image runs GoClaw as a non-root `goclaw` user (UID 1000). A separate `pkg-helper` binary runs as root to manage system (apk) package installs via a Unix socket (`/tmp/pkg.sock`), keeping the app process unprivileged. This is managed automatically by the `docker-entrypoint.sh` script.
 
 ---
 
@@ -577,4 +580,4 @@ docker compose logs goclaw
 - [Quick Start](/quick-start) — Run your first agent
 - [Configuration](/configuration) — Customize GoClaw settings
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

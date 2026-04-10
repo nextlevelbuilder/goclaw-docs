@@ -111,10 +111,25 @@ Authentication is done via QR scan in the GoClaw UI (Channels > WhatsApp > Re-au
 
 ---
 
+## Channel Health States
+
+GoClaw v3 tracks each channel's runtime state. The dashboard and `channels.status` RPC reflect these states:
+
+| State | Meaning |
+|-------|---------|
+| `registered` | Channel configured but not yet started |
+| `starting` | Channel startup in progress |
+| `healthy` | Connected and receiving messages |
+| `degraded` | Connected but experiencing errors |
+| `failed` | Channel stopped due to unrecoverable error |
+| `stopped` | Channel was shut down cleanly |
+
+When a channel enters `failed`, the dashboard shows a remediation hint (e.g., "Review channel credentials" or "Check upstream reachability"). `failed` with `failure_kind: auth` requires credential update — the channel will not auto-recover. `failed` with `failure_kind: network` is retryable and the channel reconnects automatically.
+
 ## What's Next
 
 - [Provider-specific issues](/troubleshoot-providers)
 - [Database issues](/troubleshoot-database)
 - [Common Issues](/troubleshoot-common)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

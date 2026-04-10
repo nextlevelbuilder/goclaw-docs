@@ -84,7 +84,13 @@ Ví dụ cấu hình agent với thinking:
 
 ## Prompt Caching
 
-Prompt caching luôn hoạt động. GoClaw đặt `cache_control: ephemeral` trên mọi request body. Response `Usage` bao gồm `cache_creation_input_tokens` và `cache_read_input_tokens` để bạn theo dõi tỷ lệ cache hit trong tracing.
+Prompt caching luôn hoạt động. GoClaw đặt `cache_control: ephemeral` trên system prompt và lượt user cuối (đã sửa trong v3 — trước đó đặt trên mọi content block, có thể xung đột với giới hạn 4 checkpoint của Anthropic API). Response `Usage` bao gồm `cache_creation_input_tokens` và `cache_read_input_tokens` để bạn theo dõi tỷ lệ cache hit trong tracing.
+
+> **Sửa lỗi v3:** Cách triển khai prompt caching đã được sửa để đặt đúng vị trí có thể cache. Các agent có system prompt dài sẽ thấy tỷ lệ cache hit cải thiện sau khi nâng cấp.
+
+## Phân giải Model Alias
+
+GoClaw phân giải các Anthropic model alias khi liệt kê các model có sẵn. Khi `api_base` được đặt (ví dụ: cho proxy), việc liệt kê model tôn trọng URL base tùy chỉnh để phân giải alias hoạt động đúng với proxy tương thích API.
 
 ## Tool Use
 
@@ -108,4 +114,4 @@ Anthropic dùng định dạng tool schema khác OpenAI. GoClaw tự động chu
 - [OpenAI](/provider-openai) — GPT-4o và các model reasoning o-series
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

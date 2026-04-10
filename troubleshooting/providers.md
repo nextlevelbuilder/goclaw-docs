@@ -130,10 +130,21 @@ Configure in `config.json` under `providers.acp`:
 INFO registered provider name=acp binary=claude
 ```
 
+## Provider Adapter System (v3)
+
+GoClaw v3 introduces a unified `SSEScanner` (`providers/sse_reader.go`) shared by OpenAI, Anthropic, and Codex streaming providers. This eliminates per-provider SSE parsing differences.
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Streaming cuts off mid-token | Upstream SSE frame split across scanner buffer boundary | Rare — the scanner uses a 512 KB buffer; if reproducible, check for extremely large tool result payloads |
+| Streaming works for OpenAI but not Anthropic | Custom proxy stripping `event:` lines | Ensure your proxy passes raw SSE lines; GoClaw now uses the same parser for all providers |
+
+Provider credentials added at runtime (dashboard) are stored in `llm_providers` with AES-256-GCM encryption and resolved at request time via the credential resolver. Per-agent overrides in agent config take precedence over global provider settings.
+
 ## What's Next
 
 - [Database issues](/troubleshoot-database)
 - [Common Issues](/troubleshoot-common)
 - [Channel issues](/troubleshoot-channels)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

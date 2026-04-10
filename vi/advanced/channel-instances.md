@@ -195,6 +195,40 @@ curl -X DELETE http://localhost:8080/v1/channels/instances/3f2a1b4c-... \
 
 ---
 
+## Channel Health
+
+Mỗi channel instance cung cấp runtime health snapshot. GoClaw theo dõi trạng thái vòng đời hiện tại, phân loại lỗi, bộ đếm lỗi, và gợi ý khắc phục cho operator.
+
+### Trạng thái health
+
+| Trạng thái | Ý nghĩa |
+|---|---|
+| `registered` | Instance được tạo nhưng chưa khởi động |
+| `starting` | Channel đang khởi tạo (kết nối đến upstream) |
+| `healthy` | Channel đang chạy và nhận tin nhắn |
+| `degraded` | Channel đang chạy nhưng gặp sự cố |
+| `failed` | Channel không khởi động được hoặc bị crash |
+| `stopped` | Channel bị dừng có chủ đích |
+
+### Phân loại lỗi
+
+Khi channel chuyển sang trạng thái `failed` hoặc `degraded`, GoClaw phân loại lỗi thành một trong bốn loại:
+
+| Loại | Ví dụ | Có thể retry |
+|---|---|---|
+| `auth` | 401 Unauthorized, token không hợp lệ | Không |
+| `config` | Thiếu credentials, proxy URL không hợp lệ, agent không tìm thấy | Không |
+| `network` | Timeout, connection refused, DNS thất bại, EOF | Có |
+| `unknown` | Lỗi không mong đợi | Có |
+
+### Gợi ý khắc phục
+
+Mỗi channel bị lỗi có object `remediation` với `code`, `headline`, và `hint` chỉ đến UI surface liên quan (`credentials`, `advanced`, `reauth`, hoặc `details`). Ví dụ, lỗi auth Zalo Personal gợi ý mở lại luồng đăng nhập thay vì kiểm tra credentials.
+
+Dữ liệu health có trong trang chi tiết channel instance trên Web UI và qua endpoint `GET /v1/channels/instances/{id}`.
+
+---
+
 ## Group file writers
 
 Mỗi channel instance cung cấp các endpoint quản lý writer ủy quyền cho agent đã gắn kết. Writer kiểm soát ai có thể upload file thông qua tính năng group file.
@@ -248,4 +282,4 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 - [Multi-Channel Setup](/recipe-multi-channel)
 - [Multi-Tenancy](/multi-tenancy)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

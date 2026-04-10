@@ -258,7 +258,7 @@ Commands processed before message enrichment:
 | `/tasks` | Team task list | -- |
 | `/task_detail <id>` | View task | -- |
 | `/subagents` | List all active subagent tasks with status | -- |
-| `/subagent <id>` | Show detailed view of a subagent task from DB | -- |
+| `/subagent <id>` | Show detailed view of a subagent task (DB-backed) | -- |
 | `/reactions` | Show reaction emoji legend (status → emoji mapping) | -- |
 | `/addwriter` | Add group file writer | Writers only |
 | `/removewriter` | Remove group file writer | Writers only |
@@ -318,4 +318,4 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](/sessions-and-history) — Conversation history
 
-<!-- goclaw-source: 76385f2f | updated: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -197,6 +197,40 @@ curl -X DELETE http://localhost:8080/v1/channels/instances/3f2a1b4c-... \
 
 ---
 
+## Channel 健康状态
+
+每个 channel 实例提供运行时健康快照。GoClaw 追踪当前生命周期状态、故障分类、故障计数器和运维提示信息。
+
+### 健康状态
+
+| 状态 | 含义 |
+|---|---|
+| `registered` | 实例已创建但尚未启动 |
+| `starting` | Channel 正在初始化（连接上游） |
+| `healthy` | Channel 正在运行且接受消息 |
+| `degraded` | Channel 正在运行但存在问题 |
+| `failed` | Channel 启动失败或崩溃 |
+| `stopped` | Channel 被有意停止 |
+
+### 故障分类
+
+当 channel 进入 `failed` 或 `degraded` 状态时，GoClaw 将错误分为四种类型：
+
+| 类型 | 示例 | 可重试 |
+|---|---|---|
+| `auth` | 401 Unauthorized、无效 token | 否 |
+| `config` | 缺少凭据、无效代理 URL、找不到 agent | 否 |
+| `network` | 超时、连接被拒绝、DNS 失败、EOF | 是 |
+| `unknown` | 意外错误 | 是 |
+
+### 修复提示
+
+每个失败的 channel 包含一个 `remediation` 对象，含 `code`、`headline` 和 `hint`，指向相关 UI 界面（`credentials`、`advanced`、`reauth` 或 `details`）。例如，Zalo Personal 认证失败会建议重新打开登录流程，而不是检查凭据。
+
+健康数据可在 Web UI 的 channel 实例详情视图以及 `GET /v1/channels/instances/{id}` 端点中查看。
+
+---
+
 ## 群组文件写入者
 
 每个 channel 实例暴露写入者管理端点，委托给其绑定的 agent。写入者控制谁可以通过群组文件功能上传文件。
@@ -250,4 +284,4 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 - [多 Channel 设置](/recipe-multi-channel)
 - [多租户](/multi-tenancy)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

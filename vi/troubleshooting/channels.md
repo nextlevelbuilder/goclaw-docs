@@ -113,10 +113,25 @@ Xác thực qua GoClaw UI (Channels > WhatsApp > Re-authenticate).
 
 ---
 
+## Trạng Thái Channel Health
+
+GoClaw v3 theo dõi trạng thái runtime của từng channel. Dashboard và RPC `channels.status` phản ánh các trạng thái sau:
+
+| Trạng thái | Ý nghĩa |
+|------------|---------|
+| `registered` | Channel đã cấu hình nhưng chưa khởi động |
+| `starting` | Channel đang trong quá trình khởi động |
+| `healthy` | Đã kết nối và nhận tin nhắn |
+| `degraded` | Đã kết nối nhưng đang gặp lỗi |
+| `failed` | Channel dừng do lỗi không thể phục hồi |
+| `stopped` | Channel đã tắt sạch |
+
+Khi channel vào trạng thái `failed`, dashboard hiển thị gợi ý khắc phục (ví dụ: "Review channel credentials" hoặc "Check upstream reachability"). `failed` với `failure_kind: auth` yêu cầu cập nhật credential — channel sẽ không tự phục hồi. `failed` với `failure_kind: network` có thể retry và channel tự reconnect.
+
 ## Tiếp theo
 
 - [Vấn đề provider](/troubleshoot-providers)
 - [Vấn đề database](/troubleshoot-database)
 - [Các vấn đề thường gặp](/troubleshoot-common)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

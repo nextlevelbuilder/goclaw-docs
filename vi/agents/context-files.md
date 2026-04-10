@@ -2,7 +2,7 @@
 
 # Context Files
 
-> 7 file markdown định nghĩa personality, kiến thức và hành vi của agent.
+> 8 file markdown định nghĩa personality, kiến thức và hành vi của agent.
 
 ## Tổng quan
 
@@ -14,6 +14,7 @@ Mỗi agent load các context file xác định cách nó suy nghĩ và hành đ
 |------|---------|-------|------|-----------|-----------|
 | **AGENTS.md** | Hướng dẫn vận hành & phong cách trò chuyện | Dùng chung | Theo user | Cấp agent | Không |
 | **SOUL.md** | Personality, giọng điệu, ranh giới, chuyên môn | Theo user | Theo user | Cấp agent | Không |
+| **CAPABILITIES.md** | Kiến thức chuyên môn, kỹ năng kỹ thuật, chuyên môn đặc thù | Theo user | Theo user | Cấp agent | Không |
 | **IDENTITY.md** | Tên, loại sinh vật, emoji, vibe | Theo user | Theo user | Cấp agent | Không |
 | **TOOLS.md** | Ghi chú tool cục bộ (tên camera, SSH host) | Theo user | Theo user (load từ workspace; không seeded từ template mặc định) | Cấp agent | Không |
 | **USER.md** | Về người dùng | Theo user | Theo user | Theo user | Không |
@@ -105,6 +106,38 @@ _(Kiến thức chuyên môn đặt ở đây: coding standards, image generatio
 
 **Open agent:** Theo user (tạo ra khi chat lần đầu, có thể tuỳ chỉnh)
 **Predefined agent:** Cấp agent (tuỳ chọn tạo qua LLM summoning)
+
+### CAPABILITIES.md
+
+**Mục đích:** Bạn có thể làm gì. Kiến thức chuyên môn, kỹ năng kỹ thuật, và chuyên môn đặc thù.
+
+**Ai viết:** Seeded từ template khi tạo agent; cập nhật bởi agent qua self-evolution hoặc chỉnh sửa thủ công.
+
+**Nội dung template:**
+```markdown
+# CAPABILITIES.md - What You Can Do
+
+_Domain knowledge, technical skills, and specialized expertise._
+
+## Expertise
+
+_(Mô tả các lĩnh vực chuyên môn. Bạn hiểu sâu về gì? Bạn có thể giúp gì?)_
+
+## Tools & Methods
+
+_(Tuỳ chọn — công cụ, workflow, phương pháp bạn ưa dùng.)_
+
+---
+
+_Cập nhật bởi evolution hoặc chỉnh sửa user. Tập trung vào những gì bạn LÀM, không phải bạn LÀ AI (đó là SOUL.md)._
+```
+
+**Điểm khác biệt với SOUL.md:** SOUL.md định nghĩa *bạn là ai* (giọng điệu, personality, giá trị). CAPABILITIES.md định nghĩa *bạn có thể làm gì* (kỹ năng, kiến thức chuyên môn). Self-evolution có thể cập nhật cả hai file độc lập nhau.
+
+**Backfill:** Khi GoClaw khởi động, `BackfillCapabilities` chạy một lần và seed `CAPABILITIES.md` cho các agent hiện có chưa có file này. Quá trình này idempotent.
+
+**Open agent:** Theo user (seeded từ template, có thể tuỳ chỉnh)
+**Predefined agent:** Cấp agent (seeded từ template, dùng chung giữa các user)
 
 ### IDENTITY.md
 
@@ -282,11 +315,12 @@ Các file được load theo thứ tự này và ghép nối vào system prompt:
 
 1. **AGENTS.md** — cách vận hành
 2. **SOUL.md** — bạn là ai
-3. **IDENTITY.md** — tên, emoji
-4. **TOOLS.md** — ghi chú cục bộ
-5. **USER.md** — về user
-6. **BOOTSTRAP.md** — nghi lễ lần đầu (tuỳ chọn, xoá khi hoàn thành)
-7. **MEMORY.md** — bộ nhớ dài hạn (tuỳ chọn)
+3. **CAPABILITIES.md** — bạn có thể làm gì
+4. **IDENTITY.md** — tên, emoji
+5. **TOOLS.md** — ghi chú cục bộ
+6. **USER.md** — về user
+7. **BOOTSTRAP.md** — nghi lễ lần đầu (tuỳ chọn, xoá khi hoàn thành)
+8. **MEMORY.md** — bộ nhớ dài hạn (tuỳ chọn)
 
 Subagent và cron session chỉ load: AGENTS.md, TOOLS.md (context tối thiểu).
 
@@ -342,6 +376,7 @@ Tạo FAQ bot với summoning:
 2. LLM tạo file cấp agent:
    ```
    SOUL.md → "Patient, friendly, helpful tone. Multilingual support."
+   CAPABILITIES.md → "Product FAQ expertise, pricing, escalation procedures."
    IDENTITY.md → "FAQ Assistant, 🤖"
    ```
 
@@ -376,4 +411,4 @@ Tạo FAQ bot với summoning:
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách SOUL.md và IDENTITY.md được LLM tạo ra
 - [Creating Agents](/creating-agents) — hướng dẫn tạo agent từng bước
 
-<!-- goclaw-source: a47d7f9f | cập nhật: 2026-03-31 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

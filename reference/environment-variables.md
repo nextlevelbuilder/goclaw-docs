@@ -102,6 +102,9 @@ Setting a token/credential via environment auto-enables that channel.
 | `GOCLAW_LARK_ENCRYPT_KEY` | Feishu/Lark | Event encryption key |
 | `GOCLAW_LARK_VERIFICATION_TOKEN` | Feishu/Lark | Event verification token |
 | `GOCLAW_WHATSAPP_ENABLED` | WhatsApp | Enable WhatsApp channel (`true`/`false`) |
+| `GOCLAW_SLACK_BOT_TOKEN` | Slack | Bot User OAuth Token (`xoxb-...`) — auto-enables Slack |
+| `GOCLAW_SLACK_APP_TOKEN` | Slack | App-Level Token for Socket Mode (`xapp-...`) |
+| `GOCLAW_SLACK_USER_TOKEN` | Slack | Optional User OAuth Token (`xoxp-...`) |
 
 ---
 
@@ -125,6 +128,18 @@ Setting a token/credential via environment auto-enables that channel.
 | `GOCLAW_SKILLS_DIR` | Global skills directory. Default: `~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | Path to built-in skill definitions. Default: `./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | Path to bundled skill packages. Default: `./bundled-skills` |
+
+## Runtime Packages (Docker v3)
+
+These variables configure where on-demand runtime packages (pip/npm) are installed inside the container. Set automatically by the Docker entrypoint — only override if you have a custom install layout.
+
+| Variable | Default (Docker) | Description |
+|----------|-----------------|-------------|
+| `PIP_TARGET` | `/app/data/.runtime/pip` | Directory where pip installs Python packages at runtime |
+| `PYTHONPATH` | `/app/data/.runtime/pip` | Python module search path — must include `PIP_TARGET` so installed packages are importable |
+| `NPM_CONFIG_PREFIX` | `/app/data/.runtime/npm-global` | npm global prefix for runtime Node.js package installs |
+
+> These directories are mounted on the data volume so packages survive container recreation. The `pkg-helper` binary (runs as root) manages system (`apk`) packages; pip/npm installs run as the `goclaw` user.
 
 ---
 
@@ -222,4 +237,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` generates `.env.local` automatically
 - [Database Schema](/database-schema) — how secrets are stored encrypted in PostgreSQL
 
-<!-- goclaw-source: a47d7f9f | updated: 2026-03-31 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

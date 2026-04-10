@@ -313,6 +313,27 @@ Lệnh `/stop` và `/stopall` được chặn **trước** debouncer 800ms để
 | Thực thi trùng lặp | Clock skew giữa các lần khởi động lại (trường hợp hiếm gặp) | Scheduler xóa `next_run_at` trong DB trước khi dispatch; khi khởi động lại, job stale được tự động recompute |
 | Run log trống | Job chưa kích hoạt lần nào | Kích hoạt thủ công qua method `cron.run` với `mode: "force"` |
 
+## Evolution Cron (v3 Background Worker)
+
+GoClaw chạy một background cron nội bộ cho engine evolution agent v3. Đây không phải job do người dùng quản lý — nó tự khởi động khi gateway bắt đầu.
+
+| Chu kỳ | Hành động |
+|---------|----------|
+| 1 phút sau khi khởi động (warm-up) | Phân tích suggestion ban đầu cho tất cả agent có bật evolution |
+| Mỗi 24 giờ | Chạy lại phân tích suggestion (`SuggestionEngine.Analyze`) cho tất cả agent đang hoạt động với `evolution_metrics: true` |
+| Mỗi 7 ngày | Đánh giá suggestion đã áp dụng; rollback nếu quality metric bị thoái lui (`EvaluateApplied`) |
+
+**Cách hoạt động:**
+
+1. Khi khởi động, `runEvolutionCron` bắt đầu như goroutine nền trong `cmd/gateway_evolution_cron.go`
+2. Nó liệt kê tất cả agent đang hoạt động và kiểm tra cờ v3 `evolution_metrics` trên từng agent
+3. Với các agent đủ điều kiện, `SuggestionEngine.Analyze` tạo suggestion cải thiện dựa trên conversation metric
+4. Hàng tuần, `EvaluateApplied` kiểm tra suggestion đã áp dụng so với ngưỡng guardrail và tự động rollback nếu có thoái lui
+
+**Để bật evolution cho một agent**, đặt `evolution_metrics: true` trong `other_config` của agent qua dashboard. Không cần thay đổi config.json.
+
+> Evolution cron chạy với timeout 5 phút mỗi chu kỳ. Lỗi với từng agent được log ở debug level và không hủy chu kỳ cho các agent khác.
+
 ## Tiếp theo
 
 - [Heartbeat](heartbeat.md) — kiểm tra định kỳ chủ động với tính năng triệt tiêu thông minh
@@ -320,4 +341,4 @@ Lệnh `/stop` và `/stopall` được chặn **trước** debouncer 800ms để
 - [Skills](../advanced/skills.md) — inject kiến thức domain để agent theo lịch hiệu quả hơn
 - [Sandbox](../advanced/sandbox.md) — cô lập thực thi code trong các agent turn theo lịch
 
-<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

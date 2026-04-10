@@ -1034,4 +1034,4 @@ Expose GoClaw trên mạng Tailscale bằng tsnet.
 - [Agents Explained](/agents-explained) — Tìm hiểu sâu về cấu hình agent
 - [Tools Overview](/tools-overview) — Các tool có sẵn và danh mục
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

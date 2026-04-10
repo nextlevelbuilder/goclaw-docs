@@ -610,6 +610,43 @@ Kiểm soát cách gửi thông báo escalation lên team lead.
 
 ---
 
+## Các Config Key v3
+
+Các khu vực cấu hình sau được thêm hoặc chính thức hóa trong v3. Hầu hết được quản lý qua dashboard hoặc JSONB `other_config` thay vì trực tiếp trong `config.json`.
+
+### Knowledge Vault
+
+Cài đặt vault là per-agent, lưu trong JSONB `other_config` của agent.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `vault_enabled` | boolean | `false` | Bật knowledge vault cho agent này |
+| `vault_enrich` | boolean | `false` | Bật enrichment bất đồng bộ (auto-summary + semantic linking) |
+| `vault_enrich_threshold` | float | `0.7` | Ngưỡng similarity cho auto-linking (0–1) |
+| `vault_enrich_top_k` | integer | `5` | Số neighbor được auto-link tối đa mỗi document |
+
+### Evolution
+
+Cài đặt evolution agent là per-agent (`other_config`).
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `evolution_metrics` | boolean | `false` | Bật evolution cron cho agent này (phân tích + đánh giá) |
+| `self_evolve` | boolean | `false` | Cho phép agent tự viết lại `SOUL.md` của mình |
+| `skill_evolve` | boolean | `false` | Bật tool `skill_manage` để tạo/patch skill |
+| `skill_nudge_interval` | integer | `15` | Số tool call trước khi skill nudge kích hoạt (0 = tắt) |
+
+### Edition (Multi-Tenant)
+
+Edition kiểm soát giới hạn subagent per-tenant. Đặt qua bảng `editions`, không phải `config.json`.
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `MaxSubagentConcurrent` | integer | Số subagent session đồng thời tối đa cho tenant này |
+| `MaxSubagentDepth` | integer | Độ sâu lồng nhau subagent tối đa cho tenant này |
+
+---
+
 ## Ví dụ tối giản hoạt động được
 
 ```json
@@ -642,4 +679,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](/database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

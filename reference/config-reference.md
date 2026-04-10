@@ -608,6 +608,43 @@ Controls how escalation messages are delivered to the team lead.
 
 ---
 
+## v3 Config Keys
+
+The following configuration areas were added or formalized in v3. Most are managed via the dashboard or `other_config` JSONB rather than `config.json` directly.
+
+### Knowledge Vault
+
+Vault settings are per-agent, stored in the agent's `other_config` JSONB.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `vault_enabled` | boolean | `false` | Enable knowledge vault for this agent |
+| `vault_enrich` | boolean | `false` | Enable async enrichment (auto-summary + semantic linking) |
+| `vault_enrich_threshold` | float | `0.7` | Similarity threshold for auto-linking (0–1) |
+| `vault_enrich_top_k` | integer | `5` | Max auto-linked neighbors per document |
+
+### Evolution
+
+Agent evolution settings are per-agent (`other_config`).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `evolution_metrics` | boolean | `false` | Enable evolution cron for this agent (analysis + eval) |
+| `self_evolve` | boolean | `false` | Allow agent to rewrite its own `SOUL.md` |
+| `skill_evolve` | boolean | `false` | Enable `skill_manage` tool for skill creation/patching |
+| `skill_nudge_interval` | integer | `15` | Tool-call count before skill nudge fires (0 = off) |
+
+### Edition (Multi-Tenant)
+
+Edition controls per-tenant subagent limits. Set via the `editions` table, not `config.json`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `MaxSubagentConcurrent` | integer | Max concurrent subagent sessions for this tenant |
+| `MaxSubagentDepth` | integer | Max subagent nesting depth for this tenant |
+
+---
+
 ## Minimal Working Example
 
 ```json
@@ -640,4 +677,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

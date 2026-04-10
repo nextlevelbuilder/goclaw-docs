@@ -263,7 +263,50 @@ docker compose \
 | `ENABLE_PYTHON` | `false` | Python 3 runtime cho skills |
 | `ENABLE_NODE` | `false` | Node.js runtime cho skills |
 | `ENABLE_FULL_SKILLS` | `false` | Cài sẵn các skill dependency (pandas, pypdf, v.v.) |
+| `ENABLE_CLAUDE_CLI` | `false` | Cài npm package `@anthropic-ai/claude-code` |
 | `VERSION` | `dev` | Chuỗi semantic version |
+
+---
+
+## Phân tách đặc quyền (v3)
+
+Từ v3, Docker image sử dụng **phân tách đặc quyền** qua `su-exec`:
+
+```
+docker-entrypoint.sh (chạy với quyền root)
+  ├── Cài các apk package đã lưu (đọc /app/data/.runtime/apk-packages)
+  ├── Khởi động pkg-helper với quyền root (Unix socket /tmp/pkg.sock, quyền 0660 root:goclaw)
+  └── su-exec goclaw → khởi động /app/goclaw serve (hạ xuống non-root)
+```
+
+### pkg-helper
+
+`pkg-helper` là một binary nhỏ có quyền root, xử lý quản lý package hệ thống thay mặt cho process `goclaw`. Nó lắng nghe trên Unix socket và nhận request cài đặt/gỡ bỏ Alpine package (`apk`). User `goclaw` không thể gọi `apk` trực tiếp nhưng có thể yêu cầu qua helper này.
+
+Các Docker capability cần thiết khi dùng pkg-helper (được thêm mặc định trong cấu hình compose):
+
+```yaml
+cap_add:
+  - SETUID
+  - SETGID
+  - CHOWN
+  - DAC_OVERRIDE
+```
+
+> Nếu bạn ghi đè `cap_drop: ALL` trong cấu hình compose bảo mật cao, bạn phải thêm lại bốn capability này, nếu không pkg-helper sẽ lỗi và cài đặt package qua admin UI sẽ không hoạt động.
+
+### Thư mục Runtime Package
+
+Các package theo yêu cầu (pip/npm) cài qua admin UI được lưu vào data volume:
+
+| Đường dẫn | Owner | Nội dung |
+|-----------|-------|---------|
+| `/app/data/.runtime/pip` | `goclaw` | Python package cài qua pip |
+| `/app/data/.runtime/npm-global` | `goclaw` | npm global package |
+| `/app/data/.runtime/pip-cache` | `goclaw` | pip download cache |
+| `/app/data/.runtime/apk-packages` | `root:goclaw` | danh sách apk package đã lưu (0640) |
+
+Các thư mục này tồn tại qua các lần tạo lại container vì chúng nằm trên volume `goclaw-data`.
 
 ---
 
@@ -423,4 +466,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](/deploy-observability) — cấu hình OpenTelemetry và Jaeger
 - [Tailscale](/deploy-tailscale) — truy cập từ xa an toàn qua Tailscale
 
-<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

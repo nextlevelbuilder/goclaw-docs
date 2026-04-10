@@ -81,6 +81,8 @@ flowchart TD
 
 通过 `enable_thinking: true` 加 `thinking_budget` 参数启用思维。
 
+**每模型保护**：GoClaw 在发送 `enable_thinking` 之前会检查所解析的模型是否在支持思维的模型列表中。如果模型不支持思维（如较旧的 Qwen2 变体），这些参数会被静默忽略并输出一条 debug 日志。此保护意味着即使你后续切换到不支持思维的 Qwen 模型，DashScope agent 上设置 `thinking_level` 也是安全的。
+
 **重要限制**：DashScope 在有工具时无法流式传输响应 — 这是 provider 层面的限制，与思维无关。只要 agent 定义了工具，GoClaw 自动回退到非流式模式（单次 `Chat()` 调用），并合成 chunk 回调，使客户端的事件流保持一致。
 
 ---
@@ -204,4 +206,4 @@ flowchart TD
 - [Agent 概览](/agents-explained) — 按 agent 配置参考
 - [Hooks 与质量门控](/hooks-quality-gates) — 推理后验证 agent 输出
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

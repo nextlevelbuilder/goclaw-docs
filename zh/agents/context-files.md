@@ -2,7 +2,7 @@
 
 # Context 文件
 
-> 定义 agent personality、知识和行为的 7 个 markdown 文件。
+> 定义 agent personality、知识和行为的 8 个 markdown 文件。
 
 ## 概述
 
@@ -14,6 +14,7 @@
 |------|------|------|------|-----------|--------|
 | **AGENTS.md** | 操作指令与对话风格 | 共享 | 每用户 | Agent 级 | 否 |
 | **SOUL.md** | Personality、语调、边界、专业能力 | 每用户 | 每用户 | Agent 级 | 否 |
+| **CAPABILITIES.md** | 领域知识、技术技能、专业能力 | 每用户 | 每用户 | Agent 级 | 否 |
 | **IDENTITY.md** | 名称、形态、emoji、气质 | 每用户 | 每用户 | Agent 级 | 否 |
 | **TOOLS.md** | 本地 tool 备注（摄像头名称、SSH 主机等） | 每用户 | 每用户（从 workspace 加载，默认不从模板初始化） | Agent 级 | 否 |
 | **USER.md** | 关于用户的信息 | 每用户 | 每用户 | 每用户 | 否 |
@@ -105,6 +106,38 @@ _(Domain-specific knowledge goes here: coding standards, image generation techni
 
 **Open agent：** 每用户（首次对话时生成，可自定义）
 **Predefined agent：** Agent 级（可选通过 LLM summoning 生成）
+
+### CAPABILITIES.md
+
+**用途：** 你能做什么。领域专业知识、技术技能、工具和方法论。
+
+**由谁编写：** 在 agent 创建时从模板初始化；由 agent 通过自我进化或手动编辑更新。
+
+**模板内容：**
+```markdown
+# CAPABILITIES.md - What You Can Do
+
+_Domain knowledge, technical skills, and specialized expertise._
+
+## Expertise
+
+_(Describe your areas of expertise. What do you know deeply? What can you help with?)_
+
+## Tools & Methods
+
+_(Optional — preferred tools, workflows, methodologies you follow.)_
+
+---
+
+_Updated by evolution or user edits. Focus on what you DO, not who you ARE (that's SOUL.md)._
+```
+
+**与 SOUL.md 的关键区别：** SOUL.md 定义*你是谁*（语调、personality、价值观）。CAPABILITIES.md 定义*你能做什么*（技能、领域知识、专业能力）。自我进化可独立更新这两个文件。
+
+**回填：** GoClaw 启动时，`BackfillCapabilities` 运行一次，为所有尚未拥有该文件的现有 agent 初始化 `CAPABILITIES.md`。此操作是幂等的，无论 agent 数量多少均为 O(1)。
+
+**Open agent：** 每用户（从模板初始化，可自定义）
+**Predefined agent：** Agent 级（从模板初始化，所有用户共享）
 
 ### IDENTITY.md
 
@@ -282,11 +315,12 @@ write_file("BOOTSTRAP.md", "")
 
 1. **AGENTS.md** — 操作方式
 2. **SOUL.md** — 你是谁
-3. **IDENTITY.md** — 名称、emoji
-4. **TOOLS.md** — 本地备注
-5. **USER.md** — 用户信息
-6. **BOOTSTRAP.md** — 首次运行仪式（可选，完成后删除）
-7. **MEMORY.md** — 长期记忆（可选）
+3. **CAPABILITIES.md** — 你能做什么
+4. **IDENTITY.md** — 名称、emoji
+5. **TOOLS.md** — 本地备注
+6. **USER.md** — 用户信息
+7. **BOOTSTRAP.md** — 首次运行仪式（可选，完成后删除）
+8. **MEMORY.md** — 长期记忆（可选）
 
 子 agent 和定时任务会话仅加载：AGENTS.md、TOOLS.md（最小 context）。
 
@@ -342,6 +376,7 @@ write_file("BOOTSTRAP.md", "")
 2. LLM 生成 agent 级文件：
    ```
    SOUL.md → "Patient, friendly, helpful tone. Multilingual support."
+   CAPABILITIES.md → "Product FAQ expertise, pricing, escalation procedures."
    IDENTITY.md → "FAQ Assistant, 🤖"
    ```
 
@@ -376,4 +411,4 @@ write_file("BOOTSTRAP.md", "")
 - [Summoning & Bootstrap](/summoning-bootstrap) — SOUL.md 和 IDENTITY.md 如何由 LLM 生成
 - [Creating Agents](/creating-agents) — 分步创建 agent
 
-<!-- goclaw-source: a47d7f9f | 更新: 2026-03-31 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

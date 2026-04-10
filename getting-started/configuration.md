@@ -1032,4 +1032,4 @@ Expose GoClaw on a Tailscale network using tsnet.
 - [Agents Explained](/agents-explained) — Deep dive into agent configuration
 - [Tools Overview](/tools-overview) — Available tools and categories
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

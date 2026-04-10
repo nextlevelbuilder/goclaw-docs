@@ -117,6 +117,23 @@ Endpoint timeseries gap-fill giờ hiện tại chưa hoàn chỉnh bằng cách
 
 ---
 
+## Giới Hạn Edition (Sub-Agent)
+
+Từ v3 (#600), **edition** đang hoạt động thực thi giới hạn concurrency sub-agent theo tenant. Điều này ngăn một tenant duy nhất chiếm dụng tài nguyên sub-agent.
+
+| Trường edition | Lite mặc định | Standard mặc định | Mô tả |
+|---|---|---|---|
+| `MaxSubagentConcurrent` | 2 | không giới hạn (0) | Số sub-agent chạy song song tối đa mỗi tenant |
+| `MaxSubagentDepth` | 1 | dùng config mặc định | Độ sâu spawn lồng nhau tối đa (1 = sub-agent không thể spawn sub-agent) |
+
+Giá trị `0` nghĩa là không giới hạn. Lite edition là preset bị hạn chế; Standard edition không có giới hạn concurrency.
+
+Khi một spawn request vượt quá `MaxSubagentConcurrent`, GoClaw từ chối spawn và trả về lỗi cho agent cha. Khi vượt `MaxSubagentDepth`, delegation lồng nhau qua `team_tasks` bị chặn (`SubagentDenyAlways`).
+
+Những giới hạn này là cấp edition — áp dụng cho mọi tenant trên instance GoClaw bất kể cài đặt budget per-agent.
+
+---
+
 ## Quota Enforcement
 
 Quota được kiểm tra đối với bảng `traces` (chỉ trace cấp cao nhất — các ủy quyền sub-agent không được tính vào quota người dùng). Số lượng được cache trong bộ nhớ 60 giây để tránh truy vấn database quá nhiều trên mỗi request.
@@ -237,4 +254,4 @@ Index này bao gồm 89% traces (chỉ cấp cao nhất) và làm cho các truy 
 - [Security Hardening](/deploy-security) — rate limiting ở tầng gateway
 - [Database Setup](/deploy-database) — thiết lập PostgreSQL bao gồm quota index
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

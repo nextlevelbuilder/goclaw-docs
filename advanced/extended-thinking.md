@@ -79,6 +79,8 @@ Reasoning content arrives in `reasoning_content` during streaming and does not r
 
 Thinking is enabled via `enable_thinking: true` plus a `thinking_budget` parameter.
 
+**Per-model guard**: GoClaw checks whether the resolved model is in the supported thinking model list before sending `enable_thinking`. If the model does not support thinking (e.g., an older Qwen2 variant), the parameters are silently omitted and a debug log is emitted. This guard means `thinking_level` on a DashScope agent is safe to set even if you later switch to a non-thinking Qwen model.
+
 **Important limitation**: DashScope cannot stream responses when tools are present — this is a provider-level constraint independent of thinking. Whenever an agent has tools defined, GoClaw automatically falls back to non-streaming mode (single `Chat()` call) and synthesizes chunk callbacks so the event flow remains consistent for clients.
 
 ---
@@ -202,4 +204,4 @@ Maps to `reasoning_effort: "low"` on the OpenAI API.
 - [Agents Overview](/agents-explained) — per-agent configuration reference
 - [Hooks & Quality Gates](/hooks-quality-gates) — validate agent outputs after reasoning
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

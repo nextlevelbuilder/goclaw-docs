@@ -227,10 +227,41 @@ console.log(response.file.name, response.file.size, 'bytes');
 | Agent is too formal/casual | Edit SOUL.md's Style section; specify Tone and Humor preferences explicitly |
 | Name/emoji not updating | Ensure IDENTITY.md is saved; check file format (colon-separated: `Name: ...`) |
 
+## CAPABILITIES.md — Skills File
+
+In addition to SOUL.md and IDENTITY.md, predefined agents have a **CAPABILITIES.md** file that describes domain knowledge, technical skills, and specialized expertise.
+
+```markdown
+# CAPABILITIES.md - What You Can Do
+
+## Expertise
+
+_(Your areas of deep knowledge and what you help with.)_
+
+## Tools & Methods
+
+_(Preferred tools, workflows, methodologies.)_
+```
+
+**Key distinction:**
+- **SOUL.md** = who you are (tone, values, personality)
+- **CAPABILITIES.md** = what you can do (skills, domain knowledge)
+
+## Self-Evolution
+
+Predefined agents with `self_evolve` enabled can update their own personality files based on user feedback patterns. The agent may modify:
+
+- **SOUL.md** — to refine communication style (tone, voice, vocabulary, response style)
+- **CAPABILITIES.md** — to refine domain expertise, technical skills, and specialized knowledge
+
+**What the agent MUST NOT change:** name, identity, contact info, core purpose, IDENTITY.md, or AGENTS.md. Changes must be incremental and driven by clear user feedback patterns — not spontaneous rewrites.
+
+This is governed by the `buildSelfEvolveSection()` in `internal/agent/systemprompt.go` and only activates for predefined agents with `SelfEvolve: true`.
+
 ## What's Next
 
 - [Context Files — Extending personality with per-user context](/context-files)
 - [System Prompt Anatomy — How personality gets injected into prompts](/system-prompt-anatomy)
 - [Creating Agents — Set up personality during agent creation](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

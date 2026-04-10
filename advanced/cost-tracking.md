@@ -199,6 +199,19 @@ The `quota.usage` method returns today's cost alongside usage counters:
 
 ---
 
+## Per-Sub-Agent Token Cost Tracking
+
+As of v3 (#600), token costs are accumulated per sub-agent and included in announce messages. This means:
+
+- Each spawned sub-agent accumulates its own `input_tokens` and `output_tokens` independently
+- When a sub-agent completes, its token totals are included in the announce message sent to the parent agent's LLM context
+- Token costs are persisted to the `subagent_tasks` table (migration 000034) for billing and observability queries
+- Sub-agent token costs roll up to the parent trace's cost via the existing trace span hierarchy
+
+Sub-agent costs appear in the same REST endpoints (`/v1/usage/timeseries`, `/v1/usage/breakdown`) under the sub-agent's own `agent_id`. To see the total cost of a multi-agent workflow, sum costs across all `agent_id` values that share the same root trace.
+
+---
+
 ## Monthly Budget Enforcement
 
 You can cap an agent's monthly spend by setting `budget_monthly_cents` on the agent record. When set, GoClaw queries the current month's accumulated cost before each run and blocks execution if the budget is exceeded.
@@ -239,4 +252,4 @@ The check runs once per request, before any LLM calls. Sub-agent delegations run
 - [Observability](/deploy-observability) — OpenTelemetry export for spans including cost fields
 - [Configuration Reference](/config-reference) — full `telemetry` config options
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

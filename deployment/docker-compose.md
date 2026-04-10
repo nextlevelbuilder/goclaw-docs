@@ -261,7 +261,50 @@ These are compile-time flags passed during `docker build`. Each enables optional
 | `ENABLE_PYTHON` | `false` | Python 3 runtime for skills |
 | `ENABLE_NODE` | `false` | Node.js runtime for skills |
 | `ENABLE_FULL_SKILLS` | `false` | Pre-install skill dependencies (pandas, pypdf, etc.) |
+| `ENABLE_CLAUDE_CLI` | `false` | Install `@anthropic-ai/claude-code` npm package |
 | `VERSION` | `dev` | Semantic version string |
+
+---
+
+## Privilege Separation (v3)
+
+Starting in v3, the Docker image uses **privilege separation** via `su-exec`:
+
+```
+docker-entrypoint.sh (runs as root)
+  ├── Installs persisted apk packages (reads /app/data/.runtime/apk-packages)
+  ├── Starts pkg-helper as root (Unix socket /tmp/pkg.sock, permissions 0660 root:goclaw)
+  └── su-exec goclaw → starts /app/goclaw serve (drops to non-root)
+```
+
+### pkg-helper
+
+`pkg-helper` is a small root-privileged binary that handles system package management on behalf of the `goclaw` process. It listens on a Unix socket and accepts requests to install/uninstall Alpine packages (`apk`). The `goclaw` user cannot call `apk` directly but can request it through this helper.
+
+Required Docker capabilities when using pkg-helper (added by default in the compose setup):
+
+```yaml
+cap_add:
+  - SETUID
+  - SETGID
+  - CHOWN
+  - DAC_OVERRIDE
+```
+
+> If you override `cap_drop: ALL` in a security-hardened compose setup, you must explicitly add these four capabilities back, or pkg-helper will fail and package installs via the admin UI will not work.
+
+### Runtime Package Directories
+
+On-demand packages (pip/npm) installed via the admin UI go to the data volume:
+
+| Path | Owner | Contents |
+|------|-------|---------|
+| `/app/data/.runtime/pip` | `goclaw` | pip-installed Python packages |
+| `/app/data/.runtime/npm-global` | `goclaw` | npm global packages |
+| `/app/data/.runtime/pip-cache` | `goclaw` | pip download cache |
+| `/app/data/.runtime/apk-packages` | `root:goclaw` | persisted apk package list (0640) |
+
+These persist across container recreation because they live on the `goclaw-data` volume.
 
 ---
 
@@ -421,4 +464,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](/deploy-observability) — OpenTelemetry and Jaeger configuration
 - [Tailscale](/deploy-tailscale) — secure remote access via Tailscale
 
-<!-- goclaw-source: e7afa832 | updated: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

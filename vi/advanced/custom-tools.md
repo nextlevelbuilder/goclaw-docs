@@ -187,10 +187,44 @@ Kiểm tra được thực hiện trên **lệnh đã render đầy đủ** sau 
 | Tool không hiển thị với agent | Sai `agent_id` hoặc `enabled: false` | Kiểm tra agent ID; bật lại nếu đã tắt |
 | Timeout thực thi | Mặc định 60s quá ngắn cho tác vụ | Tăng `timeout_seconds` |
 
+## Built-in Vault Tools
+
+Ngoài custom shell tool, GoClaw có sẵn các vault tool tích hợp cho quản lý kiến thức. Chúng luôn có sẵn khi vault store được bật.
+
+### `vault_link` — liên kết tài liệu vault
+
+Tạo liên kết tường minh giữa hai tài liệu vault, tương tự `[[wikilinks]]` trong Obsidian hoặc Roam.
+
+| Tham số | Bắt buộc | Mô tả |
+|---|---|---|
+| `from` | Có | Đường dẫn tài liệu nguồn (workspace-relative) |
+| `to` | Có | Đường dẫn tài liệu đích (workspace-relative) |
+| `context` | Không | Ghi chú mô tả mối quan hệ |
+| `link_type` | Không | `wikilink` (mặc định) hoặc `reference` |
+
+**Suy luận doc-type**: Nếu tài liệu chưa được đăng ký trong vault, GoClaw tự đăng ký dưới dạng stub, suy luận `doc_type` từ đường dẫn file (ví dụ `.md` → `note`, phần mở rộng media → `media`). Liên kết cross-team bị chặn — cả hai tài liệu phải thuộc cùng một team.
+
+```json
+{
+  "from": "projects/goclaw/overview.md",
+  "to": "projects/goclaw/architecture.md",
+  "context": "Chi tiết kiến trúc mở rộng từ tổng quan",
+  "link_type": "reference"
+}
+```
+
+### `vault_backlinks` — tìm tài liệu liên kết đến một tài liệu
+
+Trả về tất cả tài liệu liên kết đến đường dẫn được chỉ định. Tuân theo ranh giới team — team context chỉ hiển thị tài liệu cùng team; personal context chỉ hiển thị tài liệu cá nhân.
+
+| Tham số | Bắt buộc | Mô tả |
+|---|---|---|
+| `path` | Có | Đường dẫn tài liệu cần tìm backlink |
+
 ## Tiếp theo
 
 - [MCP Integration](/mcp-integration) — kết nối server tool bên ngoài thay vì viết lệnh shell
 - [Exec Approval](/exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy
 - [Sandbox](/sandbox) — chạy lệnh trong Docker để tăng cô lập
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -125,6 +125,16 @@ Every ToolBridge call is validated through:
 
 ---
 
+## Session Tracking
+
+Each ACP subprocess maintains a server-assigned session ID. The session lifecycle is:
+
+1. **`session/new`** — called immediately after `initialize`; the server returns a `sessionID`
+2. **`session/prompt`** — sends the user content with the `sessionID`; server emits `SessionUpdate` notifications during execution
+3. **`session/cancel`** — sent as a notification when the caller cancels context
+
+The session ID is stored per-process in `ACPProcess.sessionID` and included in every prompt request. This allows the ACP agent to maintain conversation history and file state across multiple turns within the same process lifetime.
+
 ## Session Sequencing
 
 Concurrent requests to the same session would risk corrupting file state. ACP serializes per-session requests via a `sessionMu` mutex:
@@ -224,4 +234,4 @@ On response, GoClaw:
 - [Claude CLI](/provider-claude-cli)
 - [Custom / OpenAI-Compatible](/provider-custom)
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

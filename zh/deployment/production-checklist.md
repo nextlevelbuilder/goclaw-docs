@@ -241,4 +241,4 @@ curl http://localhost:18790/health
 - [安全加固](/deploy-security) — 更深入的安全配置
 - [Docker Compose 设置](/deploy-docker-compose) — 生产 compose 模式
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -60,6 +60,35 @@ flowchart TD
 
 通过团队设置中的 `workspace_scope: "shared"` 配置。任务执行期间写入的文件自动存储在 workspace 中并关联到当前任务。
 
+## V3 编排变更
+
+在 v3 中，团队采用**基于任务板的分派模型**，取代旧的 `spawn(agent=...)` 流程。
+
+### 轮次后分派（BatchQueue）
+
+Lead 轮次期间创建的任务会被排队（`PendingTeamDispatchFromCtx`），并在**轮次结束后**分派——而非内联分派。这确保 `blocked_by` 依赖关系在任何成员收到任务前已完全设置好。
+
+```
+Lead 轮次结束
+  → BatchQueue 刷新待分派任务
+  → 每个 assignee 通过 bus 收到入站消息
+  → Member agent 在独立 session 中执行
+```
+
+### 领域事件总线
+
+所有任务状态变更都在领域事件总线上 emit 类型化事件（`team_task.created`、`team_task.assigned`、`team_task.completed` 等）。Dashboard 通过 WebSocket 实时更新，无需轮询。
+
+### 断路器
+
+任务在 **3 次分派尝试**（`maxTaskDispatches`）后自动失败。这防止了成员 agent 反复失败或拒绝任务时的无限循环。分派次数记录在 `metadata.dispatch_count` 中。
+
+### WaitAll 模式
+
+Lead 可以并行创建多个任务，它们同时分派。当所有成员任务完成后，`DispatchUnblockedTasks` 自动分派等待中的依赖任务（按优先级排序）。Lead 仅在所有分支解决后才汇总结果。
+
+> **Spawn 工具变更**：v3 中 `spawn(agent="member")` 不再有效。Lead 必须改用 `team_tasks(action="create", assignee="member")`。系统会拒绝直接 spawn-to-agent 调用并给出提示性错误。
+
 ## 真实场景示例
 
 **场景**：用户请求 lead 分析一篇研究论文并撰写摘要。
@@ -97,4 +126,4 @@ flowchart TD
 - 对话需要在 agent 之间转移
 - 不需要任务板或编排
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -187,10 +187,44 @@ DELETE /v1/tools/custom/{id}
 | 工具对 agent 不可见 | `agent_id` 错误或 `enabled: false` | 核对 agent ID；如已禁用则重新启用 |
 | 执行超时 | 默认 60 秒对该任务过短 | 增大 `timeout_seconds` |
 
+## 内置 Vault 工具
+
+除自定义 shell 工具外，GoClaw 还提供用于知识管理的内置 vault 工具。这些工具在 vault store 启用时始终可用。
+
+### `vault_link` — 链接 vault 文档
+
+在两个 vault 文档之间创建显式链接，类似 Obsidian 或 Roam 中的 `[[wikilinks]]`。
+
+| 参数 | 必填 | 描述 |
+|---|---|---|
+| `from` | 是 | 源文档路径（workspace 相对路径） |
+| `to` | 是 | 目标文档路径（workspace 相对路径） |
+| `context` | 否 | 描述关系的备注 |
+| `link_type` | 否 | `wikilink`（默认）或 `reference` |
+
+**文档类型推断**：如果任一文档尚未在 vault 中注册，GoClaw 会自动将其注册为存根，并从文件路径推断 `doc_type`（如 `.md` → `note`，媒体扩展名 → `media`）。跨团队链接被阻止——两个文档必须属于同一团队。
+
+```json
+{
+  "from": "projects/goclaw/overview.md",
+  "to": "projects/goclaw/architecture.md",
+  "context": "Architecture details expand on the overview",
+  "link_type": "reference"
+}
+```
+
+### `vault_backlinks` — 查找链接到某文档的文档
+
+返回所有链接到指定路径的文档。遵守团队边界——团队 context 仅显示同团队文档；个人 context 仅显示个人文档。
+
+| 参数 | 必填 | 描述 |
+|---|---|---|
+| `path` | 是 | 要查找反向链接的文档路径 |
+
 ## 下一步
 
 - [MCP 集成](/mcp-integration) — 连接外部工具服务器，而非编写 shell 命令
 - [Exec 审批](/exec-approval) — 在命令执行前要求人工审批
 - [Sandbox](/sandbox) — 在 Docker 中运行命令以获得额外隔离
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -214,10 +214,27 @@ This powers the "My Agents" list in the Dashboard.
 | Forgot who has access | Use `GET /v1/agents/:id/shares` or Dashboard → Sharing tab to audit |
 | Role restrictions not working | Role-based enforcement is planned, not yet implemented — all shared users have equal access today |
 
+## Permission Cache
+
+GoClaw caches hot permission lookups in memory to reduce database pressure on high-traffic deployments. The `PermissionCache` (in `internal/cache/permission_cache.go`) maintains three short-TTL caches:
+
+| Cache | Key | TTL |
+|-------|-----|-----|
+| **Tenant role** | `tenantID:userID` | 30 seconds |
+| **Agent access** | `agentID:userID` | 30 seconds |
+| **Team access** | `teamID:userID` | 30 seconds |
+
+The cache is invalidated via pubsub events:
+- `CacheKindTenantUsers` — clears all tenant role entries (user-level change)
+- `CacheKindAgentAccess` — deletes all entries for the changed agent (prefix match on `agentID:`)
+- `CacheKindTeamAccess` — deletes all entries for the changed team (prefix match on `teamID:`)
+
+> **Session IDOR fix:** Prior to v3, a session could retain stale access after a share was revoked within the same 30-second window. The pubsub invalidation path now ensures revocations are reflected immediately across all running sessions.
+
 ## What's Next
 
 - [User Overrides — Let users customize LLM provider/model per-agent](/user-overrides)
 - [System Prompt Anatomy — How permissions affect system prompt sections](/system-prompt-anatomy)
 - [Creating Agents — Create an agent and immediately share it](/creating-agents)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

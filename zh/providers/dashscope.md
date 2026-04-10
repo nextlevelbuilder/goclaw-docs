@@ -48,6 +48,12 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 | `qwen3-235b-a22b` | 开放权重，MoE 架构 |
 | `qwq-32b` | 扩展思考 / 推理模型 |
 
+## 每模型思考保护
+
+GoClaw 使用简化的每模型保护来决定是否发送 `enable_thinking` 和 `thinking_budget` 参数。只有实际支持扩展思考的模型才会接收这些参数——其他模型会静默忽略 `thinking_level` 设置。在 v3 中，此逻辑已简化（之前存在冗余检查，可能导致某些模型名称的错误行为）。
+
+**支持思考的模型：** `qwq-32b`，以及具备思考能力的 Qwen 3.5 系列模型。
+
 ## 思考（扩展推理）
 
 对于支持扩展思考的模型（如 `qwq-32b`），在 agent 选项中设置 `thinking_level`：
@@ -120,4 +126,4 @@ GoClaw 将 `thinking_level` 映射到 DashScope 的 `thinking_budget`：
 - [Claude CLI](/provider-claude-cli) — 调用 Claude Code CLI 二进制文件的独特 provider
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

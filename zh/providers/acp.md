@@ -127,6 +127,16 @@ sequenceDiagram
 
 ---
 
+## 会话追踪
+
+每个 ACP 子进程维护一个服务器分配的 session ID。会话生命周期为：
+
+1. **`session/new`** — 在 `initialize` 后立即调用；服务器返回 `sessionID`
+2. **`session/prompt`** — 携带 `sessionID` 发送用户内容；服务器在执行期间发出 `SessionUpdate` 通知
+3. **`session/cancel`** — 当调用方取消 context 时作为通知发送
+
+session ID 以每进程方式存储在 `ACPProcess.sessionID` 中，并包含在每次提示请求中。这使 ACP agent 能在同一进程生命周期内的多个轮次中维护对话历史和文件状态。
+
 ## 会话串行化
 
 同一会话的并发请求可能损坏文件状态。ACP 通过 `sessionMu` mutex 串行化每个会话的请求：
@@ -226,4 +236,4 @@ type ContentBlock struct {
 - [Claude CLI](/provider-claude-cli)
 - [自定义 / OpenAI 兼容](/provider-custom)
 
-<!-- goclaw-source: 120fc2d | 更新: 2026-03-23 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -322,4 +322,4 @@ Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` 
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 76385f2f | cập nhật: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

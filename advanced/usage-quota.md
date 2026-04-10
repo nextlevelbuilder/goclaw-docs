@@ -115,6 +115,23 @@ The timeseries endpoint gap-fills the current incomplete hour by querying live t
 
 ---
 
+## Edition Rate Limits (Sub-Agent)
+
+Starting with v3 (#600), the active **edition** enforces tenant-scoped sub-agent concurrency limits. These prevent a single tenant from monopolizing sub-agent resources.
+
+| Edition field | Lite default | Standard default | Description |
+|---|---|---|---|
+| `MaxSubagentConcurrent` | 2 | unlimited (0) | Max sub-agents running in parallel per tenant |
+| `MaxSubagentDepth` | 1 | uses config default | Max spawn nesting depth (1 = no sub-agents spawning sub-agents) |
+
+A value of `0` means unlimited. Lite edition is the constrained preset; Standard edition ships with no concurrency caps.
+
+When a spawn request would exceed `MaxSubagentConcurrent`, GoClaw rejects the spawn and returns an error to the parent agent. When `MaxSubagentDepth` is exceeded, nested delegation via `team_tasks` is blocked (`SubagentDenyAlways`).
+
+These limits are edition-level — they apply to every tenant on that GoClaw instance regardless of per-agent budget settings.
+
+---
+
 ## Quota Enforcement
 
 Quota is checked against the `traces` table (top-level traces only — sub-agent delegations don't count against user quota). Counts are cached in memory for 60 seconds to avoid hammering the database on every request.
@@ -235,4 +252,4 @@ This index covers 89% of traces (top-level only) and makes hourly/daily/weekly w
 - [Security Hardening](/deploy-security) — rate limiting at the gateway level
 - [Database Setup](/deploy-database) — PostgreSQL setup including the quota index
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
