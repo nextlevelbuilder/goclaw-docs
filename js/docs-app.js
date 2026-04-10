@@ -258,9 +258,10 @@ function initMarked() {
 
   renderer.link = function ({ href, title, text }) {
     if (href && href.endsWith('.md') && !href.startsWith('http')) {
-      const name = href.replace(/^\.?\/?(?:docs\/)?(vi\/)?/, '').replace(/\.md$/, '');
+      // Strip leading ../, ./, section prefixes to get bare filename
+      const name = href.replace(/^(?:\.\.\/)*(?:\.\/)?/, '').replace(/\.md$/, '');
       const hashKey = Object.keys(DOC_MAP).find(
-        k => DOC_MAP[k].file.en.includes(name)
+        k => DOC_MAP[k].file.en.endsWith(name + '.md')
       );
       if (hashKey) href = '/' + hashKey;
     }
