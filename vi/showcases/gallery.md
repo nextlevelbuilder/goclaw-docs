@@ -132,4 +132,4 @@ Bạn có một thiết lập GoClaw muốn giới thiệu? Mở pull request đ
 - [Quick Start](/quick-start) — Chạy trong 5 phút
 - [Configuration](/configuration) — Tài liệu tham khảo config đầy đủ
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

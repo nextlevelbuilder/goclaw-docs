@@ -30,4 +30,4 @@ YesScale 是一个云 AI 平台，通过 OpenAI 兼容 API 提供多种语言模
 - [自定义 / OpenAI 兼容](/provider-custom)
 - [OpenRouter](/provider-openrouter) — 另一个多模型平台
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -256,4 +256,4 @@ When the agent uses `write_file` to generate a file, it is automatically deliver
 - [WebSocket Channel](/channel-websocket) — full RPC protocol reference
 - [Personal Assistant](/recipe-personal-assistant) — single-channel starting point
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -192,4 +192,4 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 - [Custom Tools](/custom-tools) — Build your own tools
 - [Provider Overview](/providers-overview) — Configure API keys
 
-<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

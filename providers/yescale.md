@@ -28,4 +28,4 @@ YesScale is a cloud AI platform providing access to a wide range of language mod
 - [Custom / OpenAI-Compatible](/provider-custom)
 - [OpenRouter](/provider-openrouter) — another multi-model platform
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

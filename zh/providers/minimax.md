@@ -95,4 +95,4 @@ MINIMAX_API_KEY=your-minimax-api-key
 - [Cohere](/provider-cohere) — 另一个 OpenAI 兼容 provider
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

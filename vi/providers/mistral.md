@@ -79,4 +79,4 @@ Với agent thiên về code, `codestral-latest` được tối ưu cho các tá
 - [Groq](/provider-groq) — inference cực nhanh cho open model
 - [OpenRouter](/provider-openrouter) — truy cập Mistral và 100+ model khác qua một key
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

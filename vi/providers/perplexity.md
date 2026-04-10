@@ -105,4 +105,4 @@ Các model `sonar` của Perplexity tự động tìm kiếm web trước khi tr
 - [DashScope](/provider-dashscope) — các model Qwen của Alibaba qua OpenAI-compatible API
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

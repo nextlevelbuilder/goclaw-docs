@@ -134,4 +134,4 @@ Các tính năng bạn có thêm sau khi chuyển:
 - [Multi-Tenancy](/multi-tenancy) — Tìm hiểu về cách ly per-user
 - [Configuration](/configuration) — Tham chiếu config đầy đủ
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -194,4 +194,4 @@ This mapping only applies to native OpenAI infrastructure. Other OpenAI-compatib
 - [Anthropic](/provider-anthropic) — native Claude integration
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

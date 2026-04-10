@@ -194,4 +194,4 @@ GoClaw 内置三个媒体生成工具：`create_image`、`create_video` 和 `cre
 - [自定义工具](/custom-tools) — 构建你自己的工具
 - [Provider 概览](/providers-overview) — 配置 API key
 
-<!-- goclaw-source: c5bfbc96 | 更新: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

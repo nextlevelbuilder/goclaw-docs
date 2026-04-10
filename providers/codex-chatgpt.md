@@ -207,4 +207,4 @@ See [REST API](/rest-api) for the response shape.
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
 - [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
 
-<!-- goclaw-source: 231bc968 | updated: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

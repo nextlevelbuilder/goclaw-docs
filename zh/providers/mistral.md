@@ -79,4 +79,4 @@ Mistral 在 `mistral-large`、`mistral-small` 和 `codestral` 上支持 function
 - [Groq](/provider-groq) — 开源模型的超快推理
 - [OpenRouter](/provider-openrouter) — 通过一个 key 访问 Mistral 和 100+ 其他模型
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

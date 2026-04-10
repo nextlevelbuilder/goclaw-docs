@@ -15,4 +15,4 @@ Zai 提供两个变体：通用 provider 和专为编程优化的变体（`zai_c
 - [Provider 概览](/providers-overview)
 - [自定义 / OpenAI 兼容](/provider-custom)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

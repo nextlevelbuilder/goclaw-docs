@@ -189,4 +189,4 @@ GoClaw 根据 provider 名称自动从工具定义中去除不支持的 JSON Sch
 - [DashScope](/provider-dashscope) — 阿里巴巴的 Qwen 模型
 - [Perplexity](/provider-perplexity) — 搜索增强生成
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

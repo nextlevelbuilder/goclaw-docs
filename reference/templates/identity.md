@@ -104,4 +104,4 @@ Another example — a no-nonsense DevOps bot:
 - [BOOTSTRAP.md Template](/template-bootstrap) — how name and emoji are chosen during first-run
 - [Context Files](/context-files) — full list of context files and loading order
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

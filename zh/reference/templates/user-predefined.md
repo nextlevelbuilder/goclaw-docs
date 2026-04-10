@@ -117,4 +117,4 @@ This file applies to all family members. Each person also has their own USER.md 
 - [AGENTS.md 模板](/template-agents) — 记忆、隐私规则和工具访问
 - [上下文文件](/context-files) — 完整上下文文件列表和加载顺序
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

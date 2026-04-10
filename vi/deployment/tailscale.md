@@ -144,4 +144,4 @@ Tìm hostname đầy đủ trong [Tailscale admin console](https://login.tailsca
 - [Security Hardening](/deploy-security) — CORS, rate limits, và token auth
 - [Docker Compose Setup](/deploy-docker-compose) — tham chiếu đầy đủ compose overlay
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -187,4 +187,4 @@ Khi agent gọi `write_file("BOOTSTRAP.md", "")`, file trở thành rỗng. Ở 
 - [USER.md Template](/template-user) — thông tin user sau conversation
 - [Context Files](/context-files) — thứ tự load đầy đủ và vòng đời file
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

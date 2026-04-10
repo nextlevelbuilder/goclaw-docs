@@ -140,4 +140,4 @@ Docker, Go services. Ưu tiên giải pháp đơn giản, có thể maintain lâ
 - [上下文文件](/context-files) — 全部 7 个文件如何协同工作
 - [召唤与 Bootstrap](/summoning-bootstrap) — 预定义 agent 的 SOUL.md 如何生成
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

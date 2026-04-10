@@ -30,4 +30,4 @@ Ollama Cloud cung cấp inference hosted cho các mô hình tương thích Ollam
 - [Ollama](/provider-ollama) — chạy mô hình cục bộ thay thế
 - [Custom / OpenAI-Compatible](/provider-custom)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

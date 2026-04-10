@@ -95,4 +95,4 @@ GoClaw 在启动时从环境变量中解析 `$XAI_API_KEY`。
 - [MiniMax](/provider-minimax) — 另一个带自定义 chat 路径的 OpenAI 兼容 provider
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

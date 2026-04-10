@@ -245,4 +245,4 @@ If your code-reviewer uses many MCP tools, GoClaw lazily activates deferred tool
 - [Team Chatbot](/recipe-team-chatbot) — add the reviewer as a specialist in a team
 - [Tools Reference](/cli-commands) — full built-in tool list and policy options
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

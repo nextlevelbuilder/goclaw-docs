@@ -261,4 +261,4 @@ Deny groups and the exec approval flow operate independently — a command can p
 - [Custom Tools](/custom-tools) — define tools backed by shell commands
 - [Security Hardening](/deploy-security) — full five-layer security overview
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

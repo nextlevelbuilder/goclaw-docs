@@ -145,4 +145,4 @@ Cập nhật grant: `{"enabled": false}`. Binary vẫn dùng được với các
 - [API Keys & RBAC](/api-keys-rbac)
 - [Security Hardening](/deploy-security)
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

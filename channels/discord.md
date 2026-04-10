@@ -135,4 +135,4 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 - [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

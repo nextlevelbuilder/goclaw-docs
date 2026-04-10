@@ -204,4 +204,4 @@ MCP servers are managed via the `mcp_servers` table and `POST /v1/mcp/servers`. 
 - [WebSocket Protocol](/websocket-protocol) — event names for delegation, handoff, and team activity
 - [Database Schema](/database-schema) — table definitions for sessions, traces, teams, and more
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

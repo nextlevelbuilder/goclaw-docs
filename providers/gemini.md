@@ -82,4 +82,4 @@ GoClaw maps this to `reasoning_effort` on the request. Thinking tokens are track
 - [OpenRouter](/provider-openrouter) — access Gemini and 100+ other models through one key
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

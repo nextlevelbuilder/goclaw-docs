@@ -92,4 +92,4 @@ API base mặc định là `https://api.cohere.com/compatibility/v1`. GoClaw đ�
 - [Perplexity](/provider-perplexity) — AI tìm kiếm web qua OpenAI-compatible API
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

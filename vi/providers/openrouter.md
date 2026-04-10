@@ -103,4 +103,4 @@ OpenRouter chuyển tiếp hầu hết tính năng đến provider model bên d�
 - [OpenAI](/provider-openai) — tích hợp trực tiếp OpenAI
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 76385f2f | cập nhật: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

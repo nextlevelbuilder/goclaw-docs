@@ -259,4 +259,4 @@ When a key is created or revoked, a `cache.invalidate` event is broadcast on the
 - [Security Hardening](/deploy-security) — full 5-layer permission overview
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials into CLI tools (gh, aws, gcloud) without exposing secrets to the agent
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

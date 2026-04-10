@@ -64,4 +64,4 @@ GOCLAW_NOVITA_API_KEY=your-novita-api-key
 - [自定义 / OpenAI 兼容](/provider-custom)
 - [OpenRouter](/provider-openrouter) — 另一个多模型平台
 
-<!-- goclaw-source: e7afa832 | 更新: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

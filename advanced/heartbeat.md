@@ -241,4 +241,4 @@ Permission for mutation actions (`set`, `toggle`, `set_checklist`) falls back to
 - [Custom Tools](custom-tools.md) — give your agent shell commands and APIs to call during heartbeat runs
 - [Sandbox](sandbox.md) — isolate code execution during agent runs
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

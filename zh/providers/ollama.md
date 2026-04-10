@@ -46,4 +46,4 @@ Ollama 让你在自己的机器上运行大型语言模型。GoClaw 通过 Ollam
 - [Ollama Cloud](/provider-ollama-cloud) — 托管 Ollama 选项
 - [自定义 / OpenAI 兼容](/provider-custom)
 
-<!-- goclaw-source: 9168e4b4 | 更新: 2026-03-26 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

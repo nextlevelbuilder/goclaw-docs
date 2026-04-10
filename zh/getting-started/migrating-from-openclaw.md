@@ -134,4 +134,4 @@ GoClaw 支持 agent 级别（共享）和每用户上下文文件覆盖。以上
 - [多租户](/multi-tenancy) — 了解每用户隔离
 - [配置](/configuration) — 完整配置参考
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

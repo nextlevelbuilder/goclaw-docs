@@ -208,4 +208,4 @@ You are NOT part of any team. Do not use team_tasks or team_message tools.
 - [Delegation & Handoff](/teams-delegation) — cách lead delegate task cho member
 - [DELEGATION.md Template](delegation.md) — virtual file anh em dành cho subagent spawning
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

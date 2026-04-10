@@ -137,4 +137,4 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 - [Larksuite](/channel-feishu) — Larksuite 流式卡片集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

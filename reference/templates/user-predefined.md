@@ -115,4 +115,4 @@ This file applies to all family members. Each person also has their own USER.md 
 - [AGENTS.md Template](/template-agents) — memory, privacy rules, and tool access
 - [Context Files](/context-files) — full list of context files and their loading order
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

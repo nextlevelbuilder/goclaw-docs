@@ -117,4 +117,4 @@ File này áp dụng cho tất cả thành viên gia đình. Mỗi người cũn
 - [AGENTS.md Template](/template-agents) — memory, privacy rules và quyền truy cập tool
 - [Context Files](/context-files) — danh sách đầy đủ các context file và thứ tự load
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

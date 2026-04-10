@@ -83,4 +83,4 @@ DeepSeek supports function calling with the standard OpenAI tool format. Tool ca
 - [Gemini](/provider-gemini) — Google Gemini models
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

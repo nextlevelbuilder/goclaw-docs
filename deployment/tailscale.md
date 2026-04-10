@@ -142,4 +142,4 @@ You can find the full hostname in your [Tailscale admin console](https://login.t
 - [Security Hardening](/deploy-security) — CORS, rate limits, and token auth
 - [Docker Compose Setup](/deploy-docker-compose) — full compose overlay reference
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -85,4 +85,4 @@ DeepSeek hỗ trợ function calling theo định dạng tool chuẩn OpenAI. To
 - [Gemini](/provider-gemini) — các model Google Gemini
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

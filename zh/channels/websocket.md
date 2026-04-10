@@ -258,4 +258,4 @@ ws.onclose = () => {
 - [WebSocket 协议](/websocket-protocol) — 完整协议文档
 - [Browser Pairing](/channel-browser-pairing) — 自定义客户端的配对流程
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

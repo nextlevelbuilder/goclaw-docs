@@ -206,4 +206,4 @@ This prevents the agent from wasting tool calls probing for team capabilities th
 - [Delegation & Handoff](/teams-delegation) — how leads delegate tasks to members
 - [DELEGATION.md Template](delegation.md) — the sibling virtual file for subagent spawning
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

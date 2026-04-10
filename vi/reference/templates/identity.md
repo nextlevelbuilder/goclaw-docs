@@ -106,4 +106,4 @@ Ví dụ khác — DevOps bot không vòng vo:
 - [BOOTSTRAP.md Template](/template-bootstrap) — tên và emoji được chọn như thế nào trong lần đầu
 - [Context Files](/context-files) — danh sách đầy đủ context file và thứ tự load
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

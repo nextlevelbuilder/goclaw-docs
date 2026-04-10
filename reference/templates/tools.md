@@ -119,4 +119,4 @@ A TOOLS.md for a home automation agent:
 - [System Prompt Anatomy](/system-prompt-anatomy) — where TOOLS.md fits in the prompt (minimal mode included)
 - [AGENTS.md Template](/template-agents) — operating instructions that reference tools
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

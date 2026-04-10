@@ -103,4 +103,4 @@ OpenRouter 将大多数功能透传给底层模型 provider，可用性取决于
 - [OpenAI](/provider-openai) — 直接 OpenAI 集成
 - [概览](/providers-overview) — provider 架构和重试逻辑
 
-<!-- goclaw-source: 76385f2f | 更新: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

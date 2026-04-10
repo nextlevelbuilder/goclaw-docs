@@ -64,4 +64,4 @@ GOCLAW_NOVITA_API_KEY=your-novita-api-key
 - [Custom / OpenAI-Compatible](/provider-custom)
 - [OpenRouter](/provider-openrouter) — nền tảng đa mô hình khác
 
-<!-- goclaw-source: e7afa832 | cập nhật: 2026-03-30 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -125,4 +125,4 @@ On connection failure:
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

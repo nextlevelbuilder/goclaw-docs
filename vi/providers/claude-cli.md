@@ -182,4 +182,4 @@ Lệnh này ghi file `cli-debug.log` trong workspace directory của mỗi sessi
 - [Codex / ChatGPT](/provider-codex) — provider OAuth dùng subscription ChatGPT
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

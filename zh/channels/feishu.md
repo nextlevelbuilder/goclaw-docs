@@ -209,4 +209,4 @@ list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name 
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 120fc2d | 更新: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

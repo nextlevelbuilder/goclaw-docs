@@ -30,4 +30,4 @@ Ollama Cloud 为 Ollama 兼容模型提供托管推理服务。GoClaw 通过 Ope
 - [Ollama](/provider-ollama) — 改为在本地运行模型
 - [自定义 / OpenAI 兼容](/provider-custom)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

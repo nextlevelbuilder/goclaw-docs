@@ -180,4 +180,4 @@ This writes a `cli-debug.log` file in each session's workspace directory with th
 - [Codex / ChatGPT](/provider-codex) — OAuth-based provider using your ChatGPT subscription
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

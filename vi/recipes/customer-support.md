@@ -269,4 +269,4 @@ support (predefined)
 - [Team Chatbot](/recipe-team-chatbot) — điều phối nhiều chuyên gia qua team
 - [Context Files](/context-files) — tham khảo đầy đủ về SOUL.md, USER.md và các file khác
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -299,4 +299,4 @@ Yêu cầu quyền admin. Credential được mã hóa khi lưu trữ bằng `GO
 - [Custom Tools](../advanced/custom-tools.md) — tạo tool shell mà không cần MCP server
 - [Skills](../advanced/skills.md) — inject kiến thức tái sử dụng vào system prompt của agent
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

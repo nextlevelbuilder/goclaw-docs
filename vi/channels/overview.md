@@ -196,4 +196,4 @@ Channel có thể áp dụng giới hạn tốc độ theo từng user. Cấu h�
 - [WebSocket](/channel-websocket) — Agent API trực tiếp qua WS
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing bằng mã 8 ký tự
 
-<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

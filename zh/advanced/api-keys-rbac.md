@@ -261,4 +261,4 @@ key 创建或撤销时，`cache.invalidate` 事件在内部消息总线上广播
 - [安全加固](/deploy-security) — 完整的 5 层权限概览
 - [CLI 凭据](./cli-credentials.md) — SecureCLI：向 CLI 工具注入凭据，不向 agent 暴露密钥
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

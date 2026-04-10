@@ -269,4 +269,4 @@ support（预定义）
 - [团队聊天机器人](/recipe-team-chatbot) — 通过团队协调多个专家
 - [上下文文件](/context-files) — SOUL.md、USER.md 等文件的完整参考
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

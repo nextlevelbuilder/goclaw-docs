@@ -197,4 +197,4 @@ Channel 可以对每个用户执行频率限制。通过 channel 设置配置或
 - [WebSocket](/channel-websocket) — 通过 WS 直连 agent API
 - [Browser Pairing](/channel-browser-pairing) — 8 位配对码流程
 
-<!-- goclaw-source: c5bfbc96 | 更新: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

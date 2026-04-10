@@ -258,4 +258,4 @@ Trả về:
 - [Exec Approval](/exec-approval) — yêu cầu người dùng ký duyệt trước khi chạy lệnh
 - [Hooks & Quality Gates](/hooks-quality-gates) — thêm kiểm tra trước/sau cho hành động agent
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

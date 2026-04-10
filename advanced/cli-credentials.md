@@ -143,4 +143,4 @@ Update the grant: `{"enabled": false}`. The binary remains accessible to other a
 - [API Keys & RBAC](/api-keys-rbac)
 - [Security Hardening](/deploy-security)
 
-<!-- goclaw-source: c083622f | updated: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

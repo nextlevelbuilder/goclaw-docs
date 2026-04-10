@@ -208,4 +208,4 @@ You are NOT part of any team. Do not use team_tasks or team_message tools.
 - [委托与移交](/teams-delegation) — lead 如何向成员委托任务
 - [DELEGATION.md 模板](delegation.md) — 子 agent 派生的兄弟虚拟文件
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

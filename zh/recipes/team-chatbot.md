@@ -261,4 +261,4 @@ Lead 通过 `delegate` 工具进行委托。专家作为子会话运行并返回
 - [Open vs. Predefined](/open-vs-predefined) — 专家为何必须是预定义类型
 - [客户支持](/recipe-customer-support) — 服务多用户的预定义 agent
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

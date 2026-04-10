@@ -117,4 +117,4 @@ Bot 可以接收和发送图片（JPG、PNG）。默认最大 5 MB。
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

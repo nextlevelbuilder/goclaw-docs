@@ -258,4 +258,4 @@ Request thất bại bao gồm chi tiết lỗi:
 - [WebSocket Protocol](/websocket-protocol) — Tài liệu giao thức đầy đủ
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing cho client tuỳ chỉnh
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

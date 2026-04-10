@@ -182,4 +182,4 @@ _Make a good first impression. Be natural. The user should never know any of thi
 - [USER.md Template](/template-user) — where user info lands after the conversation
 - [Context Files](/context-files) — full loading order and file lifecycle
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

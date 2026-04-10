@@ -258,4 +258,4 @@ Agent 调用：
 - [Exec 审批](/exec-approval) — 运行命令前要求人工确认
 - [Hooks 与质量门控](/hooks-quality-gates) — 为 agent 操作添加前/后检查
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

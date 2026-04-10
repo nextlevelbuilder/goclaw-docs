@@ -192,4 +192,4 @@ File media tải về giới hạn tối đa **200 MB**. File vượt quá sẽ 
 - [Custom Tools](/custom-tools) — Tạo công cụ riêng
 - [Tổng quan Provider](/providers-overview) — Cấu hình API key
 
-<!-- goclaw-source: c5bfbc96 | cập nhật: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

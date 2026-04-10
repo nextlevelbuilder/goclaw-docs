@@ -127,4 +127,4 @@ Khi kết nối thất bại:
 - [Telegram](/channel-telegram) — Thiết lập Telegram bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

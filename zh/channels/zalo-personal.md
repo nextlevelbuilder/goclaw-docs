@@ -127,4 +127,4 @@ Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Z
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 120fc2d | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

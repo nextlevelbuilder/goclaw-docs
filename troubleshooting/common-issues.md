@@ -82,4 +82,4 @@ Run `./goclaw doctor` for a quick health check. It verifies:
 - [Provider-specific issues](/troubleshoot-providers)
 - [Database issues](/troubleshoot-database)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -100,4 +100,4 @@ about a person, not building a dossier. Respect the difference.
 - [BOOTSTRAP.md 模板](/template-bootstrap) — 首次运行时 USER.md 如何获得初始内容
 - [上下文文件](/context-files) — 完整上下文文件列表和按用户 vs. agent 级别的范围
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

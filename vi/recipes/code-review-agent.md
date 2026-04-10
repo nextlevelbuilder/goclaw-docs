@@ -247,4 +247,4 @@ Nếu code-reviewer dùng nhiều MCP tool, GoClaw kích hoạt lazy các deferr
 - [Team Chatbot](/recipe-team-chatbot) — thêm reviewer làm chuyên gia trong một team
 - [Tools Reference](/cli-commands) — danh sách tool tích hợp đầy đủ và các tùy chọn policy
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

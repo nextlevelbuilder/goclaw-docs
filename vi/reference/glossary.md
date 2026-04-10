@@ -206,4 +206,4 @@ MCP server được quản lý qua bảng `mcp_servers` và `POST /v1/mcp/server
 - [WebSocket Protocol](/websocket-protocol) — tên event cho delegation, handoff, và team activity
 - [Database Schema](/database-schema) — định nghĩa bảng cho sessions, traces, teams, và nhiều hơn
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

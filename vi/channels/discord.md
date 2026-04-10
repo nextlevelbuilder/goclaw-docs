@@ -137,4 +137,4 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: c388364d | cập nhật: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

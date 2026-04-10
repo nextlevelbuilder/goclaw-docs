@@ -100,4 +100,4 @@ USER.md được xây dựng qua nhiều conversation:
 - [BOOTSTRAP.md Template](/template-bootstrap) — USER.md có nội dung ban đầu như thế nào trong lần đầu
 - [Context Files](/context-files) — danh sách đầy đủ context file và scope per-user vs. cấp agent
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

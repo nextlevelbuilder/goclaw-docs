@@ -95,4 +95,4 @@ Các model Grok phổ biến để dùng trong field `model`:
 - [MiniMax](/provider-minimax) — provider tương thích OpenAI với đường dẫn chat tùy chỉnh
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

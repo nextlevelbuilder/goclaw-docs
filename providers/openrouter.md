@@ -101,4 +101,4 @@ OpenRouter passes through most features to the underlying model provider. Availa
 - [OpenAI](/provider-openai) — direct OpenAI integration
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 76385f2f | updated: 2026-04-07 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

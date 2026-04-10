@@ -95,4 +95,4 @@ Nếu bạn dùng endpoint quốc tế của MiniMax:
 - [Cohere](/provider-cohere) — một provider tương thích OpenAI khác
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

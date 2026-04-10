@@ -117,4 +117,4 @@ Chính sách DM mặc định là `"pairing"`. User mới thấy hướng dẫn 
 - [Telegram](/channel-telegram) — Thiết lập Telegram bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

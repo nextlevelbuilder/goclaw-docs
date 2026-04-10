@@ -13,4 +13,4 @@ Bailian is Alibaba Cloud's AI model platform. GoClaw connects to it using the Op
 - [Provider Overview](/providers-overview)
 - [DashScope (Qwen)](/provider-dashscope)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -84,4 +84,4 @@ GoClaw ánh xạ sang `reasoning_effort` trong request. Thinking tokens được
 - [OpenRouter](/provider-openrouter) — truy cập Gemini và 100+ model khác qua một key
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

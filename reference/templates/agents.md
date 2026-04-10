@@ -173,4 +173,4 @@ Stay silent during off-topic discussions.
 - [System Prompt Anatomy](/system-prompt-anatomy) — where AGENTS.md fits in the full prompt
 - [SOUL.md Template](/template-soul) — the personality file that pairs with AGENTS.md
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

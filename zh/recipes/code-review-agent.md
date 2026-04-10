@@ -247,4 +247,4 @@ flowchart LR
 - [团队聊天机器人](/recipe-team-chatbot) — 将审查员作为团队中的专家添加
 - [工具参考](/cli-commands) — 完整内置工具列表和策略选项
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

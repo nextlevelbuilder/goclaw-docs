@@ -189,4 +189,4 @@ Nếu tool call thất bại, thử tắt tool cho provider đó và fallback sa
 - [DashScope](/provider-dashscope) — các model Qwen của Alibaba
 - [Perplexity](/provider-perplexity) — sinh text tăng cường tìm kiếm
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

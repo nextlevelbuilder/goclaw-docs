@@ -248,4 +248,4 @@ docker ps --filter "label=goclaw.sandbox=true"
 - [Exec Approval](../advanced/exec-approval.md) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy, dù có sandbox hay không
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent turn được sandbox theo lịch
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

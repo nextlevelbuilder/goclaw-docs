@@ -46,4 +46,4 @@ Nếu Ollama chạy trên máy khác, đặt URL đầy đủ:
 - [Ollama Cloud](/provider-ollama-cloud) — tùy chọn Ollama hosted
 - [Custom / OpenAI-Compatible](/provider-custom)
 
-<!-- goclaw-source: 9168e4b4 | cập nhật: 2026-03-26 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -209,4 +209,4 @@ GET /v1/agents/{id}/codex-pool-activity
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
 - [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
 
-<!-- goclaw-source: 231bc968 | 更新: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

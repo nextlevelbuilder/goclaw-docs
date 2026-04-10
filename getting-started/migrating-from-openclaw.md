@@ -132,4 +132,4 @@ Features you gain after migrating:
 - [Multi-Tenancy](/multi-tenancy) — Learn about per-user isolation
 - [Configuration](/configuration) — Full config reference
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

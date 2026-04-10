@@ -209,4 +209,4 @@ Xem [REST API](/rest-api) để biết cấu trúc response.
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
 - [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
 
-<!-- goclaw-source: 231bc968 | cập nhật: 2026-03-27 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

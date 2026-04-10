@@ -241,4 +241,4 @@ pip install edge-tts
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — kích hoạt agent theo lịch
 - [Extended Thinking](../advanced/extended-thinking.md) — suy luận sâu hơn cho câu trả lời phức tạp
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

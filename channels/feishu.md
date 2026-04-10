@@ -207,4 +207,4 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

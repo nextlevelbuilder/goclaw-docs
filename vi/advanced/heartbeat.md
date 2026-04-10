@@ -243,4 +243,4 @@ Permission cho action thay đổi (`set`, `toggle`, `set_checklist`) fallback th
 - [Custom Tools](custom-tools.md) — cung cấp lệnh shell và API cho agent gọi trong lần chạy heartbeat
 - [Sandbox](sandbox.md) — cô lập thực thi code trong lần chạy agent
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

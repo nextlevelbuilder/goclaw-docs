@@ -207,4 +207,4 @@ Tin nhắn thoại có thể được chuyển văn bản bằng cách cấu hì
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng ghép cặp trình duyệt
 
-<!-- goclaw-source: 120fc2d | cập nhật: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

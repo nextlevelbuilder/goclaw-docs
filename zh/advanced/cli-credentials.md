@@ -145,4 +145,4 @@ DELETE /v1/cli-credentials/{id}/agent-grants/{grantId}
 - [API Keys 与 RBAC](/api-keys-rbac)
 - [安全加固](/deploy-security)
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

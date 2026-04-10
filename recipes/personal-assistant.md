@@ -144,4 +144,4 @@ A few extra touches you can configure in the dashboard under **Agents → your a
 - [Team Chatbot](/recipe-team-chatbot) — add specialist agents for different tasks
 - [Multi-Channel Setup](/recipe-multi-channel) — put the same agent on Discord and WebSocket too
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

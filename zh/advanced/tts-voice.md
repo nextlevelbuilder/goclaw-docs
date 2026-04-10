@@ -241,4 +241,4 @@ pip install edge-tts
 - [定时任务与 Cron](/scheduling-cron) — 按计划触发 agent
 - [扩展思维](/extended-thinking) — 复杂回复的深度推理
 
-<!-- goclaw-source: 941a965 | 更新: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

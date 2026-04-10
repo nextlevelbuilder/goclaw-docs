@@ -187,4 +187,4 @@ If tool calls fail, try disabling tools for that provider and falling back to pl
 - [DashScope](/provider-dashscope) — Alibaba's Qwen models
 - [Perplexity](/provider-perplexity) — search-augmented generation
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

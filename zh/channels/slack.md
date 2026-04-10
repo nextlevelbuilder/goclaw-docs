@@ -238,4 +238,4 @@ Slack 支持群组级别的配对。当 `group_policy: "pairing"` 时：
 - [Discord](/channel-discord) — Discord bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: c083622f | 更新: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

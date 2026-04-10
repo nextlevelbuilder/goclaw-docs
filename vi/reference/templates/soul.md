@@ -140,4 +140,4 @@ Docker, Go services. Ưu tiên giải pháp đơn giản, có thể maintain lâ
 - [Context Files](/context-files) — cách 7 file hoạt động cùng nhau
 - [Summoning & Bootstrap](/summoning-bootstrap) — SOUL.md được tạo như thế nào cho predefined agent
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -130,4 +130,4 @@ Have a GoClaw deployment you'd like to showcase? Open a pull request to add it h
 - [Quick Start](/quick-start) — Get running in 5 minutes
 - [Configuration](/configuration) — Full config reference
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

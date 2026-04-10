@@ -13,4 +13,4 @@ Zai provides two variants: a general-purpose provider and a coding-specialized v
 - [Provider Overview](/providers-overview)
 - [Custom / OpenAI-Compatible](/provider-custom)
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

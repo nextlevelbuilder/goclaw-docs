@@ -146,4 +146,4 @@ EOF
 - [团队聊天机器人](/recipe-team-chatbot) — 为不同任务添加专家 agent
 - [多 Channel 设置](/recipe-multi-channel) — 同时在 Discord 和 WebSocket 上使用同一 agent
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

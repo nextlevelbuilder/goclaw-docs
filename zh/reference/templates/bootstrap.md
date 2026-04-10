@@ -184,4 +184,4 @@ _Make a good first impression. Be natural. The user should never know any of thi
 - [USER.md 模板](/template-user) — 对话后用户信息的落脚点
 - [上下文文件](/context-files) — 完整加载顺序和文件生命周期
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

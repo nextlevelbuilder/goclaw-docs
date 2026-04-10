@@ -77,4 +77,4 @@ Streaming hoạt động qua SSE chuẩn OpenAI. GoClaw thêm `stream_options.in
 - [DeepSeek](/provider-deepseek) — reasoning model với thinking content
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

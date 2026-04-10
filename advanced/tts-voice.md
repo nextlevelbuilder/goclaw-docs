@@ -239,4 +239,4 @@ pip install edge-tts
 - [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: 941a965 | updated: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

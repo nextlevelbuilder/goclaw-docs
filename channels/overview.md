@@ -195,4 +195,4 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 - [WebSocket](/channel-websocket) — Direct agent API via WS
 - [Browser Pairing](/channel-browser-pairing) — 8-char code pairing flow
 
-<!-- goclaw-source: c5bfbc96 | updated: 2026-04-02 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -75,4 +75,4 @@ Streaming works via standard OpenAI SSE. GoClaw includes `stream_options.include
 - [DeepSeek](/provider-deepseek) — reasoning models with thinking content
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

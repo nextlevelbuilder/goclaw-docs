@@ -84,4 +84,4 @@ Chạy `./goclaw doctor` để kiểm tra nhanh sức khỏe hệ thống. Lện
 - [Vấn đề theo provider](/troubleshoot-providers)
 - [Vấn đề database](/troubleshoot-database)
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

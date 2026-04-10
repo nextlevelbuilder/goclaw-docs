@@ -267,4 +267,4 @@ support (predefined)
 - [Team Chatbot](/recipe-team-chatbot) — coordinate multiple specialists via a team
 - [Context Files](/context-files) — full reference for SOUL.md, USER.md, and friends
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

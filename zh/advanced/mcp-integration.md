@@ -299,4 +299,4 @@ curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{us
 - [自定义工具](../advanced/custom-tools.md) — 无需 MCP 服务器即可构建基于 shell 的工具
 - [Skills](../advanced/skills.md) — 将可复用知识注入 agent 系统提示词
 
-<!-- goclaw-source: c388364d | 更新: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

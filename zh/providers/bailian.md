@@ -15,4 +15,4 @@
 - [Provider 概览](/providers-overview)
 - [DashScope（通义千问）](/provider-dashscope)
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

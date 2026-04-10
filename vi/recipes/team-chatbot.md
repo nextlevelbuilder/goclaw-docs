@@ -261,4 +261,4 @@ Lead delegate qua tool `delegate`. Các chuyên gia chạy dưới dạng sub-se
 - [Open vs. Predefined](/open-vs-predefined) — tại sao chuyên gia phải là predefined
 - [Customer Support](/recipe-customer-support) — agent predefined phục vụ nhiều người dùng
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

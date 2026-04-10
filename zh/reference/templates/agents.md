@@ -175,4 +175,4 @@ Stay silent during off-topic discussions.
 - [系统提示结构](/system-prompt-anatomy) — AGENTS.md 在完整提示中的位置
 - [SOUL.md 模板](/template-soul) — 与 AGENTS.md 配合使用的个性文件
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -229,4 +229,4 @@ Respond with EXACTLY one of:
 - [扩展思维](/extended-thinking) — 生成输出前的深度推理
 - [Exec 审批](/exec-approval) — shell 命令的人工审批
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

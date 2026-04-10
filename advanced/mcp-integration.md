@@ -297,4 +297,4 @@ Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPT
 - [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
 - [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: c388364d | updated: 2026-04-01 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

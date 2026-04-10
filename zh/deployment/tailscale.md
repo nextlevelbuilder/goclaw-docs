@@ -144,4 +144,4 @@ https://my-goclaw.your-tailnet.ts.net    # HTTPS（如果 enable_tls: true）
 - [安全加固](/deploy-security) — CORS、速率限制和 token 鉴权
 - [Docker Compose 设置](/deploy-docker-compose) — 完整 compose overlay 参考
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

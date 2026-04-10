@@ -85,4 +85,4 @@ DeepSeek 支持标准 OpenAI 工具格式的 function calling。工具调用参�
 - [Gemini](/provider-gemini) — Google Gemini 模型
 - [概览](/providers-overview) — provider 架构和重试逻辑
 
-<!-- goclaw-source: 57754a5 | 更新: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

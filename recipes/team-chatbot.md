@@ -259,4 +259,4 @@ The lead delegates via the `delegate` tool. Specialists run as sub-sessions and 
 - [Open vs. Predefined](/open-vs-predefined) — why specialists must be predefined
 - [Customer Support](/recipe-customer-support) — predefined agent handling many users
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

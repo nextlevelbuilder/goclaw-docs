@@ -227,4 +227,4 @@ Respond with EXACTLY one of:
 - [Extended Thinking](/extended-thinking) — deeper reasoning before producing output
 - [Exec Approval](/exec-approval) — human-in-the-loop approval for shell commands
 
-<!-- goclaw-source: 57754a5 | updated: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

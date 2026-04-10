@@ -196,4 +196,4 @@ Chuyển đổi này chỉ áp dụng cho endpoint gốc OpenAI. Các backend t�
 - [Anthropic](/provider-anthropic) — tích hợp Claude native
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

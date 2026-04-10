@@ -215,4 +215,4 @@ The `group:fs` prefix selects all tools in the `fs` (Feishu/Lark) tool group. Th
 - [Zalo OA](/channel-zalo-oa) — Zalo Official Account
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 120fc2d | updated: 2026-03-19 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

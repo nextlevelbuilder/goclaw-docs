@@ -263,4 +263,4 @@ Deny group và luồng exec approval hoạt động độc lập — một lện
 - [Custom Tools](/custom-tools) — định nghĩa tool backed bởi lệnh shell
 - [Security Hardening](/deploy-security) — tổng quan bảo mật năm lớp đầy đủ
 
-<!-- goclaw-source: c083622f | cập nhật: 2026-04-05 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

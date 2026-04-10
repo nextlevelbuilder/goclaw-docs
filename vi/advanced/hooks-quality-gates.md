@@ -229,4 +229,4 @@ Respond with EXACTLY one of:
 - [Extended Thinking](/extended-thinking) — suy luận sâu hơn trước khi tạo đầu ra
 - [Exec Approval](/exec-approval) — phê duyệt từ con người trước khi chạy lệnh shell
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

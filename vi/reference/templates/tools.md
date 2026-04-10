@@ -121,4 +121,4 @@ TOOLS.md cho home automation agent:
 - [System Prompt Anatomy](/system-prompt-anatomy) — vị trí của TOOLS.md trong prompt (bao gồm minimal mode)
 - [AGENTS.md Template](/template-agents) — hướng dẫn vận hành tham chiếu tool
 
-<!-- goclaw-source: 57754a5 | cập nhật: 2026-03-18 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
