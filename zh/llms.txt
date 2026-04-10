@@ -65,6 +65,7 @@
 - [Zalo Personal](zh/channels/zalo-personal.md): 使用逆向工程协议（zcago）的非官方个人 Zalo 账号集成。支持 DM 和群组，采用严格访问控制。
 - [Slack](zh/channels/slack.md): 通过 Socket Mode（WebSocket）集成 Slack。支持 DM、channel @提及、线程回复、流式输出、表情回应、媒体和消息防抖。
 - [WhatsApp](zh/channels/whatsapp.md): 通过外部 WebSocket 桥接集成 WhatsApp。GoClaw 连接到处理 WhatsApp 协议的桥接服务（如 whatsapp-web.js）。
+- [Pancake](zh/channels/pancake.md): 统一多平台频道代理（pages.fm）—— 一个 API 密钥即可接入 Facebook、Zalo OA、Instagram、TikTok、WhatsApp 和 Line。
 - [WebSocket](zh/channels/websocket.md): 通过 WebSocket 与 GoClaw gateway 直接 RPC 通信。无需中间消息平台——非常适合自定义客户端、Web 应用和测试。
 - [Browser Pairing](zh/channels/browser-pairing.md): 使用 8 位配对码为自定义 WebSocket 客户端提供安全认证流程。适用于需要验证设备身份的私有 Web 应用和桌面客户端。
 

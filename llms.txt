@@ -65,6 +65,7 @@
 - [Zalo Personal](channels/zalo-personal.md): Unofficial personal Zalo account integration using reverse-engineered protocol (zcago). Supports DMs and groups with restrictive access control.
 - [Slack](channels/slack.md): Slack integration via Socket Mode (WebSocket). Supports DMs, channel @mentions, threaded replies, streaming, reactions, media, and message debouncing.
 - [WhatsApp](channels/whatsapp.md): WhatsApp integration via external WebSocket bridge. GoClaw connects to a bridge service (e.g., whatsapp-web.js) that handles the WhatsApp protocol.
+- [Pancake](channels/pancake.md): Unified multi-platform channel proxy (pages.fm) — one API key for Facebook, Zalo OA, Instagram, TikTok, WhatsApp, and Line via webhook delivery.
 - [WebSocket](channels/websocket.md): Direct RPC communication with the GoClaw gateway over WebSocket. No intermediate messaging platform needed—perfect for custom clients, web apps, and testing.
 - [Browser Pairing](channels/browser-pairing.md): Secure authentication flow for custom WebSocket clients using 8-character pairing codes. Ideal for private web apps and desktop clients that need to verify device identity.
 
