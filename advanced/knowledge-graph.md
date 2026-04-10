@@ -378,7 +378,7 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 
 ## Knowledge Graph vs Knowledge Vault
 
-The Knowledge Graph and [Knowledge Vault](knowledge-vault) are complementary systems:
+The Knowledge Graph and [Knowledge Vault](knowledge-vault.md) are complementary systems:
 
 | | Knowledge Graph | Knowledge Vault |
 |--|----------------|-----------------|
@@ -394,8 +394,8 @@ When an agent uses `vault_search`, the VaultSearchService fans out to **both** t
 
 ## What's Next
 
-- [Knowledge Vault](knowledge-vault) — Document-level knowledge store with wikilinks and semantic search
+- [Knowledge Vault](knowledge-vault.md) — Document-level knowledge store with wikilinks and semantic search
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Sessions & History](/sessions-and-history) — Conversation storage
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

@@ -469,7 +469,7 @@ GoClaw also applies **SOUL echo** for GPT/ChatGPT providers: a compact `## Style
 ## What's Next
 
 - [Sandbox](sandbox.md) — isolate shell command execution for agents
-- [Agent Teams](../agent-teams/overview.md) — multi-agent coordination where Track and Hint are most active
+- [Agent Teams](../agent-teams/what-are-teams.md) — multi-agent coordination where Track and Hint are most active
 - [Scheduling & Cron](scheduling-cron.md) — how cron lane requests are routed through Track
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

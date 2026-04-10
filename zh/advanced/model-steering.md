@@ -443,7 +443,7 @@ flowchart TD
 ## 下一步
 
 - [Sandbox](sandbox.md) — 为 agent 隔离 shell 命令执行
-- [Agent 团队](../agent-teams/overview.md) — Track 和 Hint 最活跃的多 agent 协调
+- [Agent 团队](../agent-teams/what-are-teams.md) — Track 和 Hint 最活跃的多 agent 协调
 - [定时任务与 Cron](scheduling-cron.md) — cron lane 请求如何通过 Track 路由
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | 更新: 2026-04-11 -->

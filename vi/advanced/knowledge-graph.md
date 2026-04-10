@@ -335,7 +335,7 @@ Agent có thể trả lời câu hỏi như *"Ai đang làm việc trên Project
 
 ## Knowledge Graph vs Knowledge Vault
 
-Knowledge Graph và [Kho Tri Thức (Knowledge Vault)](knowledge-vault) là hai hệ thống bổ trợ nhau:
+Knowledge Graph và [Kho Tri Thức (Knowledge Vault)](knowledge-vault.md) là hai hệ thống bổ trợ nhau:
 
 | | Knowledge Graph | Knowledge Vault |
 |--|----------------|-----------------|
@@ -349,8 +349,8 @@ Khi agent dùng `vault_search`, VaultSearchService fan-out đồng thời sang *
 
 ---
 
-- [Kho Tri Thức (Knowledge Vault)](knowledge-vault) — Kho tài liệu cấp document với wikilink và tìm kiếm ngữ nghĩa
+- [Kho Tri Thức (Knowledge Vault)](knowledge-vault.md) — Kho tài liệu cấp document với wikilink và tìm kiếm ngữ nghĩa
 - [Hệ thống bộ nhớ](/memory-system) — Bộ nhớ dài hạn dựa trên vector
 - [Sessions & History](/sessions-and-history) — Lưu trữ cuộc hội thoại
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->

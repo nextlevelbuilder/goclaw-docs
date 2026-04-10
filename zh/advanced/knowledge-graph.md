@@ -382,7 +382,7 @@ Agent 随后可以回答"谁在负责 Project Alpha？"这类问题，只需遍�
 
 ## 知识图谱 vs 知识库
 
-知识图谱与[知识库 (Knowledge Vault)](knowledge-vault) 是互补的两个系统：
+知识图谱与[知识库 (Knowledge Vault)](knowledge-vault.md) 是互补的两个系统：
 
 | | 知识图谱 | 知识库 |
 |--|----------------|-----------------|
@@ -396,8 +396,8 @@ Agent 随后可以回答"谁在负责 Project Alpha？"这类问题，只需遍�
 
 ---
 
-- [知识库 (Knowledge Vault)](knowledge-vault) — 支持 wikilink 和语义搜索的文档级知识存储
+- [知识库 (Knowledge Vault)](knowledge-vault.md) — 支持 wikilink 和语义搜索的文档级知识存储
 - [记忆系统](/memory-system) — 基于向量的长期记忆
 - [会话与历史](/sessions-and-history) — 对话存储
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | 更新: 2026-04-11 -->

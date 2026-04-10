@@ -426,7 +426,6 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 ## What's Next
 
 - [Skills](./skills.md) — skill format, hierarchy, and hot reload
-- [Predefined Agents](../core-concepts/predefined-agents.md) — how predefined agents differ from open agents
-- [publish_skill](./skill-publishing.md) — directory-based skill publishing
+- [Predefined Agents](../core-concepts/agents-explained.md) — how predefined agents differ from open agents
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

@@ -328,6 +328,6 @@ Agent nudges (budget warnings, skill evolution suggestions, team progress prompt
 - [How GoClaw Works](how-goclaw-works.md) — Architecture overview
 - [Sessions and History](sessions-and-history.md) — Per-user session management
 - [Agents Explained](agents-explained.md) — Agent types and access control
-- [API Keys](../getting-started/api-keys.md) — Creating and managing API keys
+- [API Keys](../advanced/api-keys-rbac.md) — Creating and managing API keys
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

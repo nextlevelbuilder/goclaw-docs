@@ -6,7 +6,7 @@
 
 Knowledge Vault là tính năng **chỉ có trong v3**. Nó nằm giữa agent và các kho episodic/KG, bổ sung ghi chú cấp tài liệu với mối quan hệ tường minh.
 
-> **Vault vs Knowledge Graph** — Vault lưu trữ toàn bộ tài liệu (ghi chú, context file, tài liệu đặc tả) với tìm kiếm từ khóa + ngữ nghĩa và wikilink. [Knowledge Graph](knowledge-graph) lưu trữ *thực thể và quan hệ* được trích xuất tự động từ hội thoại. Hai hệ thống bổ trợ nhau: vault cho tài liệu có chủ ý, KG cho sự kiện tự động trích xuất. VaultSearchService fan-out sang cả hai đồng thời.
+> **Vault vs Knowledge Graph** — Vault lưu trữ toàn bộ tài liệu (ghi chú, context file, tài liệu đặc tả) với tìm kiếm từ khóa + ngữ nghĩa và wikilink. [Knowledge Graph](knowledge-graph.md) lưu trữ *thực thể và quan hệ* được trích xuất tự động từ hội thoại. Hai hệ thống bổ trợ nhau: vault cho tài liệu có chủ ý, KG cho sự kiện tự động trích xuất. VaultSearchService fan-out sang cả hai đồng thời.
 
 ---
 
@@ -258,8 +258,8 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 
 ## Xem Thêm
 
-- [Knowledge Graph](knowledge-graph) — Đồ thị thực thể và quan hệ tự động trích xuất từ hội thoại
+- [Knowledge Graph](knowledge-graph.md) — Đồ thị thực thể và quan hệ tự động trích xuất từ hội thoại
 - [Memory System](/memory-system) — Bộ nhớ dài hạn dạng vector
 - [Context Files](/context-files) — Tài liệu tĩnh được inject vào context của agent
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

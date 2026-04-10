@@ -329,6 +329,6 @@ Các gợi ý của agent (cảnh báo budget, gợi ý tạo skill, nhắc báo
 - [How GoClaw Works](how-goclaw-works.md) — Tổng quan kiến trúc
 - [Sessions and History](sessions-and-history.md) — Quản lý session per-user
 - [Agents Explained](agents-explained.md) — Các loại agent và kiểm soát truy cập
-- [API Keys](../getting-started/api-keys.md) — Tạo và quản lý API key
+- [API Keys](../advanced/api-keys-rbac.md) — Tạo và quản lý API key
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->

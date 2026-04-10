@@ -412,7 +412,6 @@ Admin xem xét → approve / reject / rollback
 ## Tiếp Theo
 
 - [Skills](./skills.md) — định dạng skill, phân cấp và hot reload
-- [Predefined Agents](../core-concepts/predefined-agents.md) — sự khác biệt giữa predefined agents và open agents
-- [publish_skill](./skill-publishing.md) — publishing skill dựa trên thư mục
+- [Predefined Agents](../core-concepts/agents-explained.md) — sự khác biệt giữa predefined agents và open agents
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->

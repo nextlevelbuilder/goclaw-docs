@@ -33,8 +33,8 @@ Core material with examples, diagrams, and code blocks.
 
 ## What's Next
 
-- [Next logical page](link.md)
-- [Related topic](link.md)
+- [Getting Started](getting-started/quick-start.md)
+- [Related topic](core-concepts/how-goclaw-works.md)
 ```
 
 ### Tone

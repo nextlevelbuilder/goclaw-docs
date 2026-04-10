@@ -4,7 +4,7 @@
 
 Knowledge Vault is a **v3-only** feature. It sits between agents and the episodic/KG stores, adding document-level notes with explicit relationships.
 
-> **Vault vs Knowledge Graph** — Vault stores full documents (notes, context files, specs) with lexical + semantic search and wikilinks. The [Knowledge Graph](knowledge-graph) stores extracted *entities and relations* from conversations. They complement each other: vault for curated docs, KG for auto-extracted facts. The VaultSearchService fans out to both simultaneously.
+> **Vault vs Knowledge Graph** — Vault stores full documents (notes, context files, specs) with lexical + semantic search and wikilinks. The [Knowledge Graph](knowledge-graph.md) stores extracted *entities and relations* from conversations. They complement each other: vault for curated docs, KG for auto-extracted facts. The VaultSearchService fans out to both simultaneously.
 
 ---
 
@@ -317,8 +317,8 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 
 ## What's Next
 
-- [Knowledge Graph](knowledge-graph) — Entity and relation graph auto-extracted from conversations
+- [Knowledge Graph](knowledge-graph.md) — Entity and relation graph auto-extracted from conversations
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Context Files](/context-files) — Static documents injected into agent context
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

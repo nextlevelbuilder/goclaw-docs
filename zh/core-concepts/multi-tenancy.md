@@ -329,6 +329,6 @@ Agent 提示（预算警告、skill 进化建议、团队进度提醒）均通�
 - [GoClaw 工作原理](how-goclaw-works.md) — 架构概览
 - [Sessions 和历史](sessions-and-history.md) — 每用户 session 管理
 - [Agent 详解](agents-explained.md) — Agent 类型和访问控制
-- [API Keys](../getting-started/api-keys.md) — 创建和管理 API key
+- [API Keys](../advanced/api-keys-rbac.md) — 创建和管理 API key
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | 更新: 2026-04-11 -->

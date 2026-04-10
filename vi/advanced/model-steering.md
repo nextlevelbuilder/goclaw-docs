@@ -441,7 +441,7 @@ Với Anthropic provider, GoClaw chia system prompt tại một marker ẩn:
 ## Xem thêm
 
 - [Sandbox](sandbox.md) — cô lập thực thi lệnh shell cho agent
-- [Agent Teams](../agent-teams/overview.md) — phối hợp đa agent, nơi Track và Hint hoạt động tích cực nhất
+- [Agent Teams](../agent-teams/what-are-teams.md) — phối hợp đa agent, nơi Track và Hint hoạt động tích cực nhất
 - [Scheduling & Cron](scheduling-cron.md) — cách cron lane request được định tuyến qua Track
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->

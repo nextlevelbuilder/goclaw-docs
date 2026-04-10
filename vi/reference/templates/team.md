@@ -206,6 +206,6 @@ You are NOT part of any team. Do not use team_tasks or team_message tools.
 
 - [Tổng quan Agent Teams](/teams-what-are-teams) — cách tạo và quản lý team
 - [Delegation & Handoff](/teams-delegation) — cách lead delegate task cho member
-- [DELEGATION.md Template](delegation.md) — virtual file anh em dành cho subagent spawning
+- [DELEGATION.md Template](../agent-teams/delegation-and-handoff.md) — virtual file anh em dành cho subagent spawning
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->
