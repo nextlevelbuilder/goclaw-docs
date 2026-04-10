@@ -48,8 +48,13 @@ Things like:
 
 ### TTS
 
-- Preferred voice: "Nova" (warm, slightly British)
+- Preferred voice  voice: "Nova" (warm, slightly British)
 - Default speaker: Kitchen HomePod
+
+## Media Files
+
+When users send images, videos, audio, or documents, use the `read_*` tools to analyze them.
+The `path` attribute in media tags points to the file — pass it directly to the tool.
 
 ## Why Separate?
 

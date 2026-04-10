@@ -3262,9 +3262,9 @@ Agent nudges (budget warnings, skill evolution suggestions, team progress prompt
 - [How GoClaw Works](how-goclaw-works.md) — Architecture overview
 - [Sessions and History](sessions-and-history.md) — Per-user session management
 - [Agents Explained](agents-explained.md) — Agent types and access control
-- [API Keys](../getting-started/api-keys.md) — Creating and managing API keys
+- [API Keys](../advanced/api-keys-rbac.md) — Creating and managing API keys
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
 
 ---
 
@@ -13231,10 +13231,9 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 ## What's Next
 
 - [Skills](./skills.md) — skill format, hierarchy, and hot reload
-- [Predefined Agents](../core-concepts/predefined-agents.md) — how predefined agents differ from open agents
-- [publish_skill](./skill-publishing.md) — directory-based skill publishing
+- [Predefined Agents](../core-concepts/agents-explained.md) — how predefined agents differ from open agents
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
 
 ---
 
@@ -16616,7 +16615,7 @@ An agent can then answer questions like *"Who is working on Project Alpha?"* by 
 
 ## Knowledge Graph vs Knowledge Vault
 
-The Knowledge Graph and [Knowledge Vault](knowledge-vault) are complementary systems:
+The Knowledge Graph and [Knowledge Vault](knowledge-vault.md) are complementary systems:
 
 | | Knowledge Graph | Knowledge Vault |
 |--|----------------|-----------------|
@@ -16632,11 +16631,11 @@ When an agent uses `vault_search`, the VaultSearchService fans out to **both** t
 
 ## What's Next
 
-- [Knowledge Vault](knowledge-vault) — Document-level knowledge store with wikilinks and semantic search
+- [Knowledge Vault](knowledge-vault.md) — Document-level knowledge store with wikilinks and semantic search
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Sessions & History](/sessions-and-history) — Conversation storage
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
 
 ---
 
@@ -16646,7 +16645,7 @@ When an agent uses `vault_search`, the VaultSearchService fans out to **both** t
 
 Knowledge Vault is a **v3-only** feature. It sits between agents and the episodic/KG stores, adding document-level notes with explicit relationships.
 
-> **Vault vs Knowledge Graph** — Vault stores full documents (notes, context files, specs) with lexical + semantic search and wikilinks. The [Knowledge Graph](knowledge-graph) stores extracted *entities and relations* from conversations. They complement each other: vault for curated docs, KG for auto-extracted facts. The VaultSearchService fans out to both simultaneously.
+> **Vault vs Knowledge Graph** — Vault stores full documents (notes, context files, specs) with lexical + semantic search and wikilinks. The [Knowledge Graph](knowledge-graph.md) stores extracted *entities and relations* from conversations. They complement each other: vault for curated docs, KG for auto-extracted facts. The VaultSearchService fans out to both simultaneously.
 
 ---
 
@@ -16959,11 +16958,11 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 
 ## What's Next
 
-- [Knowledge Graph](knowledge-graph) — Entity and relation graph auto-extracted from conversations
+- [Knowledge Graph](knowledge-graph.md) — Entity and relation graph auto-extracted from conversations
 - [Memory System](/memory-system) — Vector-based long-term memory
 - [Context Files](/context-files) — Static documents injected into agent context
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
 
 ---
 
@@ -17939,10 +17938,10 @@ GoClaw also applies **SOUL echo** for GPT/ChatGPT providers: a compact `## Style
 ## What's Next
 
 - [Sandbox](sandbox.md) — isolate shell command execution for agents
-- [Agent Teams](../agent-teams/overview.md) — multi-agent coordination where Track and Hint are most active
+- [Agent Teams](../agent-teams/what-are-teams.md) — multi-agent coordination where Track and Hint are most active
 - [Scheduling & Cron](scheduling-cron.md) — how cron lane requests are routed through Track
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
 
 ---
 

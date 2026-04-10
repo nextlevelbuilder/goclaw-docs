@@ -131,6 +131,7 @@
 - [AGENTS.md](reference/templates/agents.md): Default operating instructions injected into every agent's system prompt — covering conversational style, memory, group chat behavior, and platform formatting.
 - [SOUL.md](reference/templates/soul.md): The personality file — defines who your agent is, its tone, opinions, boundaries, and expertise.
 - [IDENTITY.md](reference/templates/identity.md): A short structured file that tells GoClaw (and the agent itself) its name, nature, emoji, and avatar.
+- [CAPABILITIES.md](reference/templates/capabilities.md): Domain knowledge, technical skills, and specialized expertise — what your agent can DO.
 - [TOOLS.md](reference/templates/tools.md): A local notes file for environment-specific tool details — camera names, SSH hosts, TTS voices, device nicknames.
 - [USER.md](reference/templates/user.md): A per-user profile file — the agent's notes about the human it works with.
 - [USER_PREDEFINED.md](reference/templates/user-predefined.md): Agent-level user handling rules for predefined agents — shared across all users.

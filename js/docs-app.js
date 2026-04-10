@@ -225,6 +225,7 @@ const DOC_MAP = {
   'template-agents': docEntry('reference/templates', 'agents', 'AGENTS.md Template'),
   'template-soul': docEntry('reference/templates', 'soul', 'SOUL.md Template'),
   'template-identity': docEntry('reference/templates', 'identity', 'IDENTITY.md Template'),
+  'template-capabilities': docEntry('reference/templates', 'capabilities', 'CAPABILITIES.md Template'),
   'template-tools': docEntry('reference/templates', 'tools', 'TOOLS.md Template'),
   'template-user': docEntry('reference/templates', 'user', 'USER.md Template'),
   'template-user-predefined': docEntry('reference/templates', 'user-predefined', 'USER_PREDEFINED.md Template'),

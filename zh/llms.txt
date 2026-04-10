@@ -131,6 +131,7 @@
 - [AGENTS.md](zh/reference/templates/agents.md): 注入每个 agent 系统提示的默认操作指令——涵盖对话风格、记忆、群聊行为和平台格式。
 - [SOUL.md](zh/reference/templates/soul.md): 个性文件——定义你的 agent 是谁、其语气、观点、边界和专业知识。
 - [IDENTITY.md](zh/reference/templates/identity.md): 一个简短的结构化文件，告诉 GoClaw（以及 agent 自身）其名称、性质、emoji 和头像。
+- [CAPABILITIES.md](zh/reference/templates/capabilities.md): 领域知识、技术技能和专业专长——你的 agent 能做什么。
 - [TOOLS.md](zh/reference/templates/tools.md): 用于环境特定工具详情的本地笔记文件——摄像头名称、SSH 主机、TTS 声音、设备昵称。
 - [USER.md](zh/reference/templates/user.md): 按用户的档案文件——agent 关于它所服务的人类的笔记。
 - [USER_PREDEFINED.md](zh/reference/templates/user-predefined.md): 预定义 agent 的 agent 级用户处理规则——对所有用户共享。
