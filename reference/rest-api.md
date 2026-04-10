@@ -145,9 +145,12 @@ Re-trigger LLM-based summoning for predefined agents.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{id}/instances` | List user instances |
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | List user context files |
-| `GET` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Get specific context file |
-| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user file (USER.md only) |
-| `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata |
+| `GET` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | **⚠️ Removed** — deprecated endpoint, no longer available |
+| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user context file (admin) |
+| `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata (admin) |
+| `GET` | `/v1/agents/{id}/system-prompt-preview` | Preview rendered system prompt (admin) |
+
+> To fetch file content, list files via `GET /v1/agents/{id}/instances/{userID}/files` then retrieve through the [Vault](#knowledge-vault) or [Storage](#storage) API.
 
 ### Agent Export / Import
 
@@ -578,11 +581,35 @@ Conversation summaries per user session for long-term context continuity.
 
 Persistent document store with vector embeddings and graph link connections.
 
+#### Global Vault Endpoints
+
+Admin-scoped endpoints for cross-agent vault operations.
+
 | Method | Path | Description |
 |--------|------|-------------|
+| `POST` | `/v1/vault/documents` | Create a global vault document |
+| `PUT` | `/v1/vault/documents/{docID}` | Update a global vault document |
+| `DELETE` | `/v1/vault/documents/{docID}` | Delete a global vault document |
+| `POST` | `/v1/vault/links` | Create a global document link |
+| `DELETE` | `/v1/vault/links/{linkID}` | Delete a global document link |
+| `POST` | `/v1/vault/links/batch` | Batch get document links |
+| `POST` | `/v1/vault/upload` | Upload file to vault |
+| `POST` | `/v1/vault/rescan` | Trigger vault rescan |
+| `POST` | `/v1/vault/search` | Global vault semantic search |
+| `GET` | `/v1/vault/enrichment/status` | Check enrichment worker status |
 | `GET` | `/v1/vault/documents` | List documents across all agents |
+
+#### Agent-Scoped Vault Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
 | `GET` | `/v1/agents/{id}/vault/documents` | List documents for a specific agent |
 | `GET` | `/v1/agents/{id}/vault/documents/{docID}` | Get a single document (full content) |
+| `POST` | `/v1/agents/{id}/vault/documents` | Create a vault document for an agent |
+| `PUT` | `/v1/agents/{id}/vault/documents/{docID}` | Update a vault document |
+| `DELETE` | `/v1/agents/{id}/vault/documents/{docID}` | Delete a vault document |
+| `POST` | `/v1/agents/{id}/vault/links` | Create a document link |
+| `DELETE` | `/v1/agents/{id}/vault/links/{linkID}` | Delete a document link |
 | `POST` | `/v1/agents/{id}/vault/search` | Hybrid FTS+vector search |
 | `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | Get outlinks and backlinks for a document |
 
@@ -1208,6 +1235,12 @@ Full system backup for disaster recovery. Requires admin role.
 | `POST` | `/v1/system/backup` | Trigger system backup (returns archive or SSE progress) |
 | `GET` | `/v1/system/backup/preflight` | Check backup preconditions |
 | `GET` | `/v1/system/backup/download/{token}` | Download backup archive by short-lived token |
+
+### System Restore (Admin)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/system/restore` | Restore tenant/system from backup archive. Requires admin role. |
 
 ### System Backup S3
 

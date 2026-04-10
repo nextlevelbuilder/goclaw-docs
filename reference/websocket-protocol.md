@@ -345,6 +345,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 
 | Method | Params | Description |
 |--------|--------|-------------|
+| `whatsapp.qr.start` | `{instance_id}` | Start WhatsApp QR login flow for direct WhatsApp channel |
 | `zalo.personal.qr.start` | `{instance_id}` | Start Zalo Personal QR login flow |
 | `zalo.personal.contacts` | `{instance_id}` | Fetch Zalo friends and groups |
 
@@ -410,6 +411,8 @@ Emitted during agent runs. Check `payload.type`:
 | `agent_link.updated` | Delegation link updated |
 | `agent_link.deleted` | Delegation link deleted |
 | `tenant.access.revoked` | Tenant access revoked for a user |
+| `whatsapp.qr.code` | WhatsApp QR code generated |
+| `whatsapp.qr.done` | WhatsApp QR login completed |
 | `zalo.personal.qr.code` | Zalo QR code generated |
 | `zalo.personal.qr.done` | Zalo QR login completed |
 

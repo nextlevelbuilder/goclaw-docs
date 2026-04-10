@@ -32,6 +32,7 @@
     {"pattern": "internal/channels/feishu/*", "docs": ["channels/feishu.md", "channels/larksuite.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/zalo/*", "docs": ["channels/zalo-oa.md", "channels/zalo-personal.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/whatsapp/*", "docs": ["channels/whatsapp.md", "troubleshooting/channels.md"], "priority": "medium"},
+    {"pattern": "internal/channels/pancake/*", "docs": ["channels/pancake.md", "troubleshooting/channels.md"], "priority": "high"},
     {"pattern": "internal/channels/slack/*", "docs": ["channels/slack.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/media/*", "docs": ["advanced/media-generation.md"], "priority": "low"},
     {"pattern": "internal/channels/typing/*", "docs": ["channels/overview.md"], "priority": "low"},

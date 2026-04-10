@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **44**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **47**.
 
 ### v3 Store Unification
 
@@ -349,6 +349,8 @@ Scheduled agent tasks.
 | `team_id` | UUID FK → agent_teams (nullable) | Team scope; NULL = personal (migration 019) |
 
 **`cron_run_logs`** — per-run history with token counts and duration. `team_id` column also added (migration 019).
+
+**Unique:** `uq_cron_jobs_agent_tenant_name` on `(agent_id, tenant_id, name)` (migration 047 — prevents duplicate cron job entries).
 
 ---
 
@@ -1018,6 +1020,9 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 42 | Adds `summary TEXT` column to `vault_documents`; rebuilds `tsv` generated column to include summary for richer FTS |
 | 43 | Adds `team_id` and `custom_scope` to `vault_documents`; replaces old unique constraint with team-aware composite; adds `trg_vault_docs_team_null_scope` trigger; adds `custom_scope` to `vault_links`, `vault_versions`, `memory_documents`, `memory_chunks`, `team_tasks`, `team_task_attachments`, `team_task_comments`, `team_task_events`, `subagent_tasks` |
 | 44 | Seeds `AGENTS_CORE.md` and `AGENTS_TASK.md` context files for all existing agents that lack them; removes deprecated `AGENTS_MINIMAL.md` entries |
+| 45 | Adds `recall_count`, `recall_score`, `last_recalled_at` to `episodic_summaries`; partial index `idx_episodic_recall_unpromoted` on `(agent_id, user_id, recall_score DESC)` where `promoted_at IS NULL` |
+| 46 | Makes `vault_documents.agent_id` nullable for team-scoped and tenant-shared files; FK on delete changes from CASCADE to SET NULL; replaces unique index with tenant_id-leading + COALESCE; adds `trg_vault_docs_agent_null_scope_fix` trigger; partial index `idx_vault_docs_agent_scope` |
+| 47 | Adds unique constraint `uq_cron_jobs_agent_tenant_name` on `cron_jobs(agent_id, tenant_id, name)` after dedup; adds `path_basename` generated column and `idx_vault_docs_basename` index to `vault_documents` |
 
 ---
 
@@ -1109,10 +1114,13 @@ Tier 2 memory: compressed session summaries stored per agent/user, searchable vi
 | `token_count` | INT | NOT NULL DEFAULT 0 | Tokens in summarised session |
 | `search_vector` | tsvector GENERATED | STORED | FTS on `summary + key_topics` (migration 040) |
 | `promoted_at` | TIMESTAMPTZ | | NULL = not yet promoted to long-term memory (migration 041) |
+| `recall_count` | INT | NOT NULL DEFAULT 0 | Number of times this episode was recalled (migration 045) |
+| `recall_score` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | Running-average of search hit scores (migration 045) |
+| `last_recalled_at` | TIMESTAMPTZ | | Timestamp of last recall (migration 045) |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 | `expires_at` | TIMESTAMPTZ | | Optional TTL |
 
-**Indexes:** `(agent_id, user_id)`, `tenant_id`, unique `(agent_id, user_id, source_id) WHERE source_id IS NOT NULL`, GIN on `search_vector`, HNSW cosine on `embedding WHERE embedding IS NOT NULL`, `expires_at` (partial), `(agent_id, user_id, created_at) WHERE promoted_at IS NULL` (for dreaming pipeline)
+**Indexes:** `(agent_id, user_id)`, `tenant_id`, unique `(agent_id, user_id, source_id) WHERE source_id IS NOT NULL`, GIN on `search_vector`, HNSW cosine on `embedding WHERE embedding IS NOT NULL`, `expires_at` (partial), `(agent_id, user_id, created_at) WHERE promoted_at IS NULL` (for dreaming pipeline), `idx_episodic_recall_unpromoted` on `(agent_id, user_id, recall_score DESC) WHERE promoted_at IS NULL` (migration 045 — DreamingWorker prioritizes high-scoring unpromoted episodes)
 
 ---
 
@@ -1169,7 +1177,7 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 |--------|------|-------------|-------------|
 | `id` | UUID | PK DEFAULT gen_random_uuid() | |
 | `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
-| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NULL ON DELETE SET NULL | Owning agent; NULL for team-scoped or tenant-shared files (migration 046) |
 | `scope` | TEXT | NOT NULL DEFAULT `personal` | `personal`, `team`, or custom |
 | `path` | TEXT | NOT NULL | Logical file path within vault |
 | `title` | TEXT | NOT NULL DEFAULT `''` | Document title |
@@ -1180,14 +1188,17 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 | `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
 | `team_id` | UUID FK → agent_teams (nullable) | ON DELETE SET NULL | Team scope; NULL = personal (migration 043) |
 | `custom_scope` | VARCHAR(255) | | Future extensibility (migration 043) |
+| `path_basename` | TEXT GENERATED ALWAYS | | `lower(regexp_replace(path, '.+/', ''))` — fast basename lookup (migration 047) |
 | `tsv` | tsvector GENERATED | STORED | FTS on `title + path + summary` (rebuilt migration 042) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
-**Unique:** `(agent_id, COALESCE(team_id, '00000000-0000-0000-0000-000000000000'), scope, path)` (migration 043 replaced original unique on `(agent_id, scope, path)`)
+**Unique:** `(tenant_id, COALESCE(agent_id, '00000000-0000-0000-0000-000000000000'), COALESCE(team_id, '00000000-0000-0000-0000-000000000000'), scope, path)` (migration 046 replaced migration 043's unique to support nullable `agent_id`)
 
-**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null)
+**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047)
 
-> **Trigger:** `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
+> **Triggers:**
+> - `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
+> - `trg_vault_docs_agent_null_scope_fix` — when `agent_id` is set to NULL (agent deleted) and no team is set, `scope` is reset to `'shared'` (migration 046).
 
 ---
 
