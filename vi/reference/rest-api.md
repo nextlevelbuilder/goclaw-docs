@@ -495,17 +495,7 @@ POST /v1/tools/invoke
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Đặt cấu hình ghi đè theo tenant (admin) |
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Xóa cấu hình ghi đè theo tenant (admin) |
 
-### Custom Tools
-
-| Method | Path | Mô tả |
-|--------|------|-------|
-| `GET` | `/v1/tools/custom` | Liệt kê custom tool (có phân trang) |
-| `POST` | `/v1/tools/custom` | Tạo custom tool |
-| `GET` | `/v1/tools/custom/{id}` | Lấy chi tiết tool |
-| `PUT` | `/v1/tools/custom/{id}` | Cập nhật tool |
-| `DELETE` | `/v1/tools/custom/{id}` | Xóa tool |
-
-Query param cho list: `agent_id`, `search`, `limit`, `offset`
+> **Lưu ý:** Custom tools qua REST API hiện chưa được triển khai. MCP servers và skills là cơ chế mở rộng được khuyến nghị.
 
 ---
 
@@ -992,6 +982,7 @@ Yêu cầu **admin role** (full gateway token hoặc gateway token rỗng ở ch
 | `DELETE` | `/v1/cli-credentials/{id}` | Xóa credential |
 | `GET` | `/v1/cli-credentials/presets` | Lấy preset credential template |
 | `POST` | `/v1/cli-credentials/{id}/test` | Test kết nối credential (dry-run) |
+| `POST` | `/v1/cli-credentials/check-binary` | Xác thực đường dẫn binary cho CLI credential |
 
 ### Per-User CLI Credentials
 

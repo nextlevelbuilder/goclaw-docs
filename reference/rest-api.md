@@ -496,17 +496,7 @@ Set `"dryRun": true` to return tool schema without execution.
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Set per-tenant override (admin) |
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Remove per-tenant override (admin) |
 
-### Custom Tools
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/tools/custom` | List custom tools (paginated) |
-| `POST` | `/v1/tools/custom` | Create custom tool |
-| `GET` | `/v1/tools/custom/{id}` | Get tool details |
-| `PUT` | `/v1/tools/custom/{id}` | Update tool |
-| `DELETE` | `/v1/tools/custom/{id}` | Delete tool |
-
-Query parameters for list: `agent_id`, `search`, `limit`, `offset`
+> **Note:** Custom tools via REST API are not currently implemented. MCP servers and skills provide the recommended extension mechanism.
 
 ---
 
@@ -1044,6 +1034,7 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `DELETE` | `/v1/cli-credentials/{id}` | Delete credential |
 | `GET` | `/v1/cli-credentials/presets` | Get preset credential templates |
 | `POST` | `/v1/cli-credentials/{id}/test` | Test credential connection (dry-run) |
+| `POST` | `/v1/cli-credentials/check-binary` | Validate a binary path for CLI credential use |
 
 ### Per-User CLI Credentials
 

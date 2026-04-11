@@ -463,17 +463,7 @@ POST /v1/tools/invoke
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | 设置租户级覆盖（管理员）|
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | 移除租户级覆盖（管理员）|
 
-### 自定义工具
-
-| 方法 | 路径 | 说明 |
-|--------|------|-------------|
-| `GET` | `/v1/tools/custom` | 列出自定义工具（分页）|
-| `POST` | `/v1/tools/custom` | 创建自定义工具 |
-| `GET` | `/v1/tools/custom/{id}` | 获取工具详情 |
-| `PUT` | `/v1/tools/custom/{id}` | 更新工具 |
-| `DELETE` | `/v1/tools/custom/{id}` | 删除工具 |
-
-列表查询参数：`agent_id`、`search`、`limit`、`offset`
+> **注意：** REST API 的自定义工具端点当前未实现。推荐使用 MCP servers 和 skills 作为扩展机制。
 
 ---
 
@@ -960,6 +950,7 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | `DELETE` | `/v1/cli-credentials/{id}` | 删除凭证 |
 | `GET` | `/v1/cli-credentials/presets` | 获取预设凭证模板 |
 | `POST` | `/v1/cli-credentials/{id}/test` | 测试凭证连接（演习）|
+| `POST` | `/v1/cli-credentials/check-binary` | 验证 CLI 凭证的二进制路径 |
 
 ### 按用户 CLI 凭证
 
