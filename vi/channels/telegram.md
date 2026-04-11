@@ -320,6 +320,6 @@ Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` 
 - [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
-- [Sessions & History](/sessions-and-history) — Lịch sử cuộc trò chuyện
+- [Sessions & History](../core-concepts/sessions-and-history.md) — Lịch sử cuộc trò chuyện
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

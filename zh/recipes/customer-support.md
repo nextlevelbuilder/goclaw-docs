@@ -267,6 +267,6 @@ support（预定义）
 - [Open vs. Predefined](/open-vs-predefined) — 深入了解上下文隔离
 - [召唤与 Bootstrap](/summoning-bootstrap) — 个性如何自动生成
 - [团队聊天机器人](/recipe-team-chatbot) — 通过团队协调多个专家
-- [上下文文件](/context-files) — SOUL.md、USER.md 等文件的完整参考
+- [上下文文件](../agents/context-files.md) — SOUL.md、USER.md 等文件的完整参考
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

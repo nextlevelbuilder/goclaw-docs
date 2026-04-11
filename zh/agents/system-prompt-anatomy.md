@@ -401,7 +401,7 @@ Reminder: Before answering questions about prior work, decisions, or preferences
 ## 下一步
 
 - [Editing Personality — 自定义 SOUL.md 和 IDENTITY.md](/editing-personality)
-- [Context Files — 添加项目专属 context](/context-files)
+- [Context Files — 添加项目专属 context](./context-files.md)
 - [Creating Agents — 设置 system prompt 配置](/creating-agents)
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

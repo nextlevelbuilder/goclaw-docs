@@ -104,6 +104,6 @@ Notes:
 
 - [SOUL.md 模板](/template-soul) — 赋予身份深度的个性文件
 - [BOOTSTRAP.md 模板](/template-bootstrap) — 首次运行时如何选择名称和 emoji
-- [上下文文件](/context-files) — 完整上下文文件列表和加载顺序
+- [上下文文件](../../../agents/context-files.md) — 完整上下文文件列表和加载顺序
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

@@ -206,6 +206,6 @@ You are NOT part of any team. Do not use team_tasks or team_message tools.
 
 - [Agent 团队概述](/teams-what-are-teams) — 如何创建和管理团队
 - [委托与移交](/teams-delegation) — lead 如何向成员委托任务
-- [DELEGATION.md 模板](../agent-teams/delegation-and-handoff.md) — 子 agent 派生的兄弟虚拟文件
+- [DELEGATION.md 模板](../../agent-teams/delegation-and-handoff.md) — 子 agent 派生的兄弟虚拟文件
 
 <!-- goclaw-source: 1296cdbf | 更新: 2026-04-11 -->

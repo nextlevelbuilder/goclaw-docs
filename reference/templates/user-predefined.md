@@ -113,6 +113,6 @@ This file applies to all family members. Each person also has their own USER.md 
 - [USER.md Template](/template-user) — per-user personal context that supplements this file
 - [SOUL.md Template](/template-soul) — agent personality and tone (separate from user rules)
 - [AGENTS.md Template](/template-agents) — memory, privacy rules, and tool access
-- [Context Files](/context-files) — full list of context files and their loading order
+- [Context Files](../../agents/context-files.md) — full list of context files and their loading order
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

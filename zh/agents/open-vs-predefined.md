@@ -181,7 +181,7 @@ BOOTSTRAP.md       — 用户向导（使用 BOOTSTRAP_PREDEFINED.md 模板）
 
 ## 下一步
 
-- [Context Files](/context-files) — 深入了解每个文件（SOUL.md、IDENTITY.md 等）
+- [Context Files](./context-files.md) — 深入了解每个文件（SOUL.md、IDENTITY.md 等）
 - [Summoning & Bootstrap](/summoning-bootstrap) — predefined agent 的 personality 是如何生成的
 - [Creating Agents](/creating-agents) — agent 创建完整流程
 

@@ -1,4 +1,4 @@
-> 翻译自 [English version](/context-files)
+> 翻译自 [English version](../../agents/context-files.md)
 
 # Context 文件
 

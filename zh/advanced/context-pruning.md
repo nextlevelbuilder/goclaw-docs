@@ -13,7 +13,7 @@
 1. **软裁剪** — 截断过大的工具结果，保留头部和尾部，丢弃中间部分。
 2. **硬清除** — 如果上下文仍然太满，将整个工具结果替换为简短占位符。
 
-上下文裁剪与[会话压缩](/sessions-and-history)不同。压缩会永久摘要和截断对话历史。裁剪是非破坏性的：原始工具结果保留在会话存储中且从不修改 — 仅修剪发送给 LLM 的消息切片。
+上下文裁剪与[会话压缩](../../core-concepts/sessions-and-history.md)不同。压缩会永久摘要和截断对话历史。裁剪是非破坏性的：原始工具结果保留在会话存储中且从不修改 — 仅修剪发送给 LLM 的消息切片。
 
 ---
 
@@ -228,7 +228,7 @@ session.completed 时： episodic_worker 总结 → L1 episodic 记忆
 
 **尽管裁剪了上下文仍溢出**
 
-裁剪仅作用于工具结果。如果长用户消息或系统提示词组件主导上下文，裁剪将无济于事。考虑[会话压缩](/sessions-and-history)或减小系统提示词大小。
+裁剪仅作用于工具结果。如果长用户消息或系统提示词组件主导上下文，裁剪将无济于事。考虑[会话压缩](../../core-concepts/sessions-and-history.md)或减小系统提示词大小。
 
 ---
 
@@ -246,8 +246,8 @@ Tool output 现在在加入上下文之前就在源头截断。不再等待 prun
 
 ## 下一步
 
-- [会话与历史](/sessions-and-history) — 会话压缩、历史限制
-- [记忆系统](/memory-system) — 三层记忆架构与整合 pipeline
+- [会话与历史](../../core-concepts/sessions-and-history.md) — 会话压缩、历史限制
+- [记忆系统](../../core-concepts/memory-system.md) — 三层记忆架构与整合 pipeline
 - [配置参考](/config-reference) — 完整的 agent 配置参考
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

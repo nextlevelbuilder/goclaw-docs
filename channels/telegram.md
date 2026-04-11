@@ -316,6 +316,6 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 - [Overview](/channels-overview) — Channel concepts and policies
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
-- [Sessions & History](/sessions-and-history) — Conversation history
+- [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation history
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

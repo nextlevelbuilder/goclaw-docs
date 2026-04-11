@@ -369,7 +369,7 @@ Nếu bạn đặt thủ công USER.md ở cấp agent trước khi user đầu 
 
 ## Tiếp theo
 
-- [Context Files](/context-files) — tham chiếu chi tiết cho từng file
+- [Context Files](./context-files.md) — tham chiếu chi tiết cho từng file
 - [Open vs. Predefined](/open-vs-predefined) — hiểu khi nào dùng loại nào
 - [Creating Agents](/creating-agents) — hướng dẫn tạo agent từng bước
 

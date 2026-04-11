@@ -267,6 +267,6 @@ support (predefined)
 - [Open vs. Predefined](/open-vs-predefined) — tìm hiểu sâu về context isolation
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách tính cách được tự động tạo
 - [Team Chatbot](/recipe-team-chatbot) — điều phối nhiều chuyên gia qua team
-- [Context Files](/context-files) — tham khảo đầy đủ về SOUL.md, USER.md và các file khác
+- [Context Files](../agents/context-files.md) — tham khảo đầy đủ về SOUL.md, USER.md và các file khác
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -194,7 +194,7 @@ Memory is for things worth remembering forever. Sessions are for conversation fl
 
 ## Auto Memory Flush
 
-During [auto-compaction](/sessions-and-history), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
+During [auto-compaction](../core-concepts/sessions-and-history.md), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
 
 - **Trigger**: >50 messages OR >85% context window (either condition triggers compaction)
 - **Process**: Synchronous flush, max 5 iterations, 90-second timeout
@@ -253,7 +253,7 @@ This allows knowledge sharing within a team without duplication. The leader accu
 ## What's Next
 
 - [Multi-Tenancy](/multi-tenancy) — Per-user memory isolation
-- [Sessions and History](/sessions-and-history) — How conversation history works
+- [Sessions and History](../core-concepts/sessions-and-history.md) — How conversation history works
 - [Context Pruning](/context-pruning) — How pruning integrates with the consolidation pipeline
 - [Agents Explained](/agents-explained) — Agent types and context files
 

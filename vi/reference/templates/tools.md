@@ -117,7 +117,7 @@ TOOLS.md cho home automation agent:
 
 ## Tiếp theo
 
-- [Context Files](/context-files) — tất cả 7 context file và thứ tự load
+- [Context Files](../../../agents/context-files.md) — tất cả 7 context file và thứ tự load
 - [System Prompt Anatomy](/system-prompt-anatomy) — vị trí của TOOLS.md trong prompt (bao gồm minimal mode)
 - [AGENTS.md Template](/template-agents) — hướng dẫn vận hành tham chiếu tool
 

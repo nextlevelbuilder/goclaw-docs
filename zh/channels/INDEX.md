@@ -207,6 +207,6 @@ grep -i discord ~/.goclaw/logs/gateway.log
 
 ## 下一步
 
-- **[开发规则](../../development-rules.md)** — Channel 代码风格
-- **[系统架构](../../00-architecture-overview.md)** — Channel 在系统中的位置
-- **[Gateway 协议](../../04-gateway-protocol.md)** — WebSocket 协议详情
+- **[开发规则](../../core-concepts/how-goclaw-works.md)** — Channel 代码风格
+- **[系统架构](../../core-concepts/how-goclaw-works.md)** — Channel 在系统中的位置
+- **[Gateway 协议](../../reference/websocket-protocol.md)** — WebSocket 协议详情

@@ -207,7 +207,7 @@ These files are placed in the stable portion of the system prompt (above the cac
 ## What's Next
 
 - [Open vs. Predefined](/open-vs-predefined) — understand context isolation differences
-- [Context Files](/context-files) — learn about SOUL.md, IDENTITY.md, and other system files
+- [Context Files](../agents/context-files.md) — learn about SOUL.md, IDENTITY.md, and other system files
 - [Summoning & Bootstrap](/summoning-bootstrap) — how LLM generates personality files on first use
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

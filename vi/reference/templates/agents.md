@@ -171,7 +171,7 @@ Stay silent during off-topic discussions.
 
 ## Tiếp theo
 
-- [Context Files](/context-files) — giải thích đầy đủ 7 context file
+- [Context Files](../../../agents/context-files.md) — giải thích đầy đủ 7 context file
 - [System Prompt Anatomy](/system-prompt-anatomy) — vị trí của AGENTS.md trong toàn bộ prompt
 - [SOUL.md Template](/template-soul) — file personality đi kèm với AGENTS.md
 

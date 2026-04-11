@@ -120,7 +120,7 @@ A TOOLS.md for a home automation agent:
 
 ## What's Next
 
-- [Context Files](/context-files) — all 7 context files and their loading order
+- [Context Files](../../agents/context-files.md) — all 7 context files and their loading order
 - [System Prompt Anatomy](/system-prompt-anatomy) — where TOOLS.md fits in the prompt (minimal mode included)
 - [AGENTS.md Template](/template-agents) — operating instructions that reference tools
 

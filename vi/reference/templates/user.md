@@ -98,6 +98,6 @@ USER.md được xây dựng qua nhiều conversation:
 
 - [AGENTS.md Template](/template-agents) — quy tắc MEMORY.md Privacy quy định cách dùng nội dung USER.md
 - [BOOTSTRAP.md Template](/template-bootstrap) — USER.md có nội dung ban đầu như thế nào trong lần đầu
-- [Context Files](/context-files) — danh sách đầy đủ context file và scope per-user vs. cấp agent
+- [Context Files](../../../agents/context-files.md) — danh sách đầy đủ context file và scope per-user vs. cấp agent
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

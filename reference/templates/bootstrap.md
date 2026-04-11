@@ -180,6 +180,6 @@ _Make a good first impression. Be natural. The user should never know any of thi
 - [IDENTITY.md Template](/template-identity) — what gets written after bootstrap
 - [SOUL.md Template](/template-soul) — the file that gets rewritten during bootstrap
 - [USER.md Template](/template-user) — where user info lands after the conversation
-- [Context Files](/context-files) — full loading order and file lifecycle
+- [Context Files](../../agents/context-files.md) — full loading order and file lifecycle
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

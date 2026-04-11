@@ -185,7 +185,7 @@ After each conversation run, GoClaw evaluates whether to compact session history
 - **Memory flush first** (synchronous): agent writes important facts to `memory/YYYY-MM-DD.md` files before history is truncated
 - **Summarize** (background): LLM summarizes older messages; history is truncated to the last 4 messages; summary is saved for the next session
 
-In v3, the [3-Tier Memory](/memory-system) system adds async consolidation on top: episodic workers extract facts, semantic workers abstract them, and dreaming workers synthesize novel insights — all driven by the DomainEventBus.
+In v3, the [3-Tier Memory](../core-concepts/memory-system.md) system adds async consolidation on top: episodic workers extract facts, semantic workers abstract them, and dreaming workers synthesize novel insights — all driven by the DomainEventBus.
 
 ## Identity Anchoring
 
@@ -228,8 +228,8 @@ Staggered subagent results are queued and merged into a single LLM run announcem
 
 ## What's Next
 
-- [Sessions and History](/sessions-and-history) — How conversations persist
+- [Sessions and History](../core-concepts/sessions-and-history.md) — How conversations persist
 - [Tools Overview](/tools-overview) — What tools agents can use
-- [Memory System](/memory-system) — Long-term memory and search
+- [Memory System](../core-concepts/memory-system.md) — Long-term memory and search
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

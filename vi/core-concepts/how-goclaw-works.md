@@ -107,7 +107,7 @@ GoClaw v3 đi kèm năm hệ thống mới — mỗi hệ thống có trang riê
 | Hệ thống | Tính năng bổ sung |
 |----------|------------------|
 | [Knowledge Vault](/knowledge-vault) | Mạng lưới wikilink ngữ nghĩa, hybrid search BM25 + vector, tự động inject vào prompt (L0) |
-| [Memory 3 tầng](/memory-system) | Pipeline consolidation episodic → semantic → dreaming điều phối bởi DomainEventBus |
+| [Memory 3 tầng](./memory-system.md) | Pipeline consolidation episodic → semantic → dreaming điều phối bởi DomainEventBus |
 | [Agent Evolution](/agent-evolution) | Theo dõi pattern sử dụng tool/retrieval; tự động đề xuất và áp dụng thay đổi prompt/tool |
 | [Mode Prompt System](/model-steering) | Chế độ prompt có thể chuyển đổi (PromptFull và PromptMinimal) với override theo từng agent |
 | [Multi-Tenant v3](/multi-tenancy) | Phạm vi user ID phức hợp trên toàn bộ 22+ store interface; vault grant; skill grant |
@@ -124,6 +124,6 @@ GoClaw v3 đi kèm năm hệ thống mới — mỗi hệ thống có trang riê
 
 - [Agents Explained](/agents-explained) — Tìm hiểu sâu về loại agent và context file
 - [Tools Overview](/tools-overview) — Danh mục tool đầy đủ
-- [Sessions and History](/sessions-and-history) — Cách cuộc hội thoại được lưu trữ
+- [Sessions and History](./sessions-and-history.md) — Cách cuộc hội thoại được lưu trữ
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

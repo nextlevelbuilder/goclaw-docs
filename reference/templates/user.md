@@ -96,6 +96,6 @@ A USER.md built up over several conversations:
 
 - [AGENTS.md Template](/template-agents) — MEMORY.md privacy rules that govern how USER.md content is used
 - [BOOTSTRAP.md Template](/template-bootstrap) — how USER.md gets its initial content during first-run
-- [Context Files](/context-files) — full list of context files and per-user vs. agent-level scope
+- [Context Files](../../agents/context-files.md) — full list of context files and per-user vs. agent-level scope
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

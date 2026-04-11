@@ -201,7 +201,7 @@ Khi tạo agent, GoClaw seed các file context từ template tích hợp sẵn. 
 ## Tiếp theo
 
 - [Open vs. Predefined](/open-vs-predefined) — hiểu sự khác biệt về context isolation
-- [Context Files](/context-files) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
+- [Context Files](./context-files.md) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách LLM tạo ra file personality khi lần đầu sử dụng
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

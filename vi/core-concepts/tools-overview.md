@@ -286,7 +286,7 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 
 ## Tiếp theo
 
-- [Memory System](/memory-system) — Memory dài hạn và tìm kiếm hoạt động như thế nào
+- [Memory System](./memory-system.md) — Memory dài hạn và tìm kiếm hoạt động như thế nào
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 

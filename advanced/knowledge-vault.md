@@ -318,7 +318,7 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 ## What's Next
 
 - [Knowledge Graph](knowledge-graph.md) — Entity and relation graph auto-extracted from conversations
-- [Memory System](/memory-system) — Vector-based long-term memory
-- [Context Files](/context-files) — Static documents injected into agent context
+- [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
+- [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
 <!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

@@ -142,7 +142,7 @@ Queue capacity is 10 by default. When full, the oldest message is dropped (drop 
 
 ## What's Next
 
-- [Memory System](/memory-system) — How long-term memory works
+- [Memory System](../core-concepts/memory-system.md) — How long-term memory works
 - [Tools Overview](/tools-overview) — Available tools for agents
 - [Multi-Tenancy](/multi-tenancy) — Per-user session isolation
 

@@ -11,7 +11,7 @@ As agents run long tasks, tool results accumulate in the conversation history. L
 1. **Soft trim** — truncate oversized tool results to head + tail, dropping the middle.
 2. **Hard clear** — if the context is still too full, replace entire tool results with a short placeholder.
 
-Context pruning is distinct from [session compaction](/sessions-and-history). Compaction permanently summarizes and truncates conversation history. Pruning is non-destructive: the original tool results remain in the session store and are never modified — only the message slice sent to the LLM is trimmed.
+Context pruning is distinct from [session compaction](../core-concepts/sessions-and-history.md). Compaction permanently summarizes and truncates conversation history. Pruning is non-destructive: the original tool results remain in the session store and are never modified — only the message slice sent to the LLM is trimmed.
 
 ---
 
@@ -226,7 +226,7 @@ Increase `softTrim.headChars` and `softTrim.tailChars`, or raise `softTrim.maxCh
 
 **Context still overflows despite pruning**
 
-Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](/sessions-and-history) or reduce the system prompt size.
+Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](../core-concepts/sessions-and-history.md) or reduce the system prompt size.
 
 ---
 
@@ -244,8 +244,8 @@ Tool output is now capped at the source before being added to context. Rather th
 
 ## What's Next
 
-- [Sessions & History](/sessions-and-history) — session compaction, history limits
-- [Memory System](/memory-system) — 3-tier memory architecture and consolidation pipeline
+- [Sessions & History](../core-concepts/sessions-and-history.md) — session compaction, history limits
+- [Memory System](../core-concepts/memory-system.md) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -350,7 +350,7 @@ Khi agent dùng `vault_search`, VaultSearchService fan-out đồng thời sang *
 ---
 
 - [Kho Tri Thức (Knowledge Vault)](knowledge-vault.md) — Kho tài liệu cấp document với wikilink và tìm kiếm ngữ nghĩa
-- [Hệ thống bộ nhớ](/memory-system) — Bộ nhớ dài hạn dựa trên vector
-- [Sessions & History](/sessions-and-history) — Lưu trữ cuộc hội thoại
+- [Hệ thống bộ nhớ](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dựa trên vector
+- [Sessions & History](../../core-concepts/sessions-and-history.md) — Lưu trữ cuộc hội thoại
 
 <!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->

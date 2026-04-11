@@ -401,7 +401,7 @@ Agent này sẽ:
 ## Tiếp theo
 
 - [Editing Personality — Tuỳ chỉnh SOUL.md và IDENTITY.md](/editing-personality)
-- [Context Files — Thêm context dành riêng cho dự án](/context-files)
+- [Context Files — Thêm context dành riêng cho dự án](./context-files.md)
 - [Creating Agents — Thiết lập cấu hình system prompt](/creating-agents)
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

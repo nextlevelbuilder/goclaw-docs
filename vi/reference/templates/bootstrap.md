@@ -185,6 +185,6 @@ Khi agent gọi `write_file("BOOTSTRAP.md", "")`, file trở thành rỗng. Ở 
 - [IDENTITY.md Template](/template-identity) — những gì được ghi sau bootstrap
 - [SOUL.md Template](/template-soul) — file được viết lại trong bootstrap
 - [USER.md Template](/template-user) — thông tin user sau conversation
-- [Context Files](/context-files) — thứ tự load đầy đủ và vòng đời file
+- [Context Files](../../../agents/context-files.md) — thứ tự load đầy đủ và vòng đời file
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

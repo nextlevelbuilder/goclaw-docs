@@ -102,6 +102,6 @@ Another example — a no-nonsense DevOps bot:
 
 - [SOUL.md Template](/template-soul) — the personality file that gives identity its depth
 - [BOOTSTRAP.md Template](/template-bootstrap) — how name and emoji are chosen during first-run
-- [Context Files](/context-files) — full list of context files and loading order
+- [Context Files](../../agents/context-files.md) — full list of context files and loading order
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

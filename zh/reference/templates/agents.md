@@ -171,7 +171,7 @@ Stay silent during off-topic discussions.
 
 ## 下一步
 
-- [上下文文件](/context-files) — 全部 7 个上下文文件解析
+- [上下文文件](../../../agents/context-files.md) — 全部 7 个上下文文件解析
 - [系统提示结构](/system-prompt-anatomy) — AGENTS.md 在完整提示中的位置
 - [SOUL.md 模板](/template-soul) — 与 AGENTS.md 配合使用的个性文件
 

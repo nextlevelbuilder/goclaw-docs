@@ -414,7 +414,7 @@ This agent will:
 ## What's Next
 
 - [Editing Personality — Customize SOUL.md and IDENTITY.md](/editing-personality)
-- [Context Files — Add project-specific context](/context-files)
+- [Context Files — Add project-specific context](../agents/context-files.md)
 - [Creating Agents — Set up system prompt configuration](/creating-agents)
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

@@ -115,6 +115,6 @@ This file applies to all family members. Each person also has their own USER.md 
 - [USER.md 模板](/template-user) — 补充此文件的按用户个人上下文
 - [SOUL.md 模板](/template-soul) — Agent 个性和语气（与用户规则分开）
 - [AGENTS.md 模板](/template-agents) — 记忆、隐私规则和工具访问
-- [上下文文件](/context-files) — 完整上下文文件列表和加载顺序
+- [上下文文件](../../../agents/context-files.md) — 完整上下文文件列表和加载顺序
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

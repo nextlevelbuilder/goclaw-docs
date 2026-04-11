@@ -395,7 +395,7 @@ When an agent uses `vault_search`, the VaultSearchService fans out to **both** t
 ## What's Next
 
 - [Knowledge Vault](knowledge-vault.md) — Document-level knowledge store with wikilinks and semantic search
-- [Memory System](/memory-system) — Vector-based long-term memory
-- [Sessions & History](/sessions-and-history) — Conversation storage
+- [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
+- [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation storage
 
 <!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

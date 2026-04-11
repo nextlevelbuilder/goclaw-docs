@@ -205,6 +205,6 @@ grep -i discord ~/.goclaw/logs/gateway.log
 
 ## What's Next
 
-- **[Development Rules](../../development-rules.md)** — Code style for channels
-- **[System Architecture](../../00-architecture-overview.md)** — How channels fit in
-- **[Gateway Protocol](../../04-gateway-protocol.md)** — WebSocket protocol details
+- **[Development Rules](../../core-concepts/how-goclaw-works.md)** — Code style for channels
+- **[System Architecture](../../core-concepts/how-goclaw-works.md)** — How channels fit in
+- **[Gateway Protocol](../../reference/websocket-protocol.md)** — WebSocket protocol details

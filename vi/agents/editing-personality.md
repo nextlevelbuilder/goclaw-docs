@@ -11,7 +11,7 @@ Personality của agent được định hình bởi hai file cấu hình chính
 - **SOUL.md**: Định nghĩa giọng điệu, giá trị, ranh giới, chuyên môn, và phong cách vận hành. Đây là file "bạn là ai".
 - **IDENTITY.md**: Chứa metadata như tên, emoji, loại sinh vật, và avatar. Đây là file "bạn trông như thế nào".
 
-**AGENTS.md** cũng đóng góp vào persona tổng thể — nó định nghĩa quy tắc trò chuyện, cách dùng bộ nhớ, và hành vi trong group chat. Dù ít liên quan đến "personality" hơn, nhưng nó ảnh hưởng đến cách agent thể hiện trong thực tế. Xem [Context Files](/context-files) để biết thêm chi tiết.
+**AGENTS.md** cũng đóng góp vào persona tổng thể — nó định nghĩa quy tắc trò chuyện, cách dùng bộ nhớ, và hành vi trong group chat. Dù ít liên quan đến "personality" hơn, nhưng nó ảnh hưởng đến cách agent thể hiện trong thực tế. Xem [Context Files](./context-files.md) để biết thêm chi tiết.
 
 Bạn có thể chỉnh sửa hai file này theo ba cách: qua Dashboard UI, WebSocket API, hoặc trực tiếp trên đĩa. Các chỉnh sửa qua UI hoặc API được lưu vào database.
 
@@ -260,7 +260,7 @@ Predefined agent với `self_evolve` được bật có thể tự cập nhật 
 
 ## Tiếp theo
 
-- [Context Files — Mở rộng personality với per-user context](/context-files)
+- [Context Files — Mở rộng personality với per-user context](./context-files.md)
 - [System Prompt Anatomy — Cách personality được inject vào prompt](/system-prompt-anatomy)
 - [Creating Agents — Thiết lập personality khi tạo agent](/creating-agents)
 

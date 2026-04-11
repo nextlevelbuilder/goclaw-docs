@@ -137,7 +137,7 @@ Docker, Go services. Ưu tiên giải pháp đơn giản, có thể maintain lâ
 ## Tiếp theo
 
 - [IDENTITY.md Template](/template-identity) — tên, emoji, loại creature
-- [Context Files](/context-files) — cách 7 file hoạt động cùng nhau
+- [Context Files](../../../agents/context-files.md) — cách 7 file hoạt động cùng nhau
 - [Summoning & Bootstrap](/summoning-bootstrap) — SOUL.md được tạo như thế nào cho predefined agent
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

@@ -284,7 +284,7 @@ All parameters are optional — defaults apply when not configured.
 
 ## What's Next
 
-- [Memory System](/memory-system) — How long-term memory and search work
+- [Memory System](../core-concepts/memory-system.md) — How long-term memory and search work
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 

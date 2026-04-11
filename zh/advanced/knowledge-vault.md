@@ -259,7 +259,7 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 ## 延伸阅读
 
 - [知识图谱](knowledge-graph.md) — 从对话中自动提取的实体与关系图谱
-- [Memory 系统](/memory-system) — 向量化长期记忆
-- [Context 文件](/context-files) — 注入 agent context 的静态文档
+- [Memory 系统](../../core-concepts/memory-system.md) — 向量化长期记忆
+- [Context 文件](../../agents/context-files.md) — 注入 agent context 的静态文档
 
 <!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

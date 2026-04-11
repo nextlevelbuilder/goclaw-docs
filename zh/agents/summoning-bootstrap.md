@@ -369,7 +369,7 @@ Summoning 和 bootstrap 都依赖 `SeedUserFiles()` 和 `SeedToStore()`：
 
 ## 下一步
 
-- [Context Files](/context-files) — 每个文件的详细参考
+- [Context Files](./context-files.md) — 每个文件的详细参考
 - [Open vs. Predefined](/open-vs-predefined) — 了解何时使用每种类型
 - [Creating Agents](/creating-agents) — 分步创建 agent
 

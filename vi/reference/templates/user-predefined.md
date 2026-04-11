@@ -115,6 +115,6 @@ File này áp dụng cho tất cả thành viên gia đình. Mỗi người cũn
 - [USER.md Template](/template-user) — context cá nhân per-user bổ sung vào file này
 - [SOUL.md Template](/template-soul) — personality và tone của agent (tách biệt khỏi user rules)
 - [AGENTS.md Template](/template-agents) — memory, privacy rules và quyền truy cập tool
-- [Context Files](/context-files) — danh sách đầy đủ các context file và thứ tự load
+- [Context Files](../../../agents/context-files.md) — danh sách đầy đủ các context file và thứ tự load
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

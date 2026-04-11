@@ -1,4 +1,4 @@
-> Bản dịch từ [English version](/context-files)
+> Bản dịch từ [English version](../../agents/context-files.md)
 
 # Context Files
 

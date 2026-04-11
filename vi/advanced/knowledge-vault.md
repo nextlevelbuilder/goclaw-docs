@@ -259,7 +259,7 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 ## Xem Thêm
 
 - [Knowledge Graph](knowledge-graph.md) — Đồ thị thực thể và quan hệ tự động trích xuất từ hội thoại
-- [Memory System](/memory-system) — Bộ nhớ dài hạn dạng vector
-- [Context Files](/context-files) — Tài liệu tĩnh được inject vào context của agent
+- [Memory System](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dạng vector
+- [Context Files](../../agents/context-files.md) — Tài liệu tĩnh được inject vào context của agent
 
 <!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

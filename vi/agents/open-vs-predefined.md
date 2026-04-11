@@ -181,7 +181,7 @@ Hoặc chuyển sang **predefined** sau nếu agent vượt ra ngoài phạm vi 
 
 ## Tiếp theo
 
-- [Context Files](/context-files) — tìm hiểu sâu về từng file (SOUL.md, IDENTITY.md, v.v.)
+- [Context Files](./context-files.md) — tìm hiểu sâu về từng file (SOUL.md, IDENTITY.md, v.v.)
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách personality được tạo ra cho predefined agent
 - [Creating Agents](/creating-agents) — hướng dẫn tạo agent
 

@@ -104,6 +104,6 @@ Ví dụ khác — DevOps bot không vòng vo:
 
 - [SOUL.md Template](/template-soul) — file personality cho identity thêm chiều sâu
 - [BOOTSTRAP.md Template](/template-bootstrap) — tên và emoji được chọn như thế nào trong lần đầu
-- [Context Files](/context-files) — danh sách đầy đủ context file và thứ tự load
+- [Context Files](../../../agents/context-files.md) — danh sách đầy đủ context file và thứ tự load
 
 <!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->

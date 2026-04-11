@@ -1,4 +1,4 @@
-> 翻译自 [English version](/sessions-and-history)
+> 翻译自 [English version](../../core-concepts/sessions-and-history.md)
 
 # Sessions 和历史
 
@@ -144,7 +144,7 @@ graph LR
 
 ## 下一步
 
-- [记忆系统](/memory-system) — 长期记忆的工作原理
+- [记忆系统](./memory-system.md) — 长期记忆的工作原理
 - [工具概览](/tools-overview) — Agent 可用的工具
 - [多租户](/multi-tenancy) — 每用户 session 隔离
 

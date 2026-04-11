@@ -107,7 +107,7 @@ GoClaw v3 新增五个系统——每个系统都有专属页面：
 | 系统 | 新增功能 |
 |------|---------|
 | [Knowledge Vault](/knowledge-vault) | Wikilink 语义网格、BM25 + 向量混合搜索、L0 自动注入到提示词 |
-| [三层记忆](/memory-system) | 由 DomainEventBus 驱动的 episodic → semantic → dreaming 整合 pipeline |
+| [三层记忆](./memory-system.md) | 由 DomainEventBus 驱动的 episodic → semantic → dreaming 整合 pipeline |
 | [Agent 进化](/agent-evolution) | 追踪工具/检索使用模式；自动建议并应用提示词/工具适配 |
 | [模式提示词系统](/model-steering) | 可切换的提示词模式（PromptFull 与 PromptMinimal），支持每 agent 覆盖 |
 | [多租户 v3](/multi-tenancy) | 跨所有 22+ 存储接口的复合用户 ID 作用域；vault grant；skill grant |
@@ -124,6 +124,6 @@ GoClaw v3 新增五个系统——每个系统都有专属页面：
 
 - [Agent 详解](/agents-explained) — 深入了解 agent 类型和上下文文件
 - [工具概览](/tools-overview) — 完整工具目录
-- [Sessions 和历史](/sessions-and-history) — 对话如何持久化
+- [Sessions 和历史](./sessions-and-history.md) — 对话如何持久化
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

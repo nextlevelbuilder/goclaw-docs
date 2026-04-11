@@ -182,6 +182,6 @@ _Make a good first impression. Be natural. The user should never know any of thi
 - [IDENTITY.md 模板](/template-identity) — bootstrap 后写入的内容
 - [SOUL.md 模板](/template-soul) — bootstrap 期间被重写的文件
 - [USER.md 模板](/template-user) — 对话后用户信息的落脚点
-- [上下文文件](/context-files) — 完整加载顺序和文件生命周期
+- [上下文文件](../../../agents/context-files.md) — 完整加载顺序和文件生命周期
 
 <!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->

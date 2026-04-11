@@ -105,7 +105,7 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 | System | What it adds |
 |--------|-------------|
 | [Knowledge Vault](/knowledge-vault) | Wikilinks semantic mesh, BM25 + vector hybrid search, L0 auto-injection into prompts |
-| [3-Tier Memory](/memory-system) | Episodic → Semantic → Dreaming consolidation pipeline driven by DomainEventBus |
+| [3-Tier Memory](../core-concepts/memory-system.md) | Episodic → Semantic → Dreaming consolidation pipeline driven by DomainEventBus |
 | [Agent Evolution](/agent-evolution) | Tracks tool/retrieval patterns; auto-suggests and applies prompt/tool adaptations |
 | [Mode Prompt System](/model-steering) | Switchable prompt modes (PromptFull vs PromptMinimal) with per-agent overrides |
 | [Multi-Tenant v3](/multi-tenancy) | Compound user ID scoping across all 22+ store interfaces; vault grants; skill grants |
@@ -122,6 +122,6 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 
 - [Agents Explained](/agents-explained) — Deep dive into agent types and context files
 - [Tools Overview](/tools-overview) — The full tool catalog
-- [Sessions and History](/sessions-and-history) — How conversations persist
+- [Sessions and History](../core-concepts/sessions-and-history.md) — How conversations persist
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

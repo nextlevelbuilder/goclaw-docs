@@ -1,4 +1,4 @@
-> 翻译自 [English version](/memory-system)
+> 翻译自 [English version](../../core-concepts/memory-system.md)
 
 # 记忆系统
 
@@ -196,7 +196,7 @@ Injector 返回包含可观测字段的 `InjectResult`：`MatchCount`、`Injecte
 
 ## 自动记忆刷新
 
-在[自动压缩](/sessions-and-history)期间，GoClaw 在摘要历史之前从对话中提取重要事实并保存到记忆。
+在[自动压缩](./sessions-and-history.md)期间，GoClaw 在摘要历史之前从对话中提取重要事实并保存到记忆。
 
 - **触发条件**：>50 条消息，或 >85% 上下文窗口（任一条件触发压缩）
 - **过程**：同步刷新，最多 5 次迭代，90 秒超时
@@ -255,7 +255,7 @@ GoClaw 识别四种记忆文件类型：
 ## 下一步
 
 - [多租户](/multi-tenancy) — 每用户记忆隔离
-- [Sessions 和历史](/sessions-and-history) — 对话历史的工作原理
+- [Sessions 和历史](./sessions-and-history.md) — 对话历史的工作原理
 - [上下文裁剪](/context-pruning) — 裁剪如何与整合 pipeline 配合
 - [Agent 详解](/agents-explained) — Agent 类型和上下文文件
 

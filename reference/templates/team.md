@@ -204,6 +204,6 @@ This prevents the agent from wasting tool calls probing for team capabilities th
 
 - [Agent Teams Overview](/teams-what-are-teams) — how to create and manage teams
 - [Delegation & Handoff](/teams-delegation) — how leads delegate tasks to members
-- [DELEGATION.md Template](../agent-teams/delegation-and-handoff.md) — the sibling virtual file for subagent spawning
+- [DELEGATION.md Template](../../agent-teams/delegation-and-handoff.md) — the sibling virtual file for subagent spawning
 
 <!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->

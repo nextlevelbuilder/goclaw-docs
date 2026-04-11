@@ -144,7 +144,7 @@ Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị
 
 ## Tiếp theo
 
-- [Memory System](/memory-system) — Memory dài hạn hoạt động như thế nào
+- [Memory System](./memory-system.md) — Memory dài hạn hoạt động như thế nào
 - [Tools Overview](/tools-overview) — Tool có sẵn cho agent
 - [Multi-Tenancy](/multi-tenancy) — Cách ly session per-user
 
