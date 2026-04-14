@@ -159,6 +159,7 @@ const DOC_MAP = {
   'channel-slack': docEntry('channels', 'slack', 'Slack', 'Channel Slack', 'Slack 频道'),
   'channel-whatsapp': docEntry('channels', 'whatsapp', 'WhatsApp', 'Channel WhatsApp', 'WhatsApp 频道'),
   'channel-pancake': docEntry('channels', 'pancake', 'Pancake', 'Channel Pancake', 'Pancake 频道'),
+  'channel-facebook': docEntry('channels', 'facebook', 'Facebook', 'Channel Facebook', 'Facebook 频道'),
   'channel-websocket': docEntry('channels', 'websocket', 'WebSocket', 'Channel WebSocket', 'WebSocket 频道'),
   'channel-browser-pairing': docEntry('channels', 'browser-pairing', 'Browser Pairing', 'Browser Pairing', '浏览器配对'),
 

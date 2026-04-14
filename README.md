@@ -71,6 +71,7 @@
 - [Slack](channels/slack.md)
 - [WhatsApp](channels/whatsapp.md)
 - [Pancake](channels/pancake.md)
+- [Facebook](channels/facebook.md)
 - [WebSocket](channels/websocket.md)
 - [Browser Pairing](channels/browser-pairing.md)
 
@@ -177,7 +178,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for writing guidelines and bilingual proc
 ├── core-concepts/          # Architecture & concepts (6 pages)
 ├── agents/                 # Agent configuration (8 pages)
 ├── providers/              # LLM provider guides (24 pages)
-├── channels/               # Messaging channel setup (13 pages)
+├── channels/               # Messaging channel setup (14 pages)
 ├── agent-teams/            # Team collaboration (6 pages)
 ├── advanced/               # Power-user features (24 pages)
 ├── deployment/             # Deploy & operate (7 pages)

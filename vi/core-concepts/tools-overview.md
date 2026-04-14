@@ -14,10 +14,10 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 |----------|-------|----------|
 | **Filesystem** (`group:fs`) | read_file, write_file, edit, list_files, search, glob | Đọc, ghi, chỉnh sửa và tìm kiếm file trong workspace của agent |
 | **Runtime** (`group:runtime`) | exec, credentialed_exec | Chạy lệnh shell; thực thi CLI tool với credentials được inject |
-| **Web** (`group:web`) | web_search, web_fetch | Tìm kiếm web (Brave/DuckDuckGo) và fetch trang |
+| **Web** (`group:web`) | web_search, web_fetch | Tìm kiếm web (Exa, Tavily, Brave, DuckDuckGo) và fetch trang |
 | **Memory** (`group:memory`) | memory_search, memory_get, memory_expand | Truy vấn memory dài hạn (hybrid vector + FTS search); mở rộng nội dung episodic đầy đủ theo ID (L2 retrieval) |
 | **Knowledge** (`group:knowledge`) | vault_search, knowledge_graph_search, skill_search | Tìm kiếm thống nhất vault/memory/knowledge-graph; tìm kiếm thực thể và quan hệ; khám phá skill |
-| **Vault** | vault_link, vault_backlinks | Tạo liên kết wikilink giữa các vault document; truy vết backlink của document |
+| **Vault** | vault_search | Tìm kiếm vault document và knowledge graph |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Quản lý conversation session; spawn subagent |
 | **Teams** (`group:teams`) | team_tasks, team_message | Cộng tác với agent team qua task board và mailbox chung |
 | **Automation** (`group:automation`) | cron, datetime | Lên lịch job định kỳ; lấy ngày/giờ hiện tại |
@@ -28,6 +28,31 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Skills** (`group:skills`) | use_skill, publish_skill | Gọi và xuất bản skill |
 | **Workspace** | workspace_dir | Resolve workspace directory theo team/user context |
 | **AI** | openai_compat_call | Gọi endpoint tương thích OpenAI với định dạng request tùy chỉnh |
+
+### Provider web_search
+
+`web_search` hỗ trợ bốn provider, được thử theo thứ tự:
+
+| Provider | Ghi chú |
+|----------|---------|
+| **Exa** | Yêu cầu `EXA_API_KEY` |
+| **Tavily** | Yêu cầu `TAVILY_API_KEY` |
+| **Brave** | Yêu cầu `BRAVE_API_KEY` |
+| **DuckDuckGo** | Fallback miễn phí — dùng cuối cùng nếu không có API key cho các provider khác |
+
+Cấu hình thứ tự provider qua `provider_order` trong cài đặt tool:
+
+```json
+{
+  "tools": {
+    "web_search": {
+      "provider_order": ["exa", "tavily", "brave", "duckduckgo"]
+    }
+  }
+}
+```
+
+DuckDuckGo không cần API key và luôn khả dụng như fallback cuối cùng.
 
 ### Tool Memory & Vault mới trong V3
 
@@ -40,12 +65,9 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 
 Dùng `memory_search` trước để khám phá ID episodic liên quan, sau đó `memory_expand` để lấy nội dung đầy đủ. Cách này tiết kiệm token khi chỉ cần một vài entry.
 
-**Tool vault link** (tích hợp knowledge graph v3):
+**Vault linking** hiện được xử lý tự động bởi enrichment pipeline. Xem [Knowledge Vault](../../advanced/knowledge-vault.md).
 
-| Tool | Mô tả |
-|------|-------|
-| `vault_link` | Tạo liên kết tường minh giữa hai vault document (kiểu `wikilink` hoặc `reference`). Tự động đăng ký document chưa có trong vault. Document thuộc team khác nhau không thể link chéo. |
-| `vault_backlinks` | Liệt kê tất cả document liên kết đến một đường dẫn document cụ thể. Tuân thủ ranh giới scope team/personal. |
+> `vault_link` và `vault_backlinks` đã bị xóa. Việc tạo wikilink tường minh và tra cứu backlink không còn cần thiết — enrichment pipeline tự động quản lý các mối quan hệ tài liệu.
 
 **Tool media BytePlus** (`create_image_byteplus`, `create_video_byteplus`) khả dụng khi cấu hình provider `byteplus`. Cả hai dùng async job polling: tạo ảnh qua Seedream trả về URL sau khi job hoàn thành; tạo video qua Seedance polling `/text-to-video-pro/status/{id}` để lấy kết quả.
 

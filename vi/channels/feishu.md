@@ -150,6 +150,39 @@ Session key: "{chatID}:topic:{rootMessageID}"
 
 Các thread khác nhau trong cùng nhóm duy trì lịch sử riêng.
 
+### Slash Command (Quản lý quyền ghi file)
+
+Trong nhóm chat, thành viên có thể quản lý quyền ghi file bằng slash command:
+
+| Lệnh | Mô tả |
+|------|-------|
+| `/addwriter <@mention hoặc reply>` | Cấp quyền ghi file cho người dùng trong nhóm |
+| `/removewriter <@mention hoặc reply>` | Thu hồi quyền ghi file của người dùng |
+| `/writers` | Liệt kê tất cả người dùng có quyền ghi file trong nhóm |
+
+**Cách chỉ định người dùng mục tiêu:** Reply vào tin nhắn của họ và gửi lệnh, hoặc @mention họ trong cùng tin nhắn. Có thể tự cấp quyền cho bản thân bằng cách @mention chính mình.
+
+**Phân quyền:** Chỉ các file writer hiện có mới được quản lý danh sách. Khi danh sách trống, người đầu tiên có thể khởi tạo bằng cách chỉ định mục tiêu cụ thể.
+
+> Các lệnh này chỉ hoạt động trong nhóm chat. DM sẽ bị từ chối.
+
+### Tự động tải tài liệu Lark Docx
+
+Khi một URL tài liệu Lark docx được dán vào chat, GoClaw tự động phát hiện và tải nội dung tài liệu qua Lark API, đưa trực tiếp vào prompt của agent — không cần gọi tool.
+
+**Định dạng URL hỗ trợ:**
+- `https://*.feishu.cn/docx/<id>`
+- `https://*.larksuite.com/docx/<id>`
+
+**Scope quyền app bắt buộc:** `docx:document:readonly` — thêm trong Feishu Developer Console dưới mục Permissions & Scopes.
+
+**Chi tiết triển khai:**
+- LRU cache: 128 mục, TTL 5 phút (các link lặp lại trong cùng phiên được phục vụ từ cache)
+- Nội dung được cắt ngắn ở 8.000 rune để vừa với context window của agent
+- Các doc ID trùng lặp trong cùng tin nhắn được gộp lại — mỗi tài liệu chỉ được tải một lần
+
+> Chỉ hỗ trợ URL `/docx/`. Sheets, Base, Wiki và các loại tài liệu Lark khác nằm ngoài phạm vi.
+
 ### Tool list_group_members
 
 Khi kết nối với kênh Feishu, agent có quyền dùng tool `list_group_members`. Tool này trả về tất cả thành viên của nhóm chat hiện tại cùng `open_id` và tên hiển thị.
@@ -207,4 +240,4 @@ Tin nhắn thoại có thể được chuyển văn bản bằng cách cấu hì
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng ghép cặp trình duyệt
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->

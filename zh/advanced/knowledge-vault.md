@@ -17,8 +17,9 @@ Knowledge Vault 是 **v3 专属**功能。它位于 agent 与 episodic/KG 存储
 | **VaultStore** | 文档 CRUD、链接管理、FTS + 向量混合搜索 |
 | **VaultService** | 搜索协调器：对 vault、episodic 和 KG 存储展开加权并行查询 |
 | **VaultSyncWorker** | 文件系统监控：检测文件变化（创建/写入/删除），同步内容 hash |
+| **EnrichWorker** | 处理 vault 文档 upsert 事件，生成摘要、embedding 和语义链接 |
 | **VaultRetriever** | 将 vault 搜索接入 agent L0 内存系统 |
-| **HTTP Handlers** | REST 端点：list、get、search、links |
+| **HTTP Handlers** | REST 端点：list、get、search、links、tree、graph |
 
 ### 数据流
 
@@ -63,28 +64,27 @@ Agent 写入文档 → Workspace FS
 |--------|------|-------|
 | `id` | UUID | 主键 |
 | `tenant_id` | UUID | 多租户隔离 |
-| `agent_id` | UUID | 按 agent 命名空间 |
+| `agent_id` | UUID | 按 agent 命名空间；团队范围或租户共享文件时**可为 NULL**（migration 046） |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
 | `path` | TEXT | 工作区相对路径（如 `workspace/notes/foo.md`） |
 | `title` | TEXT | 显示名称 |
-| `doc_type` | TEXT | `context`、`memory`、`note`、`skill`、`episodic` |
+| `doc_type` | TEXT | `context`、`memory`、`note`、`skill`、`episodic`、`image`、`video`、`audio`、`document` |
 | `content_hash` | TEXT | 文件内容 SHA-256（变更检测） |
 | `embedding` | vector(1536) | pgvector 语义相似度 |
-| `tsv` | tsvector | title + path 的 GIN FTS 索引 |
+| `tsv` | tsvector | title + path + summary 的 GIN FTS 索引 |
 | `metadata` | JSONB | 可选自定义字段 |
-
-唯一约束：`(agent_id, scope, path)` — 每个 scope 下每个路径只有一个文档。
 
 ### vault_links
 
-文档间的双向链接（wikilink、显式引用）。
+文档间的双向链接（wikilink、显式引用，以及 enrichment pipeline 生成的语义链接）。
 
 | 字段 | 类型 | 说明 |
 |--------|------|-------|
 | `from_doc_id` | UUID | 源文档 |
 | `to_doc_id` | UUID | 目标文档 |
-| `link_type` | TEXT | `wikilink`、`reference` 等 |
+| `link_type` | TEXT | `wikilink`、`reference`、`depends_on`、`extends`、`related`、`supersedes`、`contradicts`、`task_attachment`、`delegation_attachment` |
 | `context` | TEXT | ~50 字符的周围文本片段 |
+| `metadata` | JSONB | 来自 enrichment pipeline 的元数据（migration 048） |
 
 唯一约束：`(from_doc_id, to_doc_id, link_type)` — 不允许重复链接。
 
@@ -183,6 +183,69 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 
 ---
 
+## Enrichment Pipeline
+
+每次文档 upsert 后，**EnrichWorker** 异步处理该事件，为 vault 文档补充摘要、embedding 和语义链接。
+
+### EnrichWorker 的工作内容
+
+1. 为文档内容生成文本摘要
+2. 计算向量 embedding 以支持语义搜索
+3. 对 vault 中其他文档的语义关系进行分类，并创建 `vault_link` 记录
+
+### 语义链接类型
+
+分类器生成六种关系类型之一的链接：
+
+| 类型 | 含义 |
+|------|------|
+| `reference` | 文档引用另一文档作为来源 |
+| `depends_on` | 文档依赖另一文档才有意义 |
+| `extends` | 文档在另一文档基础上补充或扩展 |
+| `related` | 一般主题相关性 |
+| `supersedes` | 文档替代或使另一文档过时 |
+| `contradicts` | 文档与另一文档存在冲突 |
+
+### 特殊的 task/delegation 链接类型
+
+另有两种链接类型由 task/delegation 系统创建，而非分类器：
+
+- `task_attachment` — 将 vault 文档链接到其所附加的团队任务
+- `delegation_attachment` — 将 vault 文档链接到其所附加的委托
+
+这些类型不受 enrichment 清理或重扫描影响。
+
+### Enrichment 进度
+
+实时 enrichment 进度通过 WebSocket 事件广播。worker 运行时，UI 显示每个文档的状态。
+
+### 停止与重扫描控制
+
+用户可通过 UI（或 REST API）：
+- **停止 enrichment** — 暂停当前租户的 EnrichWorker
+- **触发重扫描** — 将所有 vault 文档重新加入队列进行 enrichment（适用于模型或配置变更后）
+
+---
+
+## 媒体文档支持
+
+除文本文档外，vault 还接受二进制和媒体文件。支持的文件类型由扩展名白名单控制。
+
+### 媒体文件的 doc_type 值
+
+| `doc_type` | 适用于 |
+|-----------|--------|
+| `image` | PNG、JPG、GIF、WEBP、SVG 等 |
+| `video` | MP4、MOV、AVI 等 |
+| `audio` | MP3、WAV、OGG 等 |
+| `document` | PDF、DOCX、XLSX 等 |
+
+### 媒体的合成摘要
+
+由于媒体文件无法作为文本读取，vault 使用 `SynthesizeMediaSummary()` 从文件名和父文件夹上下文生成确定性的语义摘要，无需调用 LLM。摘要存储在 `vault_documents.summary` 中并纳入 FTS 索引，允许通过文件名和位置的关键词发现媒体文件。
+
+---
+
 ## Agent 工具
 
 ### vault_search
@@ -198,19 +261,7 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 }
 ```
 
-### vault_link
-
-在两个文档之间创建显式链接（类似 wikilink，但以编程方式创建）。
-
-```json
-{
-  "from": "docs/auth.md",
-  "to": "SOUL.md",
-  "context": "Persona 参考"
-}
-```
-
-`from` 和 `to` 是工作区相对路径。`context` 是可选的关系描述，存储在 `vault_links.context` 中。
+> **关于链接的说明：** 显式文档链接现在由 enrichment pipeline 自动处理。`vault_link` agent 工具已移除。链接通过文档内容中的 wikilink 语法（`[[target]]`）创建，或由 EnrichWorker 语义生成。可通过 `GET /v1/agents/{agentID}/vault/documents/{docID}/links` 查看链接。
 
 ---
 
@@ -232,6 +283,24 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 | 方法 | 路径 | 描述 |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | 列出租户下所有 agent 的文档（可按 `agent_id` 过滤） |
+| `GET` | `/v1/vault/tree` | 查看 vault 结构树状视图 |
+| `GET` | `/v1/vault/graph` | 跨租户图谱可视化（节点上限 2000，FA2 布局） |
+
+### Enrichment 控制端点
+
+| 方法 | 路径 | 描述 |
+|--------|------|-------------|
+| `POST` | `/v1/vault/enrichment/stop` | 停止 enrichment worker |
+
+---
+
+## 近期迁移
+
+| 迁移 | 名称 | 变更内容 |
+|------|------|---------|
+| 046 | `vault_nullable_agent_id` | 使 `vault_documents.agent_id` 可为 NULL，支持团队范围和租户共享的 vault 文件 |
+| 048 | `vault_media_linking` | 在 `team_task_attachments` 上添加生成列 `base_name`；在 `vault_links` 上添加 `metadata JSONB`；修复 CASCADE FK 约束 |
+| 049 | `vault_path_prefix_index` | 添加并发索引 `idx_vault_docs_path_prefix`（`text_pattern_ops`），用于快速前缀查询 |
 
 ---
 
@@ -241,6 +310,7 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 - **迁移** `000038_vault_tables` 必须已成功执行
 - **VaultStore** 在 gateway 启动时初始化
 - **VaultSyncWorker** 已启动以同步文件系统
+- **EnrichWorker** 已启动以自动 enrichment（摘要、embedding、语义链接）
 
 无需 feature flag。只要迁移已运行且 VaultStore 已初始化，vault 即处于激活状态。
 
@@ -262,4 +332,4 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 - [Memory 系统](../../core-concepts/memory-system.md) — 向量化长期记忆
 - [Context 文件](../../agents/context-files.md) — 注入 agent context 的静态文档
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->

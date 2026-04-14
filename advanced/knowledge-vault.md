@@ -15,8 +15,9 @@ Knowledge Vault is a **v3-only** feature. It sits between agents and the episodi
 | **VaultStore** | Document CRUD, link management, hybrid FTS + vector search |
 | **VaultService** | Search coordinator: fan-out across vault, episodic, and KG stores with weighted ranking |
 | **VaultSyncWorker** | Filesystem watcher: detects file changes (create/write/delete), syncs content hashes |
+| **EnrichWorker** | Processes vault document upsert events to generate summaries, embeddings, and semantic links |
 | **VaultRetriever** | Bridges vault search into the agent L0 memory system |
-| **HTTP Handlers** | REST endpoints: list, get, search, links |
+| **HTTP Handlers** | REST endpoints: list, get, search, links, tree, graph |
 
 ### Data Flow
 
@@ -61,28 +62,27 @@ Registry of document metadata. Content lives on the filesystem; the registry sto
 |--------|------|-------|
 | `id` | UUID | Primary key |
 | `tenant_id` | UUID | Multi-tenant isolation |
-| `agent_id` | UUID | Per-agent namespace |
+| `agent_id` | UUID | Per-agent namespace; **nullable** for team-scoped or tenant-shared files (migration 046) |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
 | `path` | TEXT | Workspace-relative path (e.g., `workspace/notes/foo.md`) |
 | `title` | TEXT | Display name |
-| `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic` |
+| `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic`, `image`, `video`, `audio`, `document` |
 | `content_hash` | TEXT | SHA-256 of file content (change detection) |
 | `embedding` | vector(1536) | pgvector semantic similarity |
-| `tsv` | tsvector | GIN FTS index on title + path |
+| `tsv` | tsvector | GIN FTS index on title + path + summary |
 | `metadata` | JSONB | Optional custom fields |
-
-Unique constraint: `(agent_id, scope, path)` — one document per path per scope.
 
 ### vault_links
 
-Bidirectional links between documents (wikilinks, explicit references).
+Bidirectional links between documents (wikilinks, explicit references, and enrichment-generated semantic links).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `from_doc_id` | UUID | Source document |
 | `to_doc_id` | UUID | Target document |
-| `link_type` | TEXT | `wikilink`, `reference`, etc. |
+| `link_type` | TEXT | `wikilink`, `reference`, `depends_on`, `extends`, `related`, `supersedes`, `contradicts`, `task_attachment`, `delegation_attachment` |
 | `context` | TEXT | ~50-char surrounding text snippet |
+| `metadata` | JSONB | Extra metadata from enrichment pipeline (migration 048) |
 
 Unique constraint: `(from_doc_id, to_doc_id, link_type)` — no duplicate links.
 
@@ -181,6 +181,69 @@ Results are normalized per source (max score = 1.0), weighted, merged, deduplica
 
 ---
 
+## Enrichment Pipeline
+
+After each document upsert, **EnrichWorker** processes the event asynchronously to enrich vault documents with summaries, embeddings, and semantic links.
+
+### What EnrichWorker does
+
+1. Generates a text summary of the document content
+2. Computes a vector embedding for semantic search
+3. Classifies semantic relationships to other documents in the vault and creates `vault_link` rows
+
+### Semantic link types
+
+The classifier produces links with one of six relationship types:
+
+| Type | Meaning |
+|------|---------|
+| `reference` | Document cites another as a source |
+| `depends_on` | Document requires another to be meaningful |
+| `extends` | Document adds to or builds upon another |
+| `related` | General topical relationship |
+| `supersedes` | Document replaces or obsoletes another |
+| `contradicts` | Document conflicts with another |
+
+### Special attachment link types
+
+Two additional link types are created by the task/delegation system rather than the classifier:
+
+- `task_attachment` — links a vault document to a team task it was attached to
+- `delegation_attachment` — links a vault document to a delegation it was attached to
+
+These are not affected by enrichment cleanup or rescan.
+
+### Enrichment progress
+
+Real-time enrichment progress is broadcast as WebSocket events. The UI shows per-document status while the worker runs.
+
+### Stop and rescan controls
+
+From the UI (or REST API), users can:
+- **Stop enrichment** — halts the EnrichWorker for the current tenant
+- **Trigger rescan** — re-queues all vault documents for re-enrichment (useful after model or config changes)
+
+---
+
+## Media Document Support
+
+The vault accepts binary and media files in addition to text documents. Supported file types are controlled by an extension whitelist.
+
+### doc_type values for media files
+
+| `doc_type` | Used for |
+|-----------|---------|
+| `image` | PNG, JPG, GIF, WEBP, SVG, etc. |
+| `video` | MP4, MOV, AVI, etc. |
+| `audio` | MP3, WAV, OGG, etc. |
+| `document` | PDF, DOCX, XLSX, etc. |
+
+### Synthetic summaries for media
+
+Because media files cannot be read as text, the vault uses `SynthesizeMediaSummary()` to generate a deterministic semantic summary from the filename and parent folder context. No LLM call is needed. The summary is stored in `vault_documents.summary` and included in the FTS index, enabling keyword discovery of media files by name and location.
+
+---
+
 ## Agent Tools
 
 ### vault_search
@@ -196,19 +259,7 @@ Primary discovery tool. Searches across vault, episodic memory, and Knowledge Gr
 }
 ```
 
-### vault_link
-
-Creates an explicit link between two documents (similar to a wikilink, but programmatic).
-
-```json
-{
-  "from": "docs/auth.md",
-  "to": "SOUL.md",
-  "context": "Persona reference"
-}
-```
-
-The `from` and `to` fields are workspace-relative paths. `context` is an optional relationship description stored in `vault_links.context`.
+> **Note on linking:** Explicit document linking is now handled automatically by the enrichment pipeline. The `vault_link` agent tool has been removed. Links are created via wikilink syntax in document content (`[[target]]`) or generated semantically by EnrichWorker. You can view links via `GET /v1/agents/{agentID}/vault/documents/{docID}/links`.
 
 ---
 
@@ -225,11 +276,19 @@ All endpoints require `Authorization: Bearer <token>`.
 | `POST` | `/v1/agents/{agentID}/vault/search` | Unified search |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Outlinks + backlinks |
 
-### Cross-Agent Endpoint
+### Cross-Agent Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | List across all tenant agents (filter by `agent_id`) |
+| `GET` | `/v1/vault/tree` | Tree view of vault structure |
+| `GET` | `/v1/vault/graph` | Cross-tenant graph visualization (node limit: 2000, FA2 layout) |
+
+### Enrichment Control Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/vault/enrichment/stop` | Stop the enrichment worker |
 
 ### Example: Unified Search
 
@@ -294,12 +353,23 @@ GET /v1/agents/agent-123/vault/documents/doc-456/links
 
 ---
 
+## Recent Migrations
+
+| Migration | Name | What changed |
+|-----------|------|--------------|
+| 046 | `vault_nullable_agent_id` | Makes `vault_documents.agent_id` nullable for team-scoped and tenant-shared files |
+| 048 | `vault_media_linking` | Adds `base_name` generated column on `team_task_attachments`; adds `metadata JSONB` on `vault_links`; fixes CASCADE FK constraints |
+| 049 | `vault_path_prefix_index` | Adds concurrent index `idx_vault_docs_path_prefix` with `text_pattern_ops` for fast prefix queries |
+
+---
+
 ## Requirements
 
 - **PostgreSQL** with `pgvector` extension (embeddings)
 - **Migration** `000038_vault_tables` must have run successfully
 - **VaultStore** initialized during gateway startup
 - **VaultSyncWorker** started for filesystem sync
+- **EnrichWorker** started for automatic enrichment (summaries, embeddings, semantic links)
 
 No feature flag. Vault is active if the migration ran and VaultStore initialized.
 
@@ -321,4 +391,4 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 - [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
 - [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->

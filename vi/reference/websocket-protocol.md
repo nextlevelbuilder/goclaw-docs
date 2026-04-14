@@ -337,8 +337,11 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 
 | Method | Params | Mô tả |
 |--------|--------|-------|
+| `whatsapp.qr.start` | `{instance_id}` | Bắt đầu quy trình đăng nhập QR WhatsApp |
 | `zalo.personal.qr.start` | `{instance_id}` | Bắt đầu quy trình đăng nhập QR Zalo Personal |
 | `zalo.personal.contacts` | `{instance_id}` | Lấy danh sách bạn bè và nhóm Zalo |
+
+> **Trạng thái: Đã lên kế hoạch** — `whatsapp.qr.start`, `zalo.personal.qr.start` và `zalo.personal.contacts` đã có hằng số protocol nhưng handler chưa được triển khai trong gateway.
 
 ---
 
@@ -486,4 +489,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | cập nhật: 2026-04-15 -->

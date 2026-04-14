@@ -114,6 +114,16 @@ curl -X POST http://localhost:8080/v1/agents \
 | `workspace` | string | `~/.goclaw/{key}-workspace` | context 文件目录 |
 | `other_config` | JSON | `{}` | 自定义字段（如用于 summoning 的 `description`） |
 
+### `other_config` — 工作区共享
+
+`other_config` 字段还接受工作区共享设置，用于控制用户间的数据隔离：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `share_memory` | boolean | `false` | 在该 agent 的所有用户间共享 memory store |
+| `share_knowledge_graph` | boolean | `false` | 在该 agent 的所有用户间共享 knowledge graph |
+| `share_sessions` | boolean | `false` | 允许 group 作用域 agent 的 cron job 读取其他 group 的 session。默认关闭，防止 cron job 执行时发生跨 group 会话数据泄漏 |
+
 > **frontmatter 字段：** Summoning 完成后，GoClaw 会将从 SOUL.md 中自动提取的专业能力摘要存储在 agent 的 `frontmatter` 字段中，用于 agent 发现与委派——不需要手动设置。
 
 ## 示例
@@ -204,4 +214,4 @@ curl -X POST http://localhost:8080/v1/agents \
 - [Context Files](./context-files.md) — 学习 SOUL.md、IDENTITY.md 等系统文件
 - [Summoning & Bootstrap](/summoning-bootstrap) — LLM 如何在首次使用时生成 personality 文件
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->

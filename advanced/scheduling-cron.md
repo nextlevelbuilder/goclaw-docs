@@ -94,7 +94,7 @@ goclaw cron delete <jobId>
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Slug label — lowercase letters, numbers, hyphens only (e.g. `daily-report`) |
+| `name` | string | Slug label — lowercase letters, numbers, hyphens only (e.g. `daily-report`). Must be unique per agent and tenant — duplicate names are automatically deduplicated |
 | `agentId` | string | Agent UUID to run the job (omit for default agent) |
 | `enabled` | bool | `true` = active, `false` = paused |
 | `schedule.kind` | string | `at`, `every`, or `cron` |
@@ -308,6 +308,7 @@ When a session's conversation history exceeds **60% of the context window**, the
 | `invalid timezone` | Unknown IANA zone string | Use a valid zone from the IANA tz database, e.g. `America/New_York` |
 | Job runs but agent gets no message | `message` field is empty | Set a non-empty `message` |
 | `name` validation error | Name not a valid slug | Use lowercase letters, numbers, and hyphens only (e.g. `daily-report`) |
+| Duplicate job name | Same `name` already exists for this agent and tenant | Job names must be unique per `(agent_id, tenant_id, name)` — each agent/tenant pair enforces this as a unique constraint (migration 047). Use a different name or update the existing job |
 | Duplicate executions | Clock skew between restarts (edge case) | The scheduler clears `next_run_at` in the DB before dispatch; on restart, stale jobs are recomputed automatically |
 | Run log is empty | Job hasn't fired yet | Trigger manually via `cron.run` method with `mode: "force"` |
 
@@ -339,4 +340,4 @@ GoClaw runs an internal background cron for the v3 agent evolution engine. This 
 - [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

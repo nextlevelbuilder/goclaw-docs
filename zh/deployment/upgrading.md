@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **44**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **49**。
 
 ```mermaid
 graph LR
@@ -224,6 +224,11 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 042 | 为 `vault_documents` 添加 `summary` 列；重建 FTS |
 | 043 | 为 `vault_documents` 和其他 9 张表添加 `team_id`、`custom_scope`；支持团队的唯一约束；scope 修复触发器 |
 | 044 | 为所有 agent 播种 `AGENTS_CORE.md` 和 `AGENTS_TASK.md` 上下文文件；删除 `AGENTS_MINIMAL.md` |
+| 045 | `episodic_recall_tracking` — 为 `episodic_summaries` 添加 `recall_count`、`recall_score`、`last_recalled_at`；添加局部索引以支持 dreaming worker 的优先级 episode 提升 |
+| 046 | `vault_nullable_agent_id` — 使 `vault_documents.agent_id` 可为 NULL，支持团队范围和租户共享的 vault 文件 |
+| 047 | `cron_jobs_unique_constraint` — 添加 `(agent_id, tenant_id, name)` 唯一约束并去重现有记录 |
+| 048 | `vault_media_linking` — 在 `team_task_attachments` 上添加 `base_name` 生成列，在 `vault_links` 上添加 `metadata JSONB`，修复 CASCADE FK 约束 |
+| 049 | `vault_path_prefix_index` — 添加并发索引 `idx_vault_docs_path_prefix`（`text_pattern_ops`），用于快速前缀查询 |
 
 #### v3 重大变更
 
@@ -311,4 +316,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->

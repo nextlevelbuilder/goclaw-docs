@@ -371,6 +371,25 @@ Khi group tích lũy nhiều hơn `threshold` tin nhắn đang chờ, các tin n
 | `web.duckduckgo.enabled` | boolean | `true` | Bật DuckDuckGo fallback |
 | `web.duckduckgo.max_results` | integer | `5` | Max kết quả tìm kiếm |
 
+### `tools.web_search`
+
+Cấu hình provider tìm kiếm web. Các cài đặt này thuộc hệ thống overlay 4 tầng tenant cho built-in tools — có thể đặt ở cấp system, tenant, agent, hoặc user.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `provider_order` | string[] | — | Danh sách provider tìm kiếm theo thứ tự ưu tiên. GoClaw thử từng provider theo thứ tự và fallback sang cái tiếp theo khi thất bại. Ví dụ: `["exa", "tavily", "brave", "duckduckgo"]` |
+
+**Các provider khả dụng:**
+
+| Provider | Cần API key | Ghi chú |
+|----------|------------|---------|
+| `exa` | Có | Exa AI neural search |
+| `tavily` | Có | Tavily search API |
+| `brave` | Có | Brave Search API |
+| `duckduckgo` | Không | Fallback miễn phí, luôn là lựa chọn cuối cùng |
+
+> **DuckDuckGo fallback:** `duckduckgo` luôn được thử cuối cùng nếu không có provider nào khác trong `provider_order` thành công, kể cả khi không liệt kê tường minh. DuckDuckGo không cần API key.
+
 ### `tools.web_fetch`
 
 | Field | Type | Mặc định | Mô tả |
@@ -679,4 +698,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](/database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->

@@ -80,18 +80,28 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
 
 ## 通过 Dashboard 上传
 
-进入 **Skills → Upload**，拖入 ZIP 文件。ZIP 必须包含单个 skill，`SKILL.md` 位于根目录或一个顶层目录内：
+进入 **Skills → Upload**，拖入 ZIP 文件。ZIP 可以包含**单个 skill** 或**多个 skill**：
 
 ```
-# SKILL.md 在根目录
+# 单个 skill — SKILL.md 在根目录
 my-skill.zip
 └── SKILL.md
 
-# 或包裹在单个目录中
+# 单个 skill — 包裹在单个目录中
 my-skill.zip
 └── code-reviewer/
     ├── SKILL.md
     └── review-checklist.md
+
+# 多 skill ZIP — 一次上传多个 skill
+skills-bundle.zip
+└── skills/
+    ├── code-reviewer/
+    │   ├── SKILL.md
+    │   └── metadata.json
+    └── sql-style/
+        ├── SKILL.md
+        └── metadata.json
 ```
 
 上传的 skill 以版本化子目录结构存储在管理目录下（默认 `~/.goclaw/skills-store/`）：
@@ -103,6 +113,52 @@ my-skill.zip
 元数据（名称、描述、可见性、授权）存在 PostgreSQL 中；文件内容存在磁盘上。GoClaw 始终提供编号最高的版本。旧版本保留以备回滚。
 
 通过 Dashboard 上传的 skill 初始可见性为 **internal** — 可立即被你授权的任意 agent 或用户访问。
+
+## 通过 API 导入
+
+`POST /v1/skills/import` 端点接受与 Dashboard 上传相同的 ZIP 格式，支持单 skill 和多 skill 归档包。
+
+**标准导入（JSON 响应）：**
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@skills-bundle.zip"
+```
+
+返回 `SkillsImportSummary` JSON 对象：
+
+```json
+{
+  "skills_imported": 2,
+  "skills_skipped": 0,
+  "grants_applied": 3
+}
+```
+
+**SSE 流式进度导入（`?stream=true`）：**
+
+```bash
+curl -X POST "http://localhost:8080/v1/skills/import?stream=true" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: text/event-stream" \
+  -F "file=@skills-bundle.zip"
+```
+
+使用 `?stream=true` 时，服务器在处理每个 skill 时发送 Server-Sent Events（SSE）：
+
+```
+event: progress
+data: {"phase":"skill","status":"running","detail":"code-reviewer"}
+
+event: progress
+data: {"phase":"skill","status":"done","detail":"code-reviewer"}
+
+event: complete
+data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
+```
+
+**基于哈希的幂等性：** 上传端点使用 `SKILL.md` 内容的 SHA-256 哈希进行去重。如果相同的 `SKILL.md` 内容再次上传（即使打包在不同的 ZIP 中），也不会创建新版本 — 现有版本保持不变。只有 `SKILL.md` 实际内容发生变化时才会触发新版本创建。
 
 ## 运行时环境
 
@@ -337,7 +393,7 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 | 修改未被拾取 | watcher 未启动（非 Docker 环境） | 重启 GoClaw；验证日志中的 `skills watcher started` |
 | 使用了低优先级 skill | 名称冲突 — slug 在更高层级已存在 | 使用唯一 slug，或将 skill 放在更高优先级位置 |
 | `skill_search` 无结果 | 索引尚未构建（第一次请求）或 frontmatter 无描述 | 在 frontmatter 中添加 `description`；下次热重载时索引重建 |
-| ZIP 上传失败 | ZIP 中未找到 `SKILL.md` | 将 `SKILL.md` 放在 ZIP 根目录或一个顶层目录中 |
+| ZIP 上传失败 | ZIP 中未找到 `SKILL.md` | 将 `SKILL.md` 放在 ZIP 根目录、一个顶层目录中，或使用多 skill 布局 `skills/<slug>/SKILL.md` |
 
 ## 下一步
 
@@ -345,4 +401,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->

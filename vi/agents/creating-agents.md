@@ -114,6 +114,16 @@ curl -X POST http://localhost:8080/v1/agents \
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Thư mục chứa context file |
 | `other_config` | JSON | `{}` | Trường tuỳ chỉnh (ví dụ: `description` để kích hoạt summoning) |
 
+### `other_config` — Chia sẻ Workspace
+
+Trường `other_config` cũng chấp nhận các cài đặt workspace sharing để kiểm soát việc cô lập dữ liệu giữa các user:
+
+| Trường | Kiểu | Mặc định | Mô tả |
+|-------|------|---------|-------|
+| `share_memory` | boolean | `false` | Chia sẻ memory store cho tất cả user của agent này |
+| `share_knowledge_graph` | boolean | `false` | Chia sẻ knowledge graph cho tất cả user của agent này |
+| `share_sessions` | boolean | `false` | Cho phép cron job của agent có phạm vi group đọc session từ các group khác. Tắt theo mặc định để ngăn rò rỉ dữ liệu session giữa các group khi thực thi cron job |
+
 > **Trường frontmatter:** Sau summoning, GoClaw lưu một tóm tắt chuyên môn ngắn (trích xuất tự động từ SOUL.md) vào trường `frontmatter` của agent. Trường này dùng cho agent discovery và delegation — bạn không cần đặt trực tiếp.
 
 ## Ví dụ
@@ -204,4 +214,4 @@ Khi tạo agent, GoClaw seed các file context từ template tích hợp sẵn. 
 - [Context Files](./context-files.md) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách LLM tạo ra file personality khi lần đầu sử dụng
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->

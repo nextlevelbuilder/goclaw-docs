@@ -14,10 +14,10 @@
 |------|------|------|
 | **文件系统** (`group:fs`) | read_file, write_file, edit, list_files, search, glob | 在 agent 工作空间中读、写、编辑和搜索文件 |
 | **运行时** (`group:runtime`) | exec, credentialed_exec | 运行 shell 命令；以注入凭证执行 CLI 工具 |
-| **Web** (`group:web`) | web_search, web_fetch | 搜索网页（Brave/DuckDuckGo）并抓取页面 |
+| **Web** (`group:web`) | web_search, web_fetch | 搜索网页（Exa、Tavily、Brave、DuckDuckGo）并抓取页面 |
 | **记忆** (`group:memory`) | memory_search, memory_get, memory_expand | 查询长期记忆（混合向量 + FTS 搜索）；按 ID 展开完整 episodic 内容（L2 检索） |
 | **知识** (`group:knowledge`) | vault_search, knowledge_graph_search, skill_search | 跨 vault/memory/知识图谱的统一搜索；搜索实体和关系；发现 skills |
-| **Vault** | vault_link, vault_backlinks | 在 vault 文档间创建 wikilink；追踪文档反向链接 |
+| **Vault** | vault_search | 搜索 vault 文档和知识图谱 |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | 管理对话 session；生成子 agent |
 | **团队** (`group:teams`) | team_tasks, team_message | 通过共享任务板和邮箱与 agent 团队协作 |
 | **自动化** (`group:automation`) | cron, datetime | 调度定期任务；获取当前日期/时间 |
@@ -28,6 +28,31 @@
 | **Skills** (`group:skills`) | use_skill, publish_skill | 调用和发布 skills |
 | **工作空间** | workspace_dir | 解析团队/用户上下文的工作空间目录 |
 | **AI** | openai_compat_call | 以自定义请求格式调用 OpenAI 兼容端点 |
+
+### web_search 提供商
+
+`web_search` 支持四个提供商，按顺序尝试：
+
+| 提供商 | 说明 |
+|--------|------|
+| **Exa** | 需要 `EXA_API_KEY` |
+| **Tavily** | 需要 `TAVILY_API_KEY` |
+| **Brave** | 需要 `BRAVE_API_KEY` |
+| **DuckDuckGo** | 免费 fallback — 当其他提供商无 API key 时最后使用 |
+
+通过工具设置中的 `provider_order` 配置提供商顺序：
+
+```json
+{
+  "tools": {
+    "web_search": {
+      "provider_order": ["exa", "tavily", "brave", "duckduckgo"]
+    }
+  }
+}
+```
+
+DuckDuckGo 不需要 API key，始终作为最终 fallback 可用。
 
 ### V3 记忆与 Vault 新工具
 
@@ -40,12 +65,9 @@
 
 先用 `memory_search` 发现相关 episodic ID，再用 `memory_expand` 获取完整内容。仅需少量条目时节省 token。
 
-**Vault 链接工具**（v3 知识图谱集成）：
+**Vault 链接**现在由 enrichment pipeline 自动处理。参见 [Knowledge Vault](../../advanced/knowledge-vault.md)。
 
-| 工具 | 描述 |
-|------|------|
-| `vault_link` | 在两个 vault 文档间创建显式链接（`wikilink` 或 `reference` 类型）。自动注册尚未在 vault 中的文档。不同团队的文档不能互相链接。 |
-| `vault_backlinks` | 列出链接到指定文档路径的所有文档。遵守团队/个人 scope 边界。 |
+> `vault_link` 和 `vault_backlinks` 已移除。显式 wikilink 创建和反向链接追踪不再需要 — enrichment pipeline 自动管理文档关系。
 
 **BytePlus 媒体工具**（`create_image_byteplus`、`create_video_byteplus`）在配置 `byteplus` provider 后自动可用。两者均采用异步 job 轮询：通过 Seedream 生成图片会在任务完成后返回 URL；通过 Seedance 生成视频则轮询 `/text-to-video-pro/status/{id}` 获取结果。
 

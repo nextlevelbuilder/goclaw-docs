@@ -96,7 +96,7 @@ goclaw cron delete <jobId>
 
 | Trường | Kiểu | Mô tả |
 |---|---|---|
-| `name` | string | Slug nhận diện — chỉ dùng chữ thường, số, dấu gạch ngang (ví dụ: `daily-report`) |
+| `name` | string | Slug nhận diện — chỉ dùng chữ thường, số, dấu gạch ngang (ví dụ: `daily-report`). Phải duy nhất theo từng agent và tenant — tên trùng lặp được tự động loại bỏ |
 | `agentId` | string | UUID agent chạy job (bỏ trống để dùng agent mặc định) |
 | `enabled` | bool | `true` = đang hoạt động, `false` = tạm dừng |
 | `schedule.kind` | string | `at`, `every`, hoặc `cron` |
@@ -310,6 +310,7 @@ Lệnh `/stop` và `/stopall` được chặn **trước** debouncer 800ms để
 | `invalid timezone` | Chuỗi múi giờ IANA không hợp lệ | Dùng múi giờ hợp lệ từ database IANA tz, ví dụ `America/New_York` |
 | Job chạy nhưng agent không nhận tin nhắn | Trường `message` rỗng | Đặt `message` khác rỗng |
 | Lỗi validation `name` | Tên không phải slug hợp lệ | Dùng chữ thường, số, dấu gạch ngang (ví dụ: `daily-report`) |
+| Tên job trùng lặp | `name` đã tồn tại cho agent và tenant này | Tên job phải duy nhất theo `(agent_id, tenant_id, name)` — mỗi cặp agent/tenant áp dụng ràng buộc unique này (migration 047). Dùng tên khác hoặc cập nhật job hiện có |
 | Thực thi trùng lặp | Clock skew giữa các lần khởi động lại (trường hợp hiếm gặp) | Scheduler xóa `next_run_at` trong DB trước khi dispatch; khi khởi động lại, job stale được tự động recompute |
 | Run log trống | Job chưa kích hoạt lần nào | Kích hoạt thủ công qua method `cron.run` với `mode: "force"` |
 
@@ -341,4 +342,4 @@ GoClaw chạy một background cron nội bộ cho engine evolution agent v3. Đ
 - [Skills](../advanced/skills.md) — inject kiến thức domain để agent theo lịch hiệu quả hơn
 - [Sandbox](../advanced/sandbox.md) — cô lập thực thi code trong các agent turn theo lịch
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->

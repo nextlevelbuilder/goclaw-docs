@@ -17,8 +17,9 @@ Knowledge Vault là tính năng **chỉ có trong v3**. Nó nằm giữa agent v
 | **VaultStore** | CRUD tài liệu, quản lý liên kết, tìm kiếm hybrid FTS + vector |
 | **VaultService** | Điều phối tìm kiếm: fan-out sang vault, episodic và KG với điểm số có trọng số |
 | **VaultSyncWorker** | Theo dõi filesystem: phát hiện thay đổi file (tạo/ghi/xóa), đồng bộ content hash |
+| **EnrichWorker** | Xử lý sự kiện upsert tài liệu vault để tạo tóm tắt, embedding và semantic link |
 | **VaultRetriever** | Kết nối tìm kiếm vault vào hệ thống bộ nhớ L0 của agent |
-| **HTTP Handlers** | REST endpoints: list, get, search, links |
+| **HTTP Handlers** | REST endpoints: list, get, search, links, tree, graph |
 
 ### Luồng Dữ Liệu
 
@@ -63,28 +64,27 @@ Registry metadata của tài liệu. Nội dung lưu trên filesystem; registry 
 |--------|------|-------|
 | `id` | UUID | Khóa chính |
 | `tenant_id` | UUID | Cô lập multi-tenant |
-| `agent_id` | UUID | Namespace theo agent |
+| `agent_id` | UUID | Namespace theo agent; **có thể NULL** cho file team-scoped hoặc tenant-shared (migration 046) |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
 | `path` | TEXT | Đường dẫn tương đối trong workspace (vd: `workspace/notes/foo.md`) |
 | `title` | TEXT | Tên hiển thị |
-| `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic` |
+| `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic`, `image`, `video`, `audio`, `document` |
 | `content_hash` | TEXT | SHA-256 của nội dung file (phát hiện thay đổi) |
 | `embedding` | vector(1536) | pgvector tìm kiếm ngữ nghĩa |
-| `tsv` | tsvector | GIN FTS index trên title + path |
+| `tsv` | tsvector | GIN FTS index trên title + path + summary |
 | `metadata` | JSONB | Các trường tùy chỉnh |
-
-Ràng buộc duy nhất: `(agent_id, scope, path)` — một tài liệu mỗi path mỗi scope.
 
 ### vault_links
 
-Liên kết hai chiều giữa các tài liệu (wikilink, tham chiếu tường minh).
+Liên kết hai chiều giữa các tài liệu (wikilink, tham chiếu tường minh và semantic link do enrichment pipeline tạo).
 
 | Cột | Kiểu | Ghi chú |
 |--------|------|-------|
 | `from_doc_id` | UUID | Tài liệu nguồn |
 | `to_doc_id` | UUID | Tài liệu đích |
-| `link_type` | TEXT | `wikilink`, `reference`, v.v. |
+| `link_type` | TEXT | `wikilink`, `reference`, `depends_on`, `extends`, `related`, `supersedes`, `contradicts`, `task_attachment`, `delegation_attachment` |
 | `context` | TEXT | ~50 ký tự văn bản xung quanh |
+| `metadata` | JSONB | Metadata từ enrichment pipeline (migration 048) |
 
 Ràng buộc duy nhất: `(from_doc_id, to_doc_id, link_type)` — không có liên kết trùng lặp.
 
@@ -183,6 +183,69 @@ Kết quả được chuẩn hóa theo từng nguồn (điểm tối đa = 1.0),
 
 ---
 
+## Pipeline Enrichment
+
+Sau mỗi lần upsert tài liệu, **EnrichWorker** xử lý sự kiện bất đồng bộ để làm giàu tài liệu vault với tóm tắt, embedding và semantic link.
+
+### EnrichWorker làm gì
+
+1. Tạo tóm tắt văn bản cho nội dung tài liệu
+2. Tính toán vector embedding cho tìm kiếm ngữ nghĩa
+3. Phân loại mối quan hệ ngữ nghĩa với các tài liệu khác trong vault và tạo hàng `vault_link`
+
+### Các loại semantic link
+
+Bộ phân loại tạo liên kết với một trong sáu loại mối quan hệ:
+
+| Loại | Ý nghĩa |
+|------|---------|
+| `reference` | Tài liệu trích dẫn tài liệu khác làm nguồn |
+| `depends_on` | Tài liệu cần tài liệu khác để có ý nghĩa |
+| `extends` | Tài liệu bổ sung hoặc xây dựng dựa trên tài liệu khác |
+| `related` | Mối quan hệ chủ đề chung |
+| `supersedes` | Tài liệu thay thế hoặc làm lỗi thời tài liệu khác |
+| `contradicts` | Tài liệu mâu thuẫn với tài liệu khác |
+
+### Loại link đặc biệt cho task/delegation
+
+Hai loại link bổ sung được tạo bởi hệ thống task/delegation, không phải bộ phân loại:
+
+- `task_attachment` — liên kết tài liệu vault với task team mà nó được đính kèm
+- `delegation_attachment` — liên kết tài liệu vault với delegation mà nó được đính kèm
+
+Các loại này không bị ảnh hưởng bởi cleanup hoặc rescan của enrichment.
+
+### Tiến độ enrichment
+
+Tiến độ enrichment theo thời gian thực được phát qua WebSocket events. UI hiển thị trạng thái từng tài liệu trong khi worker chạy.
+
+### Điều khiển dừng và rescan
+
+Từ UI (hoặc REST API), người dùng có thể:
+- **Dừng enrichment** — tạm dừng EnrichWorker cho tenant hiện tại
+- **Kích hoạt rescan** — đưa tất cả tài liệu vault vào hàng đợi để tái enrichment (hữu ích sau khi thay đổi model hoặc cấu hình)
+
+---
+
+## Hỗ Trợ Tài Liệu Media
+
+Vault chấp nhận file binary và media ngoài tài liệu văn bản. Các loại file được hỗ trợ được kiểm soát bởi danh sách trắng phần mở rộng.
+
+### Giá trị doc_type cho file media
+
+| `doc_type` | Dùng cho |
+|-----------|---------|
+| `image` | PNG, JPG, GIF, WEBP, SVG, v.v. |
+| `video` | MP4, MOV, AVI, v.v. |
+| `audio` | MP3, WAV, OGG, v.v. |
+| `document` | PDF, DOCX, XLSX, v.v. |
+
+### Tóm tắt tổng hợp cho media
+
+Vì file media không thể đọc dạng văn bản, vault dùng `SynthesizeMediaSummary()` để tạo tóm tắt ngữ nghĩa xác định từ tên file và ngữ cảnh thư mục cha. Không cần gọi LLM. Tóm tắt được lưu trong `vault_documents.summary` và đưa vào FTS index, cho phép khám phá file media bằng từ khóa qua tên và vị trí.
+
+---
+
 ## Công Cụ Agent
 
 ### vault_search
@@ -198,19 +261,7 @@ Công cụ khám phá chính. Tìm kiếm trên vault, episodic memory và Knowl
 }
 ```
 
-### vault_link
-
-Tạo liên kết tường minh giữa hai tài liệu (tương tự wikilink nhưng theo cách lập trình).
-
-```json
-{
-  "from": "docs/auth.md",
-  "to": "SOUL.md",
-  "context": "Tham chiếu Persona"
-}
-```
-
-Các trường `from` và `to` là đường dẫn tương đối trong workspace. `context` là mô tả quan hệ tùy chọn được lưu trong `vault_links.context`.
+> **Ghi chú về liên kết:** Liên kết tài liệu tường minh giờ được xử lý tự động bởi enrichment pipeline. Công cụ agent `vault_link` đã bị xóa. Liên kết được tạo qua cú pháp wikilink trong nội dung tài liệu (`[[target]]`) hoặc được EnrichWorker tạo theo ngữ nghĩa. Bạn có thể xem liên kết qua `GET /v1/agents/{agentID}/vault/documents/{docID}/links`.
 
 ---
 
@@ -232,6 +283,24 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 | Phương thức | Đường dẫn | Mô tả |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | Liệt kê qua tất cả agent của tenant (lọc theo `agent_id`) |
+| `GET` | `/v1/vault/tree` | Xem cấu trúc cây của vault |
+| `GET` | `/v1/vault/graph` | Trực quan hóa đồ thị liên tenant (giới hạn 2000 node, layout FA2) |
+
+### Endpoint Điều Khiển Enrichment
+
+| Phương thức | Đường dẫn | Mô tả |
+|--------|------|-------------|
+| `POST` | `/v1/vault/enrichment/stop` | Dừng enrichment worker |
+
+---
+
+## Migration Gần Đây
+
+| Migration | Tên | Thay đổi |
+|-----------|------|----------|
+| 046 | `vault_nullable_agent_id` | Cho phép `vault_documents.agent_id` là NULL cho file team-scoped và tenant-shared |
+| 048 | `vault_media_linking` | Thêm cột generated `base_name` vào `team_task_attachments`; thêm `metadata JSONB` vào `vault_links`; sửa CASCADE FK constraints |
+| 049 | `vault_path_prefix_index` | Thêm concurrent index `idx_vault_docs_path_prefix` với `text_pattern_ops` cho truy vấn prefix nhanh |
 
 ---
 
@@ -241,6 +310,7 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 - **Migration** `000038_vault_tables` phải đã chạy thành công
 - **VaultStore** khởi tạo trong quá trình khởi động gateway
 - **VaultSyncWorker** đã khởi động để đồng bộ filesystem
+- **EnrichWorker** đã khởi động để tự động enrichment (tóm tắt, embedding, semantic link)
 
 Không có feature flag. Vault hoạt động nếu migration đã chạy và VaultStore đã khởi tạo.
 
@@ -262,4 +332,4 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 - [Memory System](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dạng vector
 - [Context Files](../../agents/context-files.md) — Tài liệu tĩnh được inject vào context của agent
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->

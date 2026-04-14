@@ -147,8 +147,7 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 |--------|------|-------|
 | `GET` | `/v1/agents/{id}/instances` | Liệt kê user instance |
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | Liệt kê context file của user |
-| `GET` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Lấy context file cụ thể |
-| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Cập nhật user file (chỉ USER.md) |
+| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Cập nhật user file (admin) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Cập nhật instance metadata |
 
 ### Export / Import Agent
@@ -491,6 +490,7 @@ POST /v1/tools/invoke
 |--------|------|-------|
 | `GET` | `/v1/tools/builtin` | Liệt kê tất cả built-in tool |
 | `GET` | `/v1/tools/builtin/{name}` | Lấy định nghĩa tool |
+| `GET` | `/v1/tools/builtin/{name}/tenant-config` | Lấy cấu hình theo tenant của built-in tool |
 | `PUT` | `/v1/tools/builtin/{name}` | Cập nhật enabled/settings |
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Đặt cấu hình ghi đè theo tenant (admin) |
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Xóa cấu hình ghi đè theo tenant (admin) |
@@ -562,6 +562,9 @@ Lưu trữ tài liệu bền vững với embedding vector và liên kết đồ
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/vault/documents` | Liệt kê tài liệu toàn hệ thống |
+| `GET` | `/v1/vault/tree` | Cấu trúc cây phân cấp của vault document |
+| `GET` | `/v1/vault/graph` | Dữ liệu đồ thị vault để trực quan hóa (cross-tenant, giới hạn 2000 node) |
+| `POST` | `/v1/vault/enrichment/stop` | Dừng enrichment worker cho agent hiện tại |
 | `GET` | `/v1/agents/{id}/vault/documents` | Liệt kê tài liệu của agent |
 | `GET` | `/v1/agents/{id}/vault/documents/{docID}` | Lấy một tài liệu (nội dung đầy đủ) |
 | `POST` | `/v1/agents/{id}/vault/search` | Tìm kiếm hybrid FTS+vector |
@@ -612,6 +615,7 @@ Các cờ tính năng theo từng agent kiểm soát các hệ thống con v3.
 | `POST` | `/v1/agents/{agentID}/kg/extract` | Trích xuất entity bằng LLM |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | Thống kê knowledge graph |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | Toàn bộ đồ thị để trực quan hóa |
+| `GET` | `/v1/agents/{agentID}/kg/graph/compact` | Biểu diễn đồ thị rút gọn (payload nhẹ hơn full graph) |
 | `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | Quét tìm entity trùng lặp |
 | `GET` | `/v1/agents/{agentID}/kg/dedup` | Liệt kê ứng viên dedup |
 | `POST` | `/v1/agents/{agentID}/kg/merge` | Gộp entity trùng lặp |
@@ -941,20 +945,6 @@ Endpoint tải xuống dùng chung (dùng chung với token export agent):
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/export/download/{token}` | Tải archive qua token ngắn hạn (hết hạn 5 phút, dùng chung cho mọi loại export) |
-
----
-
-## Delegations
-
-### `GET /v1/delegations`
-
-Liệt kê lịch sử delegation (agent-to-agent task handoff).
-
-**Filter:** `source_agent_id`, `target_agent_id`, `team_id`, `user_id`, `status`, `limit`, `offset`
-
-### `GET /v1/delegations/{id}`
-
-Lấy một delegation record.
 
 ---
 
@@ -1314,4 +1304,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | cập nhật: 2026-04-15 -->

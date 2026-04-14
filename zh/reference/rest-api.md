@@ -147,8 +147,7 @@ curl -X POST http://localhost:18790/v1/agents \
 |--------|------|-------------|
 | `GET` | `/v1/agents/{id}/instances` | 列出用户实例 |
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | 列出用户 context 文件 |
-| `GET` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | 获取特定 context 文件 |
-| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | 更新用户文件（仅 USER.md）|
+| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | 更新用户 context 文件（管理员）|
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | 更新实例元数据 |
 
 ### Agent 导出 / 导入
@@ -459,6 +458,7 @@ POST /v1/tools/invoke
 |--------|------|-------------|
 | `GET` | `/v1/tools/builtin` | 列出所有内置工具 |
 | `GET` | `/v1/tools/builtin/{name}` | 获取工具定义 |
+| `GET` | `/v1/tools/builtin/{name}/tenant-config` | 获取内置工具的租户级配置 |
 | `PUT` | `/v1/tools/builtin/{name}` | 更新启用状态/设置 |
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | 设置租户级覆盖（管理员）|
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | 移除租户级覆盖（管理员）|
@@ -530,6 +530,9 @@ POST /v1/tools/invoke
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | 列出全系统文档 |
+| `GET` | `/v1/vault/tree` | 返回 vault 文档结构的层级树视图 |
+| `GET` | `/v1/vault/graph` | 返回 vault 文档图谱可视化数据（跨租户，节点上限 2000）|
+| `POST` | `/v1/vault/enrichment/stop` | 停止当前 agent 的 enrichment worker |
 | `GET` | `/v1/agents/{id}/vault/documents` | 列出指定 agent 的文档 |
 | `GET` | `/v1/agents/{id}/vault/documents/{docID}` | 获取单个文档（完整内容）|
 | `POST` | `/v1/agents/{id}/vault/search` | FTS+向量混合搜索 |
@@ -580,6 +583,7 @@ POST /v1/tools/invoke
 | `POST` | `/v1/agents/{agentID}/kg/extract` | LLM 驱动的实体提取 |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | 知识图谱统计 |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | 可视化用完整图谱 |
+| `GET` | `/v1/agents/{agentID}/kg/graph/compact` | 精简图谱表示（比完整图谱 payload 更轻量）|
 | `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | 扫描重复实体 |
 | `GET` | `/v1/agents/{agentID}/kg/dedup` | 列出去重候选项 |
 | `POST` | `/v1/agents/{agentID}/kg/merge` | 合并重复实体 |
@@ -909,20 +913,6 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/export/download/{token}` | 通过短效 token 下载归档（5 分钟有效，所有导出类型共用）|
-
----
-
-## 委派
-
-### `GET /v1/delegations`
-
-列出委派历史（agent 间任务交接）。
-
-**过滤参数：** `source_agent_id`、`target_agent_id`、`team_id`、`user_id`、`status`、`limit`、`offset`
-
-### `GET /v1/delegations/{id}`
-
-获取单条委派记录。
 
 ---
 
@@ -1282,4 +1272,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | 更新: 2026-04-15 -->

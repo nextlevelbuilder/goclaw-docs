@@ -369,6 +369,25 @@ When a group accumulates more pending messages than `threshold`, older messages 
 | `web.duckduckgo.enabled` | boolean | `true` | Enable DuckDuckGo fallback |
 | `web.duckduckgo.max_results` | integer | `5` | Max search results |
 
+### `tools.web_search`
+
+Web search provider configuration. These settings are part of the 4-tier tenant settings overlay system for built-in tools — they can be set at the system, tenant, agent, or user level.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `provider_order` | string[] | — | Priority-ordered list of search providers. GoClaw tries each in order and falls back to the next on failure. Example: `["exa", "tavily", "brave", "duckduckgo"]` |
+
+**Available providers:**
+
+| Provider | API key required | Notes |
+|----------|-----------------|-------|
+| `exa` | Yes | Exa AI neural search |
+| `tavily` | Yes | Tavily search API |
+| `brave` | Yes | Brave Search API |
+| `duckduckgo` | No | Free fallback, always last resort |
+
+> **DuckDuckGo fallback:** `duckduckgo` is always tried last if no other provider in `provider_order` succeeds, even if not listed explicitly. No API key is required for DuckDuckGo.
+
 ### `tools.web_fetch`
 
 | Field | Type | Default | Description |
@@ -677,4 +696,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

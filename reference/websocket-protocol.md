@@ -349,6 +349,8 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `zalo.personal.qr.start` | `{instance_id}` | Start Zalo Personal QR login flow |
 | `zalo.personal.contacts` | `{instance_id}` | Fetch Zalo friends and groups |
 
+> **Status: Planned** — `whatsapp.qr.start`, `zalo.personal.qr.start`, and `zalo.personal.contacts` have protocol constants defined but handlers are not yet implemented in the gateway.
+
 ---
 
 ## Server-Push Events
@@ -497,4 +499,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | updated: 2026-04-15 -->

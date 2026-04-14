@@ -150,6 +150,39 @@ Session key: "{chatID}:topic:{rootMessageID}"
 
 Different threads in same group maintain separate histories.
 
+### Slash Commands (File Writer Management)
+
+In group chats, group members can manage file-write permissions using slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/addwriter <@mention or reply>` | Grant file-write permission to a user in the group |
+| `/removewriter <@mention or reply>` | Revoke file-write permission from a user |
+| `/writers` | List all users with file-write permissions in the group |
+
+**How to specify the target user:** Reply to the user's message and send the command, or @mention them in the same message. Self-grant is supported by @mentioning yourself.
+
+**Authorization:** Only existing file writers can manage the list. When the list is empty, the first caller can seed it by specifying an explicit target.
+
+> These commands work in group chats only. DMs are rejected.
+
+### Lark Docx Auto-Fetch
+
+When a Lark docx URL is pasted in chat, GoClaw automatically detects and fetches the document content via the Lark API and inlines it into the agent's prompt — no tool call required.
+
+**Supported URL formats:**
+- `https://*.feishu.cn/docx/<id>`
+- `https://*.larksuite.com/docx/<id>`
+
+**Required app permission scope:** `docx:document:readonly` — add this in your Feishu Developer Console under Permissions & Scopes.
+
+**Implementation details:**
+- LRU cache: 128 entries, 5-minute TTL (repeated links in the same session are served from cache)
+- Content truncated at 8,000 runes to fit the agent's context window
+- Duplicate doc IDs in the same message are collapsed — each doc is fetched only once
+
+> Only `/docx/` URLs are supported. Sheets, Base, Wiki, and other Lark document types are out of scope.
+
 ### list_group_members Tool
 
 When connected to a Feishu channel, agents have access to the `list_group_members` tool. It returns all members of the current group chat with their `open_id` and display name.
@@ -207,4 +240,4 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

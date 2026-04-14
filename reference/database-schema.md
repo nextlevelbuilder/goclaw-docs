@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **47**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **49**.
 
 ### v3 Store Unification
 
@@ -1023,6 +1023,8 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 45 | Adds `recall_count`, `recall_score`, `last_recalled_at` to `episodic_summaries`; partial index `idx_episodic_recall_unpromoted` on `(agent_id, user_id, recall_score DESC)` where `promoted_at IS NULL` |
 | 46 | Makes `vault_documents.agent_id` nullable for team-scoped and tenant-shared files; FK on delete changes from CASCADE to SET NULL; replaces unique index with tenant_id-leading + COALESCE; adds `trg_vault_docs_agent_null_scope_fix` trigger; partial index `idx_vault_docs_agent_scope` |
 | 47 | Adds unique constraint `uq_cron_jobs_agent_tenant_name` on `cron_jobs(agent_id, tenant_id, name)` after dedup; adds `path_basename` generated column and `idx_vault_docs_basename` index to `vault_documents` |
+| 48 | `vault_media_linking` — adds `base_name` generated column `lower(regexp_replace(file_path, '.+/', ''))` to `team_task_attachments` for basename-based vault linking; adds `metadata JSONB NOT NULL DEFAULT '{}'` to `vault_links` for enrichment pipeline metadata; fixes CASCADE FK constraints on vault-related tables |
+| 49 | `vault_path_prefix_index` — adds concurrent index `idx_vault_docs_path_prefix` on `vault_documents(path text_pattern_ops)` for fast `LIKE 'prefix%'` queries |
 
 ---
 
@@ -1194,7 +1196,7 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 
 **Unique:** `(tenant_id, COALESCE(agent_id, '00000000-0000-0000-0000-000000000000'), COALESCE(team_id, '00000000-0000-0000-0000-000000000000'), scope, path)` (migration 046 replaced migration 043's unique to support nullable `agent_id`)
 
-**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047)
+**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047), `idx_vault_docs_path_prefix` on `(path text_pattern_ops)` (migration 049 — fast `LIKE 'prefix%'` queries)
 
 > **Triggers:**
 > - `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
@@ -1204,16 +1206,17 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 
 ### `vault_links`
 
-Bidirectional wikilink-style connections between vault documents. (migration 038; `custom_scope` added migration 043)
+Bidirectional wikilink-style connections between vault documents. (migration 038; `custom_scope` added migration 043; `metadata` added migration 048)
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | UUID | PK DEFAULT gen_random_uuid() | |
 | `from_doc_id` | UUID FK → vault_documents | NOT NULL ON DELETE CASCADE | Source document |
 | `to_doc_id` | UUID FK → vault_documents | NOT NULL ON DELETE CASCADE | Target document |
-| `link_type` | TEXT | NOT NULL DEFAULT `wikilink` | `wikilink` or `reference` |
+| `link_type` | TEXT | NOT NULL DEFAULT `wikilink` | `wikilink`, `reference`, `depends_on`, `extends`, `related`, `supersedes`, `contradicts`, `task_attachment`, `delegation_attachment` |
 | `context` | TEXT | NOT NULL DEFAULT `''` | Surrounding text context |
 | `custom_scope` | VARCHAR(255) | | Future extensibility (migration 043) |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Enrichment pipeline metadata (migration 048) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
 **Unique:** `(from_doc_id, to_doc_id, link_type)`
@@ -1285,4 +1288,4 @@ Persists subagent task lifecycle for audit trail, cost attribution, and restart 
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

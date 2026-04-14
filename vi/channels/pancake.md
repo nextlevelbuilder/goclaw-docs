@@ -1,0 +1,245 @@
+> Bản dịch từ [English version](/channel-pancake)
+
+# Kênh Pancake
+
+Proxy kênh đa nền tảng thống nhất được cung cấp bởi Pancake (pages.fm). Một API key Pancake duy nhất cho phép truy cập Facebook, Zalo OA, Instagram, TikTok, WhatsApp và Line — không cần OAuth riêng cho từng nền tảng.
+
+## Pancake là gì?
+
+Pancake là nền tảng thương mại xã hội cung cấp proxy nhắn tin thống nhất trên nhiều mạng xã hội. Thay vì tích hợp từng API nền tảng riêng lẻ, GoClaw kết nối với Pancake một lần và tiếp cận người dùng trên tất cả nền tảng kết nối thông qua một channel instance duy nhất.
+
+## Nền tảng hỗ trợ
+
+| Nền tảng | Độ dài tin nhắn tối đa | Định dạng |
+|----------|----------------------|-----------|
+| Facebook | 2.000 | Văn bản thuần (loại bỏ markdown) |
+| Zalo OA | 2.000 | Văn bản thuần (loại bỏ markdown) |
+| Instagram | 1.000 | Văn bản thuần (loại bỏ markdown) |
+| TikTok | 500 | Văn bản thuần, cắt ngắn ở 500 ký tự |
+| WhatsApp | 4.096 | Định dạng WhatsApp gốc (*in đậm*, _in nghiêng_) |
+| Line | 5.000 | Văn bản thuần (loại bỏ markdown) |
+
+## Cài đặt
+
+### Cài đặt phía Pancake
+
+1. Tạo tài khoản Pancake tại [pages.fm](https://pages.fm)
+2. Kết nối các trang mạng xã hội (Facebook, Zalo OA, v.v.) với Pancake
+3. Tạo Pancake API key từ cài đặt tài khoản
+4. Ghi lại Page ID từ Pancake dashboard
+
+### Cài đặt phía GoClaw
+
+1. **Channels > Add Channel > Pancake**
+2. Nhập thông tin xác thực:
+   - **API Key**: API key cấp người dùng của Pancake
+   - **Page Access Token**: Token cấp trang cho tất cả page API
+   - **Page ID**: Định danh trang Pancake
+3. Tùy chọn đặt **Webhook Secret** để xác minh chữ ký HMAC-SHA256
+4. Cấu hình tính năng theo nền tảng (inbox reply, comment reply)
+
+Chỉ vậy thôi — một channel phục vụ tất cả nền tảng kết nối với trang Pancake đó.
+
+### Cài đặt qua file config
+
+Dành cho channel dựa trên config file (thay vì DB instance):
+
+```json
+{
+  "channels": {
+    "pancake": {
+      "enabled": true,
+      "instances": [
+        {
+          "name": "my-facebook-page",
+          "credentials": {
+            "api_key": "your_pancake_api_key",
+            "page_access_token": "your_page_access_token",
+            "webhook_secret": "optional_hmac_secret"
+          },
+          "config": {
+            "page_id": "your_page_id",
+            "features": {
+              "inbox_reply": true,
+              "comment_reply": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+## Cấu hình
+
+| Key | Kiểu | Mặc định | Mô tả |
+|-----|------|----------|-------|
+| `api_key` | string | -- | API key cấp người dùng của Pancake (bắt buộc) |
+| `page_access_token` | string | -- | Token cấp trang cho tất cả page API (bắt buộc) |
+| `webhook_secret` | string | -- | Secret xác minh HMAC-SHA256 tùy chọn |
+| `page_id` | string | -- | Định danh trang Pancake (bắt buộc) |
+| `platform` | string | tự phát hiện | Ghi đè nền tảng: facebook/zalo/instagram/tiktok/whatsapp/line |
+| `features.inbox_reply` | bool | -- | Bật trả lời tin nhắn inbox |
+| `features.comment_reply` | bool | -- | Bật trả lời bình luận |
+| `block_reply` | bool | -- | Ghi đè gateway block_reply (nil=kế thừa) |
+| `allow_from` | list | -- | Danh sách trắng User/Group ID |
+
+## Kiến trúc
+
+```mermaid
+flowchart LR
+    FB["Facebook"]
+    ZA["Zalo OA"]
+    IG["Instagram"]
+    TK["TikTok"]
+    WA["WhatsApp"]
+    LN["Line"]
+
+    PC["Pancake Proxy<br/>(pages.fm)"]
+    GC["GoClaw"]
+
+    FB --> PC
+    ZA --> PC
+    IG --> PC
+    TK --> PC
+    WA --> PC
+    LN --> PC
+
+    PC <-->|"Webhook + REST API"| GC
+```
+
+- **Một channel instance = một trang Pancake** (phục vụ nhiều nền tảng)
+- **Nền tảng tự phát hiện** tại Start() từ metadata trang Pancake
+- **Dựa trên Webhook** — không polling, server Pancake đẩy sự kiện đến GoClaw
+- Một HTTP handler duy nhất tại `/channels/pancake/webhook` định tuyến đến đúng channel theo page_id
+
+## Tính năng
+
+### Hỗ trợ đa nền tảng
+
+Một Pancake channel instance có thể phục vụ nhiều nền tảng đồng thời. Nền tảng được xác định bởi metadata trang Pancake:
+
+- Tại Start(), GoClaw gọi `GET /pages` để liệt kê tất cả trang và khớp với page_id đã cấu hình
+- Trường `platform` (facebook/zalo/instagram/tiktok/whatsapp/line) được lấy từ metadata trang
+- Nếu nền tảng không được cấu hình hoặc phát hiện thất bại, mặc định là "facebook" với giới hạn 2.000 ký tự
+
+### Webhook Delivery
+
+Pancake dùng webhook push (không polling) để gửi tin nhắn:
+
+- GoClaw đăng ký một route duy nhất: `POST /channels/pancake/webhook`
+- Tất cả webhook trang Pancake định tuyến qua một handler, phân phối theo `page_id`
+- Luôn trả về HTTP 200 — Pancake tạm dừng webhook nếu >80% lỗi trong cửa sổ 30 phút
+- Xác minh chữ ký HMAC-SHA256 qua header `X-Pancake-Signature` (khi `webhook_secret` được đặt)
+
+Cấu trúc webhook payload:
+
+```json
+{
+  "event_type": "messaging",
+  "page_id": "your_page_id",
+  "data": {
+    "conversation": {
+      "id": "pageID_senderID",
+      "type": "INBOX",
+      "from": { "id": "sender_id", "name": "Sender Name" },
+      "assignee_ids": ["staff_id_1"]
+    },
+    "message": {
+      "id": "msg_unique_id",
+      "message": "Hello from customer",
+      "attachments": [{ "type": "image", "url": "https://..." }]
+    }
+  }
+}
+```
+
+Chỉ xử lý sự kiện hội thoại `INBOX`. Sự kiện `COMMENT` bị bỏ qua trừ khi bật `comment_reply`.
+
+### Loại trùng lặp tin nhắn
+
+Pancake dùng at-least-once delivery, vì vậy các webhook delivery trùng lặp là bình thường:
+
+- **Dedup tin nhắn**: `sync.Map` theo key `msg:{message_id}` với TTL 24 giờ
+- **Phát hiện echo đi**: Lưu trước fingerprint tin nhắn trước khi gửi, triệt tiêu webhook echo của chính chúng ta (TTL 45 giây)
+- Background cleaner xóa các mục hết hạn mỗi 5 phút để tránh tốn bộ nhớ
+- Tin nhắn thiếu `message_id` bỏ qua dedup (tránh va chạm slot chung)
+
+### Ngăn vòng lặp trả lời
+
+Nhiều lớp bảo vệ ngăn bot trả lời chính tin nhắn của mình:
+
+1. **Lọc tin nhắn tự gửi của trang**: Bỏ qua tin nhắn có `sender_id == page_id`
+2. **Lọc nhân viên được phân công**: Bỏ qua tin nhắn từ nhân viên Pancake được phân công cho hội thoại
+3. **Phát hiện echo đi**: Khớp nội dung đến với các tin nhắn vừa gửi
+
+### Hỗ trợ media
+
+**Media nhận vào**: Attachment đến dưới dạng URL trong webhook payload. GoClaw đưa chúng trực tiếp vào nội dung tin nhắn chuyển đến agent pipeline.
+
+**Media gửi ra**: File được upload qua `POST /pages/{id}/upload_contents` (multipart/form-data), sau đó gửi dưới dạng `content_ids` trong một API call riêng. Media và văn bản được gửi tuần tự:
+
+1. Upload media file, thu thập attachment ID
+2. Gửi attachment message với content_ids
+3. Tiếp theo là tin nhắn văn bản (nếu có)
+
+Nếu upload media thất bại, phần văn bản vẫn được gửi kèm cảnh báo. Đường dẫn media phải tuyệt đối để tránh directory traversal.
+
+### Định dạng tin nhắn
+
+Output của LLM được chuyển từ Markdown sang định dạng phù hợp với nền tảng:
+
+| Nền tảng | Hành vi |
+|----------|---------|
+| Facebook | Loại bỏ markdown, giữ văn bản thuần (Messenger không hỗ trợ định dạng phong phú) |
+| WhatsApp | Chuyển `**in đậm**` thành `*in đậm*`, giữ `_in nghiêng_`, loại bỏ header |
+| TikTok | Loại bỏ markdown + cắt ngắn ở 500 rune |
+| Instagram / Zalo / Line | Loại bỏ tất cả markdown, trả về văn bản thuần |
+
+Tin nhắn dài tự động được chia nhỏ theo giới hạn ký tự của từng nền tảng. Chia theo rune (không theo byte) đảm bảo các ký tự đa byte (CJK, tiếng Việt, emoji) không bị hỏng.
+
+### Chế độ Inbox và Comment
+
+Pancake hỗ trợ hai loại hội thoại:
+
+- **INBOX**: Tin nhắn trực tiếp từ người dùng (mặc định, luôn được xử lý)
+- **COMMENT**: Bình luận trên bài đăng xã hội (kiểm soát bởi feature flag `comment_reply`)
+
+Loại hội thoại được lưu trong metadata tin nhắn dưới dạng `pancake_mode` ("inbox" hoặc "comment"), cho phép agent phản hồi khác nhau tùy theo nguồn.
+
+### Tình trạng kênh
+
+Lỗi API được ánh xạ sang trạng thái tình trạng kênh:
+
+| Loại lỗi | HTTP Code | Trạng thái |
+|----------|-----------|------------|
+| Lỗi xác thực | 401, 403, 4001, 4003 | Failed (token hết hạn hoặc không hợp lệ) |
+| Bị giới hạn tốc độ | 429, 4029 | Degraded (có thể phục hồi) |
+| Lỗi API không xác định | Các mã khác | Degraded (có thể phục hồi) |
+
+Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) cũng được phát hiện và coi là lỗi gửi.
+
+## Xử lý sự cố
+
+| Sự cố | Giải pháp |
+|-------|-----------|
+| "api_key is required" khi khởi động | Thêm `api_key` vào credentials. Lấy từ cài đặt tài khoản Pancake. |
+| "page_access_token is required" | Thêm `page_access_token` vào credentials. Đây là token cấp trang từ Pancake. |
+| "page_id is required" | Thêm `page_id` vào config. Tìm trong URL Pancake dashboard. |
+| Xác minh token thất bại | `page_access_token` có thể đã hết hạn hoặc không hợp lệ. Tạo lại từ Pancake dashboard. |
+| Không nhận được tin nhắn | Kiểm tra webhook URL đã được cấu hình: `https://your-goclaw-host/channels/pancake/webhook`. |
+| Webhook signature không khớp | Xác minh `webhook_secret` khớp với secret đã cấu hình trong Pancake dashboard. |
+| "no channel instance for page_id" | `page_id` trong webhook không khớp với channel nào đã đăng ký. Kiểm tra config. |
+| Nền tảng hiển thị là unknown | `platform` được tự phát hiện. Đảm bảo trang đã kết nối trong Pancake. Có thể ghi đè thủ công. |
+| Upload media thất bại | Đường dẫn media phải tuyệt đối. Kiểm tra file tồn tại và có thể đọc. |
+| Tin nhắn bị trùng lặp | Đây là bình thường — dedup xử lý. Nếu vẫn tiếp diễn, kiểm tra xem Pancake webhook config có bị đăng ký đôi không. |
+
+## Tiếp theo
+
+- [Tổng quan kênh](/channels-overview) — Khái niệm và chính sách kênh
+- [WhatsApp](/channel-whatsapp) — Tích hợp WhatsApp trực tiếp
+- [Telegram](/channel-telegram) — Cài đặt Telegram bot
+- [Cài đặt đa kênh](/recipe-multi-channel) — Cấu hình nhiều kênh
+
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->

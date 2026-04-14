@@ -27,11 +27,12 @@ history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → L
 
 Trước mỗi lần gọi LLM, GoClaw:
 
-1. Ước tính tổng số ký tự của tất cả message.
-2. Tính tỷ lệ: `totalChars / (contextWindowTokens × 4)`.
+1. Đếm token trong tất cả message bằng tokenizer tiktoken BPE (dự phòng về heuristic `chars / 4` khi tiktoken không khả dụng).
+2. Tính tỷ lệ: `totalTokens / contextWindowTokens`.
 3. Nếu tỷ lệ dưới `softTrimRatio` — context đủ nhỏ, không cần pruning.
-4. Nếu tỷ lệ đạt hoặc vượt `softTrimRatio` — soft trim các kết quả tool đủ điều kiện.
-5. Nếu tỷ lệ vẫn đạt hoặc vượt `hardClearRatio` sau soft trim, và tổng ký tự prunable vượt `minPrunableToolChars` — hard clear các kết quả tool còn lại.
+4. **Pass 0 (kiểm tra per-result)** — Bất kỳ kết quả tool đơn lẻ nào vượt quá 30% context window sẽ bị force-trim trước khi các bước chính bắt đầu.
+5. Nếu tỷ lệ đạt hoặc vượt `softTrimRatio` — soft trim các kết quả tool đủ điều kiện (Pass 1).
+6. Nếu tỷ lệ vẫn đạt hoặc vượt `hardClearRatio` sau soft trim, và tổng ký tự prunable vượt `minPrunableToolChars` — hard clear các kết quả tool còn lại (Pass 2).
 
 **Message được bảo vệ:** `keepLastAssistants` assistant turn gần nhất và tất cả kết quả tool sau chúng không bao giờ bị pruning. Message trước user message đầu tiên cũng được bảo vệ.
 
@@ -46,14 +47,16 @@ Một kết quả tool đủ điều kiện soft trim khi số ký tự vượt 
 Kết quả sau khi trim trông như sau:
 
 ```
-<1500 ký tự đầu của output tool>
+<3000 ký tự đầu của output tool>
 ...
-<1500 ký tự cuối của output tool>
+<3000 ký tự cuối của output tool>
 
-[Tool result trimmed: kept first 1500 chars and last 1500 chars of 38400 chars.]
+[Tool result trimmed: kept first 3000 chars and last 3000 chars of 38400 chars.]
 ```
 
 Agent vẫn đủ context để hiểu tool trả về gì mà không tiêu thụ toàn bộ output.
+
+**Bảo vệ media tool:** Kết quả từ `read_image`, `read_document`, `read_audio`, và `read_video` nhận ngân sách soft trim cao hơn (headChars=4000, tailChars=4000) vì nội dung của chúng là mô tả không thể tái tạo được, được tạo bởi provider vision/audio chuyên dụng. Tái tạo nó sẽ cần thêm một lần gọi LLM khác. Kết quả media tool cũng **được miễn hard clear** — chúng không bao giờ bị thay thế bằng placeholder.
 
 ---
 
@@ -93,13 +96,13 @@ Tất cả các trường khác có giá trị mặc định hợp lý và đề
 {
   "contextPruning": {
     "keepLastAssistants": 3,
-    "softTrimRatio": 0.3,
+    "softTrimRatio": 0.25,
     "hardClearRatio": 0.5,
     "minPrunableToolChars": 50000,
     "softTrim": {
-      "maxChars": 4000,
-      "headChars": 1500,
-      "tailChars": 1500
+      "maxChars": 6000,
+      "headChars": 3000,
+      "tailChars": 3000
     },
     "hardClear": {
       "enabled": true,
@@ -113,12 +116,12 @@ Tất cả các trường khác có giá trị mặc định hợp lý và đề
 |--------|----------|-------|
 | `mode` | *(không đặt — pruning hoạt động)* | Đặt thành `"off"` để tắt hoàn toàn pruning. |
 | `keepLastAssistants` | `3` | Số assistant turn gần nhất được bảo vệ khỏi pruning. |
-| `softTrimRatio` | `0.3` | Kích hoạt soft trim khi context chiếm tỷ lệ này của context window. |
+| `softTrimRatio` | `0.25` | Kích hoạt soft trim khi context chiếm tỷ lệ này của context window. |
 | `hardClearRatio` | `0.5` | Kích hoạt hard clear khi context chiếm tỷ lệ này sau soft trim. |
 | `minPrunableToolChars` | `50000` | Tổng ký tự tối thiểu trong các kết quả tool prunable trước khi hard clear chạy. Ngăn việc xóa quá tích cực trên context nhỏ. |
-| `softTrim.maxChars` | `4000` | Kết quả tool dài hơn mức này đủ điều kiện soft trim. |
-| `softTrim.headChars` | `1500` | Số ký tự giữ lại từ đầu kết quả tool sau trim. |
-| `softTrim.tailChars` | `1500` | Số ký tự giữ lại từ cuối kết quả tool sau trim. |
+| `softTrim.maxChars` | `6000` | Kết quả tool dài hơn mức này đủ điều kiện soft trim. |
+| `softTrim.headChars` | `3000` | Số ký tự giữ lại từ đầu kết quả tool sau trim. |
+| `softTrim.tailChars` | `3000` | Số ký tự giữ lại từ cuối kết quả tool sau trim. |
 | `hardClear.enabled` | `true` | Đặt `false` để tắt hoàn toàn hard clear (chỉ dùng soft trim). |
 | `hardClear.placeholder` | `"[Old tool result content cleared]"` | Văn bản thay thế cho kết quả tool bị hard clear. |
 
@@ -233,6 +236,25 @@ Pruning chỉ tác động lên kết quả tool. Nếu user message dài hoặc
 ---
 
 ## Cải Tiến Pipeline
+
+### Đếm token Tiktoken BPE
+
+GoClaw hiện dùng tokenizer tiktoken BPE để đếm token chính xác thay vì heuristic `chars / 4` cũ. Điều này đặc biệt quan trọng với nội dung CJK (tiếng Việt và tiếng Trung), nơi heuristic thường đánh giá thấp đáng kể mức sử dụng token. Khi tiktoken được bật, tất cả tỷ lệ pruning được tính dựa trên số token thực tế thay vì ước tính ký tự.
+
+### Pass 0 — Kiểm tra per-result
+
+Trước khi các pass pruning thông thường bắt đầu, bất kỳ kết quả tool đơn lẻ nào vượt quá **30% context window** sẽ bị force-trim. Điều này xử lý các output ngoại lệ (ví dụ: đọc file lớn hoặc phản hồi API khổng lồ) ngay cả khi tỷ lệ context tổng thể vẫn còn dưới `softTrimRatio`. Kết quả trim giữ tỷ lệ 70/30 phần đầu/đuôi.
+
+### Bảo vệ Media Tool
+
+Kết quả từ `read_image`, `read_document`, `read_audio`, và `read_video` được xử lý đặc biệt:
+
+- Nhận ngân sách soft trim cao hơn: **headChars=4000, tailChars=4000** (so với mức chuẩn 3000/3000).
+- **Được miễn hard clear** — mô tả media được tạo bởi provider vision/audio chuyên dụng (Gemini, Anthropic) và không thể tái tạo mà không cần thêm một lần gọi LLM.
+
+### Nén MediaRefs
+
+Trong quá trình nén lịch sử, tối đa **30 `MediaRefs` gần nhất** được giữ lại. Điều này đảm bảo agent vẫn có thể tham chiếu đến các hình ảnh và tài liệu đã chia sẻ trước đó sau khi compaction mà không mất dấu media context.
 
 ### Tóm tắt Compaction có cấu trúc
 

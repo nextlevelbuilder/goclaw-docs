@@ -175,6 +175,39 @@ Session key: "{chatID}:topic:{rootMessageID}"
 
 同一群组中的不同线程保持独立历史。
 
+### Slash 命令（文件写入权限管理）
+
+在群聊中，群成员可以使用 slash 命令管理文件写入权限：
+
+| 命令 | 说明 |
+|------|------|
+| `/addwriter <@mention 或 回复>` | 授予群内用户文件写入权限 |
+| `/removewriter <@mention 或 回复>` | 撤销用户的文件写入权限 |
+| `/writers` | 列出群内所有拥有文件写入权限的用户 |
+
+**如何指定目标用户：** 回复该用户的消息并发送命令，或在同一消息中 @提及他们。通过 @提及自己可以为自己授权。
+
+**权限控制：** 只有现有的文件写入者才能管理列表。当列表为空时，第一个调用者可以通过指定明确目标来初始化列表。
+
+> 这些命令仅在群聊中有效。DM 消息会被拒绝。
+
+### Lark Docx 自动获取
+
+当 Lark docx 文档 URL 被粘贴到聊天中时，GoClaw 会自动检测并通过 Lark API 获取文档内容，直接内联到 agent 的 prompt 中——无需工具调用。
+
+**支持的 URL 格式：**
+- `https://*.feishu.cn/docx/<id>`
+- `https://*.larksuite.com/docx/<id>`
+
+**必需的应用权限 scope：** `docx:document:readonly` ——在 Larksuite 开发者控制台的权限与范围中添加。
+
+**实现细节：**
+- LRU 缓存：128 条记录，5 分钟 TTL（同一会话中重复链接从缓存提供）
+- 内容截断至 8,000 个 rune 以适应 agent 的上下文窗口
+- 同一消息中重复的 doc ID 会被合并——每个文档只获取一次
+
+> 仅支持 `/docx/` URL。Sheets、Base、Wiki 及其他 Lark 文档类型不在支持范围内。
+
 ### list_group_members 工具
 
 连接到 Larksuite channel 时，agent 可以使用 `list_group_members` 工具。它返回当前群聊的所有成员及其 `open_id` 和显示名称。
@@ -217,4 +250,4 @@ list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name 
 - [Zalo OA](/channel-zalo-oa) — Zalo 官方账号
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->

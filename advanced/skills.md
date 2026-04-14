@@ -78,18 +78,28 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
 
 ## Uploading via Dashboard
 
-Go to **Skills → Upload** and drop a ZIP file. The ZIP must contain a single skill with `SKILL.md` either at root or inside one top-level directory:
+Go to **Skills → Upload** and drop a ZIP file. The ZIP can contain a **single skill** or **multiple skills** in one archive:
 
 ```
-# SKILL.md at root
+# Single skill — SKILL.md at root
 my-skill.zip
 └── SKILL.md
 
-# or wrapped in a single directory
+# Single skill — wrapped in one directory
 my-skill.zip
 └── code-reviewer/
     ├── SKILL.md
     └── review-checklist.md
+
+# Multi-skill ZIP — multiple skills in one upload
+skills-bundle.zip
+└── skills/
+    ├── code-reviewer/
+    │   ├── SKILL.md
+    │   └── metadata.json
+    └── sql-style/
+        ├── SKILL.md
+        └── metadata.json
 ```
 
 Uploaded skills are stored in a versioned subdirectory structure under the managed skills directory (`~/.goclaw/skills-store/` by default):
@@ -101,6 +111,52 @@ Uploaded skills are stored in a versioned subdirectory structure under the manag
 Metadata (name, description, visibility, grants) lives in PostgreSQL; file content lives on disk. GoClaw always serves the highest-numbered version. Old versions are kept for rollback.
 
 Skills uploaded via the Dashboard start with **internal** visibility — immediately accessible to any agent or user you grant access to.
+
+## Importing via API
+
+The `POST /v1/skills/import` endpoint accepts the same ZIP format as the Dashboard upload and supports both single and multi-skill archives.
+
+**Standard import (JSON response):**
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@skills-bundle.zip"
+```
+
+Returns a `SkillsImportSummary` JSON object:
+
+```json
+{
+  "skills_imported": 2,
+  "skills_skipped": 0,
+  "grants_applied": 3
+}
+```
+
+**Streaming import with SSE progress (`?stream=true`):**
+
+```bash
+curl -X POST "http://localhost:8080/v1/skills/import?stream=true" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: text/event-stream" \
+  -F "file=@skills-bundle.zip"
+```
+
+With `?stream=true`, the server sends Server-Sent Events (SSE) as each skill is processed:
+
+```
+event: progress
+data: {"phase":"skill","status":"running","detail":"code-reviewer"}
+
+event: progress
+data: {"phase":"skill","status":"done","detail":"code-reviewer"}
+
+event: complete
+data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
+```
+
+**Hash-based idempotency:** The upload endpoint uses a SHA-256 hash of the `SKILL.md` content for deduplication. If the same `SKILL.md` content is uploaded again (even packaged in a different ZIP), no new version is created — the existing version is kept unchanged. Only changes to the actual `SKILL.md` content trigger a new version.
 
 ## Runtime Environment
 
@@ -335,7 +391,7 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 | Changes not picked up | Watcher not started (non-Docker setups) | Restart GoClaw; verify `skills watcher started` in logs |
 | Lower-priority skill used instead of yours | Name collision — slug exists at a higher tier | Use a unique slug, or place your skill at a higher-priority location |
 | `skill_search` returns no results | Index not built yet (first request) or no description in frontmatter | Add a `description` to frontmatter; index rebuilds on next hot-reload |
-| ZIP upload fails | No `SKILL.md` found in ZIP | Place `SKILL.md` at ZIP root or inside one top-level directory |
+| ZIP upload fails | No `SKILL.md` found in ZIP | Place `SKILL.md` at ZIP root, inside one top-level directory, or use the multi-skill `skills/<slug>/SKILL.md` layout |
 
 ## What's Next
 
@@ -343,4 +399,4 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

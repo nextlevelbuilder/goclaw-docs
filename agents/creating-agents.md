@@ -112,6 +112,16 @@ curl -X POST http://localhost:8080/v1/agents \
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Directory for context files |
 | `other_config` | JSON | `{}` | Custom fields (e.g., `description` for summoning) |
 
+### `other_config` — Workspace Sharing
+
+The `other_config` field also accepts workspace sharing settings that control cross-user data isolation:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `share_memory` | boolean | `false` | Share memory store across all users of this agent |
+| `share_knowledge_graph` | boolean | `false` | Share knowledge graph across all users of this agent |
+| `share_sessions` | boolean | `false` | Allow cron jobs of a group-scoped agent to read sessions from other groups. Disabled by default to prevent cross-group session data leaks during cron job execution |
+
 > **frontmatter field:** After summoning, GoClaw stores a short expertise summary (auto-extracted from SOUL.md) in the agent's `frontmatter` field. This is used for agent discovery and delegation — it is not something you set directly.
 
 ## Examples
@@ -210,4 +220,4 @@ These files are placed in the stable portion of the system prompt (above the cac
 - [Context Files](../agents/context-files.md) — learn about SOUL.md, IDENTITY.md, and other system files
 - [Summoning & Bootstrap](/summoning-bootstrap) — how LLM generates personality files on first use
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

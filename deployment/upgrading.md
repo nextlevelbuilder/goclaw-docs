@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **44**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **49**.
 
 ```mermaid
 graph LR
@@ -222,6 +222,11 @@ These migrations are applied automatically via `./goclaw upgrade`. They constitu
 | 042 | Adds `summary` column to `vault_documents`; rebuilds FTS |
 | 043 | Adds `team_id`, `custom_scope` to `vault_documents` and 9 other tables; team-safe unique constraint; scope-fix trigger |
 | 044 | Seeds `AGENTS_CORE.md` and `AGENTS_TASK.md` context files for all agents; removes `AGENTS_MINIMAL.md` |
+| 045 | `episodic_recall_tracking` — adds `recall_count`, `recall_score`, `last_recalled_at` to `episodic_summaries`; partial index for priority-based episode promotion in the dreaming worker |
+| 046 | `vault_nullable_agent_id` — makes `vault_documents.agent_id` nullable to support team-scoped and tenant-shared vault files |
+| 047 | `cron_jobs_unique_constraint` — adds unique constraint per `(agent_id, tenant_id, name)` and deduplicates existing rows |
+| 048 | `vault_media_linking` — adds `base_name` generated column on `team_task_attachments`, `metadata JSONB` on `vault_links`, fixes CASCADE FK constraints |
+| 049 | `vault_path_prefix_index` — adds concurrent index `idx_vault_docs_path_prefix` with `text_pattern_ops` for fast prefix queries |
 
 #### Breaking Changes in v3
 
@@ -310,4 +315,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->

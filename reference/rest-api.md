@@ -145,7 +145,6 @@ Re-trigger LLM-based summoning for predefined agents.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{id}/instances` | List user instances |
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | List user context files |
-| `GET` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | **⚠️ Removed** — deprecated endpoint, no longer available |
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user context file (admin) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata (admin) |
 | `GET` | `/v1/agents/{id}/system-prompt-preview` | Preview rendered system prompt (admin) |
@@ -492,6 +491,7 @@ Set `"dryRun": true` to return tool schema without execution.
 |--------|------|-------------|
 | `GET` | `/v1/tools/builtin` | List all built-in tools |
 | `GET` | `/v1/tools/builtin/{name}` | Get tool definition |
+| `GET` | `/v1/tools/builtin/{name}/tenant-config` | Get tenant-specific configuration for a built-in tool |
 | `PUT` | `/v1/tools/builtin/{name}` | Update enabled/settings |
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Set per-tenant override (admin) |
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Remove per-tenant override (admin) |
@@ -587,7 +587,10 @@ Admin-scoped endpoints for cross-agent vault operations.
 | `POST` | `/v1/vault/rescan` | Trigger vault rescan |
 | `POST` | `/v1/vault/search` | Global vault semantic search |
 | `GET` | `/v1/vault/enrichment/status` | Check enrichment worker status |
+| `POST` | `/v1/vault/enrichment/stop` | Stop the enrichment worker for the current agent |
 | `GET` | `/v1/vault/documents` | List documents across all agents |
+| `GET` | `/v1/vault/tree` | Returns hierarchical tree view of vault document structure |
+| `GET` | `/v1/vault/graph` | Returns vault document graph visualization data (cross-tenant, node limit 2000) |
 
 #### Agent-Scoped Vault Endpoints
 
@@ -664,6 +667,7 @@ Per-agent entity-relation graph.
 | `POST` | `/v1/agents/{agentID}/kg/extract` | LLM-powered entity extraction |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | Knowledge graph statistics |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | Full graph for visualization |
+| `GET` | `/v1/agents/{agentID}/kg/graph/compact` | Compact graph representation (lighter payload than full graph) |
 | `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | Scan for duplicate entities |
 | `GET` | `/v1/agents/{agentID}/kg/dedup` | List dedup candidates |
 | `POST` | `/v1/agents/{agentID}/kg/merge` | Merge duplicate entities |
@@ -993,20 +997,6 @@ Also available as a shared download endpoint (shared with agent export tokens):
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/export/download/{token}` | Download a prepared archive by short-lived token (valid 5 min, any export type) |
-
----
-
-## Delegations
-
-### `GET /v1/delegations`
-
-List delegation history (agent-to-agent task handoffs).
-
-**Filters:** `source_agent_id`, `target_agent_id`, `team_id`, `user_id`, `status`, `limit`, `offset`
-
-### `GET /v1/delegations/{id}`
-
-Get a single delegation record.
 
 ---
 
@@ -1372,4 +1362,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | updated: 2026-04-15 -->
