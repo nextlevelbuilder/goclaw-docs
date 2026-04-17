@@ -89,7 +89,9 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 |-----------|-------------|
 | **Gateway** | HTTP + WebSocket server; decomposed into 7 modules (deps, http_wiring, events, lifecycle, tools_wiring, methods, router) |
 | **Domain Event Bus** | Typed event publishing with worker pool, dedup, and retry — drives consolidation workers |
-| **Provider Adapter System** | Manages 18+ LLM providers; Anthropic native, OpenAI-compatible, ACP (stdio JSON-RPC) |
+| **Provider Adapter System** | Manages 18+ LLM providers; Anthropic native, OpenAI-compatible, ACP (JSON-RPC 2.0 stdio — Claude Code, Codex, Gemini CLI) |
+| **Hooks Dispatcher** | Wired into `PipelineDeps.HookDispatcher`; 7 lifecycle events (sync/async), SSRF-hardened HTTP + Command handlers, audit logging, circuit breaker |
+| **Audio / TTS Manager** | `internal/audio/` unified manager: ElevenLabs (streaming), OpenAI, Edge, MiniMax TTS providers; voice LRU cache (1 000 tenants, 1 h TTL); per-agent voice/model via `other_config` JSONB |
 | **Tool Registry** | 50+ built-in tools with policy-based access control (extensible via MCP and custom tools) |
 | **Store Layer** | Dual-DB: PostgreSQL (`pgx/v5`) for production + SQLite (`modernc.org/sqlite`) for desktop; shared base/ dialect |
 | **3-Tier Memory** | Episodic (recent facts) → Semantic (abstracted summaries) → Dreaming (novel synthesis); driven by consolidation workers |
@@ -124,4 +126,4 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 - [Tools Overview](/tools-overview) — The full tool catalog
 - [Sessions and History](../core-concepts/sessions-and-history.md) — How conversations persist
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->

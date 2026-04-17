@@ -81,6 +81,17 @@ GoClaw 的 TTS 系统将 agent 的文字回复转换为音频，并在支持的 
 
 在 [ElevenLabs 音色库](https://elevenlabs.io/voice-library) 中查找音色 ID。默认模型：`eleven_multilingual_v2`。
 
+#### ElevenLabs 模型变体
+
+| 模型 ID | 特点 | 最适合 |
+|---------|------|--------|
+| `eleven_v3` | 最新旗舰（2025 年 11 月），最高质量 | 高级语音、复杂语音内容 |
+| `eleven_multilingual_v2` | 高质量，支持 29 种语言 | 默认；多语言内容 |
+| `eleven_turbo_v2_5` | 成本优化，速度快 | 大批量、注重成本 |
+| `eleven_flash_v2_5` | 最低延迟，支持 32 种语言 | 实时 / 交互式使用 |
+
+仅接受以上四个模型 ID — 未知 ID 在 gateway 边界处被拒绝。
+
 ---
 
 ### Edge TTS（免费）
@@ -222,6 +233,36 @@ pip install edge-tts
 
 ---
 
+## Agent 级语音配置
+
+每个 agent 可以通过 `other_config` JSONB 字段覆盖全局 TTS 语音和模型，让不同 agent 使用不同音色，无需更改系统级配置。
+
+| Key | 类型 | 说明 |
+|-----|------|------|
+| `tts_voice_id` | string | 该 agent 使用的 ElevenLabs 音色 ID |
+| `tts_model_id` | string | 该 agent 使用的 ElevenLabs 模型 ID（须为[允许的模型](#elevenlabs-模型变体)） |
+
+**解析优先级：** CLI 参数 → agent `other_config` → 租户覆盖 → provider 默认值。
+
+**示例** — 通过 Web UI 或 API 为每个 agent 设置独立音色：
+
+```json
+{
+  "other_config": {
+    "tts_voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "tts_model_id": "eleven_flash_v2_5"
+  }
+}
+```
+
+---
+
+## STT 内置工具
+
+`stt` 内置工具（由 migration 050 种子化）允许 agent 使用 ElevenLabs Scribe 或兼容代理对语音/音频输入进行转录 — 启用和配置方式请参阅 [Tools Overview](/tools-overview)。
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -241,4 +282,4 @@ pip install edge-tts
 - [定时任务与 Cron](/scheduling-cron) — 按计划触发 agent
 - [扩展思维](/extended-thinking) — 复杂回复的深度推理
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->

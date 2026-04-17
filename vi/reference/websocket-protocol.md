@@ -202,6 +202,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `config.apply` | Thay thế toàn bộ config |
 | `config.patch` | Patch các field config cụ thể |
 | `config.schema` | Lấy JSON schema cho config |
+| `config.defaults` | Lấy giá trị mặc định tích hợp + agents.defaults overlay (chỉ đọc, master scope) |
 
 ### Cron
 
@@ -223,6 +224,63 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `skills.list` | — | Liệt kê skills |
 | `skills.get` | `{id}` | Lấy chi tiết skill |
 | `skills.update` | `{id, ...fields}` | Cập nhật metadata skill |
+
+### Hooks
+
+Quản lý lifecycle hook lưu trong `agent_hooks`. Xem [Agent Hooks](/hooks-quality-gates) để biết đầy đủ khái niệm và ví dụ.
+
+**Role yêu cầu:** `viewer` cho list/history; `operator` cho test; `admin` cho create/update/delete/toggle.
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `hooks.list` | `{event?, scope?, agentId?, enabled?}` | Liệt kê hook hiển thị trong scope của caller |
+| `hooks.create` | hook config object | Tạo hook; trả về `{hookId}` |
+| `hooks.update` | `{hookId, updates}` | Patch field của hook; validate lại config sau merge |
+| `hooks.delete` | `{hookId}` | Xóa hook (hook builtin trả về lỗi) |
+| `hooks.toggle` | `{hookId, enabled}` | Bật hoặc tắt hook |
+| `hooks.test` | `{config, sampleEvent?}` | Dry-run hook config; không ghi audit row |
+| `hooks.history` | — | Liệt kê audit record từ `hook_executions` |
+
+**`hooks.list` — tham số lọc:**
+
+| Tham số | Kiểu | Mô tả |
+|---------|------|-------|
+| `event` | string | Lọc theo tên event (VD: `pre_tool_use`) |
+| `scope` | string | Lọc theo scope: `global`, `tenant`, `agent` |
+| `agentId` | string (UUID) | Lọc theo agent cụ thể |
+| `enabled` | boolean | Lọc theo trạng thái bật/tắt |
+
+**`hooks.create` — tham số request** (tất cả field theo schema `HookConfig`):
+
+| Field | Kiểu | Bắt buộc | Mô tả |
+|-------|------|----------|-------|
+| `event` | string | có | Tên lifecycle event |
+| `handler_type` | string | có | `command`, `http`, hoặc `prompt` |
+| `scope` | string | có | `global`, `tenant`, hoặc `agent` |
+| `name` | string | không | Nhãn dễ đọc |
+| `matcher` | string | không | Regex tool name |
+| `if_expr` | string | không | Biểu thức CEL thay cho matcher |
+| `timeout_ms` | int | không | Timeout ms mỗi hook (mặc định 5000, tối đa 10000) |
+| `on_timeout` | string | không | `block` (mặc định) hoặc `allow` |
+| `priority` | int | không | Cao hơn chạy trước |
+| `enabled` | bool | không | Mặc định true |
+| `config` | object | có | Sub-config theo handler |
+| `agent_ids` | array | không | Danh sách UUID cho scope=agent |
+
+**`hooks.test` response:**
+```json
+{
+  "result": {
+    "decision": "allow",
+    "reason": "...",
+    "durationMs": 42,
+    "stdout": "...",
+    "stderr": "...",
+    "statusCode": 200,
+    "updatedInput": {}
+  }
+}
+```
 
 ### Channels
 

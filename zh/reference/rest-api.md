@@ -150,6 +150,8 @@ curl -X POST http://localhost:18790/v1/agents \
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | 更新用户 context 文件（管理员）|
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | 更新实例元数据 |
 
+> 如需读取文件内容，请先通过 `GET /v1/agents/{id}/instances/{userID}/files` 列出文件，再通过 [Vault](#knowledge-vault) 或 [Storage](#storage) API 获取。不存在单文件 GET 的实例文件端点。
+
 ### Agent 导出 / 导入
 
 以 tar.gz 归档格式导出和导入 agent 配置及数据，支持按 section 选择性导出。
@@ -497,10 +499,9 @@ POST /v1/tools/invoke
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/evolution/metrics` | 列出原始或聚合进化指标 |
-| `GET` | `/v1/agents/{id}/evolution/suggestions` | 列出进化建议 |
-| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | 更新建议状态（`pending` → `approved`/`rejected`/`rolled_back`） |
-| `POST` | `/v1/agents/{id}/evolution/skill-apply` | 将已批准的建议应用为新 skill |
+| `GET` | `/v1/agents/{agentID}/evolution/metrics` | 列出原始或聚合进化指标 |
+| `GET` | `/v1/agents/{agentID}/evolution/suggestions` | 列出进化建议 |
+| `PATCH` | `/v1/agents/{agentID}/evolution/suggestions/{suggestionID}` | 更新建议状态（`pending` → `approved`/`rejected`/`rolled_back`） |
 
 **`GET .../evolution/metrics` 查询参数：** `type`（过滤：`tool`/`retrieval`/`feedback`）、`aggregate`（布尔值）、`since`（ISO 8601）、`limit`
 
@@ -562,8 +563,8 @@ POST /v1/tools/invoke
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/v3-flags` | 获取 agent 的所有 v3 标志 |
-| `PATCH` | `/v1/agents/{id}/v3-flags` | 更新标志（支持部分更新）|
+| `GET` | `/v1/agents/{agentID}/v3-flags` | 获取 agent 的所有 v3 标志 |
+| `PATCH` | `/v1/agents/{agentID}/v3-flags` | 更新标志（支持部分更新）|
 
 **标志键：** `evolution_enabled`、`episodic_enabled`、`vault_enabled`、`orchestration_enabled`、`skill_evolve`、`self_evolve`
 
@@ -980,6 +981,108 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 
 ---
 
+## 文字转语音（TTS）
+
+按租户的 TTS 合成与配置。合成/测试端点需要 `RoleOperator`；配置端点需要 `RoleAdmin`。
+
+### `POST /v1/tts/synthesize`
+
+使用已配置的 TTS provider 将文本转换为音频。
+
+**请求体：**
+
+```json
+{
+  "text": "你好，世界！",
+  "provider": "openai",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `text` | string | 要合成的文本。必填。最多 500 个字符。 |
+| `provider` | string | 覆盖 provider（`openai`、`elevenlabs`、`minimax`、`edge`）。可选——默认使用租户配置的 provider。 |
+| `voice_id` | string | 语音标识符。可选。 |
+| `model_id` | string | 模型标识符。可选。 |
+
+**响应：** 原始音频字节，`Content-Type` 与 provider 的 MIME 类型匹配（例如 `audio/mpeg`）。
+
+**错误：** `400` 文本为空或超限 · `404` 未配置 provider · `422` 无效的模型 ID · `429` 频率限制 · `504` 合成超时
+
+### `POST /v1/tts/test-connection`
+
+使用提供的凭证测试 TTS provider 连通性（不持久化配置）。
+
+**请求体：**
+
+```json
+{
+  "provider": "openai",
+  "api_key": "sk-...",
+  "api_base": "",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "provider": "openai",
+  "latency_ms": 312
+}
+```
+
+### `GET /v1/tts/config`
+
+返回当前租户的 TTS 配置。API key 以 `"***"` 脱敏显示。
+
+**响应：**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": { "api_key": "***", "api_base": "", "voice": "alloy", "model": "tts-1" },
+  "elevenlabs": {},
+  "edge": {},
+  "minimax": {}
+}
+```
+
+### `POST /v1/tts/config`
+
+保存当前租户的 TTS 配置。
+
+**请求体：**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": {
+    "api_key": "sk-...",
+    "api_base": "",
+    "voice": "alloy",
+    "model": "tts-1"
+  }
+}
+```
+
+将 `api_key` 设为 `"***"` 可保留已存储的 key 不变。
+
+**响应：** `{ "ok": true }`
+
+---
+
 ## 运行时与包
 
 管理系统（apk）、Python（pip）和 Node（npm）包。需要认证。
@@ -1007,6 +1110,36 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 ```json
 { "python": true, "node": true }
 ```
+
+### `GET /v1/packages/github-releases`
+
+列出某仓库的 GitHub release（供包选择器 UI 使用）。认证：viewer+。
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|-------|------|-------------|
+| `repo` | string | 仓库路径，格式为 `owner/repo`。必填。 |
+| `limit` | integer | 最多返回的 release 数量（1–50，默认 10）。 |
+
+**响应：**
+
+```json
+{
+  "releases": [
+    {
+      "tag": "v2.40.1",
+      "name": "GitHub CLI 2.40.1",
+      "published_at": "2024-01-15T12:00:00Z",
+      "prerelease": false,
+      "matching_assets": [{ "name": "gh_2.40.1_linux_amd64.tar.gz", "size_bytes": 10485760 }],
+      "all_assets_count": 12
+    }
+  ]
+}
+```
+
+`matching_assets` 包含与服务器 OS/架构匹配的资产（无匹配则为空）。草稿 release 不包含在内。
 
 ### `GET /v1/shell-deny-groups`
 

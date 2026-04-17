@@ -19,7 +19,7 @@ Context pruning khác với [session compaction](../../core-concepts/sessions-an
 
 ## Cách Pruning Kích Hoạt
 
-Pruning chạy tự động trên mỗi yêu cầu agent, trừ khi bị tắt rõ ràng bằng `mode: "off"`. Luồng xử lý:
+Pruning là **opt-in** — chỉ chạy khi `mode: "cache-ttl"` được đặt trên agent. Luồng xử lý:
 
 ```
 history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → LLM
@@ -78,12 +78,12 @@ Placeholder này có thể tùy chỉnh. Hard clear cũng có thể tắt hoàn 
 
 ## Cấu Hình
 
-Context pruning **bật theo mặc định**. Để tắt, đặt `mode: "off"` trong config agent.
+Context pruning là **opt-in**. Để bật, đặt `mode: "cache-ttl"` trong config agent.
 
 ```json
 {
   "contextPruning": {
-    "mode": "off"
+    "mode": "cache-ttl"
   }
 }
 ```
@@ -95,6 +95,7 @@ Tất cả các trường khác có giá trị mặc định hợp lý và đề
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "keepLastAssistants": 3,
     "softTrimRatio": 0.25,
     "hardClearRatio": 0.5,
@@ -114,7 +115,7 @@ Tất cả các trường khác có giá trị mặc định hợp lý và đề
 
 | Trường | Mặc định | Mô tả |
 |--------|----------|-------|
-| `mode` | *(không đặt — pruning hoạt động)* | Đặt thành `"off"` để tắt hoàn toàn pruning. |
+| `mode` | *(không đặt — pruning tắt)* | Đặt thành `"cache-ttl"` để bật pruning. Bỏ trống hoặc không đặt để giữ pruning tắt. |
 | `keepLastAssistants` | `3` | Số assistant turn gần nhất được bảo vệ khỏi pruning. |
 | `softTrimRatio` | `0.25` | Kích hoạt soft trim khi context chiếm tỷ lệ này của context window. |
 | `hardClearRatio` | `0.5` | Kích hoạt hard clear khi context chiếm tỷ lệ này sau soft trim. |
@@ -129,12 +130,12 @@ Tất cả các trường khác có giá trị mặc định hợp lý và đề
 
 ## Ví Dụ Cấu Hình
 
-### Tắt hoàn toàn pruning
+### Bật pruning (cấu hình tối thiểu)
 
 ```json
 {
   "contextPruning": {
-    "mode": "off"
+    "mode": "cache-ttl"
   }
 }
 ```
@@ -146,6 +147,7 @@ Kích hoạt sớm hơn và giữ ít context hơn cho mỗi kết quả tool:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "softTrimRatio": 0.2,
     "hardClearRatio": 0.4,
     "softTrim": {
@@ -162,6 +164,7 @@ Kích hoạt sớm hơn và giữ ít context hơn cho mỗi kết quả tool:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "hardClear": {
       "enabled": false
     }
@@ -174,6 +177,7 @@ Kích hoạt sớm hơn và giữ ít context hơn cho mỗi kết quả tool:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "hardClear": {
       "placeholder": "[Tool output removed to save context]"
     }
@@ -219,7 +223,7 @@ Khi pipeline consolidation đã thăng cấp một khối kiến thức lên L0 
 
 **Pruning không bao giờ kích hoạt**
 
-Xác nhận rằng `mode` không được đặt thành `"off"`. Cũng xác nhận rằng `contextWindow` đã được đặt trên agent — pruning cần số token để tính tỷ lệ.
+Xác nhận rằng `mode` đã được đặt thành `"cache-ttl"` — pruning là opt-in và mặc định tắt. Cũng xác nhận rằng `contextWindow` đã được đặt trên agent — pruning cần số token để tính tỷ lệ.
 
 **Agent gọi lại tool bất ngờ**
 
@@ -229,7 +233,7 @@ Hard clear xóa hoàn toàn nội dung kết quả tool. Nếu agent cần nội
 
 Tăng `softTrim.headChars` và `softTrim.tailChars`, hoặc nâng `softTrim.maxChars` để ít kết quả hơn đủ điều kiện trim.
 
-**Context vẫn tràn dù đã bật pruning**
+**Context vẫn tràn dù đã bật pruning (`mode: "cache-ttl"`)**
 
 Pruning chỉ tác động lên kết quả tool. Nếu user message dài hoặc system prompt lớn chiếm phần lớn context, pruning sẽ không giúp được. Hãy xem xét [session compaction](../../core-concepts/sessions-and-history.md) hoặc giảm kích thước system prompt.
 

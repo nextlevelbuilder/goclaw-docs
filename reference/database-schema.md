@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **49**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **55**.
 
 ### v3 Store Unification
 
@@ -1025,6 +1025,12 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 47 | Adds unique constraint `uq_cron_jobs_agent_tenant_name` on `cron_jobs(agent_id, tenant_id, name)` after dedup; adds `path_basename` generated column and `idx_vault_docs_basename` index to `vault_documents` |
 | 48 | `vault_media_linking` — adds `base_name` generated column `lower(regexp_replace(file_path, '.+/', ''))` to `team_task_attachments` for basename-based vault linking; adds `metadata JSONB NOT NULL DEFAULT '{}'` to `vault_links` for enrichment pipeline metadata; fixes CASCADE FK constraints on vault-related tables |
 | 49 | `vault_path_prefix_index` — adds concurrent index `idx_vault_docs_path_prefix` on `vault_documents(path text_pattern_ops)` for fast `LIKE 'prefix%'` queries |
+| 50 | Seeds `stt` row into `builtin_tools` (Speech-to-Text via ElevenLabs Scribe or proxy); `ON CONFLICT DO NOTHING` preserves user-customized settings |
+| 51 | Backfills `mode: "cache-ttl"` into `agents.context_pruning` for agents that had custom context_pruning config without a `mode` field; does **not** change the global default — pruning remains opt-in |
+| 52 | Agent hooks system — creates `agent_hooks`, `hook_executions`, and `tenant_hook_budget` tables |
+| 53 | Extends `agent_hooks`: relaxes `handler_type` CHECK to add `'script'`; extends `source` CHECK to add `'builtin'`; drops per-scope uniqueness indexes (scripts routinely add many hooks per event) |
+| 54 | Adds `name VARCHAR(255)` column to `agent_hooks`; creates `agent_hook_agents` N:M junction table; migrates existing `agent_id` FK to junction; renames `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`; drops deprecated `agent_id` column from `hooks` |
+| 55 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents` enforcing scope/agent_id/team_id coherence: `personal` requires `agent_id NOT NULL`, `team` requires `team_id NOT NULL`, `shared` requires both NULL, `custom` is unconstrained |
 
 ---
 
@@ -1202,6 +1208,17 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 > - `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
 > - `trg_vault_docs_agent_null_scope_fix` — when `agent_id` is set to NULL (agent deleted) and no team is set, `scope` is reset to `'shared'` (migration 046).
 
+> **Constraint (migration 055):** `vault_documents_scope_consistency` CHECK (NOT VALID) enforces scope/ownership coherence:
+> ```sql
+> CHECK (
+>     (scope = 'personal' AND agent_id IS NOT NULL AND team_id IS NULL) OR
+>     (scope = 'team'     AND team_id  IS NOT NULL AND agent_id IS NULL) OR
+>     (scope = 'shared'   AND agent_id IS NULL     AND team_id  IS NULL) OR
+>     scope = 'custom'
+> ) NOT VALID
+> ```
+> Added as `NOT VALID` to avoid locking the table during the upgrade. Run `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;` after auditing any legacy rows.
+
 ---
 
 ### `vault_links`
@@ -1282,10 +1299,100 @@ Persists subagent task lifecycle for audit trail, cost attribution, and restart 
 
 ---
 
+---
+
+### `hooks` (formerly `agent_hooks`)
+
+Event-driven hook definitions. Global-scope hooks use `MasterTenantID` as `tenant_id`. Renamed from `agent_hooks` in migration 054. (migrations 052–054)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL DEFAULT MasterTenantID | Owning tenant; master UUID for global-scope hooks |
+| `scope` | VARCHAR(8) | NOT NULL CHECK (`global`, `tenant`, `agent`) | Hook scope |
+| `event` | VARCHAR(32) | NOT NULL | Event name (e.g. `before_tool`, `after_tool`) |
+| `handler_type` | VARCHAR(16) | NOT NULL CHECK (`command`, `http`, `prompt`, `script`) | Handler kind (migration 053 added `script`) |
+| `config` | JSONB | NOT NULL DEFAULT `{}` | Handler-specific options (command path, HTTP URL, prompt template) |
+| `script` | TEXT | | Inline script source for `script` handler type (migration 053) |
+| `builtin` | TEXT | | Builtin handler identifier for `source = 'builtin'` hooks (migration 053) |
+| `name` | VARCHAR(255) | | User-facing label (migration 054) |
+| `matcher` | VARCHAR(256) | | Optional regex applied to `tool_name` before the hook fires |
+| `if_expr` | TEXT | | Optional CEL expression evaluated against `tool_input` |
+| `timeout_ms` | INT | NOT NULL DEFAULT 5000 | Hook execution timeout |
+| `on_timeout` | VARCHAR(8) | NOT NULL DEFAULT `block` CHECK (`block`, `allow`) | Behavior on timeout |
+| `priority` | INT | NOT NULL DEFAULT 0 | Higher value = evaluated first |
+| `enabled` | BOOL | NOT NULL DEFAULT true | |
+| `version` | INT | NOT NULL DEFAULT 1 | Optimistic-lock version counter |
+| `source` | VARCHAR(16) | NOT NULL DEFAULT `ui` CHECK (`ui`, `api`, `seed`, `builtin`) | Origin of hook (migration 053 added `builtin`) |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | UI-only fields (tags, notes, lastTestedAt, createdByUsername) |
+| `created_by` | UUID | | Creator user ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `idx_hooks_lookup` on `(tenant_id, event) WHERE enabled = TRUE` (hot-path for ResolveForEvent)
+
+> **Migration 054 note:** The `agent_id` column was removed. Per-hook agent assignment is now controlled via the `hook_agents` junction table. The table was also renamed from `agent_hooks` to `hooks` in this migration. Per-scope uniqueness indexes (`uq_hooks_global`, `uq_hooks_tenant`, `uq_hooks_agent`) were dropped in migration 053.
+
+---
+
+### `hook_agents`
+
+N:M junction table linking hooks to agents. Replaces the 1:N `agent_id` FK on `hooks`. Created and populated in migration 054.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `hook_id` | UUID FK → hooks | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+
+**Primary Key:** `(hook_id, agent_id)`
+
+**Index:** `idx_hook_agents_agent` on `(agent_id)`
+
+---
+
+### `hook_executions`
+
+Append-only audit log for hook executions. `hook_id` is SET NULL when the parent hook is deleted to preserve the audit trail. (migration 052)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `hook_id` | UUID FK → hooks | ON DELETE SET NULL | Parent hook; NULL if hook was deleted |
+| `session_id` | VARCHAR(500) | | Originating session |
+| `event` | VARCHAR(32) | NOT NULL | Event that triggered the hook |
+| `input_hash` | CHAR(64) | | SHA-256 of canonical (tool_name + sorted args) |
+| `decision` | VARCHAR(16) | NOT NULL CHECK (`allow`, `block`, `error`, `timeout`) | Hook outcome |
+| `duration_ms` | INT | NOT NULL DEFAULT 0 | Execution duration |
+| `retry` | INT | NOT NULL DEFAULT 0 | Retry attempt number |
+| `dedup_key` | VARCHAR(128) | | Prevents duplicate rows for (hook_id, event_id) |
+| `error` | VARCHAR(256) | | Error message (truncated to 256 chars) |
+| `error_detail` | BYTEA | | Full error AES-256-GCM encrypted (GDPR-purgeable) |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extensible exec context (matcher_matched, cel_eval_result, stdout_len, http_status, prompt_model, prompt_tokens, trace_id) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `idx_hook_executions_session` on `(session_id, created_at)`, unique `uq_hook_executions_dedup` on `(dedup_key) WHERE dedup_key IS NOT NULL`
+
+---
+
+### `tenant_hook_budget`
+
+Per-tenant monthly prompt-handler token/cost budget. One row per tenant tracks monthly spend against a cap. (migration 052)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID | PK | Owning tenant |
+| `month_start` | DATE | NOT NULL | First day of the tracked month |
+| `budget_total` | BIGINT | NOT NULL DEFAULT 0 | Monthly cap (provider-defined units) |
+| `remaining` | BIGINT | NOT NULL DEFAULT 0 | Units remaining; decremented atomically |
+| `last_warned_at` | TIMESTAMPTZ | | Timestamp of last threshold warning |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Alert thresholds, override flags, notes |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+---
+
 ## What's Next
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->

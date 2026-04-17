@@ -1,230 +1,334 @@
-# Hooks & Quality Gates
+# Agent Hooks
 
-> Run automatic checks before or after agent actions — block bad output, require approval, or trigger custom validation logic.
+> Intercept, observe, or inject behavior at defined points in the agent loop — block unsafe tool calls, auto-audit after writes, inject session context, or notify on stop.
 
 ## Overview
 
-GoClaw's hook system lets you attach quality gates to agent lifecycle events. A hook is a check that runs at a specific event. Currently the only supported event is `delegation.completed`, which fires after a subagent finishes a delegated task. If the check fails, GoClaw can block the result and optionally retry with feedback.
+GoClaw's hook system attaches lifecycle handlers to agent sessions. Each hook targets a specific **event**, runs a **handler** (shell command, HTTP webhook, or LLM evaluator), and returns an **allow/block** decision for blocking events.
 
-Quality gates are configured in the **source agent's** `other_config` JSON under the `quality_gates` key. The source agent is the one that initiates the delegation (the orchestrator), not the target.
-
-Two evaluator types are available:
-
-| Type | How it validates |
-|------|-----------------|
-| `command` | Runs a shell command — exit 0 = pass, non-zero = fail |
-| `agent` | Delegates to a reviewer agent — `APPROVED` = pass, `REJECTED: ...` = fail |
+Hooks are stored in the `agent_hooks` DB table (migration `000052`) and managed via the `hooks.*` WebSocket methods or the **Hooks** panel in the Web UI.
 
 ---
 
-## Hook Config Fields
+## Concepts
 
-Quality gates are placed inside the source agent's `other_config` under the `quality_gates` array:
+### Events
 
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "./scripts/check-output.sh",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 60
-    }
-  ]
-}
-```
+Seven lifecycle events fire during an agent session:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `event` | string | Lifecycle event that triggers this hook — only `"delegation.completed"` is currently supported |
-| `type` | string | `"command"` or `"agent"` |
-| `command` | string | Shell command to run (type=command only) |
-| `agent` | string | Reviewer agent key (type=agent only) |
-| `block_on_failure` | bool | If `true`, a failing hook triggers retries; if `false`, failure is logged but execution continues |
-| `max_retries` | int | How many times to retry the target agent after a blocking failure (0 = no retry) |
-| `timeout_seconds` | int | Per-hook timeout (default 60s) |
+| Event | Blocking | When it fires |
+|---|---|---|
+| `session_start` | no | A new session is established |
+| `user_prompt_submit` | **yes** | Before the user's message enters the pipeline |
+| `pre_tool_use` | **yes** | Before any tool call executes |
+| `post_tool_use` | no | After a tool call completes |
+| `stop` | no | The agent session terminates normally |
+| `subagent_start` | **yes** | A sub-agent is spawned |
+| `subagent_stop` | no | A sub-agent finishes |
+
+**Blocking** events wait for the full hook chain to return an allow/block decision before the pipeline continues. Non-blocking events fire asynchronously for observation only.
+
+### Handler Types
+
+| Handler | Editions | Notes |
+|---|---|---|
+| `command` | Lite only | Local shell command; exit 2 → block, exit 0 → allow |
+| `http` | Lite + Standard | POST to endpoint; JSON body → decision. SSRF-protected |
+| `prompt` | Lite + Standard | LLM-based evaluation with structured tool-call output. Budget-bounded, requires `matcher` or `if_expr` |
+
+### Scopes
+
+- **global** — applies to all tenants. Master scope required to create.
+- **tenant** — applies to one tenant (any agent).
+- **agent** — applies to a specific agent within a tenant.
+
+Hooks resolve in priority order (highest first). A single `block` decision short-circuits the chain.
 
 ---
 
-## Engine Architecture
+## Execution Flow
 
 ```mermaid
 flowchart TD
-    EVENT["Lifecycle event fires\ne.g. delegation.completed"] --> ENGINE["Hook Engine\nmatches event to configs"]
-    ENGINE --> EVAL1["Evaluator 1\n(command or agent)"]
-    ENGINE --> EVAL2["Evaluator 2\n(command or agent)"]
-    EVAL1 -->|pass| NEXT["Continue"]
-    EVAL1 -->|fail + block| BLOCK["Block result\n(optionally retry with feedback)"]
-    EVAL1 -->|fail + non-block| LOG["Log warning\nContinue anyway"]
-    EVAL2 -->|pass| NEXT
+    EVENT["Lifecycle event fires\ne.g. pre_tool_use"] --> RESOLVE["Dispatcher resolves hooks\nby scope + event + priority"]
+    RESOLVE --> MATCH{"Matcher / if_expr\ncheck"}
+    MATCH -->|no match| SKIP["Skip hook"]
+    MATCH -->|matches| HANDLER["Run handler\n(command / http / prompt)"]
+    HANDLER -->|allow| NEXT["Continue chain"]
+    HANDLER -->|block| BLOCKED["Block operation\nFail-closed"]
+    HANDLER -->|timeout| TIMEOUT_DECISION{"OnTimeout\npolicy"}
+    TIMEOUT_DECISION -->|block| BLOCKED
+    TIMEOUT_DECISION -->|allow| NEXT
+    NEXT --> AUDIT["Write hook_executions row\n+ emit trace span"]
 ```
-
-The engine evaluates quality gates in order. A **blocking** failure triggers the retry loop for that gate (up to `max_retries`). If all retries are exhausted, GoClaw logs a warning and accepts the last result — it does not hard-fail the delegation. Non-blocking failures are logged but do not interrupt the flow. If all hooks pass (or none match the event), execution continues normally.
 
 ---
 
-## Command Evaluator
+## Handler Reference
 
-The command evaluator runs a shell command via `sh -c`. The content being validated is passed via **stdin**. Exit 0 means the hook passed; any other exit code means it failed. The stderr output becomes the feedback shown to the agent on retry.
-
-Environment variables available inside the command:
-
-| Variable | Value |
-|----------|-------|
-| `HOOK_EVENT` | The event name |
-| `HOOK_SOURCE_AGENT` | Key of the agent that produced the output |
-| `HOOK_TARGET_AGENT` | Key of the delegated-to agent |
-| `HOOK_TASK` | The original task string |
-| `HOOK_USER_ID` | User ID who triggered the request |
-
-**Example — basic content length check:**
-
-```bash
-#!/bin/sh
-# check-output.sh: fail if output is too short
-content=$(cat)
-length=${#content}
-if [ "$length" -lt 100 ]; then
-  echo "Output is too short ($length chars). Provide a more complete response." >&2
-  exit 1
-fi
-exit 0
-```
-
-Hook config:
+### command
 
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "./scripts/check-output.sh",
-  "block_on_failure": true,
-  "max_retries": 1,
-  "timeout_seconds": 10
+  "handler_type": "command",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "config": {
+    "command": "bash /path/to/script.sh",
+    "allowed_env_vars": ["MY_VAR"],
+    "cwd": "/workspace"
+  }
+}
+```
+
+- **Stdin**: JSON-encoded event payload.
+- **Exit 0**: allow (optional `{"continue": false}` → block).
+- **Exit 2**: block.
+- **Other non-zero**: error → fail-closed for blocking events.
+- **Env allowlist**: only keys listed in `allowed_env_vars` are passed; prevents secret leakage.
+
+### http
+
+```json
+{
+  "handler_type": "http",
+  "event": "user_prompt_submit",
+  "scope": "tenant",
+  "config": {
+    "url": "https://example.com/webhook",
+    "headers": { "Authorization": "<AES-encrypted>" }
+  }
+}
+```
+
+- Method: POST, body = event JSON.
+- Authorization header values stored AES-256-GCM encrypted; decrypted at dispatch.
+- 1 MiB response cap. Retries once on 5xx with 1 s backoff; 4xx fail-closed.
+- Expected response body:
+  ```json
+  { "decision": "allow", "additionalContext": "...", "updatedInput": {}, "continue": true }
+  ```
+- Non-JSON 2xx → allow.
+
+### prompt
+
+```json
+{
+  "handler_type": "prompt",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "matcher": "^(exec|shell|write_file)$",
+  "config": {
+    "prompt_template": "Evaluate safety of this tool call.",
+    "model": "haiku",
+    "max_invocations_per_turn": 5
+  }
+}
+```
+
+- `prompt_template` — system-level instruction the evaluator receives.
+- `matcher` or `if_expr` — required; prevents firing the LLM on every event.
+- Evaluator MUST call a `decide(decision, reason, injection_detected, updated_input)` tool. Free-text responses fail-closed.
+- Only `tool_input` reaches the evaluator (anti-injection sandboxing); raw user message is never included.
+
+---
+
+## Matchers
+
+| Field | Description |
+|---|---|
+| `matcher` | POSIX-ish regex applied to `tool_name`. Example: `^(exec|shell|write_file)$` |
+| `if_expr` | [cel-go](https://github.com/google/cel-go) expression over `{tool_name, tool_input, depth}`. Example: `tool_name == "exec" && size(tool_input.cmd) > 80` |
+
+Both optional for `command`/`http`. At least one required for `prompt`.
+
+---
+
+## Config Fields Reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `event` | string | yes | Lifecycle event name |
+| `handler_type` | string | yes | `command`, `http`, or `prompt` |
+| `scope` | string | yes | `global`, `tenant`, or `agent` |
+| `name` | string | no | Human-readable label |
+| `matcher` | string | no | Tool name regex filter |
+| `if_expr` | string | no | CEL expression filter |
+| `timeout_ms` | int | no | Per-hook timeout (default 5000, max 10000) |
+| `on_timeout` | string | no | `block` (default) or `allow` |
+| `priority` | int | no | Higher = runs first (default 0) |
+| `enabled` | bool | no | Default true |
+| `config` | object | yes | Handler-specific sub-config |
+| `agent_ids` | array | no | Restrict to specific agent UUIDs (scope=agent) |
+
+---
+
+## Security Model
+
+- **Edition gating**: `command` handler blocked on Standard at both config-time and dispatch-time (defense in depth).
+- **Tenant isolation**: all reads/writes scope by `tenant_id` unless caller is in master scope. Global hooks use a sentinel tenant id.
+- **SSRF protection**: HTTP handler validates URLs before request, pins resolved IP, blocks loopback/link-local/private ranges.
+- **PII redaction**: audit rows truncate error text to 256 chars; full error encrypted (AES-256-GCM) in `error_detail`.
+- **Fail-closed**: any unhandled error in a blocking event yields `block`. Timeouts respect `on_timeout` (default `block` for blocking events).
+- **Circuit breaker**: 5 consecutive blocks/timeouts in a 1-minute rolling window auto-disables the hook (`enabled=false`).
+- **Loop detection**: sub-agent hook chains bounded at depth 3.
+
+---
+
+## Safeguards Summary
+
+| Safeguard | Default | Overridable per hook |
+|---|---|---|
+| Per-hook timeout | 5 s | yes (`timeout_ms`, max 10 s) |
+| Chain budget | 10 s | no |
+| Circuit threshold | 5 blocks in 1 minute | no |
+| Prompt per-turn cap | 5 invocations | yes (`max_invocations_per_turn`) |
+| Prompt decision cache TTL | 60 s | no |
+| Tenant monthly token budget | 1,000,000 tokens | seeded per tenant in `tenant_hook_budget` |
+
+---
+
+## Managing Hooks via WebSocket
+
+All CRUD is available over the `hooks.*` WS methods (see [WebSocket Protocol](/websocket-protocol#hooks)).
+
+**Create a hook:**
+```json
+{
+  "type": "req", "id": "1", "method": "hooks.create",
+  "params": {
+    "event": "pre_tool_use",
+    "handler_type": "http",
+    "scope": "tenant",
+    "name": "Safety webhook",
+    "matcher": "^exec$",
+    "config": { "url": "https://safety.internal/check" }
+  }
+}
+```
+
+Response:
+```json
+{ "type": "res", "id": "1", "ok": true, "payload": { "hookId": "uuid..." } }
+```
+
+**Toggle a hook on/off:**
+```json
+{ "type": "req", "id": "2", "method": "hooks.toggle",
+  "params": { "hookId": "uuid...", "enabled": false } }
+```
+
+**Dry-run test (no audit row written):**
+```json
+{
+  "type": "req", "id": "3", "method": "hooks.test",
+  "params": {
+    "config": { "event": "pre_tool_use", "handler_type": "command",
+                "scope": "tenant", "config": { "command": "cat" } },
+    "sampleEvent": { "toolName": "exec", "toolInput": { "cmd": "ls" } }
+  }
 }
 ```
 
 ---
 
-## Agent Evaluator
+## Web UI Walkthrough
 
-The agent evaluator delegates to a reviewer agent. GoClaw sends a structured prompt with the original task, source/target agent keys, and the output to review. The reviewer must reply with exactly:
+Navigate to **Hooks** in the sidebar.
 
-- `APPROVED` (optionally followed by comments) — hook passes
-- `REJECTED: <specific feedback>` — hook fails; the feedback is used as the retry prompt
-
-The evaluation runs with hooks skipped (`WithSkipHooks`) to prevent infinite recursion.
-
-**Example — code review gate:**
-
-```json
-{
-  "event": "delegation.completed",
-  "type": "agent",
-  "agent": "code-reviewer",
-  "block_on_failure": true,
-  "max_retries": 2,
-  "timeout_seconds": 120
-}
-```
-
-The `code-reviewer` agent receives a prompt like:
-
-```
-[Quality Gate Evaluation]
-You are reviewing the output of a delegated task for quality.
-
-Original task: Write a Go function to parse JSON...
-Source agent: orchestrator
-Target agent: backend-dev
-
-Output to evaluate:
-<agent output here>
-
-Respond with EXACTLY one of:
-- "APPROVED" if the output meets quality standards
-- "REJECTED: <specific feedback>" with actionable improvement suggestions
-```
+1. **Create** — pick event, handler type (`command` greyed out on Standard edition), scope, matcher, then fill the handler-specific sub-form.
+2. **Test panel** — fires the hook with a sample event (`dryRun=true`, no audit row written). Shows decision badge, duration, stdout/stderr (command), status code (http), reason (prompt). If the response includes `updatedInput`, a side-by-side JSON diff is rendered.
+3. **History tab** — paginated executions from `hook_executions`.
+4. **Overview tab** — summary card with event, type, scope, matcher.
 
 ---
 
-## Use Cases
+## Database Schema
 
-**Content filtering** — block replies containing prohibited content using a command hook that greps for banned patterns.
+Three tables land with migration `000052_agent_hooks`:
 
-**Length/format validation** — reject outputs that are too short, missing required sections, or have wrong formatting.
+**`agent_hooks`** — hook definitions:
 
-**Approval workflows** — use an `agent` hook wired to a strict reviewer agent that checks correctness before a result is accepted.
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | — |
+| `tenant_id` | UUID FK | sentinel UUID for global scope |
+| `agent_ids` | UUID[] | empty = applies to all agents in scope |
+| `event` | VARCHAR(32) | one of the 7 event names |
+| `handler_type` | VARCHAR(16) | `command`, `http`, `prompt` |
+| `scope` | VARCHAR(16) | `global`, `tenant`, `agent` |
+| `config` | JSONB | handler sub-config |
+| `matcher` | TEXT | tool name regex (optional) |
+| `if_expr` | TEXT | CEL expression (optional) |
+| `timeout_ms` | INT | default 5000 |
+| `on_timeout` | VARCHAR(16) | `block` or `allow` |
+| `priority` | INT | higher fires first |
+| `enabled` | BOOL | circuit breaker writes false here |
+| `version` | INT | increments on update; busts prompt cache |
+| `source` | VARCHAR(16) | `builtin` (read-only) or `user` |
 
-**Security scanning** — run a script that checks generated code or shell commands for dangerous patterns before execution.
+**`hook_executions`** — audit log:
 
-**Non-blocking audit** — set `block_on_failure: false` to log all outputs to an audit system without blocking the flow.
+| Column | Notes |
+|---|---|
+| `hook_id` | `ON DELETE SET NULL` — executions preserved after hook deletion |
+| `dedup_key` | Unique index prevents double rows on retry |
+| `error` | Truncated to 256 chars |
+| `error_detail` | BYTEA, AES-256-GCM encrypted full error |
+| `metadata` | JSONB: `matcher_matched`, `cel_eval_result`, `stdout_len`, `http_status`, `prompt_model`, `prompt_tokens`, `trace_id` |
 
----
-
-## Examples
-
-**Two-gate setup: format check then agent review** (source agent's `other_config`):
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "python3 ./scripts/validate-format.py",
-      "block_on_failure": true,
-      "max_retries": 0,
-      "timeout_seconds": 15
-    },
-    {
-      "event": "delegation.completed",
-      "type": "agent",
-      "agent": "quality-reviewer",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 90
-    }
-  ]
-}
-```
-
-**Non-blocking audit logger** (source agent's `other_config`):
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "curl -s -X POST https://audit.internal/log -d @-",
-      "block_on_failure": false,
-      "timeout_seconds": 5
-    }
-  ]
-}
-```
+**`tenant_hook_budget`** — per-tenant monthly token limits (prompt handler only).
 
 ---
 
-## Common Issues
+## Observability
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| `hooks: unknown hook type, skipping` | Typo in `type` field | Use `"command"` or `"agent"` exactly |
-| Command always passes even with exit 1 | Wrapper script swallows exit code | Ensure script doesn't have `|| true` masking failures |
-| Agent evaluator hangs | Reviewer agent slow or stuck | Set `timeout_seconds` to a reasonable value |
-| Retries exhaust but flow continues | Expected behavior — GoClaw accepts the last result after max retries and logs a warning | Lower `max_retries` or fix the quality gate condition |
-| Hooks fire on reviewer agent itself | Recursion | GoClaw injects `WithSkipHooks` for agent evaluator calls automatically |
-| Non-blocking hook blocks anyway | `block_on_failure: true` set accidentally | Check config; set to `false` for observe-only hooks |
+Every hook execution emits a trace span named `hook.<handler_type>.<event>` (e.g. `hook.prompt.pre_tool_use`) with fields: `status`, `duration_ms`, `metadata.decision`, `parent_span_id`.
+
+Slog keys:
+- `security.hook.circuit_breaker` — breaker tripped.
+- `security.hook.audit_write_failed` — audit row write error.
+- `security.hook.loop_depth_exceeded` — `MaxLoopDepth` violation.
+- `security.hook.prompt_parse_error` — evaluator returned malformed structured output.
+- `security.hook.budget_deduct_failed` / `budget_precheck_failed` — budget store error.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| HTTP hook always returns `error` | SSRF block on loopback | Use a public/internal URL accessible from the gateway process |
+| Prompt hook blocks everything | Evaluator returning free-text (no tool call) | Review `prompt_template`; keep it short + imperative |
+| Hook stopped firing | Circuit breaker tripped (5 blocks/min) | Fix upstream cause, then re-enable: `hooks.toggle { enabled: true }` |
+| UI `command` radio greyed out | Standard edition | Use `http` or `prompt`, or upgrade to Lite |
+| Per-turn cap hit | `max_invocations_per_turn` too low | Raise in hook config; tighten `matcher` to reduce LLM calls |
+| Budget exceeded | Tenant spent monthly token budget | Raise `tenant_hook_budget.budget_total` or wait for rollover |
+| `handler_type, event, and scope are required` | Missing fields in create payload | Include all three required fields |
+
+---
+
+## Migration from Old Quality Gates
+
+Prior to the hooks system, delegation quality gates were configured inline in the source agent's `other_config.quality_gates` array. That system supported only `delegation.completed` events and two handler types (`command`, `agent`).
+
+The new hooks system replaces it with:
+
+| Old | New |
+|---|---|
+| `other_config.quality_gates[].event: "delegation.completed"` | `subagent_stop` (non-blocking) or `subagent_start` (blocking) |
+| `other_config.quality_gates[].type: "command"` | `handler_type: "command"` (Lite) or `handler_type: "http"` (Standard) |
+| `other_config.quality_gates[].type: "agent"` | `handler_type: "prompt"` with an LLM evaluator |
+| `block_on_failure: true` + `max_retries` | Built-in blocking semantics; no retry loop needed (block is immediate) |
+
+No data migration required when upgrading from a pre-hooks release. Migration `000052_agent_hooks` creates all three tables cleanly.
 
 ---
 
 ## What's Next
 
-- [Extended Thinking](/extended-thinking) — deeper reasoning before producing output
+- [WebSocket Protocol](/websocket-protocol) — full `hooks.*` method reference
 - [Exec Approval](/exec-approval) — human-in-the-loop approval for shell commands
+- [Extended Thinking](/extended-thinking) — deeper reasoning before producing output
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: hooks-rewrite | updated: 2026-04-17 -->

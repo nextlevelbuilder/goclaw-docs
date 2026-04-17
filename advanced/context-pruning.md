@@ -17,7 +17,7 @@ Context pruning is distinct from [session compaction](../core-concepts/sessions-
 
 ## How Pruning Triggers
 
-Pruning runs automatically on every agent request unless explicitly disabled with `mode: "off"`. The flow:
+Pruning is **opt-in** — it only runs when `mode: "cache-ttl"` is set on the agent. The flow:
 
 ```
 history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → LLM
@@ -76,12 +76,12 @@ This placeholder is configurable. Hard clear can also be disabled entirely.
 
 ## Configuration
 
-Context pruning is **on by default**. To disable it, set `mode: "off"` in the agent config.
+Context pruning is **opt-in**. To enable it, set `mode: "cache-ttl"` in the agent config.
 
 ```json
 {
   "contextPruning": {
-    "mode": "off"
+    "mode": "cache-ttl"
   }
 }
 ```
@@ -93,6 +93,7 @@ All other fields have sensible defaults and are optional.
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "keepLastAssistants": 3,
     "softTrimRatio": 0.25,
     "hardClearRatio": 0.5,
@@ -112,7 +113,7 @@ All other fields have sensible defaults and are optional.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | *(unset — pruning active)* | Set to `"off"` to disable pruning entirely. |
+| `mode` | *(unset — pruning disabled)* | Set to `"cache-ttl"` to enable pruning. Omit or leave empty to keep pruning off. |
 | `keepLastAssistants` | `3` | Number of recent assistant turns to protect from pruning. |
 | `softTrimRatio` | `0.25` | Trigger soft trim when context fills this fraction of the context window. |
 | `hardClearRatio` | `0.5` | Trigger hard clear when context fills this fraction after soft trim. |
@@ -127,12 +128,12 @@ All other fields have sensible defaults and are optional.
 
 ## Configuration Examples
 
-### Disable pruning entirely
+### Enable pruning (minimum config)
 
 ```json
 {
   "contextPruning": {
-    "mode": "off"
+    "mode": "cache-ttl"
   }
 }
 ```
@@ -144,6 +145,7 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "softTrimRatio": 0.2,
     "hardClearRatio": 0.4,
     "softTrim": {
@@ -160,6 +162,7 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "hardClear": {
       "enabled": false
     }
@@ -172,6 +175,7 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "hardClear": {
       "placeholder": "[Tool output removed to save context]"
     }
@@ -217,7 +221,7 @@ Once the consolidation pipeline has promoted a body of knowledge to L0 (via drea
 
 **Pruning never triggers**
 
-Confirm that `mode` is not set to `"off"`. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
+Confirm that `mode` is set to `"cache-ttl"` — pruning is opt-in and disabled by default. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
 
 **Agent re-runs tools unexpectedly**
 
@@ -227,7 +231,7 @@ Hard clear removes tool result content entirely. If the agent needs that content
 
 Increase `softTrim.headChars` and `softTrim.tailChars`, or raise `softTrim.maxChars` so fewer results are eligible for trimming.
 
-**Context still overflows despite pruning**
+**Context still overflows despite pruning being enabled**
 
 Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](../core-concepts/sessions-and-history.md) or reduce the system prompt size.
 

@@ -61,7 +61,13 @@ Dành cho channel dựa trên config file (thay vì DB instance):
             "page_id": "your_page_id",
             "features": {
               "inbox_reply": true,
-              "comment_reply": false
+              "comment_reply": true,
+              "first_inbox": true,
+              "auto_react": false
+            },
+            "comment_reply_options": {
+              "include_post_context": true,
+              "filter": "all"
             }
           }
         }
@@ -79,9 +85,17 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 | `page_access_token` | string | -- | Token cấp trang cho tất cả page API (bắt buộc) |
 | `webhook_secret` | string | -- | Secret xác minh HMAC-SHA256 tùy chọn |
 | `page_id` | string | -- | Định danh trang Pancake (bắt buộc) |
+| `webhook_page_id` | string | -- | Page ID nền tảng gốc trong webhook (nếu khác `page_id`) |
 | `platform` | string | tự phát hiện | Ghi đè nền tảng: facebook/zalo/instagram/tiktok/whatsapp/line |
 | `features.inbox_reply` | bool | -- | Bật trả lời tin nhắn inbox |
 | `features.comment_reply` | bool | -- | Bật trả lời bình luận |
+| `features.first_inbox` | bool | -- | Gửi tin nhắn DM một lần cho người bình luận sau lần đầu reply |
+| `features.auto_react` | bool | -- | Tự động thích bình luận của người dùng trên Facebook (chỉ Facebook) |
+| `comment_reply_options.include_post_context` | bool | false | Thêm nội dung bài đăng gốc vào đầu comment gửi cho agent |
+| `comment_reply_options.filter` | string | `"all"` | Chế độ lọc bình luận: `"all"` hoặc `"keyword"` |
+| `comment_reply_options.keywords` | list | -- | Bắt buộc khi `filter="keyword"` — chỉ xử lý bình luận chứa các từ khóa này |
+| `first_inbox_message` | string | mặc định | Nội dung DM tùy chỉnh gửi cho tính năng first inbox |
+| `post_context_cache_ttl` | string | `"15m"` | TTL cache nội dung bài đăng lấy cho context bình luận (ví dụ `"30m"`) |
 | `block_reply` | bool | -- | Ghi đè gateway block_reply (nil=kế thừa) |
 | `allow_from` | list | -- | Danh sách trắng User/Group ID |
 
@@ -208,6 +222,20 @@ Pancake hỗ trợ hai loại hội thoại:
 
 Loại hội thoại được lưu trong metadata tin nhắn dưới dạng `pancake_mode` ("inbox" hoặc "comment"), cho phép agent phản hồi khác nhau tùy theo nguồn.
 
+### Tính năng bình luận
+
+Khi `features.comment_reply: true`, các tùy chọn bổ sung kiểm soát xử lý bình luận:
+
+**Lọc bình luận** (`comment_reply_options.filter`):
+- `"all"` (mặc định) — xử lý tất cả bình luận
+- `"keyword"` — chỉ xử lý bình luận chứa một trong các `keywords` đã cấu hình
+
+**Post context** (`comment_reply_options.include_post_context: true`): lấy nội dung bài đăng gốc và thêm vào đầu nội dung bình luận trước khi gửi cho agent. Hữu ích khi bình luận quá ngắn để hiểu mà không có ngữ cảnh. Nội dung bài đăng được cache (TTL mặc định: 15 phút, cấu hình qua `post_context_cache_ttl`).
+
+**Auto-react** (`features.auto_react: true`): tự động thích mọi bình luận hợp lệ đến trên Facebook (chỉ nền tảng Facebook). Hoạt động độc lập với `comment_reply` — có thể react mà không cần reply.
+
+**First inbox** (`features.first_inbox: true`): sau khi reply bình luận, gửi một DM riêng tư một lần cho người bình luận, mời họ tiếp tục qua inbox. Chỉ gửi một lần mỗi người dùng mỗi lần khởi động lại. Tùy chỉnh nội dung DM bằng `first_inbox_message`.
+
 ### Tình trạng kênh
 
 Lỗi API được ánh xạ sang trạng thái tình trạng kênh:
@@ -242,4 +270,4 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Cài đặt đa kênh](/recipe-multi-channel) — Cấu hình nhiều kênh
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-17 -->

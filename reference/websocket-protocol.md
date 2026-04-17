@@ -205,6 +205,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `config.apply` | Replace config entirely |
 | `config.patch` | Patch specific config fields |
 | `config.schema` | Get JSON schema for config |
+| `config.defaults` | Get compiled-in defaults + agents.defaults overlay (read-only, master scope) |
 | `config.permissions.list` | `{agentId, configType?}` | List permissions for an agent |
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
@@ -229,6 +230,77 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `skills.list` | — | List skills |
 | `skills.get` | `{id}` | Get skill details |
 | `skills.update` | `{id, ...fields}` | Update skill metadata |
+
+### Hooks
+
+Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality-gates) for full concepts and examples.
+
+**Required roles:** `viewer` for list/history; `operator` for test; `admin` for create/update/delete/toggle.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `hooks.list` | `{event?, scope?, agentId?, enabled?}` | List hooks visible to the caller's scope |
+| `hooks.create` | hook config object | Create a hook; returns `{hookId}` |
+| `hooks.update` | `{hookId, updates}` | Patch a hook's fields; re-validates merged config |
+| `hooks.delete` | `{hookId}` | Delete a hook (builtin hooks return error) |
+| `hooks.toggle` | `{hookId, enabled}` | Enable or disable a hook |
+| `hooks.test` | `{config, sampleEvent?}` | Dry-run a hook config; no audit row written |
+| `hooks.history` | — | List `hook_executions` audit records |
+
+**`hooks.list` — filter params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `event` | string | Filter by event name (e.g. `pre_tool_use`) |
+| `scope` | string | Filter by scope: `global`, `tenant`, `agent` |
+| `agentId` | string (UUID) | Filter to a specific agent |
+| `enabled` | boolean | Filter by enabled state |
+
+**`hooks.list` response:**
+```json
+{ "hooks": [ { "id": "uuid", "event": "pre_tool_use", "handler_type": "http",
+               "scope": "tenant", "enabled": true, "priority": 0, ... } ] }
+```
+
+**`hooks.create` request params** (all fields are the `HookConfig` schema):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `event` | string | yes | Lifecycle event name |
+| `handler_type` | string | yes | `command`, `http`, or `prompt` |
+| `scope` | string | yes | `global`, `tenant`, or `agent` |
+| `name` | string | no | Human-readable label |
+| `matcher` | string | no | Tool name regex (optional for command/http; required for prompt) |
+| `if_expr` | string | no | CEL expression alternative to matcher |
+| `timeout_ms` | int | no | Per-hook timeout ms (default 5000, max 10000) |
+| `on_timeout` | string | no | `block` (default) or `allow` |
+| `priority` | int | no | Higher runs first |
+| `enabled` | bool | no | Default true |
+| `config` | object | yes | Handler-specific sub-config |
+| `agent_ids` | array | no | UUID list for scope=agent |
+
+**`hooks.test` — `sampleEvent` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `toolName` | string | Tool name for pre/post_tool_use events |
+| `toolInput` | object | Tool arguments map |
+| `rawInput` | string | Raw user message (for user_prompt_submit) |
+
+**`hooks.test` response:**
+```json
+{
+  "result": {
+    "decision": "allow",
+    "reason": "...",
+    "durationMs": 42,
+    "stdout": "...",
+    "stderr": "...",
+    "statusCode": 200,
+    "updatedInput": {}
+  }
+}
+```
 
 ### Channels
 

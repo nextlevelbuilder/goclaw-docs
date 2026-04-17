@@ -14,7 +14,10 @@ GoClaw 是一个用 Go 编写的开源 AI agent gateway。它让你能在 Telegr
 |------|------|
 | **多租户 v3** | 每用户独立的上下文、session、记忆和 trace；按 edition 的速率限制 |
 | **8 阶段 Agent Pipeline** | context → history → prompt → think → act → observe → memory → summarize（v3，始终启用） |
-| **22 种 Provider 类型** | OpenAI、Anthropic、Google、Groq、DeepSeek、Mistral、xAI 等（15 种 LLM API + 本地模型 + CLI agent + 媒体） |
+| **22 种 Provider 类型** | OpenAI、Anthropic、Google、Groq、DeepSeek、Mistral、xAI 等（15 种 LLM API + 本地模型 + ACP CLI agent + 媒体） |
+| **ACP Provider** | Agentic Claude Protocol — 通过 JSON-RPC 2.0 stdio 子进程以 agent 方式运行 Claude Code、Codex、Gemini CLI |
+| **Hooks 系统** | 7 个生命周期事件（SessionStart、UserPromptSubmit、PreToolUse、PostToolUse、Stop、SubagentStart/Stop）— 同步/异步，防 SSRF HTTP 处理器，审计日志 |
+| **Audio / TTS 管理器** | 统一音频管理器，支持 4 个 TTS provider：ElevenLabs（流式）、OpenAI、Edge TTS、MiniMax；语音 LRU 缓存（1 000 租户，TTL 1 小时） |
 | **消息渠道** | Telegram、Discord、WhatsApp（原生）、Zalo、Zalo Personal、Larksuite、Slack、WebSocket |
 | **32 个内置工具** | 文件系统、网页搜索、浏览器、代码执行、记忆等 |
 | **64+ WebSocket RPC 方法** | 实时控制——聊天、agent 管理、trace 等，通过 `/ws` 访问 |
@@ -70,4 +73,4 @@ graph LR
 - [快速开始](/quick-start) — 5 分钟创建你的第一个 agent
 - [GoClaw 工作原理](/how-goclaw-works) — 深入了解架构
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->

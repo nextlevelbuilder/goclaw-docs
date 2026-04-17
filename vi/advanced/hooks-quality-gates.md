@@ -1,232 +1,336 @@
 > Bản dịch từ [English version](/hooks-quality-gates)
 
-# Hooks & Quality Gates
+# Agent Hooks
 
-> Chạy kiểm tra tự động trước hoặc sau hành động của agent — chặn kết quả xấu, yêu cầu phê duyệt, hoặc kích hoạt logic validation tùy chỉnh.
+> Chặn, quan sát hoặc inject hành vi tại các điểm xác định trong vòng lặp agent — chặn tool call không an toàn, tự động audit sau khi ghi, inject context session, hoặc thông báo khi dừng.
 
 ## Tổng quan
 
-Hệ thống hook của GoClaw cho phép bạn gắn quality gate vào các sự kiện vòng đời của agent. Một hook là một kiểm tra chạy tại một sự kiện cụ thể. Hiện tại sự kiện duy nhất được hỗ trợ là `delegation.completed`, kích hoạt sau khi subagent hoàn thành một task được ủy quyền. Nếu kiểm tra thất bại, GoClaw có thể chặn kết quả và tùy chọn thử lại với phản hồi.
+Hệ thống hook của GoClaw gắn lifecycle handler vào agent session. Mỗi hook nhắm đến một **event** cụ thể, chạy một **handler** (lệnh shell, HTTP webhook, hoặc LLM evaluator), và trả về quyết định **allow/block** cho blocking event.
 
-Quality gate được cấu hình trong `other_config` JSON của **agent nguồn** (source agent) dưới key `quality_gates`. Agent nguồn là agent khởi tạo việc ủy quyền (orchestrator), không phải agent đích.
-
-Có hai loại evaluator:
-
-| Loại | Cách validate |
-|------|-----------------|
-| `command` | Chạy lệnh shell — exit 0 = pass, khác 0 = fail |
-| `agent` | Ủy quyền cho agent reviewer — `APPROVED` = pass, `REJECTED: ...` = fail |
+Hook được lưu trong bảng `agent_hooks` (migration `000052`) và quản lý qua WS method `hooks.*` hoặc panel **Hooks** trong Web UI.
 
 ---
 
-## Các trường cấu hình Hook
+## Khái niệm
 
-Quality gate được đặt trong `other_config` của agent nguồn, dưới mảng `quality_gates`:
+### Events
 
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "./scripts/check-output.sh",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 60
-    }
-  ]
-}
-```
+Bảy lifecycle event kích hoạt trong agent session:
 
-| Trường | Kiểu | Mô tả |
-|-------|------|-------------|
-| `event` | string | Sự kiện vòng đời kích hoạt hook này — hiện chỉ hỗ trợ `"delegation.completed"` |
-| `type` | string | `"command"` hoặc `"agent"` |
-| `command` | string | Lệnh shell để chạy (chỉ cho type=command) |
-| `agent` | string | Key của agent reviewer (chỉ cho type=agent) |
-| `block_on_failure` | bool | Nếu `true`, hook thất bại sẽ kích hoạt retry; nếu `false`, thất bại được ghi log nhưng tiếp tục |
-| `max_retries` | int | Số lần thử lại agent đích sau khi thất bại có chặn (0 = không thử lại) |
-| `timeout_seconds` | int | Timeout mỗi hook (mặc định 60s) |
+| Event | Blocking | Khi nào kích hoạt |
+|---|---|---|
+| `session_start` | không | Session mới được thiết lập |
+| `user_prompt_submit` | **có** | Trước khi message người dùng vào pipeline |
+| `pre_tool_use` | **có** | Trước khi tool call thực thi |
+| `post_tool_use` | không | Sau khi tool call hoàn thành |
+| `stop` | không | Agent session kết thúc bình thường |
+| `subagent_start` | **có** | Sub-agent được tạo ra |
+| `subagent_stop` | không | Sub-agent hoàn thành |
+
+**Blocking** event chờ toàn bộ hook chain trả về quyết định allow/block trước khi pipeline tiếp tục. Non-blocking event kích hoạt bất đồng bộ chỉ để quan sát.
+
+### Loại Handler
+
+| Handler | Phiên bản | Ghi chú |
+|---|---|---|
+| `command` | Chỉ Lite | Lệnh shell cục bộ; exit 2 → block, exit 0 → allow |
+| `http` | Lite + Standard | POST đến endpoint; body JSON → quyết định. Bảo vệ SSRF |
+| `prompt` | Lite + Standard | Đánh giá bằng LLM với structured tool-call output. Giới hạn budget, yêu cầu `matcher` hoặc `if_expr` |
+
+### Phạm vi (Scope)
+
+- **global** — áp dụng cho tất cả tenant. Cần master scope để tạo.
+- **tenant** — áp dụng cho một tenant (bất kỳ agent nào).
+- **agent** — áp dụng cho một agent cụ thể trong tenant.
+
+Hook được giải quyết theo thứ tự ưu tiên (cao nhất trước). Một quyết định `block` sẽ ngắt chuỗi ngay lập tức.
 
 ---
 
-## Kiến trúc Engine
+## Luồng Thực thi
 
 ```mermaid
 flowchart TD
-    EVENT["Lifecycle event fires\ne.g. delegation.completed"] --> ENGINE["Hook Engine\nmatches event to configs"]
-    ENGINE --> EVAL1["Evaluator 1\n(command or agent)"]
-    ENGINE --> EVAL2["Evaluator 2\n(command or agent)"]
-    EVAL1 -->|pass| NEXT["Continue"]
-    EVAL1 -->|fail + block| BLOCK["Block result\n(optionally retry with feedback)"]
-    EVAL1 -->|fail + non-block| LOG["Log warning\nContinue anyway"]
-    EVAL2 -->|pass| NEXT
+    EVENT["Lifecycle event kích hoạt\nVD: pre_tool_use"] --> RESOLVE["Dispatcher giải quyết hook\ntheo scope + event + priority"]
+    RESOLVE --> MATCH{"Kiểm tra\nMatcher / if_expr"}
+    MATCH -->|không khớp| SKIP["Bỏ qua hook"]
+    MATCH -->|khớp| HANDLER["Chạy handler\n(command / http / prompt)"]
+    HANDLER -->|allow| NEXT["Tiếp tục chain"]
+    HANDLER -->|block| BLOCKED["Chặn thao tác\nFail-closed"]
+    HANDLER -->|timeout| TIMEOUT_DECISION{"Chính sách\nOnTimeout"}
+    TIMEOUT_DECISION -->|block| BLOCKED
+    TIMEOUT_DECISION -->|allow| NEXT
+    NEXT --> AUDIT["Ghi row hook_executions\n+ emit trace span"]
 ```
-
-Engine đánh giá quality gate theo thứ tự. Thất bại **có chặn** sẽ kích hoạt vòng lặp retry cho gate đó (tối đa `max_retries` lần). Nếu hết số lần retry, GoClaw ghi log cảnh báo và chấp nhận kết quả cuối cùng — không hard-fail delegation. Thất bại không chặn được ghi log nhưng không làm gián đoạn luồng. Nếu tất cả hook đều pass (hoặc không có hook nào khớp sự kiện), thực thi tiếp tục bình thường.
 
 ---
 
-## Command Evaluator
+## Tham chiếu Handler
 
-Command evaluator chạy lệnh shell qua `sh -c`. Nội dung cần validate được truyền qua **stdin**. Exit 0 nghĩa là hook pass; bất kỳ exit code nào khác nghĩa là fail. Đầu ra stderr trở thành phản hồi hiển thị cho agent khi thử lại.
-
-Biến môi trường có sẵn bên trong lệnh:
-
-| Biến | Giá trị |
-|----------|-------|
-| `HOOK_EVENT` | Tên sự kiện |
-| `HOOK_SOURCE_AGENT` | Key của agent tạo ra đầu ra |
-| `HOOK_TARGET_AGENT` | Key của agent được ủy quyền |
-| `HOOK_TASK` | Chuỗi task gốc |
-| `HOOK_USER_ID` | ID người dùng kích hoạt yêu cầu |
-
-**Ví dụ — kiểm tra độ dài nội dung cơ bản:**
-
-```bash
-#!/bin/sh
-# check-output.sh: fail nếu đầu ra quá ngắn
-content=$(cat)
-length=${#content}
-if [ "$length" -lt 100 ]; then
-  echo "Output is too short ($length chars). Provide a more complete response." >&2
-  exit 1
-fi
-exit 0
-```
-
-Cấu hình hook:
+### command
 
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "./scripts/check-output.sh",
-  "block_on_failure": true,
-  "max_retries": 1,
-  "timeout_seconds": 10
+  "handler_type": "command",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "config": {
+    "command": "bash /path/to/script.sh",
+    "allowed_env_vars": ["MY_VAR"],
+    "cwd": "/workspace"
+  }
+}
+```
+
+- **Stdin**: event payload dạng JSON.
+- **Exit 0**: allow (tùy chọn `{"continue": false}` → block).
+- **Exit 2**: block.
+- **Non-zero khác**: error → fail-closed cho blocking event.
+- **Env allowlist**: chỉ key trong `allowed_env_vars` được truyền; ngăn rò rỉ secret.
+
+### http
+
+```json
+{
+  "handler_type": "http",
+  "event": "user_prompt_submit",
+  "scope": "tenant",
+  "config": {
+    "url": "https://example.com/webhook",
+    "headers": { "Authorization": "<AES-encrypted>" }
+  }
+}
+```
+
+- Method: POST, body = event JSON.
+- Giá trị Authorization header lưu mã hóa AES-256-GCM; giải mã khi dispatch.
+- Giới hạn response 1 MiB. Retry một lần với 5xx (backoff 1 s); 4xx fail-closed.
+- Response body mong đợi:
+  ```json
+  { "decision": "allow", "additionalContext": "...", "updatedInput": {}, "continue": true }
+  ```
+- Non-JSON 2xx → allow.
+
+### prompt
+
+```json
+{
+  "handler_type": "prompt",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "matcher": "^(exec|shell|write_file)$",
+  "config": {
+    "prompt_template": "Đánh giá mức độ an toàn của tool call này.",
+    "model": "haiku",
+    "max_invocations_per_turn": 5
+  }
+}
+```
+
+- `prompt_template` — hướng dẫn cấp hệ thống mà evaluator nhận được.
+- `matcher` hoặc `if_expr` — bắt buộc; ngăn kích hoạt LLM trên mọi event.
+- Evaluator PHẢI gọi tool `decide(decision, reason, injection_detected, updated_input)`. Phản hồi text thuần → fail-closed.
+- Chỉ `tool_input` đến evaluator (sandboxing chống injection); message thô của người dùng không bao giờ được đưa vào.
+
+---
+
+## Matchers
+
+| Trường | Mô tả |
+|---|---|
+| `matcher` | Regex POSIX áp dụng cho `tool_name`. Ví dụ: `^(exec|shell|write_file)$` |
+| `if_expr` | Biểu thức [cel-go](https://github.com/google/cel-go) trên `{tool_name, tool_input, depth}`. Ví dụ: `tool_name == "exec" && size(tool_input.cmd) > 80` |
+
+Cả hai đều tùy chọn cho `command`/`http`. Ít nhất một là bắt buộc cho `prompt`.
+
+---
+
+## Tham chiếu Trường Config
+
+| Trường | Kiểu | Bắt buộc | Mô tả |
+|---|---|---|---|
+| `event` | string | có | Tên lifecycle event |
+| `handler_type` | string | có | `command`, `http`, hoặc `prompt` |
+| `scope` | string | có | `global`, `tenant`, hoặc `agent` |
+| `name` | string | không | Nhãn dễ đọc |
+| `matcher` | string | không | Regex lọc tool name |
+| `if_expr` | string | không | Biểu thức CEL lọc |
+| `timeout_ms` | int | không | Timeout mỗi hook (mặc định 5000, tối đa 10000) |
+| `on_timeout` | string | không | `block` (mặc định) hoặc `allow` |
+| `priority` | int | không | Cao hơn chạy trước (mặc định 0) |
+| `enabled` | bool | không | Mặc định true |
+| `config` | object | có | Sub-config cho từng handler |
+| `agent_ids` | array | không | Giới hạn theo UUID agent cụ thể (scope=agent) |
+
+---
+
+## Mô hình Bảo mật
+
+- **Kiểm soát phiên bản**: handler `command` bị chặn trên Standard ở cả thời điểm cấu hình và dispatch (defense in depth).
+- **Tenant isolation**: tất cả đọc/ghi scope theo `tenant_id` trừ khi caller ở master scope. Hook global dùng sentinel tenant id.
+- **Bảo vệ SSRF**: HTTP handler xác thực URL trước request, ghim resolved IP, chặn loopback/link-local/private range.
+- **PII redaction**: audit row cắt ngắn error text còn 256 ký tự; full error mã hóa (AES-256-GCM) trong `error_detail`.
+- **Fail-closed**: bất kỳ lỗi nào trong blocking event đều cho kết quả `block`. Timeout tôn trọng `on_timeout` (mặc định `block` cho blocking event).
+- **Circuit breaker**: 5 block/timeout liên tiếp trong 1 phút tự động disable hook (`enabled=false`).
+- **Phát hiện vòng lặp**: sub-agent hook chain giới hạn ở độ sâu 3.
+
+---
+
+## Tóm tắt Safeguard
+
+| Safeguard | Mặc định | Ghi đè mỗi hook |
+|---|---|---|
+| Timeout mỗi hook | 5 s | có (`timeout_ms`, tối đa 10 s) |
+| Chain budget | 10 s | không |
+| Ngưỡng circuit | 5 block trong 1 phút | không |
+| Giới hạn prompt mỗi turn | 5 lần gọi | có (`max_invocations_per_turn`) |
+| TTL cache quyết định prompt | 60 s | không |
+| Token budget tháng mỗi tenant | 1.000.000 token | seeded trong `tenant_hook_budget` |
+
+---
+
+## Quản lý Hook qua WebSocket
+
+Toàn bộ CRUD có sẵn qua WS method `hooks.*` (xem [WebSocket Protocol](/websocket-protocol#hooks)).
+
+**Tạo hook:**
+```json
+{
+  "type": "req", "id": "1", "method": "hooks.create",
+  "params": {
+    "event": "pre_tool_use",
+    "handler_type": "http",
+    "scope": "tenant",
+    "name": "Safety webhook",
+    "matcher": "^exec$",
+    "config": { "url": "https://safety.internal/check" }
+  }
+}
+```
+
+Response:
+```json
+{ "type": "res", "id": "1", "ok": true, "payload": { "hookId": "uuid..." } }
+```
+
+**Bật/tắt hook:**
+```json
+{ "type": "req", "id": "2", "method": "hooks.toggle",
+  "params": { "hookId": "uuid...", "enabled": false } }
+```
+
+**Dry-run test (không ghi audit row):**
+```json
+{
+  "type": "req", "id": "3", "method": "hooks.test",
+  "params": {
+    "config": { "event": "pre_tool_use", "handler_type": "command",
+                "scope": "tenant", "config": { "command": "cat" } },
+    "sampleEvent": { "toolName": "exec", "toolInput": { "cmd": "ls" } }
+  }
 }
 ```
 
 ---
 
-## Agent Evaluator
+## Hướng dẫn Web UI
 
-Agent evaluator ủy quyền cho một agent reviewer. GoClaw gửi một prompt có cấu trúc với task gốc, key của agent nguồn/đích, và đầu ra cần review. Reviewer phải trả lời chính xác:
+Vào **Hooks** trong sidebar.
 
-- `APPROVED` (có thể kèm nhận xét) — hook pass
-- `REJECTED: <phản hồi cụ thể>` — hook fail; phản hồi được dùng làm prompt thử lại
-
-Quá trình đánh giá chạy với hooks bị bỏ qua (`WithSkipHooks`) để tránh đệ quy vô hạn.
-
-**Ví dụ — cổng review code:**
-
-```json
-{
-  "event": "delegation.completed",
-  "type": "agent",
-  "agent": "code-reviewer",
-  "block_on_failure": true,
-  "max_retries": 2,
-  "timeout_seconds": 120
-}
-```
-
-Agent `code-reviewer` nhận một prompt như sau:
-
-```
-[Quality Gate Evaluation]
-You are reviewing the output of a delegated task for quality.
-
-Original task: Write a Go function to parse JSON...
-Source agent: orchestrator
-Target agent: backend-dev
-
-Output to evaluate:
-<agent output here>
-
-Respond with EXACTLY one of:
-- "APPROVED" if the output meets quality standards
-- "REJECTED: <specific feedback>" with actionable improvement suggestions
-```
+1. **Create** — chọn event, handler type (`command` bị ẩn trên Standard), scope, matcher, sau đó điền sub-form theo handler.
+2. **Test panel** — kích hoạt hook với sample event (`dryRun=true`, không ghi audit row). Hiển thị decision badge, duration, stdout/stderr (command), status code (http), reason (prompt). Nếu response có `updatedInput`, render JSON diff side-by-side.
+3. **History tab** — danh sách thực thi phân trang từ `hook_executions`.
+4. **Overview tab** — thẻ tóm tắt với event, type, scope, matcher.
 
 ---
 
-## Các trường hợp sử dụng
+## Schema Cơ sở Dữ liệu
 
-**Lọc nội dung** — chặn câu trả lời chứa nội dung bị cấm bằng command hook dùng grep tìm các mẫu vi phạm.
+Ba bảng được tạo bởi migration `000052_agent_hooks`:
 
-**Kiểm tra độ dài/định dạng** — từ chối đầu ra quá ngắn, thiếu các phần bắt buộc, hoặc sai định dạng.
+**`agent_hooks`** — định nghĩa hook:
 
-**Quy trình phê duyệt** — dùng `agent` hook kết nối với agent reviewer nghiêm ngặt để kiểm tra tính đúng đắn trước khi chấp nhận kết quả.
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | UUID PK | — |
+| `tenant_id` | UUID FK | sentinel UUID cho global scope |
+| `agent_ids` | UUID[] | rỗng = áp dụng cho tất cả agent trong scope |
+| `event` | VARCHAR(32) | một trong 7 tên event |
+| `handler_type` | VARCHAR(16) | `command`, `http`, `prompt` |
+| `scope` | VARCHAR(16) | `global`, `tenant`, `agent` |
+| `config` | JSONB | sub-config handler |
+| `matcher` | TEXT | regex tool name (tùy chọn) |
+| `if_expr` | TEXT | biểu thức CEL (tùy chọn) |
+| `timeout_ms` | INT | mặc định 5000 |
+| `on_timeout` | VARCHAR(16) | `block` hoặc `allow` |
+| `priority` | INT | cao hơn chạy trước |
+| `enabled` | BOOL | circuit breaker ghi false vào đây |
+| `version` | INT | tăng khi update; xóa cache prompt |
+| `source` | VARCHAR(16) | `builtin` (read-only) hoặc `user` |
 
-**Quét bảo mật** — chạy script kiểm tra code hoặc lệnh shell được tạo ra để phát hiện các mẫu nguy hiểm trước khi thực thi.
+**`hook_executions`** — audit log:
 
-**Audit không chặn** — đặt `block_on_failure: false` để ghi log tất cả đầu ra vào hệ thống audit mà không làm gián đoạn luồng.
+| Cột | Ghi chú |
+|---|---|
+| `hook_id` | `ON DELETE SET NULL` — executions được giữ sau khi xóa hook |
+| `dedup_key` | Unique index ngăn ghi trùng khi retry |
+| `error` | Cắt còn 256 ký tự |
+| `error_detail` | BYTEA, mã hóa AES-256-GCM full error |
+| `metadata` | JSONB: `matcher_matched`, `cel_eval_result`, `stdout_len`, `http_status`, `prompt_model`, `prompt_tokens`, `trace_id` |
 
----
-
-## Ví dụ
-
-**Cài đặt hai gate: kiểm tra định dạng rồi đến agent review** (`other_config` của agent nguồn):
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "python3 ./scripts/validate-format.py",
-      "block_on_failure": true,
-      "max_retries": 0,
-      "timeout_seconds": 15
-    },
-    {
-      "event": "delegation.completed",
-      "type": "agent",
-      "agent": "quality-reviewer",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 90
-    }
-  ]
-}
-```
-
-**Audit logger không chặn** (`other_config` của agent nguồn):
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "curl -s -X POST https://audit.internal/log -d @-",
-      "block_on_failure": false,
-      "timeout_seconds": 5
-    }
-  ]
-}
-```
+**`tenant_hook_budget`** — giới hạn token hàng tháng mỗi tenant (chỉ prompt handler).
 
 ---
 
-## Các vấn đề thường gặp
+## Observability
 
-| Vấn đề | Nguyên nhân | Giải pháp |
-|-------|-------|-----|
-| `hooks: unknown hook type, skipping` | Gõ sai trường `type` | Dùng chính xác `"command"` hoặc `"agent"` |
-| Command luôn pass dù exit 1 | Script wrapper nuốt exit code | Đảm bảo script không có `|| true` che giấu thất bại |
-| Agent evaluator bị treo | Agent reviewer chậm hoặc bị kẹt | Đặt `timeout_seconds` ở giá trị hợp lý |
-| Hết retry nhưng luồng vẫn tiếp tục | Hành vi mặc định — GoClaw chấp nhận kết quả cuối và ghi log cảnh báo | Giảm `max_retries` hoặc sửa điều kiện quality gate |
-| Hook kích hoạt cả agent reviewer | Đệ quy | GoClaw tự động inject `WithSkipHooks` cho lần gọi agent evaluator |
-| Hook không chặn lại vẫn chặn | `block_on_failure: true` vô tình được đặt | Kiểm tra config; đặt `false` cho hook chỉ quan sát |
+Mỗi lần thực thi hook phát ra trace span tên `hook.<handler_type>.<event>` (VD: `hook.prompt.pre_tool_use`) với các field: `status`, `duration_ms`, `metadata.decision`, `parent_span_id`.
+
+Slog keys:
+- `security.hook.circuit_breaker` — breaker kích hoạt.
+- `security.hook.audit_write_failed` — lỗi ghi audit row.
+- `security.hook.loop_depth_exceeded` — vi phạm `MaxLoopDepth`.
+- `security.hook.prompt_parse_error` — evaluator trả về structured output không hợp lệ.
+- `security.hook.budget_deduct_failed` / `budget_precheck_failed` — lỗi budget store.
+
+---
+
+## Xử lý sự cố
+
+| Triệu chứng | Nguyên nhân có thể | Giải pháp |
+|---|---|---|
+| HTTP hook luôn trả `error` | SSRF block loopback | Dùng URL public/internal có thể truy cập từ gateway process |
+| Prompt hook chặn mọi thứ | Evaluator trả text thuần (không có tool call) | Rút ngắn `prompt_template`; giữ ngắn gọn và mệnh lệnh |
+| Hook ngừng kích hoạt | Circuit breaker kích hoạt (5 block/phút) | Sửa nguyên nhân gốc, rồi bật lại: `hooks.toggle { enabled: true }` |
+| Radio `command` trong UI bị xám | Phiên bản Standard | Dùng `http` hoặc `prompt`, hoặc nâng cấp lên Lite |
+| Vượt giới hạn per-turn | `max_invocations_per_turn` quá thấp | Tăng trong hook config; tối ưu `matcher` để giảm LLM call |
+| Budget vượt mức | Tenant dùng hết budget token hàng tháng | Tăng `tenant_hook_budget.budget_total` hoặc chờ rollover |
+| `handler_type, event, and scope are required` | Thiếu trường trong create payload | Bao gồm cả ba trường bắt buộc |
+
+---
+
+## Migration từ Quality Gates cũ
+
+Trước hệ thống hook, quality gate được cấu hình inline trong `other_config.quality_gates` của source agent. Hệ thống cũ chỉ hỗ trợ event `delegation.completed` và hai handler type (`command`, `agent`).
+
+Hệ thống hook mới thay thế bằng:
+
+| Cũ | Mới |
+|---|---|
+| `other_config.quality_gates[].event: "delegation.completed"` | `subagent_stop` (non-blocking) hoặc `subagent_start` (blocking) |
+| `other_config.quality_gates[].type: "command"` | `handler_type: "command"` (Lite) hoặc `handler_type: "http"` (Standard) |
+| `other_config.quality_gates[].type: "agent"` | `handler_type: "prompt"` với LLM evaluator |
+| `block_on_failure: true` + `max_retries` | Block semantics tích hợp sẵn; không cần vòng lặp retry |
+
+Không cần migration dữ liệu khi nâng cấp từ phiên bản trước khi có hooks. Migration `000052_agent_hooks` tạo cả ba bảng sạch.
 
 ---
 
 ## Tiếp theo
 
+- [WebSocket Protocol](/websocket-protocol) — tham chiếu đầy đủ method `hooks.*`
+- [Exec Approval](/exec-approval) — phê duyệt từ con người cho lệnh shell
 - [Extended Thinking](/extended-thinking) — suy luận sâu hơn trước khi tạo đầu ra
-- [Exec Approval](/exec-approval) — phê duyệt từ con người trước khi chạy lệnh shell
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: hooks-rewrite | cập nhật: 2026-04-17 -->

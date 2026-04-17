@@ -91,7 +91,9 @@ GoClaw 使用基于通道的调度器管理并发：
 |------|------|
 | **Gateway** | HTTP + WebSocket 服务器；分解为 7 个模块（deps、http_wiring、events、lifecycle、tools_wiring、methods、router） |
 | **Domain Event Bus** | 带 worker pool、去重和重试的类型化事件发布——驱动 consolidation worker |
-| **Provider 适配器系统** | 管理 18+ LLM provider；Anthropic 原生、OpenAI 兼容、ACP（stdio JSON-RPC） |
+| **Provider 适配器系统** | 管理 18+ LLM provider；Anthropic 原生、OpenAI 兼容、ACP（JSON-RPC 2.0 stdio — Claude Code、Codex、Gemini CLI） |
+| **Hooks 调度器** | 连接到 `PipelineDeps.HookDispatcher`；7 个生命周期事件（同步/异步），防 SSRF HTTP + Command 处理器，审计日志，熔断器 |
+| **Audio / TTS 管理器** | `internal/audio/` 统一管理器：ElevenLabs（流式）、OpenAI、Edge、MiniMax TTS provider；语音 LRU 缓存（1 000 租户，TTL 1 小时）；通过 `other_config` JSONB 支持 per-agent 语音/模型配置 |
 | **工具注册表** | 50+ 内置工具，基于策略的访问控制（可通过 MCP 和自定义工具扩展） |
 | **存储层** | 双数据库：PostgreSQL（`pgx/v5`）用于生产 + SQLite（`modernc.org/sqlite`）用于桌面版；共享 base/ dialect |
 | **三层记忆** | Episodic（近期事实）→ Semantic（抽象摘要）→ Dreaming（新颖合成）；由 consolidation worker 驱动 |
@@ -126,4 +128,4 @@ GoClaw v3 新增五个系统——每个系统都有专属页面：
 - [工具概览](/tools-overview) — 完整工具目录
 - [Sessions 和历史](./sessions-and-history.md) — 对话如何持久化
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->

@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **49**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **55**。
 
 ```mermaid
 graph LR
@@ -229,6 +229,12 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 047 | `cron_jobs_unique_constraint` — 添加 `(agent_id, tenant_id, name)` 唯一约束并去重现有记录 |
 | 048 | `vault_media_linking` — 在 `team_task_attachments` 上添加 `base_name` 生成列，在 `vault_links` 上添加 `metadata JSONB`，修复 CASCADE FK 约束 |
 | 049 | `vault_path_prefix_index` — 添加并发索引 `idx_vault_docs_path_prefix`（`text_pattern_ops`），用于快速前缀查询 |
+| 050 | 向 `builtin_tools` 插入 `stt`（语音转文字）工具。配置详见 [TTS & Voice](/advanced/tts-voice)。`ON CONFLICT DO NOTHING` — 保留用户自定义设置。 |
+| 051 | 为已有自定义 `context_pruning` 对象但缺少 `mode` 字段的 agent 回填 `mode: "cache-ttl"`。**剪枝在全局仍为 opt-in** — 此迁移仅为已有自定义配置的 agent 设置 `mode`，不会静默启用任何 agent 的剪枝。 |
+| 052 | 新的 agent hooks 系统：创建 `agent_hooks`、`hook_executions` 和 `tenant_hook_budget` 表。详见 [Hooks & Quality Gates](/advanced/hooks-quality-gates)。 |
+| 053 | 扩展 `agent_hooks`：添加 `script` handler 类型（goja 支持的内联脚本）和 `builtin` 来源标记；删除按 scope 的唯一索引，允许同一 event 有多个 hook。 |
+| 054 | 为 `agent_hooks` 添加 `name` 列用于用户可见标签；引入 N:M 关联表 `agent_hook_agents`（替代单一 `agent_id` FK）；迁移现有 agent 分配；将 `agent_hooks` → `hooks`、`agent_hook_agents` → `hook_agents` 重命名。 |
+| 055 | 在 `vault_documents` 上添加 `vault_documents_scope_consistency` CHECK 约束（NOT VALID）。强制规则：`personal` scope 需 `agent_id NOT NULL`，`team` scope 需 `team_id NOT NULL`，`shared` scope 要求两者均为 NULL，`custom` 不受约束。审计历史数据后运行 `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;`。 |
 
 #### v3 重大变更
 
@@ -316,4 +322,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->

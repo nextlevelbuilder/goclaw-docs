@@ -1,232 +1,336 @@
 > 翻译自 [English version](/hooks-quality-gates)
 
-# Hooks 与质量门控
+# Agent Hooks
 
-> 在 agent 操作前后自动运行检查 — 拦截不良输出、要求审批或触发自定义验证逻辑。
+> 在 agent 循环的定义节点拦截、观察或注入行为 — 阻止不安全的 tool call、写入后自动审计、注入 session 上下文，或在停止时发出通知。
 
 ## 概述
 
-GoClaw 的 hook 系统让你可以将质量门控附加到 agent 生命周期事件。Hook 是在特定事件时运行的检查。目前唯一支持的事件是 `delegation.completed`，在子 agent 完成委托任务后触发。如果检查失败，GoClaw 可以拦截结果，并可选地附带反馈重试。
+GoClaw 的 hook 系统将生命周期处理器附加到 agent session。每个 hook 针对特定的 **event**，运行一个 **handler**（shell 命令、HTTP webhook 或 LLM 评估器），并为 blocking event 返回 **allow/block** 决定。
 
-质量门控配置在**源 agent** 的 `other_config` JSON 中的 `quality_gates` 键下。源 agent 是发起委托的 agent（编排者），而非目标 agent。
-
-两种评估器类型：
-
-| 类型 | 验证方式 |
-|------|-----------------|
-| `command` | 运行 shell 命令 — 退出码 0 = 通过，非零 = 失败 |
-| `agent` | 委托给审阅 agent — `APPROVED` = 通过，`REJECTED: ...` = 失败 |
+Hook 存储在 `agent_hooks` 数据库表（migration `000052`）中，通过 `hooks.*` WebSocket 方法或 Web UI 的 **Hooks** 面板管理。
 
 ---
 
-## Hook 配置字段
+## 概念
 
-质量门控放在源 agent 的 `other_config` 的 `quality_gates` 数组中：
+### 事件（Events）
 
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "./scripts/check-output.sh",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 60
-    }
-  ]
-}
-```
+agent session 期间触发七个生命周期事件：
 
-| 字段 | 类型 | 描述 |
-|-------|------|-------------|
-| `event` | string | 触发此 hook 的生命周期事件 — 目前仅支持 `"delegation.completed"` |
-| `type` | string | `"command"` 或 `"agent"` |
-| `command` | string | 要运行的 shell 命令（type=command 时） |
-| `agent` | string | 审阅 agent 的 key（type=agent 时） |
-| `block_on_failure` | bool | `true` 时，hook 失败触发重试；`false` 时，失败被记录但继续执行 |
-| `max_retries` | int | 阻塞失败后重试目标 agent 的次数（0 = 不重试） |
-| `timeout_seconds` | int | 每个 hook 的超时（默认 60 秒） |
+| 事件 | 是否阻塞 | 触发时机 |
+|---|---|---|
+| `session_start` | 否 | 新 session 建立时 |
+| `user_prompt_submit` | **是** | 用户消息进入 pipeline 前 |
+| `pre_tool_use` | **是** | 任何 tool call 执行前 |
+| `post_tool_use` | 否 | tool call 完成后 |
+| `stop` | 否 | agent session 正常终止时 |
+| `subagent_start` | **是** | 子 agent 被生成时 |
+| `subagent_stop` | 否 | 子 agent 完成时 |
+
+**Blocking** 事件在 pipeline 继续之前等待完整 hook 链返回 allow/block 决定。非 blocking 事件以异步方式触发，仅用于观察。
+
+### Handler 类型
+
+| Handler | 适用版本 | 说明 |
+|---|---|---|
+| `command` | 仅 Lite | 本地 shell 命令；exit 2 → block，exit 0 → allow |
+| `http` | Lite + Standard | POST 到端点；JSON body → 决定。SSRF 保护 |
+| `prompt` | Lite + Standard | 基于 LLM 的评估，使用结构化 tool-call 输出。有 budget 限制，需要 `matcher` 或 `if_expr` |
+
+### 作用域（Scope）
+
+- **global** — 适用于所有 tenant。创建时需要 master scope。
+- **tenant** — 适用于一个 tenant（任意 agent）。
+- **agent** — 适用于 tenant 内的特定 agent。
+
+Hook 按优先级顺序解析（最高优先）。单个 `block` 决定会短路整个链。
 
 ---
 
-## 引擎架构
+## 执行流程
 
 ```mermaid
 flowchart TD
-    EVENT["生命周期事件触发\n如 delegation.completed"] --> ENGINE["Hook 引擎\n将事件与配置匹配"]
-    ENGINE --> EVAL1["评估器 1\n(command 或 agent)"]
-    ENGINE --> EVAL2["评估器 2\n(command 或 agent)"]
-    EVAL1 -->|通过| NEXT["继续"]
-    EVAL1 -->|失败 + 阻塞| BLOCK["拦截结果\n（可选附带反馈重试）"]
-    EVAL1 -->|失败 + 非阻塞| LOG["记录警告\n继续执行"]
-    EVAL2 -->|通过| NEXT
+    EVENT["生命周期事件触发\n如 pre_tool_use"] --> RESOLVE["Dispatcher 解析 hook\n按 scope + event + priority"]
+    RESOLVE --> MATCH{"检查\nMatcher / if_expr"}
+    MATCH -->|不匹配| SKIP["跳过 hook"]
+    MATCH -->|匹配| HANDLER["运行 handler\n(command / http / prompt)"]
+    HANDLER -->|allow| NEXT["继续链"]
+    HANDLER -->|block| BLOCKED["阻止操作\nFail-closed"]
+    HANDLER -->|timeout| TIMEOUT_DECISION{"OnTimeout\n策略"}
+    TIMEOUT_DECISION -->|block| BLOCKED
+    TIMEOUT_DECISION -->|allow| NEXT
+    NEXT --> AUDIT["写入 hook_executions 行\n+ 发出 trace span"]
 ```
-
-引擎按顺序评估质量门控。**阻塞**失败触发该门控的重试循环（最多 `max_retries` 次）。如果所有重试耗尽，GoClaw 记录警告并接受最后一个结果 — 不会硬性失败委托。非阻塞失败被记录但不中断流程。如果所有 hook 通过（或没有匹配事件的 hook），正常继续执行。
 
 ---
 
-## 命令评估器
+## Handler 参考
 
-命令评估器通过 `sh -c` 运行 shell 命令。被验证的内容通过 **stdin** 传入。退出码 0 表示 hook 通过；任何其他退出码表示失败。stderr 输出作为重试时反馈给 agent 的内容。
-
-命令内可用的环境变量：
-
-| 变量 | 值 |
-|----------|-------|
-| `HOOK_EVENT` | 事件名称 |
-| `HOOK_SOURCE_AGENT` | 产生输出的 agent 的 key |
-| `HOOK_TARGET_AGENT` | 被委托的 agent 的 key |
-| `HOOK_TASK` | 原始任务字符串 |
-| `HOOK_USER_ID` | 触发请求的用户 ID |
-
-**示例 — 基本内容长度检查：**
-
-```bash
-#!/bin/sh
-# check-output.sh: 如果输出太短则失败
-content=$(cat)
-length=${#content}
-if [ "$length" -lt 100 ]; then
-  echo "Output is too short ($length chars). Provide a more complete response." >&2
-  exit 1
-fi
-exit 0
-```
-
-Hook 配置：
+### command
 
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "./scripts/check-output.sh",
-  "block_on_failure": true,
-  "max_retries": 1,
-  "timeout_seconds": 10
+  "handler_type": "command",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "config": {
+    "command": "bash /path/to/script.sh",
+    "allowed_env_vars": ["MY_VAR"],
+    "cwd": "/workspace"
+  }
+}
+```
+
+- **Stdin**：JSON 编码的 event payload。
+- **Exit 0**：allow（可选 `{"continue": false}` → block）。
+- **Exit 2**：block。
+- **其他非零退出码**：error → blocking event 时 fail-closed。
+- **Env 白名单**：只有 `allowed_env_vars` 中列出的 key 会被传递；防止 secret 泄露。
+
+### http
+
+```json
+{
+  "handler_type": "http",
+  "event": "user_prompt_submit",
+  "scope": "tenant",
+  "config": {
+    "url": "https://example.com/webhook",
+    "headers": { "Authorization": "<AES-encrypted>" }
+  }
+}
+```
+
+- 方法：POST，body = event JSON。
+- Authorization header 值以 AES-256-GCM 加密存储；dispatch 时解密。
+- 响应限制 1 MiB。5xx 重试一次（1 s 退避）；4xx fail-closed。
+- 期望响应 body：
+  ```json
+  { "decision": "allow", "additionalContext": "...", "updatedInput": {}, "continue": true }
+  ```
+- 非 JSON 的 2xx → allow。
+
+### prompt
+
+```json
+{
+  "handler_type": "prompt",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "matcher": "^(exec|shell|write_file)$",
+  "config": {
+    "prompt_template": "评估此 tool call 的安全性。",
+    "model": "haiku",
+    "max_invocations_per_turn": 5
+  }
+}
+```
+
+- `prompt_template` — 评估器接收的系统级指令。
+- `matcher` 或 `if_expr` — 必填；防止对每个事件都触发 LLM。
+- 评估器必须调用 `decide(decision, reason, injection_detected, updated_input)` tool。纯文本响应 → fail-closed。
+- 只有 `tool_input` 到达评估器（反注入沙箱）；用户的原始消息不包含在内。
+
+---
+
+## Matchers
+
+| 字段 | 说明 |
+|---|---|
+| `matcher` | 应用于 `tool_name` 的 POSIX 正则。示例：`^(exec|shell|write_file)$` |
+| `if_expr` | 针对 `{tool_name, tool_input, depth}` 的 [cel-go](https://github.com/google/cel-go) 表达式。示例：`tool_name == "exec" && size(tool_input.cmd) > 80` |
+
+`command`/`http` 均为可选。`prompt` 至少需要其中一个。
+
+---
+
+## 配置字段参考
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `event` | string | 是 | 生命周期事件名称 |
+| `handler_type` | string | 是 | `command`、`http` 或 `prompt` |
+| `scope` | string | 是 | `global`、`tenant` 或 `agent` |
+| `name` | string | 否 | 人类可读标签 |
+| `matcher` | string | 否 | tool name 正则过滤 |
+| `if_expr` | string | 否 | CEL 表达式过滤 |
+| `timeout_ms` | int | 否 | 每个 hook 超时（默认 5000，最大 10000）|
+| `on_timeout` | string | 否 | `block`（默认）或 `allow` |
+| `priority` | int | 否 | 越高越先运行（默认 0）|
+| `enabled` | bool | 否 | 默认 true |
+| `config` | object | 是 | handler 特定子配置 |
+| `agent_ids` | array | 否 | 限定特定 agent UUID（scope=agent）|
+
+---
+
+## 安全模型
+
+- **版本门控**：`command` handler 在 Standard 版本的配置和 dispatch 阶段均被阻止（纵深防御）。
+- **Tenant 隔离**：所有读写按 `tenant_id` 范围限定，master scope 除外。全局 hook 使用哨兵 tenant id。
+- **SSRF 防护**：HTTP handler 在请求前验证 URL，固定解析的 IP，阻止 loopback/link-local/私有范围。
+- **PII 脱敏**：audit 行将错误文本截断为 256 字符；完整错误以 AES-256-GCM 加密存储在 `error_detail` 中。
+- **Fail-closed**：blocking event 中任何未处理的错误都会产生 `block`。超时遵循 `on_timeout`（blocking event 默认为 `block`）。
+- **断路器**：在 1 分钟滚动窗口内连续 5 次 block/timeout 会自动禁用 hook（`enabled=false`）。
+- **循环检测**：子 agent hook 链限制在深度 3。
+
+---
+
+## 防护措施总结
+
+| 防护措施 | 默认值 | 每个 hook 可覆盖 |
+|---|---|---|
+| 每个 hook 超时 | 5 秒 | 是（`timeout_ms`，最大 10 秒）|
+| 链 budget | 10 秒 | 否 |
+| 断路器阈值 | 1 分钟内 5 次 block | 否 |
+| prompt 每 turn 上限 | 5 次调用 | 是（`max_invocations_per_turn`）|
+| prompt 决定缓存 TTL | 60 秒 | 否 |
+| 每 tenant 月度 token budget | 1,000,000 tokens | 在 `tenant_hook_budget` 中按 tenant 设定 |
+
+---
+
+## 通过 WebSocket 管理 Hook
+
+所有 CRUD 操作均可通过 `hooks.*` WS 方法完成（参见 [WebSocket 协议](/websocket-protocol#hooks)）。
+
+**创建 hook：**
+```json
+{
+  "type": "req", "id": "1", "method": "hooks.create",
+  "params": {
+    "event": "pre_tool_use",
+    "handler_type": "http",
+    "scope": "tenant",
+    "name": "Safety webhook",
+    "matcher": "^exec$",
+    "config": { "url": "https://safety.internal/check" }
+  }
+}
+```
+
+响应：
+```json
+{ "type": "res", "id": "1", "ok": true, "payload": { "hookId": "uuid..." } }
+```
+
+**启用/禁用 hook：**
+```json
+{ "type": "req", "id": "2", "method": "hooks.toggle",
+  "params": { "hookId": "uuid...", "enabled": false } }
+```
+
+**Dry-run 测试（不写入 audit 行）：**
+```json
+{
+  "type": "req", "id": "3", "method": "hooks.test",
+  "params": {
+    "config": { "event": "pre_tool_use", "handler_type": "command",
+                "scope": "tenant", "config": { "command": "cat" } },
+    "sampleEvent": { "toolName": "exec", "toolInput": { "cmd": "ls" } }
+  }
 }
 ```
 
 ---
 
-## Agent 评估器
+## Web UI 操作指南
 
-Agent 评估器委托给一个审阅 agent。GoClaw 发送包含原始任务、源/目标 agent key 和要审阅输出的结构化提示词。审阅 agent 必须精确回复：
+在侧边栏导航到 **Hooks**。
 
-- `APPROVED`（可附上评论）— hook 通过
-- `REJECTED: <具体反馈>` — hook 失败；反馈作为重试提示词
-
-评估使用 `WithSkipHooks` 运行，防止无限递归。
-
-**示例 — 代码审阅门控：**
-
-```json
-{
-  "event": "delegation.completed",
-  "type": "agent",
-  "agent": "code-reviewer",
-  "block_on_failure": true,
-  "max_retries": 2,
-  "timeout_seconds": 120
-}
-```
-
-`code-reviewer` agent 接收如下提示词：
-
-```
-[Quality Gate Evaluation]
-You are reviewing the output of a delegated task for quality.
-
-Original task: Write a Go function to parse JSON...
-Source agent: orchestrator
-Target agent: backend-dev
-
-Output to evaluate:
-<agent 输出内容>
-
-Respond with EXACTLY one of:
-- "APPROVED" if the output meets quality standards
-- "REJECTED: <specific feedback>" with actionable improvement suggestions
-```
+1. **Create** — 选择 event、handler type（Standard 版本下 `command` 不可用）、scope、matcher，然后填写 handler 特定子表单。
+2. **Test 面板** — 用示例 event 触发 hook（`dryRun=true`，不写入 audit 行）。显示决定徽章、耗时、stdout/stderr（command）、状态码（http）、原因（prompt）。如果响应包含 `updatedInput`，渲染 JSON 并排 diff。
+3. **History 标签页** — 来自 `hook_executions` 的分页执行记录。
+4. **Overview 标签页** — 包含 event、type、scope、matcher 的摘要卡片。
 
 ---
 
-## 使用场景
+## 数据库 Schema
 
-**内容过滤** — 使用命令 hook grep 禁止模式，拦截包含违禁内容的回复。
+Migration `000052_agent_hooks` 创建三个表：
 
-**长度/格式验证** — 拒绝过短、缺少必要章节或格式错误的输出。
+**`agent_hooks`** — hook 定义：
 
-**审批工作流** — 使用 `agent` hook 连接到严格的审阅 agent，在结果被接受前检查正确性。
+| 列 | 类型 | 说明 |
+|---|---|---|
+| `id` | UUID PK | — |
+| `tenant_id` | UUID FK | 全局 scope 使用哨兵 UUID |
+| `agent_ids` | UUID[] | 空 = 适用于 scope 内所有 agent |
+| `event` | VARCHAR(32) | 7 个事件名之一 |
+| `handler_type` | VARCHAR(16) | `command`、`http`、`prompt` |
+| `scope` | VARCHAR(16) | `global`、`tenant`、`agent` |
+| `config` | JSONB | handler 子配置 |
+| `matcher` | TEXT | tool name 正则（可选）|
+| `if_expr` | TEXT | CEL 表达式（可选）|
+| `timeout_ms` | INT | 默认 5000 |
+| `on_timeout` | VARCHAR(16) | `block` 或 `allow` |
+| `priority` | INT | 越高越先触发 |
+| `enabled` | BOOL | 断路器在此写入 false |
+| `version` | INT | 更新时递增；清除 prompt 缓存 |
+| `source` | VARCHAR(16) | `builtin`（只读）或 `user` |
 
-**安全扫描** — 运行脚本，在执行前检查生成的代码或 shell 命令是否包含危险模式。
+**`hook_executions`** — 审计日志：
 
-**非阻塞审计** — 设置 `block_on_failure: false`，将所有输出记录到审计系统而不阻塞流程。
+| 列 | 说明 |
+|---|---|
+| `hook_id` | `ON DELETE SET NULL` — hook 删除后执行记录仍保留 |
+| `dedup_key` | 唯一索引防止重试时写入重复行 |
+| `error` | 截断为 256 字符 |
+| `error_detail` | BYTEA，AES-256-GCM 加密完整错误 |
+| `metadata` | JSONB：`matcher_matched`、`cel_eval_result`、`stdout_len`、`http_status`、`prompt_model`、`prompt_tokens`、`trace_id` |
 
----
-
-## 示例
-
-**双门控配置：格式检查后接 agent 审阅**（源 agent 的 `other_config`）：
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "python3 ./scripts/validate-format.py",
-      "block_on_failure": true,
-      "max_retries": 0,
-      "timeout_seconds": 15
-    },
-    {
-      "event": "delegation.completed",
-      "type": "agent",
-      "agent": "quality-reviewer",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 90
-    }
-  ]
-}
-```
-
-**非阻塞审计日志记录**（源 agent 的 `other_config`）：
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "curl -s -X POST https://audit.internal/log -d @-",
-      "block_on_failure": false,
-      "timeout_seconds": 5
-    }
-  ]
-}
-```
+**`tenant_hook_budget`** — 每 tenant 月度 token 限额（仅 prompt handler）。
 
 ---
 
-## 常见问题
+## 可观测性
 
-| 问题 | 原因 | 解决方法 |
-|-------|-------|-----|
-| `hooks: unknown hook type, skipping` | `type` 字段拼写错误 | 精确使用 `"command"` 或 `"agent"` |
-| 即使退出码为 1 命令也通过 | 包装脚本吞掉了退出码 | 确保脚本没有 `|| true` 掩盖失败 |
-| Agent 评估器挂起 | 审阅 agent 缓慢或卡住 | 将 `timeout_seconds` 设为合理值 |
-| 重试耗尽但流程继续 | 预期行为 — GoClaw 在达到最大重试后接受最后结果并记录警告 | 降低 `max_retries` 或修复质量门控条件 |
-| Hook 在审阅 agent 自身上触发 | 递归 | GoClaw 自动为 agent 评估器调用注入 `WithSkipHooks` |
-| 非阻塞 hook 仍然阻塞 | 误设了 `block_on_failure: true` | 检查配置；仅观察的 hook 设为 `false` |
+每次 hook 执行都会发出名为 `hook.<handler_type>.<event>` 的 trace span（如 `hook.prompt.pre_tool_use`），包含字段：`status`、`duration_ms`、`metadata.decision`、`parent_span_id`。
+
+Slog keys：
+- `security.hook.circuit_breaker` — 断路器触发。
+- `security.hook.audit_write_failed` — audit 行写入错误。
+- `security.hook.loop_depth_exceeded` — `MaxLoopDepth` 违规。
+- `security.hook.prompt_parse_error` — 评估器返回格式错误的结构化输出。
+- `security.hook.budget_deduct_failed` / `budget_precheck_failed` — budget store 错误。
+
+---
+
+## 故障排查
+
+| 现象 | 可能原因 | 解决方法 |
+|---|---|---|
+| HTTP hook 始终返回 `error` | SSRF 阻止 loopback | 使用 gateway 进程可访问的 public/internal URL |
+| Prompt hook 阻止所有请求 | 评估器返回纯文本（无 tool call）| 精简 `prompt_template`；保持简短且使用祈使句 |
+| Hook 停止触发 | 断路器触发（5 次 block/分钟）| 修复根本原因，然后重新启用：`hooks.toggle { enabled: true }` |
+| UI 中 `command` 单选框变灰 | Standard 版本 | 使用 `http` 或 `prompt`，或升级到 Lite |
+| 达到 per-turn 上限 | `max_invocations_per_turn` 太低 | 在 hook config 中提高；收紧 `matcher` 减少 LLM 调用 |
+| Budget 超限 | Tenant 消耗完月度 token budget | 提高 `tenant_hook_budget.budget_total` 或等待滚动重置 |
+| `handler_type, event, and scope are required` | create payload 缺少字段 | 包含全部三个必填字段 |
+
+---
+
+## 从旧版质量门控迁移
+
+在 hook 系统之前，委派质量门控通过源 agent 的 `other_config.quality_gates` 数组内联配置。旧系统仅支持 `delegation.completed` 事件和两种 handler 类型（`command`、`agent`）。
+
+新 hook 系统替代方案：
+
+| 旧版 | 新版 |
+|---|---|
+| `other_config.quality_gates[].event: "delegation.completed"` | `subagent_stop`（非阻塞）或 `subagent_start`（阻塞）|
+| `other_config.quality_gates[].type: "command"` | `handler_type: "command"`（Lite）或 `handler_type: "http"`（Standard）|
+| `other_config.quality_gates[].type: "agent"` | `handler_type: "prompt"` 配合 LLM 评估器 |
+| `block_on_failure: true` + `max_retries` | 内置阻塞语义；无需重试循环 |
+
+从 hooks 之前的版本升级无需数据迁移。Migration `000052_agent_hooks` 会干净地创建全部三个表。
 
 ---
 
 ## 下一步
 
-- [扩展思维](/extended-thinking) — 生成输出前的深度推理
+- [WebSocket 协议](/websocket-protocol) — 完整的 `hooks.*` 方法参考
 - [Exec 审批](/exec-approval) — shell 命令的人工审批
+- [扩展思维](/extended-thinking) — 生成输出前的深度推理
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: hooks-rewrite | 更新: 2026-04-17 -->

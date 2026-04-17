@@ -61,7 +61,13 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
             "page_id": "your_page_id",
             "features": {
               "inbox_reply": true,
-              "comment_reply": false
+              "comment_reply": true,
+              "first_inbox": true,
+              "auto_react": false
+            },
+            "comment_reply_options": {
+              "include_post_context": true,
+              "filter": "all"
             }
           }
         }
@@ -79,9 +85,17 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | `page_access_token` | string | -- | 所有 page API 的主页级 token（必填） |
 | `webhook_secret` | string | -- | 可选 HMAC-SHA256 验证 secret |
 | `page_id` | string | -- | Pancake 主页标识符（必填） |
+| `webhook_page_id` | string | -- | webhook 中的原生平台主页 ID（若与 `page_id` 不同） |
 | `platform` | string | 自动检测 | 平台覆盖：facebook/zalo/instagram/tiktok/whatsapp/line |
 | `features.inbox_reply` | bool | -- | 启用收件箱消息回复 |
 | `features.comment_reply` | bool | -- | 启用评论回复 |
+| `features.first_inbox` | bool | -- | 首次评论回复后向评论者发送一次性私信 |
+| `features.auto_react` | bool | -- | 自动为用户评论点赞（仅限 Facebook） |
+| `comment_reply_options.include_post_context` | bool | false | 将原帖内容附加到发送给 agent 的评论内容前 |
+| `comment_reply_options.filter` | string | `"all"` | 评论过滤模式：`"all"` 或 `"keyword"` |
+| `comment_reply_options.keywords` | list | -- | `filter="keyword"` 时必填——仅处理包含这些关键词的评论 |
+| `first_inbox_message` | string | 内置文本 | first inbox 功能发送的自定义私信内容 |
+| `post_context_cache_ttl` | string | `"15m"` | 评论 context 抓取的帖子内容缓存 TTL（如 `"30m"`） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
 | `allow_from` | list | -- | 用户/群组 ID 白名单 |
 
@@ -208,6 +222,20 @@ Pancake 支持两种会话类型：
 
 会话类型以 `pancake_mode`（"inbox" 或 "comment"）存储在消息元数据中，使 agent 能够根据来源做出不同响应。
 
+### 评论功能
+
+当 `features.comment_reply: true` 时，可使用以下附加选项控制评论处理：
+
+**评论过滤**（`comment_reply_options.filter`）：
+- `"all"`（默认）—— 处理所有评论
+- `"keyword"` —— 仅处理包含已配置 `keywords` 之一的评论
+
+**帖子 context**（`comment_reply_options.include_post_context: true`）：抓取原帖内容并附加到评论内容前再发送给 agent。适用于评论过短、难以理解上下文的场景。帖子内容会被缓存（默认 TTL：15 分钟，可通过 `post_context_cache_ttl` 配置）。
+
+**Auto-react**（`features.auto_react: true`）：自动为 Facebook 上每条有效的新评论点赞（仅限 Facebook 平台）。与 `comment_reply` 独立运作——可以只点赞不回复。
+
+**First inbox**（`features.first_inbox: true`）：回复评论后，向评论者发送一条一次性私信，邀请其通过收件箱继续对话。每位用户每次服务重启后仅发送一次。可通过 `first_inbox_message` 自定义私信内容。
+
 ### Channel 健康状态
 
 API 错误映射到 channel 健康状态：
@@ -242,4 +270,4 @@ API 错误映射到 channel 健康状态：
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [多 Channel 设置](/recipe-multi-channel) — 配置多个 channel
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->
+<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->

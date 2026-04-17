@@ -59,7 +59,13 @@ For config-file-based channels (instead of DB instances):
             "page_id": "your_page_id",
             "features": {
               "inbox_reply": true,
-              "comment_reply": false
+              "comment_reply": true,
+              "first_inbox": true,
+              "auto_react": false
+            },
+            "comment_reply_options": {
+              "include_post_context": true,
+              "filter": "all"
             }
           }
         }
@@ -77,9 +83,17 @@ For config-file-based channels (instead of DB instances):
 | `page_access_token` | string | -- | Page-level token for all page APIs (required) |
 | `webhook_secret` | string | -- | Optional HMAC-SHA256 verification secret |
 | `page_id` | string | -- | Pancake page identifier (required) |
+| `webhook_page_id` | string | -- | Native platform page ID sent in webhooks (if different from `page_id`) |
 | `platform` | string | auto-detected | Platform override: facebook/zalo/instagram/tiktok/whatsapp/line |
 | `features.inbox_reply` | bool | -- | Enable inbox message replies |
 | `features.comment_reply` | bool | -- | Enable comment replies |
+| `features.first_inbox` | bool | -- | Send a one-time DM to a commenter after their first comment reply |
+| `features.auto_react` | bool | -- | Auto-like user comments on Facebook (Facebook only) |
+| `comment_reply_options.include_post_context` | bool | false | Prepend post text to comment content sent to the agent |
+| `comment_reply_options.filter` | string | `"all"` | Comment filter mode: `"all"` or `"keyword"` |
+| `comment_reply_options.keywords` | list | -- | Required when `filter="keyword"` — only process comments containing these keywords |
+| `first_inbox_message` | string | built-in | Custom DM text sent for first-inbox feature |
+| `post_context_cache_ttl` | string | `"15m"` | Cache TTL for post content fetched for comment context (e.g. `"30m"`) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
 | `allow_from` | list | -- | User/group ID allowlist |
 
@@ -206,6 +220,20 @@ Pancake supports two conversation types:
 
 Conversation type is stored in message metadata as `pancake_mode` ("inbox" or "comment"), enabling agents to respond differently based on the source.
 
+### Comment Features
+
+When `features.comment_reply: true`, additional options control comment handling:
+
+**Comment filter** (`comment_reply_options.filter`):
+- `"all"` (default) — process all comments
+- `"keyword"` — only process comments containing one of the configured `keywords`
+
+**Post context** (`comment_reply_options.include_post_context: true`): fetches the original post text and prepends it to the comment content before sending to the agent. Useful when comments are too short to understand without context. Post content is cached (default TTL: 15 minutes, configurable via `post_context_cache_ttl`).
+
+**Auto-react** (`features.auto_react: true`): automatically likes every valid incoming comment on Facebook (Facebook platform only). Fires independently of `comment_reply` — you can react without replying.
+
+**First inbox** (`features.first_inbox: true`): after replying to a comment, sends a one-time private DM to the commenter inviting them to continue via inbox. Only sent once per sender per session restart. Customize the DM text with `first_inbox_message`.
+
 ### Channel Health
 
 API errors are mapped to channel health states:
@@ -240,4 +268,4 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Multi-Channel Setup](/recipe-multi-channel) — Configure multiple channels
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-11 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->

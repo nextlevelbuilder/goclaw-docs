@@ -27,7 +27,7 @@
 - [Editing Personality](vi/agents/editing-personality.md): Thay đổi phong cách, danh tính và ranh giới của agent thông qua hai file cốt lõi: SOUL.md (personality & phong cách) và IDENTITY.md (tên, emoji, loại sinh vật).
 - [Sharing & Access Control](vi/agents/sharing-and-access.md): Kiểm soát ai có thể dùng agent của bạn. Quyền truy cập được thực thi dựa trên phân biệt owner vs. non-owner; nhãn vai trò được lưu để thực thi trong tương lai.
 - [User Overrides](vi/agents/user-overrides.md): **Tính năng được triển khai một phần.** Schema database và store API đã tồn tại, nhưng override chưa được áp dụng tại runtime. Trang này ghi lại hành vi dự kiến và store API hiện tại.
-- [System Prompt Anatomy](vi/agents/system-prompt-anatomy.md): Hiểu cách GoClaw xây dựng system prompt: 19+ phần, lắp ráp động, với cơ chế truncation thông minh để mọi thứ vừa trong context.
+- [System Prompt Anatomy](vi/agents/system-prompt-anatomy.md): Hiểu cách GoClaw xây dựng system prompt: 23 phần, lắp ráp động, với cơ chế truncation thông minh để mọi thứ vừa trong context.
 
 ## Providers
 - [Provider Overview](vi/providers/overview.md): Providers là cầu nối giữa GoClaw và các LLM API — cấu hình một (hoặc nhiều) provider và mọi agent đều dùng được ngay.
@@ -89,7 +89,7 @@
 - [Caching](vi/advanced/caching.md): Giảm truy vấn database với bộ nhớ đệm in-memory hoặc Redis cho dữ liệu truy cập thường xuyên.
 - [Browser Automation](vi/advanced/browser-automation.md): Cấp cho agent một trình duyệt thật — điều hướng trang, chụp ảnh màn hình, scrape nội dung, và điền form.
 - [Extended Thinking](vi/advanced/extended-thinking.md): Để agent "suy nghĩ thành tiếng" trước khi trả lời — kết quả tốt hơn với các tác vụ phức tạp, đổi lấy thêm token và độ trễ.
-- [Hooks & Quality Gates](vi/advanced/hooks-quality-gates.md): Chạy kiểm tra tự động trước hoặc sau hành động của agent — chặn kết quả xấu, yêu cầu phê duyệt, hoặc kích hoạt logic validation tùy chỉnh.
+- [Agent Hooks](vi/advanced/hooks-quality-gates.md): Chặn, quan sát hoặc tiêm hành vi tại các điểm xác định trong agent loop — chặn tool call không an toàn, tự động audit sau khi ghi, tiêm context phiên, hoặc thông báo khi dừng.
 - [Authentication & OAuth](vi/advanced/authentication.md): Kết nối GoClaw với ChatGPT qua OAuth — không cần API key, dùng tài khoản OpenAI hiện có của bạn.
 - [API Keys & RBAC](vi/advanced/api-keys-rbac.md): Quản lý API key với phân quyền theo vai trò cho các triển khai đa người dùng và truy cập lập trình.
 - [CLI Credentials](vi/advanced/cli-credentials.md): Lưu trữ và quản lý bộ thông tin xác thực có tên cho thực thi lệnh shell.

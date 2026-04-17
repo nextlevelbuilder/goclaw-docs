@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **49**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **55**.
 
 ```mermaid
 graph LR
@@ -227,6 +227,12 @@ These migrations are applied automatically via `./goclaw upgrade`. They constitu
 | 047 | `cron_jobs_unique_constraint` — adds unique constraint per `(agent_id, tenant_id, name)` and deduplicates existing rows |
 | 048 | `vault_media_linking` — adds `base_name` generated column on `team_task_attachments`, `metadata JSONB` on `vault_links`, fixes CASCADE FK constraints |
 | 049 | `vault_path_prefix_index` — adds concurrent index `idx_vault_docs_path_prefix` with `text_pattern_ops` for fast prefix queries |
+| 050 | Seeds the `stt` (Speech-to-Text) tool into `builtin_tools`. See [TTS & Voice](/advanced/tts-voice) for configuration. `ON CONFLICT DO NOTHING` — customized settings are preserved. |
+| 051 | Backfills `mode: "cache-ttl"` into `agents.context_pruning` for agents that already had a custom `context_pruning` object but were missing the `mode` field. **Pruning remains opt-in globally** — this migration only sets `mode` for agents that had custom config without it; no agents are silently enrolled into pruning. |
+| 052 | New agent hooks system: creates `agent_hooks`, `hook_executions`, and `tenant_hook_budget` tables. See [Hooks & Quality Gates](/advanced/hooks-quality-gates). |
+| 053 | Extends `agent_hooks`: adds `script` handler type (goja-backed inline scripts) and `builtin` source marker; drops per-scope uniqueness indexes to allow multiple hooks per event. |
+| 054 | Adds `name` column to `agent_hooks` for user-facing labels; introduces `agent_hook_agents` N:M junction table (replaces single `agent_id` FK); migrates existing agent assignments; renames tables `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`. |
+| 055 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents`. Enforces: `personal` scope requires `agent_id NOT NULL`, `team` scope requires `team_id NOT NULL`, `shared` scope requires both NULL, `custom` is unconstrained. Run `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;` after auditing legacy rows. |
 
 #### Breaking Changes in v3
 
@@ -315,4 +321,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->

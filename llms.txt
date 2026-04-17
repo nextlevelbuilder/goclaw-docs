@@ -27,7 +27,7 @@
 - [Editing Personality](agents/editing-personality.md): Change your agent's tone, identity, and boundaries through two core files: SOUL.md (personality & style) and IDENTITY.md (name, emoji, creature).
 - [Sharing & Access Control](agents/sharing-and-access.md): Control who can use your agents. Access is enforced via owner vs. non-owner distinction; role labels are stored for future enforcement.
 - [User Overrides](agents/user-overrides.md): **Partially implemented feature.** The database schema and store API exist, but overrides are not yet applied at runtime. This page documents the planned behavior and current store API.
-- [System Prompt Anatomy](agents/system-prompt-anatomy.md): Understand how GoClaw builds system prompts: 19+ sections, assembled dynamically, with smart truncation so everything fits in context.
+- [System Prompt Anatomy](agents/system-prompt-anatomy.md): Understand how GoClaw builds system prompts: 23 sections, assembled dynamically, with smart truncation so everything fits in context.
 
 ## Providers
 - [Provider Overview](providers/overview.md): Providers are the interface between GoClaw and LLM APIs — configure one (or many) and every agent can use it.
@@ -89,7 +89,7 @@
 - [Caching](advanced/caching.md): Reduce database queries with in-memory or Redis caching for frequently accessed data.
 - [Browser Automation](advanced/browser-automation.md): Give your agents a real browser — navigate pages, take screenshots, scrape content, and fill forms.
 - [Extended Thinking](advanced/extended-thinking.md): Let your agent "think out loud" before answering — better results on complex tasks, at the cost of extra tokens and latency.
-- [Hooks & Quality Gates](advanced/hooks-quality-gates.md): Run automatic checks before or after agent actions — block bad output, require approval, or trigger custom validation logic.
+- [Agent Hooks](advanced/hooks-quality-gates.md): Intercept, observe, or inject behavior at defined points in the agent loop — block unsafe tool calls, auto-audit after writes, inject session context, or notify on stop.
 - [Authentication & OAuth](advanced/authentication.md): Connect GoClaw to ChatGPT via OAuth — no API key needed, uses your existing OpenAI account.
 - [API Keys & RBAC](advanced/api-keys-rbac.md): Manage API keys with role-based access control for multi-user and programmatic access deployments.
 - [CLI Credentials](advanced/cli-credentials.md): Securely store and manage named credential sets for shell tool execution.

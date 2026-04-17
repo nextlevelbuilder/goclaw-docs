@@ -2241,7 +2241,10 @@ GoClaw is an open-source AI agent gateway written in Go. It lets you run AI agen
 |----------|-------------|
 | **Multi-Tenant v3** | Per-user isolation for context, sessions, memory, and traces; per-edition rate limits |
 | **8-Stage Agent Pipeline** | context → history → prompt → think → act → observe → memory → summarize (v3, always-on) |
-| **22 Provider Types** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more (15 LLM APIs + local models + CLI agents + media) |
+| **22 Provider Types** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more (15 LLM APIs + local models + ACP CLI agents + media) |
+| **ACP Provider** | Agentic Claude Protocol — runs Claude Code, Codex, Gemini CLI as agents via JSON-RPC 2.0 stdio subprocess |
+| **Hooks System** | 7 lifecycle events (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart/Stop) — sync/async, SSRF-hardened HTTP handlers, audit logging |
+| **Audio / TTS Manager** | Unified audio manager with 4 TTS providers: ElevenLabs (streaming), OpenAI, Edge TTS, MiniMax; voice LRU cache (1 000 tenants, 1 h TTL) |
 | **Messaging Channels** | Telegram, Discord, WhatsApp (native), Zalo, Zalo Personal, Larksuite, Slack, WebSocket |
 | **32 Built-in Tools** | File system, web search, browser, code execution, memory, and more |
 | **64+ WebSocket RPC Methods** | Real-time control — chat, agent management, traces, and more via `/ws` |
@@ -2297,7 +2300,7 @@ graph LR
 - [Quick Start](/quick-start) — Your first agent in 5 minutes
 - [How GoClaw Works](/how-goclaw-works) — Deep dive into the architecture
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
 
 ---
 
@@ -2488,7 +2491,7 @@ After each conversation run, GoClaw evaluates whether to compact session history
 - **Memory flush first** (synchronous): agent writes important facts to `memory/YYYY-MM-DD.md` files before history is truncated
 - **Summarize** (background): LLM summarizes older messages; history is truncated to the last 4 messages; summary is saved for the next session
 
-In v3, the [3-Tier Memory](/memory-system) system adds async consolidation on top: episodic workers extract facts, semantic workers abstract them, and dreaming workers synthesize novel insights — all driven by the DomainEventBus.
+In v3, the [3-Tier Memory](../core-concepts/memory-system.md) system adds async consolidation on top: episodic workers extract facts, semantic workers abstract them, and dreaming workers synthesize novel insights — all driven by the DomainEventBus.
 
 ## Identity Anchoring
 
@@ -2531,9 +2534,9 @@ Staggered subagent results are queued and merged into a single LLM run announcem
 
 ## What's Next
 
-- [Sessions and History](/sessions-and-history) — How conversations persist
+- [Sessions and History](../core-concepts/sessions-and-history.md) — How conversations persist
 - [Tools Overview](/tools-overview) — What tools agents can use
-- [Memory System](/memory-system) — Long-term memory and search
+- [Memory System](../core-concepts/memory-system.md) — Long-term memory and search
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
 
@@ -2630,7 +2633,9 @@ Each lane has its own semaphore. This prevents cron jobs from starving user mess
 |-----------|-------------|
 | **Gateway** | HTTP + WebSocket server; decomposed into 7 modules (deps, http_wiring, events, lifecycle, tools_wiring, methods, router) |
 | **Domain Event Bus** | Typed event publishing with worker pool, dedup, and retry — drives consolidation workers |
-| **Provider Adapter System** | Manages 18+ LLM providers; Anthropic native, OpenAI-compatible, ACP (stdio JSON-RPC) |
+| **Provider Adapter System** | Manages 18+ LLM providers; Anthropic native, OpenAI-compatible, ACP (JSON-RPC 2.0 stdio — Claude Code, Codex, Gemini CLI) |
+| **Hooks Dispatcher** | Wired into `PipelineDeps.HookDispatcher`; 7 lifecycle events (sync/async), SSRF-hardened HTTP + Command handlers, audit logging, circuit breaker |
+| **Audio / TTS Manager** | `internal/audio/` unified manager: ElevenLabs (streaming), OpenAI, Edge, MiniMax TTS providers; voice LRU cache (1 000 tenants, 1 h TTL); per-agent voice/model via `other_config` JSONB |
 | **Tool Registry** | 50+ built-in tools with policy-based access control (extensible via MCP and custom tools) |
 | **Store Layer** | Dual-DB: PostgreSQL (`pgx/v5`) for production + SQLite (`modernc.org/sqlite`) for desktop; shared base/ dialect |
 | **3-Tier Memory** | Episodic (recent facts) → Semantic (abstracted summaries) → Dreaming (novel synthesis); driven by consolidation workers |
@@ -2646,7 +2651,7 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 | System | What it adds |
 |--------|-------------|
 | [Knowledge Vault](/knowledge-vault) | Wikilinks semantic mesh, BM25 + vector hybrid search, L0 auto-injection into prompts |
-| [3-Tier Memory](/memory-system) | Episodic → Semantic → Dreaming consolidation pipeline driven by DomainEventBus |
+| [3-Tier Memory](../core-concepts/memory-system.md) | Episodic → Semantic → Dreaming consolidation pipeline driven by DomainEventBus |
 | [Agent Evolution](/agent-evolution) | Tracks tool/retrieval patterns; auto-suggests and applies prompt/tool adaptations |
 | [Mode Prompt System](/model-steering) | Switchable prompt modes (PromptFull vs PromptMinimal) with per-agent overrides |
 | [Multi-Tenant v3](/multi-tenancy) | Compound user ID scoping across all 22+ store interfaces; vault grants; skill grants |
@@ -2663,9 +2668,9 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 
 - [Agents Explained](/agents-explained) — Deep dive into agent types and context files
 - [Tools Overview](/tools-overview) — The full tool catalog
-- [Sessions and History](/sessions-and-history) — How conversations persist
+- [Sessions and History](../core-concepts/sessions-and-history.md) — How conversations persist
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
 
 ---
 
@@ -2865,7 +2870,7 @@ Memory is for things worth remembering forever. Sessions are for conversation fl
 
 ## Auto Memory Flush
 
-During [auto-compaction](/sessions-and-history), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
+During [auto-compaction](../core-concepts/sessions-and-history.md), GoClaw extracts important facts from the conversation and saves them to memory before summarizing the history.
 
 - **Trigger**: >50 messages OR >85% context window (either condition triggers compaction)
 - **Process**: Synchronous flush, max 5 iterations, 90-second timeout
@@ -2924,7 +2929,7 @@ This allows knowledge sharing within a team without duplication. The leader accu
 ## What's Next
 
 - [Multi-Tenancy](/multi-tenancy) — Per-user memory isolation
-- [Sessions and History](/sessions-and-history) — How conversation history works
+- [Sessions and History](../core-concepts/sessions-and-history.md) — How conversation history works
 - [Context Pruning](/context-pruning) — How pruning integrates with the consolidation pipeline
 - [Agents Explained](/agents-explained) — Agent types and context files
 
@@ -3412,7 +3417,7 @@ Queue capacity is 10 by default. When full, the oldest message is dropped (drop 
 
 ## What's Next
 
-- [Memory System](/memory-system) — How long-term memory works
+- [Memory System](../core-concepts/memory-system.md) — How long-term memory works
 - [Tools Overview](/tools-overview) — Available tools for agents
 - [Multi-Tenancy](/multi-tenancy) — Per-user session isolation
 
@@ -3434,10 +3439,10 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 |----------|-------|-------------|
 | **Filesystem** (`group:fs`) | read_file, write_file, edit, list_files, search, glob | Read, write, edit, and search files in the agent workspace |
 | **Runtime** (`group:runtime`) | exec, credentialed_exec | Run shell commands; execute CLI tools with injected credentials |
-| **Web** (`group:web`) | web_search, web_fetch | Search the web (Brave/DuckDuckGo) and fetch pages |
+| **Web** (`group:web`) | web_search, web_fetch | Search the web (Exa, Tavily, Brave, DuckDuckGo) and fetch pages |
 | **Memory** (`group:memory`) | memory_search, memory_get, memory_expand | Query long-term memory (hybrid vector + FTS search); expand full episodic content by ID (L2 retrieval) |
 | **Knowledge** (`group:knowledge`) | vault_search, knowledge_graph_search, skill_search | Unified vault/memory/knowledge-graph search; search entities and relationships; discover skills |
-| **Vault** | vault_link, vault_backlinks | Create explicit wikilinks between vault documents; trace document backlinks |
+| **Vault** | vault_search | Search vault documents and knowledge graph |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Manage conversation sessions; spawn subagents |
 | **Teams** (`group:teams`) | team_tasks, team_message | Collaborate with agent teams via shared task board and mailbox |
 | **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
@@ -3448,6 +3453,31 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
 | **Workspace** | workspace_dir | Resolve workspace directory for team/user context |
 | **AI** | openai_compat_call | Call OpenAI-compatible endpoints with custom request formats |
+
+### web_search Providers
+
+`web_search` supports four providers, tried in order:
+
+| Provider | Notes |
+|----------|-------|
+| **Exa** | Requires `EXA_API_KEY` |
+| **Tavily** | Requires `TAVILY_API_KEY` |
+| **Brave** | Requires `BRAVE_API_KEY` |
+| **DuckDuckGo** | Free fallback — used last if no API keys for the others |
+
+Configure provider order via `provider_order` in tool settings:
+
+```json
+{
+  "tools": {
+    "web_search": {
+      "provider_order": ["exa", "tavily", "brave", "duckduckgo"]
+    }
+  }
+}
+```
+
+DuckDuckGo requires no API key and is always available as the final fallback.
 
 ### v3 Memory & Vault Tools
 
@@ -3460,12 +3490,9 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 
 Use `memory_search` first to discover relevant episodic IDs, then `memory_expand` for the complete content. This saves tokens when only a few entries are relevant.
 
-**Vault link tools** (v3 knowledge graph integration):
+**Vault linking** is now handled automatically by the enrichment pipeline. See [Knowledge Vault](../advanced/knowledge-vault.md).
 
-| Tool | Description |
-|------|-------------|
-| `vault_link` | Create an explicit link between two vault documents (`wikilink` or `reference` type). Auto-registers documents not yet in the vault. Team-scoped docs cannot link across different teams. |
-| `vault_backlinks` | List all documents that link to a given document path. Respects team/personal scope boundaries. |
+> `vault_link` and `vault_backlinks` have been removed. Explicit wikilink creation and backlink tracing are no longer needed — the enrichment pipeline manages document relationships automatically.
 
 **BytePlus media tools** (`create_image_byteplus`, `create_video_byteplus`) are available when a `byteplus` provider is configured. Both use async job polling: image generation via Seedream returns a URL once the job completes; video generation via Seedance polls `/text-to-video-pro/status/{id}` for the result.
 
@@ -3706,7 +3733,7 @@ All parameters are optional — defaults apply when not configured.
 
 ## What's Next
 
-- [Memory System](/memory-system) — How long-term memory and search work
+- [Memory System](../core-concepts/memory-system.md) — How long-term memory and search work
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
@@ -4243,6 +4270,16 @@ curl -X POST http://localhost:8080/v1/agents \
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Directory for context files |
 | `other_config` | JSON | `{}` | Custom fields (e.g., `description` for summoning) |
 
+### `other_config` — Workspace Sharing
+
+The `other_config` field also accepts workspace sharing settings that control cross-user data isolation:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `share_memory` | boolean | `false` | Share memory store across all users of this agent |
+| `share_knowledge_graph` | boolean | `false` | Share knowledge graph across all users of this agent |
+| `share_sessions` | boolean | `false` | Allow cron jobs of a group-scoped agent to read sessions from other groups. Disabled by default to prevent cross-group session data leaks during cron job execution |
+
 > **frontmatter field:** After summoning, GoClaw stores a short expertise summary (auto-extracted from SOUL.md) in the agent's `frontmatter` field. This is used for agent discovery and delegation — it is not something you set directly.
 
 ## Examples
@@ -4338,10 +4375,10 @@ These files are placed in the stable portion of the system prompt (above the cac
 ## What's Next
 
 - [Open vs. Predefined](/open-vs-predefined) — understand context isolation differences
-- [Context Files](/context-files) — learn about SOUL.md, IDENTITY.md, and other system files
+- [Context Files](../agents/context-files.md) — learn about SOUL.md, IDENTITY.md, and other system files
 - [Summoning & Bootstrap](/summoning-bootstrap) — how LLM generates personality files on first use
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
 
 ---
 
@@ -4356,7 +4393,7 @@ Your agent's personality emerges from two primary configuration files:
 - **SOUL.md**: Defines tone, values, boundaries, expertise, and operational style. This is the "who you are" file.
 - **IDENTITY.md**: Contains metadata like name, emoji, creature type, and avatar. This is the "what you look like" file.
 
-**AGENTS.md** also contributes to the overall persona — it defines conversational rules, memory usage, and group chat behavior. While less about "personality," it shapes how the agent expresses itself in practice. See [Context Files](/context-files) for details.
+**AGENTS.md** also contributes to the overall persona — it defines conversational rules, memory usage, and group chat behavior. While less about "personality," it shapes how the agent expresses itself in practice. See [Context Files](../agents/context-files.md) for details.
 
 You can edit these files three ways: via the Dashboard UI, the WebSocket API, or directly on disk. Edits made through the UI or API are stored in the database.
 
@@ -4607,7 +4644,7 @@ This is governed by the `buildSelfEvolveSection()` in `internal/agent/systemprom
 
 ## What's Next
 
-- [Context Files — Extending personality with per-user context](/context-files)
+- [Context Files — Extending personality with per-user context](../agents/context-files.md)
 - [System Prompt Anatomy — How personality gets injected into prompts](/system-prompt-anatomy)
 - [Creating Agents — Set up personality during agent creation](/creating-agents)
 
@@ -4796,7 +4833,7 @@ Or switch to **predefined** later if the agent outgrows single-user use.
 
 ## What's Next
 
-- [Context Files](/context-files) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
+- [Context Files](../agents/context-files.md) — deep dive into each file (SOUL.md, IDENTITY.md, etc.)
 - [Summoning & Bootstrap](/summoning-bootstrap) — how personality is generated for predefined agents
 - [Creating Agents](/creating-agents) — agent creation walkthrough
 
@@ -5416,7 +5453,7 @@ If you manually set USER.md at agent level before the first user chats, it's use
 
 ## What's Next
 
-- [Context Files](/context-files) — detailed reference for each file
+- [Context Files](../agents/context-files.md) — detailed reference for each file
 - [Open vs. Predefined](/open-vs-predefined) — understand when to use each type
 - [Creating Agents](/creating-agents) — step-by-step agent creation
 
@@ -5840,7 +5877,7 @@ This agent will:
 ## What's Next
 
 - [Editing Personality — Customize SOUL.md and IDENTITY.md](/editing-personality)
-- [Context Files — Add project-specific context](/context-files)
+- [Context Files — Add project-specific context](../agents/context-files.md)
 - [Creating Agents — Set up system prompt configuration](/creating-agents)
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
@@ -8859,9 +8896,9 @@ grep -i discord ~/.goclaw/logs/gateway.log
 
 ## What's Next
 
-- **[Development Rules](../../development-rules.md)** — Code style for channels
-- **[System Architecture](../../00-architecture-overview.md)** — How channels fit in
-- **[Gateway Protocol](../../04-gateway-protocol.md)** — WebSocket protocol details
+- **[Development Rules](../../core-concepts/how-goclaw-works.md)** — Code style for channels
+- **[System Architecture](../../core-concepts/how-goclaw-works.md)** — How channels fit in
+- **[Gateway Protocol](../../reference/websocket-protocol.md)** — WebSocket protocol details
 
 ---
 
@@ -9258,6 +9295,221 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 
 ---
 
+# Facebook Channel
+
+Facebook Fanpage integration supporting Messenger inbox auto-reply, comment auto-reply, and first inbox DM via Facebook Graph API.
+
+## Setup
+
+### 1. Create a Facebook App
+
+1. Go to [developers.facebook.com](https://developers.facebook.com) and create a new app
+2. Choose **Business** type
+3. Add the **Messenger** and **Webhooks** products
+4. Under **Messenger Settings** → **Access Tokens** → generate a Page Access Token for your page
+5. Copy your **App ID**, **App Secret**, and **Page Access Token**
+6. Note your **Facebook Page ID** (visible in your page's About section or URL)
+
+### 2. Configure the Webhook
+
+In your Facebook App Dashboard → **Webhooks** → **Page**:
+
+1. Set the callback URL: `https://your-goclaw-host/channels/facebook/webhook`
+2. Set a verify token (any string you choose — use this as `verify_token` in GoClaw config)
+3. Subscribe to these events: `messages`, `messaging_postbacks`, `feed`
+
+### 3. Enable Facebook Channel
+
+```json
+{
+  "channels": {
+    "facebook": {
+      "enabled": true,
+      "instances": [
+        {
+          "name": "my-fanpage",
+          "credentials": {
+            "page_access_token": "YOUR_PAGE_ACCESS_TOKEN",
+            "app_secret": "YOUR_APP_SECRET",
+            "verify_token": "YOUR_VERIFY_TOKEN"
+          },
+          "config": {
+            "page_id": "YOUR_PAGE_ID",
+            "features": {
+              "messenger_auto_reply": true,
+              "comment_reply": false,
+              "first_inbox": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+## Configuration
+
+### Credentials (encrypted)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `page_access_token` | string | Page-level token from Facebook App Dashboard (required) |
+| `app_secret` | string | App Secret for webhook signature verification (required) |
+| `verify_token` | string | Token used to verify webhook endpoint ownership (required) |
+
+### Instance Config
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `page_id` | string | required | Facebook Page ID |
+| `features.messenger_auto_reply` | bool | false | Enable Messenger inbox auto-reply |
+| `features.comment_reply` | bool | false | Enable comment auto-reply |
+| `features.first_inbox` | bool | false | Send a one-time DM after first comment reply |
+| `comment_reply_options.include_post_context` | bool | false | Fetch post content to enrich comment context |
+| `comment_reply_options.max_thread_depth` | int | 10 | Max depth for fetching parent comment threads |
+| `messenger_options.session_timeout` | string | -- | Override session timeout for Messenger conversations (e.g. `"30m"`) |
+| `post_context_cache_ttl` | string | -- | Cache TTL for post content fetches (e.g. `"10m"`) |
+| `first_inbox_message` | string | -- | Custom DM text sent after first comment reply (defaults to Vietnamese if empty) |
+| `allow_from` | list | -- | Sender ID allowlist |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    FB_USER["Facebook User"]
+    FB_PAGE["Facebook Page"]
+    WEBHOOK["GoClaw Webhook\n/channels/facebook/webhook"]
+    ROUTER["Global Router\n(routes by page_id)"]
+    CH["Channel Instance"]
+    AGENT["Agent Pipeline"]
+    GRAPH["Graph API\ngraph.facebook.com"]
+
+    FB_USER -->|"Comment / Message"| FB_PAGE
+    FB_PAGE -->|"Webhook event (POST)"| WEBHOOK
+    WEBHOOK -->|"Verify HMAC-SHA256"| ROUTER
+    ROUTER --> CH
+    CH -->|"HandleMessage"| AGENT
+    AGENT -->|"OutboundMessage"| CH
+    CH -->|"Send reply"| GRAPH
+    GRAPH --> FB_PAGE
+```
+
+- **Single webhook endpoint** — all Facebook channel instances share `/channels/facebook/webhook`, routed by `page_id`
+- **HMAC-SHA256 verification** — every webhook delivery is verified against `app_secret` via `X-Hub-Signature-256` header
+- **Graph API v25.0** — all outbound calls use the versioned Graph API endpoint
+
+## Features
+
+### fb_mode: Page Mode vs Comment Mode
+
+The `fb_mode` metadata field controls how the agent's reply is delivered:
+
+| `fb_mode` | Trigger | Reply method |
+|-----------|---------|--------------|
+| `messenger` | Messenger inbox message | `POST /me/messages` to the sender |
+| `comment` | Comment on a page post | `POST /{comment_id}/comments` reply |
+
+The channel sets `fb_mode` automatically based on the event type. Agents can read this metadata to tailor their response style.
+
+### Messenger Auto-Reply
+
+When `features.messenger_auto_reply` is enabled:
+
+- Responds to text messages and postbacks from users in Messenger
+- Session key is `senderID` (1:1 channel-scoped conversations)
+- Skips delivery/read receipts and attachment-only messages
+- Long responses are automatically split at 2,000 characters
+
+### Comment Auto-Reply
+
+When `features.comment_reply` is enabled:
+
+- Responds to new comments on the page's posts (`verb: "add"`)
+- Ignores comment edits and deletions
+- Session key: `{post_id}:{sender_id}` — groups all comments from the same user on the same post
+- Optional: fetches post content and parent comment thread for richer context (see `comment_reply_options`)
+
+### Admin Reply Detection
+
+GoClaw automatically detects when a human page admin replies to a conversation and suppresses the bot's auto-reply for a **5-minute cooldown window**. This prevents the bot from sending a duplicate message after the admin has already responded.
+
+Detection logic:
+1. When a message from `sender_id == page_id` arrives, GoClaw records the recipient as admin-replied
+2. Bot echo detection: if the bot itself just sent a message within a 15-second window, the "admin reply" is ignored (it's the bot's own echo)
+3. Cooldown expires after 5 minutes — auto-reply resumes
+
+### First Inbox DM
+
+When `features.first_inbox` is enabled, GoClaw sends a one-time private Messenger DM to a user after the bot first replies to their comment:
+
+- Sent at most once per user per process lifetime (in-memory dedup)
+- Customize the message with `first_inbox_message`; defaults to Vietnamese if empty
+- Best-effort: send failures are logged and retried on next comment
+
+### Webhook Setup
+
+The webhook handler:
+
+1. **GET** — Verifies ownership by echoing `hub.challenge` when `hub.verify_token` matches
+2. **POST** — Processes event delivery:
+   - Validates `X-Hub-Signature-256` HMAC-SHA256 signature
+   - Parses `feed` changes for comment events
+   - Parses `messaging` events for Messenger events
+   - Always returns HTTP 200 (non-2xx causes Facebook to retry for 24 hours)
+
+Body size is capped at 4 MB. Oversized payloads are dropped with a warning.
+
+### Message Deduplication
+
+Facebook may deliver the same webhook event more than once. GoClaw deduplicates by event key:
+
+- Messenger: `msg:{message_mid}`
+- Postback: `postback:{sender_id}:{timestamp}:{payload}`
+- Comment: `comment:{comment_id}`
+
+Dedup entries expire after 24 hours (matching Facebook's max retry window). A background cleaner evicts stale entries every 5 minutes.
+
+### Graph API
+
+All outbound calls go through `graph.facebook.com/v25.0` with automatic retry:
+
+- **3 retries** with exponential backoff (1s, 2s, 4s)
+- **Rate limit handling**: parses `X-Business-Use-Case-Usage` header and respects `Retry-After`
+- **Token passed via `Authorization: Bearer` header** (never in URL)
+- **24h messaging window**: code 551 / subcode 2018109 are non-retryable (user has not messaged in 24h)
+
+### Media Support
+
+**Inbound** (Messenger): Attachment URLs are included in the message metadata. Types: `image`, `video`, `audio`, `file`.
+
+**Outbound**: Text replies only. Media delivery from the agent is not currently supported for the native Facebook channel. Use [Pancake](/channel-pancake) for full media support across Facebook and other platforms.
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Webhook verification fails | Check `verify_token` in GoClaw matches the token in Facebook App Dashboard. |
+| `page_access_token is required` | Add `page_access_token` to credentials. |
+| `page_id is required` | Add `page_id` to instance config. |
+| Token verification failed on start | The `page_access_token` may be expired. Regenerate from Facebook App Dashboard. |
+| No events received | Ensure webhook callback URL is publicly accessible. Check Facebook App → Webhooks subscriptions (`messages`, `feed`). |
+| Signature invalid warnings | Ensure `app_secret` in GoClaw matches the App Secret in Facebook App Dashboard. |
+| Bot replies after admin already responded | Expected — bot suppresses for 5 min after admin reply. Set `features.messenger_auto_reply: false` to disable entirely. |
+| 24h messaging window error | The user hasn't sent a message in the last 24 hours. Facebook restricts bot-initiated messages outside this window. |
+| Duplicate messages | Dedup handles this automatically. If persistent, check for multiple GoClaw instances with the same `page_id`. |
+
+## What's Next
+
+- [Overview](/channels-overview) — Channel concepts and policies
+- [Pancake](/channel-pancake) — Multi-platform proxy (Facebook + Zalo + Instagram + more)
+- [Zalo OA](/channel-zalo-oa) — Zalo Official Account
+- [Telegram](/channel-telegram) — Telegram bot setup
+
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+
+---
+
 # Feishu Channel
 
 [Feishu](https://www.feishu.cn/) (飞书) messaging integration for China users — supporting DMs, groups, streaming cards, and real-time updates via WebSocket or webhook.
@@ -9410,6 +9662,39 @@ Session key: "{chatID}:topic:{rootMessageID}"
 
 Different threads in same group maintain separate histories.
 
+### Slash Commands (File Writer Management)
+
+In group chats, group members can manage file-write permissions using slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/addwriter <@mention or reply>` | Grant file-write permission to a user in the group |
+| `/removewriter <@mention or reply>` | Revoke file-write permission from a user |
+| `/writers` | List all users with file-write permissions in the group |
+
+**How to specify the target user:** Reply to the user's message and send the command, or @mention them in the same message. Self-grant is supported by @mentioning yourself.
+
+**Authorization:** Only existing file writers can manage the list. When the list is empty, the first caller can seed it by specifying an explicit target.
+
+> These commands work in group chats only. DMs are rejected.
+
+### Lark Docx Auto-Fetch
+
+When a Lark docx URL is pasted in chat, GoClaw automatically detects and fetches the document content via the Lark API and inlines it into the agent's prompt — no tool call required.
+
+**Supported URL formats:**
+- `https://*.feishu.cn/docx/<id>`
+- `https://*.larksuite.com/docx/<id>`
+
+**Required app permission scope:** `docx:document:readonly` — add this in your Feishu Developer Console under Permissions & Scopes.
+
+**Implementation details:**
+- LRU cache: 128 entries, 5-minute TTL (repeated links in the same session are served from cache)
+- Content truncated at 8,000 runes to fit the agent's context window
+- Duplicate doc IDs in the same message are collapsed — each doc is fetched only once
+
+> Only `/docx/` URLs are supported. Sheets, Base, Wiki, and other Lark document types are out of scope.
+
 ### list_group_members Tool
 
 When connected to a Feishu channel, agents have access to the `list_group_members` tool. It returns all members of the current group chat with their `open_id` and display name.
@@ -9467,7 +9752,7 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
 
 ---
 
@@ -9646,6 +9931,39 @@ Session key: "{chatID}:topic:{rootMessageID}"
 
 Different threads in same group maintain separate histories.
 
+### Slash Commands (File Writer Management)
+
+In group chats, group members can manage file-write permissions using slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/addwriter <@mention or reply>` | Grant file-write permission to a user in the group |
+| `/removewriter <@mention or reply>` | Revoke file-write permission from a user |
+| `/writers` | List all users with file-write permissions in the group |
+
+**How to specify the target user:** Reply to the user's message and send the command, or @mention them in the same message. Self-grant is supported by @mentioning yourself.
+
+**Authorization:** Only existing file writers can manage the list. When the list is empty, the first caller can seed it by specifying an explicit target.
+
+> These commands work in group chats only. DMs are rejected.
+
+### Lark Docx Auto-Fetch
+
+When a Lark docx URL is pasted in chat, GoClaw automatically detects and fetches the document content via the Lark API and inlines it into the agent's prompt — no tool call required.
+
+**Supported URL formats:**
+- `https://*.feishu.cn/docx/<id>`
+- `https://*.larksuite.com/docx/<id>`
+
+**Required app permission scope:** `docx:document:readonly` — add this in your Larksuite Developer Console under Permissions & Scopes.
+
+**Implementation details:**
+- LRU cache: 128 entries, 5-minute TTL (repeated links in the same session are served from cache)
+- Content truncated at 8,000 runes to fit the agent's context window
+- Duplicate doc IDs in the same message are collapsed — each doc is fetched only once
+
+> Only `/docx/` URLs are supported. Sheets, Base, Wiki, and other Lark document types are out of scope.
+
 ### list_group_members Tool
 
 When connected to a Larksuite channel, agents have access to the `list_group_members` tool. It returns all members of the current group chat with their `open_id` and display name.
@@ -9688,7 +10006,7 @@ The `group:fs` prefix selects all tools in the `fs` (Feishu/Lark) tool group. Th
 - [Zalo OA](/channel-zalo-oa) — Zalo Official Account
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
 
 ---
 
@@ -9954,7 +10272,13 @@ For config-file-based channels (instead of DB instances):
             "page_id": "your_page_id",
             "features": {
               "inbox_reply": true,
-              "comment_reply": false
+              "comment_reply": true,
+              "first_inbox": true,
+              "auto_react": false
+            },
+            "comment_reply_options": {
+              "include_post_context": true,
+              "filter": "all"
             }
           }
         }
@@ -9972,9 +10296,17 @@ For config-file-based channels (instead of DB instances):
 | `page_access_token` | string | -- | Page-level token for all page APIs (required) |
 | `webhook_secret` | string | -- | Optional HMAC-SHA256 verification secret |
 | `page_id` | string | -- | Pancake page identifier (required) |
+| `webhook_page_id` | string | -- | Native platform page ID sent in webhooks (if different from `page_id`) |
 | `platform` | string | auto-detected | Platform override: facebook/zalo/instagram/tiktok/whatsapp/line |
 | `features.inbox_reply` | bool | -- | Enable inbox message replies |
 | `features.comment_reply` | bool | -- | Enable comment replies |
+| `features.first_inbox` | bool | -- | Send a one-time DM to a commenter after their first comment reply |
+| `features.auto_react` | bool | -- | Auto-like user comments on Facebook (Facebook only) |
+| `comment_reply_options.include_post_context` | bool | false | Prepend post text to comment content sent to the agent |
+| `comment_reply_options.filter` | string | `"all"` | Comment filter mode: `"all"` or `"keyword"` |
+| `comment_reply_options.keywords` | list | -- | Required when `filter="keyword"` — only process comments containing these keywords |
+| `first_inbox_message` | string | built-in | Custom DM text sent for first-inbox feature |
+| `post_context_cache_ttl` | string | `"15m"` | Cache TTL for post content fetched for comment context (e.g. `"30m"`) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
 | `allow_from` | list | -- | User/group ID allowlist |
 
@@ -10101,6 +10433,20 @@ Pancake supports two conversation types:
 
 Conversation type is stored in message metadata as `pancake_mode` ("inbox" or "comment"), enabling agents to respond differently based on the source.
 
+### Comment Features
+
+When `features.comment_reply: true`, additional options control comment handling:
+
+**Comment filter** (`comment_reply_options.filter`):
+- `"all"` (default) — process all comments
+- `"keyword"` — only process comments containing one of the configured `keywords`
+
+**Post context** (`comment_reply_options.include_post_context: true`): fetches the original post text and prepends it to the comment content before sending to the agent. Useful when comments are too short to understand without context. Post content is cached (default TTL: 15 minutes, configurable via `post_context_cache_ttl`).
+
+**Auto-react** (`features.auto_react: true`): automatically likes every valid incoming comment on Facebook (Facebook platform only). Fires independently of `comment_reply` — you can react without replying.
+
+**First inbox** (`features.first_inbox: true`): after replying to a comment, sends a one-time private DM to the commenter inviting them to continue via inbox. Only sent once per sender per session restart. Customize the DM text with `first_inbox_message`.
+
 ### Channel Health
 
 API errors are mapped to channel health states:
@@ -10135,7 +10481,7 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Multi-Channel Setup](/recipe-multi-channel) — Configure multiple channels
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-11 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
 
 ---
 
@@ -10699,7 +11045,7 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 - [Overview](/channels-overview) — Channel concepts and policies
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
-- [Sessions & History](/sessions-and-history) — Conversation history
+- [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation history
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
 
@@ -14548,13 +14894,13 @@ As agents run long tasks, tool results accumulate in the conversation history. L
 1. **Soft trim** — truncate oversized tool results to head + tail, dropping the middle.
 2. **Hard clear** — if the context is still too full, replace entire tool results with a short placeholder.
 
-Context pruning is distinct from [session compaction](/sessions-and-history). Compaction permanently summarizes and truncates conversation history. Pruning is non-destructive: the original tool results remain in the session store and are never modified — only the message slice sent to the LLM is trimmed.
+Context pruning is distinct from [session compaction](../core-concepts/sessions-and-history.md). Compaction permanently summarizes and truncates conversation history. Pruning is non-destructive: the original tool results remain in the session store and are never modified — only the message slice sent to the LLM is trimmed.
 
 ---
 
 ## How Pruning Triggers
 
-Pruning runs automatically on every agent request unless explicitly disabled with `mode: "off"`. The flow:
+Pruning is **opt-in** — it only runs when `mode: "cache-ttl"` is set on the agent. The flow:
 
 ```
 history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → LLM
@@ -14562,11 +14908,12 @@ history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → L
 
 Before each LLM call, GoClaw:
 
-1. Estimates total character count of all messages.
-2. Calculates the ratio: `totalChars / (contextWindowTokens × 4)`.
+1. Counts tokens in all messages using the tiktoken BPE tokenizer (falls back to `chars / 4` heuristic when tiktoken is unavailable).
+2. Calculates the ratio: `totalTokens / contextWindowTokens`.
 3. If ratio is below `softTrimRatio` — context is small enough, no pruning needed.
-4. If ratio meets or exceeds `softTrimRatio` — soft trim eligible tool results.
-5. If ratio still meets or exceeds `hardClearRatio` after soft trim, and prunable chars exceed `minPrunableToolChars` — hard clear remaining tool results.
+4. **Pass 0 (per-result guard)** — Any single tool result exceeding 30% of the context window is force-trimmed before the main passes begin.
+5. If ratio meets or exceeds `softTrimRatio` — soft trim eligible tool results (Pass 1).
+6. If ratio still meets or exceeds `hardClearRatio` after soft trim, and prunable chars exceed `minPrunableToolChars` — hard clear remaining tool results (Pass 2).
 
 **Protected messages:** The last `keepLastAssistants` assistant messages and all tool results after them are never pruned. Messages before the first user message are also protected.
 
@@ -14581,12 +14928,14 @@ A tool result is eligible for soft trim when its character count exceeds `softTr
 The trimmed result looks like:
 
 ```
-<first 1500 chars of tool output>
+<first 3000 chars of tool output>
 ...
-<last 1500 chars of tool output>
+<last 3000 chars of tool output>
 
-[Tool result trimmed: kept first 1500 chars and last 1500 chars of 38400 chars.]
+[Tool result trimmed: kept first 3000 chars and last 3000 chars of 38400 chars.]
 ```
+
+**Media tool protection:** Results from `read_image`, `read_document`, `read_audio`, and `read_video` receive a higher soft trim budget (headChars=4000, tailChars=4000) because their content is an irreplaceable description generated by a dedicated vision/audio provider. Re-generating it would require another LLM call. Media tool results are also **exempt from hard clear** — they are never replaced with the placeholder.
 
 The agent retains enough context to understand what the tool returned without consuming the full output.
 
@@ -14610,12 +14959,12 @@ This placeholder is configurable. Hard clear can also be disabled entirely.
 
 ## Configuration
 
-Context pruning is **on by default**. To disable it, set `mode: "off"` in the agent config.
+Context pruning is **opt-in**. To enable it, set `mode: "cache-ttl"` in the agent config.
 
 ```json
 {
   "contextPruning": {
-    "mode": "off"
+    "mode": "cache-ttl"
   }
 }
 ```
@@ -14627,14 +14976,15 @@ All other fields have sensible defaults and are optional.
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "keepLastAssistants": 3,
-    "softTrimRatio": 0.3,
+    "softTrimRatio": 0.25,
     "hardClearRatio": 0.5,
     "minPrunableToolChars": 50000,
     "softTrim": {
-      "maxChars": 4000,
-      "headChars": 1500,
-      "tailChars": 1500
+      "maxChars": 6000,
+      "headChars": 3000,
+      "tailChars": 3000
     },
     "hardClear": {
       "enabled": true,
@@ -14646,14 +14996,14 @@ All other fields have sensible defaults and are optional.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | *(unset — pruning active)* | Set to `"off"` to disable pruning entirely. |
+| `mode` | *(unset — pruning disabled)* | Set to `"cache-ttl"` to enable pruning. Omit or leave empty to keep pruning off. |
 | `keepLastAssistants` | `3` | Number of recent assistant turns to protect from pruning. |
-| `softTrimRatio` | `0.3` | Trigger soft trim when context fills this fraction of the context window. |
+| `softTrimRatio` | `0.25` | Trigger soft trim when context fills this fraction of the context window. |
 | `hardClearRatio` | `0.5` | Trigger hard clear when context fills this fraction after soft trim. |
 | `minPrunableToolChars` | `50000` | Minimum total chars in prunable tool results before hard clear runs. Prevents aggressive clearing on small contexts. |
-| `softTrim.maxChars` | `4000` | Tool results longer than this are eligible for soft trim. |
-| `softTrim.headChars` | `1500` | Characters to keep from the start of a trimmed tool result. |
-| `softTrim.tailChars` | `1500` | Characters to keep from the end of a trimmed tool result. |
+| `softTrim.maxChars` | `6000` | Tool results longer than this are eligible for soft trim. |
+| `softTrim.headChars` | `3000` | Characters to keep from the start of a trimmed tool result. |
+| `softTrim.tailChars` | `3000` | Characters to keep from the end of a trimmed tool result. |
 | `hardClear.enabled` | `true` | Set to `false` to disable hard clear entirely (soft trim only). |
 | `hardClear.placeholder` | `"[Old tool result content cleared]"` | Replacement text for hard-cleared tool results. |
 
@@ -14661,12 +15011,12 @@ All other fields have sensible defaults and are optional.
 
 ## Configuration Examples
 
-### Disable pruning entirely
+### Enable pruning (minimum config)
 
 ```json
 {
   "contextPruning": {
-    "mode": "off"
+    "mode": "cache-ttl"
   }
 }
 ```
@@ -14678,6 +15028,7 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "softTrimRatio": 0.2,
     "hardClearRatio": 0.4,
     "softTrim": {
@@ -14694,6 +15045,7 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "hardClear": {
       "enabled": false
     }
@@ -14706,6 +15058,7 @@ Trigger earlier and keep less context per tool result:
 ```json
 {
   "contextPruning": {
+    "mode": "cache-ttl",
     "hardClear": {
       "placeholder": "[Tool output removed to save context]"
     }
@@ -14751,7 +15104,7 @@ Once the consolidation pipeline has promoted a body of knowledge to L0 (via drea
 
 **Pruning never triggers**
 
-Confirm that `mode` is not set to `"off"`. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
+Confirm that `mode` is set to `"cache-ttl"` — pruning is opt-in and disabled by default. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
 
 **Agent re-runs tools unexpectedly**
 
@@ -14761,13 +15114,32 @@ Hard clear removes tool result content entirely. If the agent needs that content
 
 Increase `softTrim.headChars` and `softTrim.tailChars`, or raise `softTrim.maxChars` so fewer results are eligible for trimming.
 
-**Context still overflows despite pruning**
+**Context still overflows despite pruning being enabled**
 
-Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](/sessions-and-history) or reduce the system prompt size.
+Pruning only acts on tool results. If long user messages or system prompt components dominate the context, pruning will not help. Consider [session compaction](../core-concepts/sessions-and-history.md) or reduce the system prompt size.
 
 ---
 
 ## Pipeline Improvements
+
+### Tiktoken BPE Token Counting
+
+GoClaw now uses the tiktoken BPE tokenizer for accurate token counting instead of the legacy `chars / 4` heuristic. This matters especially for CJK content (Vietnamese and Chinese characters), where the heuristic significantly underestimates token usage. With tiktoken enabled, all pruning ratios are calculated against actual token counts rather than character estimates.
+
+### Pass 0 Per-Result Guard
+
+Before normal pruning passes begin, any single tool result that exceeds **30% of the context window** is force-trimmed. This catches outlier outputs (e.g., a massive file read or API response) even when the overall context ratio is still below `softTrimRatio`. The trimmed result keeps a 70/30 head/tail split.
+
+### Media Tool Protection
+
+Results from `read_image`, `read_document`, `read_audio`, and `read_video` are handled specially:
+
+- They receive a higher soft trim budget: **headChars=4000, tailChars=4000** (vs. the standard 3000/3000).
+- They are **exempt from hard clear** — media descriptions are generated by dedicated vision/audio providers (Gemini, Anthropic) and cannot be regenerated without another LLM call.
+
+### MediaRefs Compaction
+
+During history compaction, up to **30 most recent `MediaRefs`** are preserved. This ensures the agent can still reference previously shared images and documents after compaction without losing track of media context.
 
 ### Structured Compaction Summary
 
@@ -14781,8 +15153,8 @@ Tool output is now capped at the source before being added to context. Rather th
 
 ## What's Next
 
-- [Sessions & History](/sessions-and-history) — session compaction, history limits
-- [Memory System](/memory-system) — 3-tier memory architecture and consolidation pipeline
+- [Sessions & History](../core-concepts/sessions-and-history.md) — session compaction, history limits
+- [Memory System](../core-concepts/memory-system.md) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
@@ -16002,236 +16374,340 @@ Permission for mutation actions (`set`, `toggle`, `set_checklist`) falls back to
 
 ---
 
-# Hooks & Quality Gates
+# Agent Hooks
 
-> Run automatic checks before or after agent actions — block bad output, require approval, or trigger custom validation logic.
+> Intercept, observe, or inject behavior at defined points in the agent loop — block unsafe tool calls, auto-audit after writes, inject session context, or notify on stop.
 
 ## Overview
 
-GoClaw's hook system lets you attach quality gates to agent lifecycle events. A hook is a check that runs at a specific event. Currently the only supported event is `delegation.completed`, which fires after a subagent finishes a delegated task. If the check fails, GoClaw can block the result and optionally retry with feedback.
+GoClaw's hook system attaches lifecycle handlers to agent sessions. Each hook targets a specific **event**, runs a **handler** (shell command, HTTP webhook, or LLM evaluator), and returns an **allow/block** decision for blocking events.
 
-Quality gates are configured in the **source agent's** `other_config` JSON under the `quality_gates` key. The source agent is the one that initiates the delegation (the orchestrator), not the target.
-
-Two evaluator types are available:
-
-| Type | How it validates |
-|------|-----------------|
-| `command` | Runs a shell command — exit 0 = pass, non-zero = fail |
-| `agent` | Delegates to a reviewer agent — `APPROVED` = pass, `REJECTED: ...` = fail |
+Hooks are stored in the `agent_hooks` DB table (migration `000052`) and managed via the `hooks.*` WebSocket methods or the **Hooks** panel in the Web UI.
 
 ---
 
-## Hook Config Fields
+## Concepts
 
-Quality gates are placed inside the source agent's `other_config` under the `quality_gates` array:
+### Events
 
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "./scripts/check-output.sh",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 60
-    }
-  ]
-}
-```
+Seven lifecycle events fire during an agent session:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `event` | string | Lifecycle event that triggers this hook — only `"delegation.completed"` is currently supported |
-| `type` | string | `"command"` or `"agent"` |
-| `command` | string | Shell command to run (type=command only) |
-| `agent` | string | Reviewer agent key (type=agent only) |
-| `block_on_failure` | bool | If `true`, a failing hook triggers retries; if `false`, failure is logged but execution continues |
-| `max_retries` | int | How many times to retry the target agent after a blocking failure (0 = no retry) |
-| `timeout_seconds` | int | Per-hook timeout (default 60s) |
+| Event | Blocking | When it fires |
+|---|---|---|
+| `session_start` | no | A new session is established |
+| `user_prompt_submit` | **yes** | Before the user's message enters the pipeline |
+| `pre_tool_use` | **yes** | Before any tool call executes |
+| `post_tool_use` | no | After a tool call completes |
+| `stop` | no | The agent session terminates normally |
+| `subagent_start` | **yes** | A sub-agent is spawned |
+| `subagent_stop` | no | A sub-agent finishes |
+
+**Blocking** events wait for the full hook chain to return an allow/block decision before the pipeline continues. Non-blocking events fire asynchronously for observation only.
+
+### Handler Types
+
+| Handler | Editions | Notes |
+|---|---|---|
+| `command` | Lite only | Local shell command; exit 2 → block, exit 0 → allow |
+| `http` | Lite + Standard | POST to endpoint; JSON body → decision. SSRF-protected |
+| `prompt` | Lite + Standard | LLM-based evaluation with structured tool-call output. Budget-bounded, requires `matcher` or `if_expr` |
+
+### Scopes
+
+- **global** — applies to all tenants. Master scope required to create.
+- **tenant** — applies to one tenant (any agent).
+- **agent** — applies to a specific agent within a tenant.
+
+Hooks resolve in priority order (highest first). A single `block` decision short-circuits the chain.
 
 ---
 
-## Engine Architecture
+## Execution Flow
 
 ```mermaid
 flowchart TD
-    EVENT["Lifecycle event fires\ne.g. delegation.completed"] --> ENGINE["Hook Engine\nmatches event to configs"]
-    ENGINE --> EVAL1["Evaluator 1\n(command or agent)"]
-    ENGINE --> EVAL2["Evaluator 2\n(command or agent)"]
-    EVAL1 -->|pass| NEXT["Continue"]
-    EVAL1 -->|fail + block| BLOCK["Block result\n(optionally retry with feedback)"]
-    EVAL1 -->|fail + non-block| LOG["Log warning\nContinue anyway"]
-    EVAL2 -->|pass| NEXT
+    EVENT["Lifecycle event fires\ne.g. pre_tool_use"] --> RESOLVE["Dispatcher resolves hooks\nby scope + event + priority"]
+    RESOLVE --> MATCH{"Matcher / if_expr\ncheck"}
+    MATCH -->|no match| SKIP["Skip hook"]
+    MATCH -->|matches| HANDLER["Run handler\n(command / http / prompt)"]
+    HANDLER -->|allow| NEXT["Continue chain"]
+    HANDLER -->|block| BLOCKED["Block operation\nFail-closed"]
+    HANDLER -->|timeout| TIMEOUT_DECISION{"OnTimeout\npolicy"}
+    TIMEOUT_DECISION -->|block| BLOCKED
+    TIMEOUT_DECISION -->|allow| NEXT
+    NEXT --> AUDIT["Write hook_executions row\n+ emit trace span"]
 ```
-
-The engine evaluates quality gates in order. A **blocking** failure triggers the retry loop for that gate (up to `max_retries`). If all retries are exhausted, GoClaw logs a warning and accepts the last result — it does not hard-fail the delegation. Non-blocking failures are logged but do not interrupt the flow. If all hooks pass (or none match the event), execution continues normally.
 
 ---
 
-## Command Evaluator
+## Handler Reference
 
-The command evaluator runs a shell command via `sh -c`. The content being validated is passed via **stdin**. Exit 0 means the hook passed; any other exit code means it failed. The stderr output becomes the feedback shown to the agent on retry.
-
-Environment variables available inside the command:
-
-| Variable | Value |
-|----------|-------|
-| `HOOK_EVENT` | The event name |
-| `HOOK_SOURCE_AGENT` | Key of the agent that produced the output |
-| `HOOK_TARGET_AGENT` | Key of the delegated-to agent |
-| `HOOK_TASK` | The original task string |
-| `HOOK_USER_ID` | User ID who triggered the request |
-
-**Example — basic content length check:**
-
-```bash
-#!/bin/sh
-# check-output.sh: fail if output is too short
-content=$(cat)
-length=${#content}
-if [ "$length" -lt 100 ]; then
-  echo "Output is too short ($length chars). Provide a more complete response." >&2
-  exit 1
-fi
-exit 0
-```
-
-Hook config:
+### command
 
 ```json
 {
-  "event": "delegation.completed",
-  "type": "command",
-  "command": "./scripts/check-output.sh",
-  "block_on_failure": true,
-  "max_retries": 1,
-  "timeout_seconds": 10
+  "handler_type": "command",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "config": {
+    "command": "bash /path/to/script.sh",
+    "allowed_env_vars": ["MY_VAR"],
+    "cwd": "/workspace"
+  }
+}
+```
+
+- **Stdin**: JSON-encoded event payload.
+- **Exit 0**: allow (optional `{"continue": false}` → block).
+- **Exit 2**: block.
+- **Other non-zero**: error → fail-closed for blocking events.
+- **Env allowlist**: only keys listed in `allowed_env_vars` are passed; prevents secret leakage.
+
+### http
+
+```json
+{
+  "handler_type": "http",
+  "event": "user_prompt_submit",
+  "scope": "tenant",
+  "config": {
+    "url": "https://example.com/webhook",
+    "headers": { "Authorization": "<AES-encrypted>" }
+  }
+}
+```
+
+- Method: POST, body = event JSON.
+- Authorization header values stored AES-256-GCM encrypted; decrypted at dispatch.
+- 1 MiB response cap. Retries once on 5xx with 1 s backoff; 4xx fail-closed.
+- Expected response body:
+  ```json
+  { "decision": "allow", "additionalContext": "...", "updatedInput": {}, "continue": true }
+  ```
+- Non-JSON 2xx → allow.
+
+### prompt
+
+```json
+{
+  "handler_type": "prompt",
+  "event": "pre_tool_use",
+  "scope": "tenant",
+  "matcher": "^(exec|shell|write_file)$",
+  "config": {
+    "prompt_template": "Evaluate safety of this tool call.",
+    "model": "haiku",
+    "max_invocations_per_turn": 5
+  }
+}
+```
+
+- `prompt_template` — system-level instruction the evaluator receives.
+- `matcher` or `if_expr` — required; prevents firing the LLM on every event.
+- Evaluator MUST call a `decide(decision, reason, injection_detected, updated_input)` tool. Free-text responses fail-closed.
+- Only `tool_input` reaches the evaluator (anti-injection sandboxing); raw user message is never included.
+
+---
+
+## Matchers
+
+| Field | Description |
+|---|---|
+| `matcher` | POSIX-ish regex applied to `tool_name`. Example: `^(exec|shell|write_file)$` |
+| `if_expr` | [cel-go](https://github.com/google/cel-go) expression over `{tool_name, tool_input, depth}`. Example: `tool_name == "exec" && size(tool_input.cmd) > 80` |
+
+Both optional for `command`/`http`. At least one required for `prompt`.
+
+---
+
+## Config Fields Reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `event` | string | yes | Lifecycle event name |
+| `handler_type` | string | yes | `command`, `http`, or `prompt` |
+| `scope` | string | yes | `global`, `tenant`, or `agent` |
+| `name` | string | no | Human-readable label |
+| `matcher` | string | no | Tool name regex filter |
+| `if_expr` | string | no | CEL expression filter |
+| `timeout_ms` | int | no | Per-hook timeout (default 5000, max 10000) |
+| `on_timeout` | string | no | `block` (default) or `allow` |
+| `priority` | int | no | Higher = runs first (default 0) |
+| `enabled` | bool | no | Default true |
+| `config` | object | yes | Handler-specific sub-config |
+| `agent_ids` | array | no | Restrict to specific agent UUIDs (scope=agent) |
+
+---
+
+## Security Model
+
+- **Edition gating**: `command` handler blocked on Standard at both config-time and dispatch-time (defense in depth).
+- **Tenant isolation**: all reads/writes scope by `tenant_id` unless caller is in master scope. Global hooks use a sentinel tenant id.
+- **SSRF protection**: HTTP handler validates URLs before request, pins resolved IP, blocks loopback/link-local/private ranges.
+- **PII redaction**: audit rows truncate error text to 256 chars; full error encrypted (AES-256-GCM) in `error_detail`.
+- **Fail-closed**: any unhandled error in a blocking event yields `block`. Timeouts respect `on_timeout` (default `block` for blocking events).
+- **Circuit breaker**: 5 consecutive blocks/timeouts in a 1-minute rolling window auto-disables the hook (`enabled=false`).
+- **Loop detection**: sub-agent hook chains bounded at depth 3.
+
+---
+
+## Safeguards Summary
+
+| Safeguard | Default | Overridable per hook |
+|---|---|---|
+| Per-hook timeout | 5 s | yes (`timeout_ms`, max 10 s) |
+| Chain budget | 10 s | no |
+| Circuit threshold | 5 blocks in 1 minute | no |
+| Prompt per-turn cap | 5 invocations | yes (`max_invocations_per_turn`) |
+| Prompt decision cache TTL | 60 s | no |
+| Tenant monthly token budget | 1,000,000 tokens | seeded per tenant in `tenant_hook_budget` |
+
+---
+
+## Managing Hooks via WebSocket
+
+All CRUD is available over the `hooks.*` WS methods (see [WebSocket Protocol](/websocket-protocol#hooks)).
+
+**Create a hook:**
+```json
+{
+  "type": "req", "id": "1", "method": "hooks.create",
+  "params": {
+    "event": "pre_tool_use",
+    "handler_type": "http",
+    "scope": "tenant",
+    "name": "Safety webhook",
+    "matcher": "^exec$",
+    "config": { "url": "https://safety.internal/check" }
+  }
+}
+```
+
+Response:
+```json
+{ "type": "res", "id": "1", "ok": true, "payload": { "hookId": "uuid..." } }
+```
+
+**Toggle a hook on/off:**
+```json
+{ "type": "req", "id": "2", "method": "hooks.toggle",
+  "params": { "hookId": "uuid...", "enabled": false } }
+```
+
+**Dry-run test (no audit row written):**
+```json
+{
+  "type": "req", "id": "3", "method": "hooks.test",
+  "params": {
+    "config": { "event": "pre_tool_use", "handler_type": "command",
+                "scope": "tenant", "config": { "command": "cat" } },
+    "sampleEvent": { "toolName": "exec", "toolInput": { "cmd": "ls" } }
+  }
 }
 ```
 
 ---
 
-## Agent Evaluator
+## Web UI Walkthrough
 
-The agent evaluator delegates to a reviewer agent. GoClaw sends a structured prompt with the original task, source/target agent keys, and the output to review. The reviewer must reply with exactly:
+Navigate to **Hooks** in the sidebar.
 
-- `APPROVED` (optionally followed by comments) — hook passes
-- `REJECTED: <specific feedback>` — hook fails; the feedback is used as the retry prompt
-
-The evaluation runs with hooks skipped (`WithSkipHooks`) to prevent infinite recursion.
-
-**Example — code review gate:**
-
-```json
-{
-  "event": "delegation.completed",
-  "type": "agent",
-  "agent": "code-reviewer",
-  "block_on_failure": true,
-  "max_retries": 2,
-  "timeout_seconds": 120
-}
-```
-
-The `code-reviewer` agent receives a prompt like:
-
-```
-[Quality Gate Evaluation]
-You are reviewing the output of a delegated task for quality.
-
-Original task: Write a Go function to parse JSON...
-Source agent: orchestrator
-Target agent: backend-dev
-
-Output to evaluate:
-<agent output here>
-
-Respond with EXACTLY one of:
-- "APPROVED" if the output meets quality standards
-- "REJECTED: <specific feedback>" with actionable improvement suggestions
-```
+1. **Create** — pick event, handler type (`command` greyed out on Standard edition), scope, matcher, then fill the handler-specific sub-form.
+2. **Test panel** — fires the hook with a sample event (`dryRun=true`, no audit row written). Shows decision badge, duration, stdout/stderr (command), status code (http), reason (prompt). If the response includes `updatedInput`, a side-by-side JSON diff is rendered.
+3. **History tab** — paginated executions from `hook_executions`.
+4. **Overview tab** — summary card with event, type, scope, matcher.
 
 ---
 
-## Use Cases
+## Database Schema
 
-**Content filtering** — block replies containing prohibited content using a command hook that greps for banned patterns.
+Three tables land with migration `000052_agent_hooks`:
 
-**Length/format validation** — reject outputs that are too short, missing required sections, or have wrong formatting.
+**`agent_hooks`** — hook definitions:
 
-**Approval workflows** — use an `agent` hook wired to a strict reviewer agent that checks correctness before a result is accepted.
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | — |
+| `tenant_id` | UUID FK | sentinel UUID for global scope |
+| `agent_ids` | UUID[] | empty = applies to all agents in scope |
+| `event` | VARCHAR(32) | one of the 7 event names |
+| `handler_type` | VARCHAR(16) | `command`, `http`, `prompt` |
+| `scope` | VARCHAR(16) | `global`, `tenant`, `agent` |
+| `config` | JSONB | handler sub-config |
+| `matcher` | TEXT | tool name regex (optional) |
+| `if_expr` | TEXT | CEL expression (optional) |
+| `timeout_ms` | INT | default 5000 |
+| `on_timeout` | VARCHAR(16) | `block` or `allow` |
+| `priority` | INT | higher fires first |
+| `enabled` | BOOL | circuit breaker writes false here |
+| `version` | INT | increments on update; busts prompt cache |
+| `source` | VARCHAR(16) | `builtin` (read-only) or `user` |
 
-**Security scanning** — run a script that checks generated code or shell commands for dangerous patterns before execution.
+**`hook_executions`** — audit log:
 
-**Non-blocking audit** — set `block_on_failure: false` to log all outputs to an audit system without blocking the flow.
+| Column | Notes |
+|---|---|
+| `hook_id` | `ON DELETE SET NULL` — executions preserved after hook deletion |
+| `dedup_key` | Unique index prevents double rows on retry |
+| `error` | Truncated to 256 chars |
+| `error_detail` | BYTEA, AES-256-GCM encrypted full error |
+| `metadata` | JSONB: `matcher_matched`, `cel_eval_result`, `stdout_len`, `http_status`, `prompt_model`, `prompt_tokens`, `trace_id` |
 
----
-
-## Examples
-
-**Two-gate setup: format check then agent review** (source agent's `other_config`):
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "python3 ./scripts/validate-format.py",
-      "block_on_failure": true,
-      "max_retries": 0,
-      "timeout_seconds": 15
-    },
-    {
-      "event": "delegation.completed",
-      "type": "agent",
-      "agent": "quality-reviewer",
-      "block_on_failure": true,
-      "max_retries": 2,
-      "timeout_seconds": 90
-    }
-  ]
-}
-```
-
-**Non-blocking audit logger** (source agent's `other_config`):
-
-```json
-{
-  "quality_gates": [
-    {
-      "event": "delegation.completed",
-      "type": "command",
-      "command": "curl -s -X POST https://audit.internal/log -d @-",
-      "block_on_failure": false,
-      "timeout_seconds": 5
-    }
-  ]
-}
-```
+**`tenant_hook_budget`** — per-tenant monthly token limits (prompt handler only).
 
 ---
 
-## Common Issues
+## Observability
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| `hooks: unknown hook type, skipping` | Typo in `type` field | Use `"command"` or `"agent"` exactly |
-| Command always passes even with exit 1 | Wrapper script swallows exit code | Ensure script doesn't have `|| true` masking failures |
-| Agent evaluator hangs | Reviewer agent slow or stuck | Set `timeout_seconds` to a reasonable value |
-| Retries exhaust but flow continues | Expected behavior — GoClaw accepts the last result after max retries and logs a warning | Lower `max_retries` or fix the quality gate condition |
-| Hooks fire on reviewer agent itself | Recursion | GoClaw injects `WithSkipHooks` for agent evaluator calls automatically |
-| Non-blocking hook blocks anyway | `block_on_failure: true` set accidentally | Check config; set to `false` for observe-only hooks |
+Every hook execution emits a trace span named `hook.<handler_type>.<event>` (e.g. `hook.prompt.pre_tool_use`) with fields: `status`, `duration_ms`, `metadata.decision`, `parent_span_id`.
+
+Slog keys:
+- `security.hook.circuit_breaker` — breaker tripped.
+- `security.hook.audit_write_failed` — audit row write error.
+- `security.hook.loop_depth_exceeded` — `MaxLoopDepth` violation.
+- `security.hook.prompt_parse_error` — evaluator returned malformed structured output.
+- `security.hook.budget_deduct_failed` / `budget_precheck_failed` — budget store error.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| HTTP hook always returns `error` | SSRF block on loopback | Use a public/internal URL accessible from the gateway process |
+| Prompt hook blocks everything | Evaluator returning free-text (no tool call) | Review `prompt_template`; keep it short + imperative |
+| Hook stopped firing | Circuit breaker tripped (5 blocks/min) | Fix upstream cause, then re-enable: `hooks.toggle { enabled: true }` |
+| UI `command` radio greyed out | Standard edition | Use `http` or `prompt`, or upgrade to Lite |
+| Per-turn cap hit | `max_invocations_per_turn` too low | Raise in hook config; tighten `matcher` to reduce LLM calls |
+| Budget exceeded | Tenant spent monthly token budget | Raise `tenant_hook_budget.budget_total` or wait for rollover |
+| `handler_type, event, and scope are required` | Missing fields in create payload | Include all three required fields |
+
+---
+
+## Migration from Old Quality Gates
+
+Prior to the hooks system, delegation quality gates were configured inline in the source agent's `other_config.quality_gates` array. That system supported only `delegation.completed` events and two handler types (`command`, `agent`).
+
+The new hooks system replaces it with:
+
+| Old | New |
+|---|---|
+| `other_config.quality_gates[].event: "delegation.completed"` | `subagent_stop` (non-blocking) or `subagent_start` (blocking) |
+| `other_config.quality_gates[].type: "command"` | `handler_type: "command"` (Lite) or `handler_type: "http"` (Standard) |
+| `other_config.quality_gates[].type: "agent"` | `handler_type: "prompt"` with an LLM evaluator |
+| `block_on_failure: true` + `max_retries` | Built-in blocking semantics; no retry loop needed (block is immediate) |
+
+No data migration required when upgrading from a pre-hooks release. Migration `000052_agent_hooks` creates all three tables cleanly.
 
 ---
 
 ## What's Next
 
-- [Extended Thinking](/extended-thinking) — deeper reasoning before producing output
+- [WebSocket Protocol](/websocket-protocol) — full `hooks.*` method reference
 - [Exec Approval](/exec-approval) — human-in-the-loop approval for shell commands
+- [Extended Thinking](/extended-thinking) — deeper reasoning before producing output
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: hooks-rewrite | updated: 2026-04-17 -->
 
 ---
 
@@ -16632,8 +17108,8 @@ When an agent uses `vault_search`, the VaultSearchService fans out to **both** t
 ## What's Next
 
 - [Knowledge Vault](knowledge-vault.md) — Document-level knowledge store with wikilinks and semantic search
-- [Memory System](/memory-system) — Vector-based long-term memory
-- [Sessions & History](/sessions-and-history) — Conversation storage
+- [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
+- [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation storage
 
 <!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
 
@@ -16656,8 +17132,9 @@ Knowledge Vault is a **v3-only** feature. It sits between agents and the episodi
 | **VaultStore** | Document CRUD, link management, hybrid FTS + vector search |
 | **VaultService** | Search coordinator: fan-out across vault, episodic, and KG stores with weighted ranking |
 | **VaultSyncWorker** | Filesystem watcher: detects file changes (create/write/delete), syncs content hashes |
+| **EnrichWorker** | Processes vault document upsert events to generate summaries, embeddings, and semantic links |
 | **VaultRetriever** | Bridges vault search into the agent L0 memory system |
-| **HTTP Handlers** | REST endpoints: list, get, search, links |
+| **HTTP Handlers** | REST endpoints: list, get, search, links, tree, graph |
 
 ### Data Flow
 
@@ -16702,28 +17179,27 @@ Registry of document metadata. Content lives on the filesystem; the registry sto
 |--------|------|-------|
 | `id` | UUID | Primary key |
 | `tenant_id` | UUID | Multi-tenant isolation |
-| `agent_id` | UUID | Per-agent namespace |
+| `agent_id` | UUID | Per-agent namespace; **nullable** for team-scoped or tenant-shared files (migration 046) |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
 | `path` | TEXT | Workspace-relative path (e.g., `workspace/notes/foo.md`) |
 | `title` | TEXT | Display name |
-| `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic` |
+| `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic`, `image`, `video`, `audio`, `document` |
 | `content_hash` | TEXT | SHA-256 of file content (change detection) |
 | `embedding` | vector(1536) | pgvector semantic similarity |
-| `tsv` | tsvector | GIN FTS index on title + path |
+| `tsv` | tsvector | GIN FTS index on title + path + summary |
 | `metadata` | JSONB | Optional custom fields |
-
-Unique constraint: `(agent_id, scope, path)` — one document per path per scope.
 
 ### vault_links
 
-Bidirectional links between documents (wikilinks, explicit references).
+Bidirectional links between documents (wikilinks, explicit references, and enrichment-generated semantic links).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `from_doc_id` | UUID | Source document |
 | `to_doc_id` | UUID | Target document |
-| `link_type` | TEXT | `wikilink`, `reference`, etc. |
+| `link_type` | TEXT | `wikilink`, `reference`, `depends_on`, `extends`, `related`, `supersedes`, `contradicts`, `task_attachment`, `delegation_attachment` |
 | `context` | TEXT | ~50-char surrounding text snippet |
+| `metadata` | JSONB | Extra metadata from enrichment pipeline (migration 048) |
 
 Unique constraint: `(from_doc_id, to_doc_id, link_type)` — no duplicate links.
 
@@ -16822,6 +17298,69 @@ Results are normalized per source (max score = 1.0), weighted, merged, deduplica
 
 ---
 
+## Enrichment Pipeline
+
+After each document upsert, **EnrichWorker** processes the event asynchronously to enrich vault documents with summaries, embeddings, and semantic links.
+
+### What EnrichWorker does
+
+1. Generates a text summary of the document content
+2. Computes a vector embedding for semantic search
+3. Classifies semantic relationships to other documents in the vault and creates `vault_link` rows
+
+### Semantic link types
+
+The classifier produces links with one of six relationship types:
+
+| Type | Meaning |
+|------|---------|
+| `reference` | Document cites another as a source |
+| `depends_on` | Document requires another to be meaningful |
+| `extends` | Document adds to or builds upon another |
+| `related` | General topical relationship |
+| `supersedes` | Document replaces or obsoletes another |
+| `contradicts` | Document conflicts with another |
+
+### Special attachment link types
+
+Two additional link types are created by the task/delegation system rather than the classifier:
+
+- `task_attachment` — links a vault document to a team task it was attached to
+- `delegation_attachment` — links a vault document to a delegation it was attached to
+
+These are not affected by enrichment cleanup or rescan.
+
+### Enrichment progress
+
+Real-time enrichment progress is broadcast as WebSocket events. The UI shows per-document status while the worker runs.
+
+### Stop and rescan controls
+
+From the UI (or REST API), users can:
+- **Stop enrichment** — halts the EnrichWorker for the current tenant
+- **Trigger rescan** — re-queues all vault documents for re-enrichment (useful after model or config changes)
+
+---
+
+## Media Document Support
+
+The vault accepts binary and media files in addition to text documents. Supported file types are controlled by an extension whitelist.
+
+### doc_type values for media files
+
+| `doc_type` | Used for |
+|-----------|---------|
+| `image` | PNG, JPG, GIF, WEBP, SVG, etc. |
+| `video` | MP4, MOV, AVI, etc. |
+| `audio` | MP3, WAV, OGG, etc. |
+| `document` | PDF, DOCX, XLSX, etc. |
+
+### Synthetic summaries for media
+
+Because media files cannot be read as text, the vault uses `SynthesizeMediaSummary()` to generate a deterministic semantic summary from the filename and parent folder context. No LLM call is needed. The summary is stored in `vault_documents.summary` and included in the FTS index, enabling keyword discovery of media files by name and location.
+
+---
+
 ## Agent Tools
 
 ### vault_search
@@ -16837,19 +17376,7 @@ Primary discovery tool. Searches across vault, episodic memory, and Knowledge Gr
 }
 ```
 
-### vault_link
-
-Creates an explicit link between two documents (similar to a wikilink, but programmatic).
-
-```json
-{
-  "from": "docs/auth.md",
-  "to": "SOUL.md",
-  "context": "Persona reference"
-}
-```
-
-The `from` and `to` fields are workspace-relative paths. `context` is an optional relationship description stored in `vault_links.context`.
+> **Note on linking:** Explicit document linking is now handled automatically by the enrichment pipeline. The `vault_link` agent tool has been removed. Links are created via wikilink syntax in document content (`[[target]]`) or generated semantically by EnrichWorker. You can view links via `GET /v1/agents/{agentID}/vault/documents/{docID}/links`.
 
 ---
 
@@ -16866,11 +17393,19 @@ All endpoints require `Authorization: Bearer <token>`.
 | `POST` | `/v1/agents/{agentID}/vault/search` | Unified search |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Outlinks + backlinks |
 
-### Cross-Agent Endpoint
+### Cross-Agent Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | List across all tenant agents (filter by `agent_id`) |
+| `GET` | `/v1/vault/tree` | Tree view of vault structure |
+| `GET` | `/v1/vault/graph` | Cross-tenant graph visualization (node limit: 2000, FA2 layout) |
+
+### Enrichment Control Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/vault/enrichment/stop` | Stop the enrichment worker |
 
 ### Example: Unified Search
 
@@ -16935,12 +17470,23 @@ GET /v1/agents/agent-123/vault/documents/doc-456/links
 
 ---
 
+## Recent Migrations
+
+| Migration | Name | What changed |
+|-----------|------|--------------|
+| 046 | `vault_nullable_agent_id` | Makes `vault_documents.agent_id` nullable for team-scoped and tenant-shared files |
+| 048 | `vault_media_linking` | Adds `base_name` generated column on `team_task_attachments`; adds `metadata JSONB` on `vault_links`; fixes CASCADE FK constraints |
+| 049 | `vault_path_prefix_index` | Adds concurrent index `idx_vault_docs_path_prefix` with `text_pattern_ops` for fast prefix queries |
+
+---
+
 ## Requirements
 
 - **PostgreSQL** with `pgvector` extension (embeddings)
 - **Migration** `000038_vault_tables` must have run successfully
 - **VaultStore** initialized during gateway startup
 - **VaultSyncWorker** started for filesystem sync
+- **EnrichWorker** started for automatic enrichment (summaries, embeddings, semantic links)
 
 No feature flag. Vault is active if the migration ran and VaultStore initialized.
 
@@ -16959,10 +17505,10 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 ## What's Next
 
 - [Knowledge Graph](knowledge-graph.md) — Entity and relation graph auto-extracted from conversations
-- [Memory System](/memory-system) — Vector-based long-term memory
-- [Context Files](/context-files) — Static documents injected into agent context
+- [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
+- [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
+<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->
 
 ---
 
@@ -18293,7 +18839,7 @@ goclaw cron delete <jobId>
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Slug label — lowercase letters, numbers, hyphens only (e.g. `daily-report`) |
+| `name` | string | Slug label — lowercase letters, numbers, hyphens only (e.g. `daily-report`). Must be unique per agent and tenant — duplicate names are automatically deduplicated |
 | `agentId` | string | Agent UUID to run the job (omit for default agent) |
 | `enabled` | bool | `true` = active, `false` = paused |
 | `schedule.kind` | string | `at`, `every`, or `cron` |
@@ -18507,6 +19053,7 @@ When a session's conversation history exceeds **60% of the context window**, the
 | `invalid timezone` | Unknown IANA zone string | Use a valid zone from the IANA tz database, e.g. `America/New_York` |
 | Job runs but agent gets no message | `message` field is empty | Set a non-empty `message` |
 | `name` validation error | Name not a valid slug | Use lowercase letters, numbers, and hyphens only (e.g. `daily-report`) |
+| Duplicate job name | Same `name` already exists for this agent and tenant | Job names must be unique per `(agent_id, tenant_id, name)` — each agent/tenant pair enforces this as a unique constraint (migration 047). Use a different name or update the existing job |
 | Duplicate executions | Clock skew between restarts (edge case) | The scheduler clears `next_run_at` in the DB before dispatch; on restart, stale jobs are recomputed automatically |
 | Run log is empty | Job hasn't fired yet | Trigger manually via `cron.run` method with `mode: "force"` |
 
@@ -18538,7 +19085,7 @@ GoClaw runs an internal background cron for the v3 agent evolution engine. This 
 - [Skills](/skills) — inject domain knowledge so scheduled agents are more effective
 - [Sandbox](/sandbox) — isolate code execution during scheduled agent runs
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
 
 ---
 
@@ -18622,18 +19169,28 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
 
 ## Uploading via Dashboard
 
-Go to **Skills → Upload** and drop a ZIP file. The ZIP must contain a single skill with `SKILL.md` either at root or inside one top-level directory:
+Go to **Skills → Upload** and drop a ZIP file. The ZIP can contain a **single skill** or **multiple skills** in one archive:
 
 ```
-# SKILL.md at root
+# Single skill — SKILL.md at root
 my-skill.zip
 └── SKILL.md
 
-# or wrapped in a single directory
+# Single skill — wrapped in one directory
 my-skill.zip
 └── code-reviewer/
     ├── SKILL.md
     └── review-checklist.md
+
+# Multi-skill ZIP — multiple skills in one upload
+skills-bundle.zip
+└── skills/
+    ├── code-reviewer/
+    │   ├── SKILL.md
+    │   └── metadata.json
+    └── sql-style/
+        ├── SKILL.md
+        └── metadata.json
 ```
 
 Uploaded skills are stored in a versioned subdirectory structure under the managed skills directory (`~/.goclaw/skills-store/` by default):
@@ -18645,6 +19202,52 @@ Uploaded skills are stored in a versioned subdirectory structure under the manag
 Metadata (name, description, visibility, grants) lives in PostgreSQL; file content lives on disk. GoClaw always serves the highest-numbered version. Old versions are kept for rollback.
 
 Skills uploaded via the Dashboard start with **internal** visibility — immediately accessible to any agent or user you grant access to.
+
+## Importing via API
+
+The `POST /v1/skills/import` endpoint accepts the same ZIP format as the Dashboard upload and supports both single and multi-skill archives.
+
+**Standard import (JSON response):**
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@skills-bundle.zip"
+```
+
+Returns a `SkillsImportSummary` JSON object:
+
+```json
+{
+  "skills_imported": 2,
+  "skills_skipped": 0,
+  "grants_applied": 3
+}
+```
+
+**Streaming import with SSE progress (`?stream=true`):**
+
+```bash
+curl -X POST "http://localhost:8080/v1/skills/import?stream=true" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: text/event-stream" \
+  -F "file=@skills-bundle.zip"
+```
+
+With `?stream=true`, the server sends Server-Sent Events (SSE) as each skill is processed:
+
+```
+event: progress
+data: {"phase":"skill","status":"running","detail":"code-reviewer"}
+
+event: progress
+data: {"phase":"skill","status":"done","detail":"code-reviewer"}
+
+event: complete
+data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
+```
+
+**Hash-based idempotency:** The upload endpoint uses a SHA-256 hash of the `SKILL.md` content for deduplication. If the same `SKILL.md` content is uploaded again (even packaged in a different ZIP), no new version is created — the existing version is kept unchanged. Only changes to the actual `SKILL.md` content trigger a new version.
 
 ## Runtime Environment
 
@@ -18879,7 +19482,7 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 | Changes not picked up | Watcher not started (non-Docker setups) | Restart GoClaw; verify `skills watcher started` in logs |
 | Lower-priority skill used instead of yours | Name collision — slug exists at a higher tier | Use a unique slug, or place your skill at a higher-priority location |
 | `skill_search` returns no results | Index not built yet (first request) or no description in frontmatter | Add a `description` to frontmatter; index rebuilds on next hot-reload |
-| ZIP upload fails | No `SKILL.md` found in ZIP | Place `SKILL.md` at ZIP root or inside one top-level directory |
+| ZIP upload fails | No `SKILL.md` found in ZIP | Place `SKILL.md` at ZIP root, inside one top-level directory, or use the multi-skill `skills/<slug>/SKILL.md` layout |
 
 ## What's Next
 
@@ -18887,7 +19490,7 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
 
 ---
 
@@ -18971,6 +19574,17 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`. Default m
 ```
 
 Find voice IDs in your [ElevenLabs voice library](https://elevenlabs.io/voice-library). Default model: `eleven_multilingual_v2`.
+
+#### ElevenLabs Model Variants
+
+| Model ID | Characteristic | Best For |
+|----------|---------------|---------|
+| `eleven_v3` | Latest flagship (Nov 2025), highest quality | Premium voice, complex speech |
+| `eleven_multilingual_v2` | High-quality, 29 languages | Default; multilingual content |
+| `eleven_turbo_v2_5` | Cost-optimized, fast | High-volume, budget-conscious |
+| `eleven_flash_v2_5` | Lowest latency, 32 languages | Real-time / interactive use |
+
+Only these four model IDs are accepted — unknown IDs are rejected at the gateway boundary.
 
 ---
 
@@ -19113,6 +19727,36 @@ pip install edge-tts
 
 ---
 
+## Agent-Level Voice Config
+
+Each agent can override the global TTS voice and model via its `other_config` JSONB field. This lets different agents use different voices without changing the system-wide config.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `tts_voice_id` | string | ElevenLabs voice ID for this agent |
+| `tts_model_id` | string | ElevenLabs model ID for this agent (must be an [allowed model](#elevenlabs-model-variants)) |
+
+**Resolution order:** CLI args → agent `other_config` → tenant override → provider default.
+
+**Example** — set a distinct voice per agent via the Web UI or API:
+
+```json
+{
+  "other_config": {
+    "tts_voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "tts_model_id": "eleven_flash_v2_5"
+  }
+}
+```
+
+---
+
+## STT Builtin Tool
+
+The `stt` builtin tool (seeded by migration 050) enables agents to transcribe voice/audio input using ElevenLabs Scribe or a compatible proxy — see [Tools Overview](/tools-overview) for how to enable and configure it.
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -19132,7 +19776,7 @@ pip install edge-tts
 - [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
 
 ---
 
@@ -21316,7 +21960,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **44**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **55**.
 
 ```mermaid
 graph LR
@@ -21529,6 +22173,17 @@ These migrations are applied automatically via `./goclaw upgrade`. They constitu
 | 042 | Adds `summary` column to `vault_documents`; rebuilds FTS |
 | 043 | Adds `team_id`, `custom_scope` to `vault_documents` and 9 other tables; team-safe unique constraint; scope-fix trigger |
 | 044 | Seeds `AGENTS_CORE.md` and `AGENTS_TASK.md` context files for all agents; removes `AGENTS_MINIMAL.md` |
+| 045 | `episodic_recall_tracking` — adds `recall_count`, `recall_score`, `last_recalled_at` to `episodic_summaries`; partial index for priority-based episode promotion in the dreaming worker |
+| 046 | `vault_nullable_agent_id` — makes `vault_documents.agent_id` nullable to support team-scoped and tenant-shared vault files |
+| 047 | `cron_jobs_unique_constraint` — adds unique constraint per `(agent_id, tenant_id, name)` and deduplicates existing rows |
+| 048 | `vault_media_linking` — adds `base_name` generated column on `team_task_attachments`, `metadata JSONB` on `vault_links`, fixes CASCADE FK constraints |
+| 049 | `vault_path_prefix_index` — adds concurrent index `idx_vault_docs_path_prefix` with `text_pattern_ops` for fast prefix queries |
+| 050 | Seeds the `stt` (Speech-to-Text) tool into `builtin_tools`. See [TTS & Voice](/advanced/tts-voice) for configuration. `ON CONFLICT DO NOTHING` — customized settings are preserved. |
+| 051 | Backfills `mode: "cache-ttl"` into `agents.context_pruning` for agents that already had a custom `context_pruning` object but were missing the `mode` field. **Pruning remains opt-in globally** — this migration only sets `mode` for agents that had custom config without it; no agents are silently enrolled into pruning. |
+| 052 | New agent hooks system: creates `agent_hooks`, `hook_executions`, and `tenant_hook_budget` tables. See [Hooks & Quality Gates](/advanced/hooks-quality-gates). |
+| 053 | Extends `agent_hooks`: adds `script` handler type (goja-backed inline scripts) and `builtin` source marker; drops per-scope uniqueness indexes to allow multiple hooks per event. |
+| 054 | Adds `name` column to `agent_hooks` for user-facing labels; introduces `agent_hook_agents` N:M junction table (replaces single `agent_id` FK); migrates existing agent assignments; renames tables `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`. |
+| 055 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents`. Enforces: `personal` scope requires `agent_id NOT NULL`, `team` scope requires `team_id NOT NULL`, `shared` scope requires both NULL, `custom` is unconstrained. Run `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;` after auditing legacy rows. |
 
 #### Breaking Changes in v3
 
@@ -21617,7 +22272,7 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
 
 ---
 
@@ -22139,7 +22794,7 @@ support (predefined)
 - [Open vs. Predefined](/open-vs-predefined) — deep dive on context isolation
 - [Summoning & Bootstrap](/summoning-bootstrap) — how personality is auto-generated
 - [Team Chatbot](/recipe-team-chatbot) — coordinate multiple specialists via a team
-- [Context Files](/context-files) — full reference for SOUL.md, USER.md, and friends
+- [Context Files](../agents/context-files.md) — full reference for SOUL.md, USER.md, and friends
 
 <!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
 
@@ -23932,6 +24587,25 @@ When a group accumulates more pending messages than `threshold`, older messages 
 | `web.duckduckgo.enabled` | boolean | `true` | Enable DuckDuckGo fallback |
 | `web.duckduckgo.max_results` | integer | `5` | Max search results |
 
+### `tools.web_search`
+
+Web search provider configuration. These settings are part of the 4-tier tenant settings overlay system for built-in tools — they can be set at the system, tenant, agent, or user level.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `provider_order` | string[] | — | Priority-ordered list of search providers. GoClaw tries each in order and falls back to the next on failure. Example: `["exa", "tavily", "brave", "duckduckgo"]` |
+
+**Available providers:**
+
+| Provider | API key required | Notes |
+|----------|-----------------|-------|
+| `exa` | Yes | Exa AI neural search |
+| `tavily` | Yes | Tavily search API |
+| `brave` | Yes | Brave Search API |
+| `duckduckgo` | No | Free fallback, always last resort |
+
+> **DuckDuckGo fallback:** `duckduckgo` is always tried last if no other provider in `provider_order` succeeds, even if not listed explicitly. No API key is required for DuckDuckGo.
+
 ### `tools.web_fetch`
 
 | Field | Type | Default | Description |
@@ -24240,7 +24914,7 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
 
 ---
 
@@ -24259,7 +24933,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **47**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **55**.
 
 ### v3 Store Unification
 
@@ -25269,6 +25943,14 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 45 | Adds `recall_count`, `recall_score`, `last_recalled_at` to `episodic_summaries`; partial index `idx_episodic_recall_unpromoted` on `(agent_id, user_id, recall_score DESC)` where `promoted_at IS NULL` |
 | 46 | Makes `vault_documents.agent_id` nullable for team-scoped and tenant-shared files; FK on delete changes from CASCADE to SET NULL; replaces unique index with tenant_id-leading + COALESCE; adds `trg_vault_docs_agent_null_scope_fix` trigger; partial index `idx_vault_docs_agent_scope` |
 | 47 | Adds unique constraint `uq_cron_jobs_agent_tenant_name` on `cron_jobs(agent_id, tenant_id, name)` after dedup; adds `path_basename` generated column and `idx_vault_docs_basename` index to `vault_documents` |
+| 48 | `vault_media_linking` — adds `base_name` generated column `lower(regexp_replace(file_path, '.+/', ''))` to `team_task_attachments` for basename-based vault linking; adds `metadata JSONB NOT NULL DEFAULT '{}'` to `vault_links` for enrichment pipeline metadata; fixes CASCADE FK constraints on vault-related tables |
+| 49 | `vault_path_prefix_index` — adds concurrent index `idx_vault_docs_path_prefix` on `vault_documents(path text_pattern_ops)` for fast `LIKE 'prefix%'` queries |
+| 50 | Seeds `stt` row into `builtin_tools` (Speech-to-Text via ElevenLabs Scribe or proxy); `ON CONFLICT DO NOTHING` preserves user-customized settings |
+| 51 | Backfills `mode: "cache-ttl"` into `agents.context_pruning` for agents that had custom context_pruning config without a `mode` field; does **not** change the global default — pruning remains opt-in |
+| 52 | Agent hooks system — creates `agent_hooks`, `hook_executions`, and `tenant_hook_budget` tables |
+| 53 | Extends `agent_hooks`: relaxes `handler_type` CHECK to add `'script'`; extends `source` CHECK to add `'builtin'`; drops per-scope uniqueness indexes (scripts routinely add many hooks per event) |
+| 54 | Adds `name VARCHAR(255)` column to `agent_hooks`; creates `agent_hook_agents` N:M junction table; migrates existing `agent_id` FK to junction; renames `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`; drops deprecated `agent_id` column from `hooks` |
+| 55 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents` enforcing scope/agent_id/team_id coherence: `personal` requires `agent_id NOT NULL`, `team` requires `team_id NOT NULL`, `shared` requires both NULL, `custom` is unconstrained |
 
 ---
 
@@ -25440,26 +26122,38 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 
 **Unique:** `(tenant_id, COALESCE(agent_id, '00000000-0000-0000-0000-000000000000'), COALESCE(team_id, '00000000-0000-0000-0000-000000000000'), scope, path)` (migration 046 replaced migration 043's unique to support nullable `agent_id`)
 
-**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047)
+**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047), `idx_vault_docs_path_prefix` on `(path text_pattern_ops)` (migration 049 — fast `LIKE 'prefix%'` queries)
 
 > **Triggers:**
 > - `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
 > - `trg_vault_docs_agent_null_scope_fix` — when `agent_id` is set to NULL (agent deleted) and no team is set, `scope` is reset to `'shared'` (migration 046).
 
+> **Constraint (migration 055):** `vault_documents_scope_consistency` CHECK (NOT VALID) enforces scope/ownership coherence:
+> ```sql
+> CHECK (
+>     (scope = 'personal' AND agent_id IS NOT NULL AND team_id IS NULL) OR
+>     (scope = 'team'     AND team_id  IS NOT NULL AND agent_id IS NULL) OR
+>     (scope = 'shared'   AND agent_id IS NULL     AND team_id  IS NULL) OR
+>     scope = 'custom'
+> ) NOT VALID
+> ```
+> Added as `NOT VALID` to avoid locking the table during the upgrade. Run `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;` after auditing any legacy rows.
+
 ---
 
 ### `vault_links`
 
-Bidirectional wikilink-style connections between vault documents. (migration 038; `custom_scope` added migration 043)
+Bidirectional wikilink-style connections between vault documents. (migration 038; `custom_scope` added migration 043; `metadata` added migration 048)
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | UUID | PK DEFAULT gen_random_uuid() | |
 | `from_doc_id` | UUID FK → vault_documents | NOT NULL ON DELETE CASCADE | Source document |
 | `to_doc_id` | UUID FK → vault_documents | NOT NULL ON DELETE CASCADE | Target document |
-| `link_type` | TEXT | NOT NULL DEFAULT `wikilink` | `wikilink` or `reference` |
+| `link_type` | TEXT | NOT NULL DEFAULT `wikilink` | `wikilink`, `reference`, `depends_on`, `extends`, `related`, `supersedes`, `contradicts`, `task_attachment`, `delegation_attachment` |
 | `context` | TEXT | NOT NULL DEFAULT `''` | Surrounding text context |
 | `custom_scope` | VARCHAR(255) | | Future extensibility (migration 043) |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Enrichment pipeline metadata (migration 048) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
 **Unique:** `(from_doc_id, to_doc_id, link_type)`
@@ -25525,13 +26219,103 @@ Persists subagent task lifecycle for audit trail, cost attribution, and restart 
 
 ---
 
+---
+
+### `hooks` (formerly `agent_hooks`)
+
+Event-driven hook definitions. Global-scope hooks use `MasterTenantID` as `tenant_id`. Renamed from `agent_hooks` in migration 054. (migrations 052–054)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL DEFAULT MasterTenantID | Owning tenant; master UUID for global-scope hooks |
+| `scope` | VARCHAR(8) | NOT NULL CHECK (`global`, `tenant`, `agent`) | Hook scope |
+| `event` | VARCHAR(32) | NOT NULL | Event name (e.g. `before_tool`, `after_tool`) |
+| `handler_type` | VARCHAR(16) | NOT NULL CHECK (`command`, `http`, `prompt`, `script`) | Handler kind (migration 053 added `script`) |
+| `config` | JSONB | NOT NULL DEFAULT `{}` | Handler-specific options (command path, HTTP URL, prompt template) |
+| `script` | TEXT | | Inline script source for `script` handler type (migration 053) |
+| `builtin` | TEXT | | Builtin handler identifier for `source = 'builtin'` hooks (migration 053) |
+| `name` | VARCHAR(255) | | User-facing label (migration 054) |
+| `matcher` | VARCHAR(256) | | Optional regex applied to `tool_name` before the hook fires |
+| `if_expr` | TEXT | | Optional CEL expression evaluated against `tool_input` |
+| `timeout_ms` | INT | NOT NULL DEFAULT 5000 | Hook execution timeout |
+| `on_timeout` | VARCHAR(8) | NOT NULL DEFAULT `block` CHECK (`block`, `allow`) | Behavior on timeout |
+| `priority` | INT | NOT NULL DEFAULT 0 | Higher value = evaluated first |
+| `enabled` | BOOL | NOT NULL DEFAULT true | |
+| `version` | INT | NOT NULL DEFAULT 1 | Optimistic-lock version counter |
+| `source` | VARCHAR(16) | NOT NULL DEFAULT `ui` CHECK (`ui`, `api`, `seed`, `builtin`) | Origin of hook (migration 053 added `builtin`) |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | UI-only fields (tags, notes, lastTestedAt, createdByUsername) |
+| `created_by` | UUID | | Creator user ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `idx_hooks_lookup` on `(tenant_id, event) WHERE enabled = TRUE` (hot-path for ResolveForEvent)
+
+> **Migration 054 note:** The `agent_id` column was removed. Per-hook agent assignment is now controlled via the `hook_agents` junction table. The table was also renamed from `agent_hooks` to `hooks` in this migration. Per-scope uniqueness indexes (`uq_hooks_global`, `uq_hooks_tenant`, `uq_hooks_agent`) were dropped in migration 053.
+
+---
+
+### `hook_agents`
+
+N:M junction table linking hooks to agents. Replaces the 1:N `agent_id` FK on `hooks`. Created and populated in migration 054.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `hook_id` | UUID FK → hooks | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+
+**Primary Key:** `(hook_id, agent_id)`
+
+**Index:** `idx_hook_agents_agent` on `(agent_id)`
+
+---
+
+### `hook_executions`
+
+Append-only audit log for hook executions. `hook_id` is SET NULL when the parent hook is deleted to preserve the audit trail. (migration 052)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `hook_id` | UUID FK → hooks | ON DELETE SET NULL | Parent hook; NULL if hook was deleted |
+| `session_id` | VARCHAR(500) | | Originating session |
+| `event` | VARCHAR(32) | NOT NULL | Event that triggered the hook |
+| `input_hash` | CHAR(64) | | SHA-256 of canonical (tool_name + sorted args) |
+| `decision` | VARCHAR(16) | NOT NULL CHECK (`allow`, `block`, `error`, `timeout`) | Hook outcome |
+| `duration_ms` | INT | NOT NULL DEFAULT 0 | Execution duration |
+| `retry` | INT | NOT NULL DEFAULT 0 | Retry attempt number |
+| `dedup_key` | VARCHAR(128) | | Prevents duplicate rows for (hook_id, event_id) |
+| `error` | VARCHAR(256) | | Error message (truncated to 256 chars) |
+| `error_detail` | BYTEA | | Full error AES-256-GCM encrypted (GDPR-purgeable) |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extensible exec context (matcher_matched, cel_eval_result, stdout_len, http_status, prompt_model, prompt_tokens, trace_id) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `idx_hook_executions_session` on `(session_id, created_at)`, unique `uq_hook_executions_dedup` on `(dedup_key) WHERE dedup_key IS NOT NULL`
+
+---
+
+### `tenant_hook_budget`
+
+Per-tenant monthly prompt-handler token/cost budget. One row per tenant tracks monthly spend against a cap. (migration 052)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID | PK | Owning tenant |
+| `month_start` | DATE | NOT NULL | First day of the tracked month |
+| `budget_total` | BIGINT | NOT NULL DEFAULT 0 | Monthly cap (provider-defined units) |
+| `remaining` | BIGINT | NOT NULL DEFAULT 0 | Units remaining; decremented atomically |
+| `last_warned_at` | TIMESTAMPTZ | | Timestamp of last threshold warning |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | Alert thresholds, override flags, notes |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+---
+
 ## What's Next
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
 
 ---
 
@@ -26135,12 +26919,11 @@ Re-trigger LLM-based summoning for predefined agents.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{id}/instances` | List user instances |
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | List user context files |
-| `GET` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | **⚠️ Removed** — deprecated endpoint, no longer available |
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Update user context file (admin) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata (admin) |
 | `GET` | `/v1/agents/{id}/system-prompt-preview` | Preview rendered system prompt (admin) |
 
-> To fetch file content, list files via `GET /v1/agents/{id}/instances/{userID}/files` then retrieve through the [Vault](#knowledge-vault) or [Storage](#storage) API.
+> To read file content, list files via `GET /v1/agents/{id}/instances/{userID}/files` then retrieve through the [Vault](#knowledge-vault) or [Storage](#storage) API. There is no single-file GET for instance files.
 
 ### Agent Export / Import
 
@@ -26482,21 +27265,12 @@ Set `"dryRun": true` to return tool schema without execution.
 |--------|------|-------------|
 | `GET` | `/v1/tools/builtin` | List all built-in tools |
 | `GET` | `/v1/tools/builtin/{name}` | Get tool definition |
+| `GET` | `/v1/tools/builtin/{name}/tenant-config` | Get tenant-specific configuration for a built-in tool |
 | `PUT` | `/v1/tools/builtin/{name}` | Update enabled/settings |
 | `PUT` | `/v1/tools/builtin/{name}/tenant-config` | Set per-tenant override (admin) |
 | `DELETE` | `/v1/tools/builtin/{name}/tenant-config` | Remove per-tenant override (admin) |
 
-### Custom Tools
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/tools/custom` | List custom tools (paginated) |
-| `POST` | `/v1/tools/custom` | Create custom tool |
-| `GET` | `/v1/tools/custom/{id}` | Get tool details |
-| `PUT` | `/v1/tools/custom/{id}` | Update tool |
-| `DELETE` | `/v1/tools/custom/{id}` | Delete tool |
-
-Query parameters for list: `agent_id`, `search`, `limit`, `offset`
+> **Note:** Custom tools via REST API are not currently implemented. MCP servers and skills provide the recommended extension mechanism.
 
 ---
 
@@ -26530,12 +27304,11 @@ Track tool-usage metrics and receive automated improvement suggestions.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/evolution/metrics` | List raw or aggregated evolution metrics |
-| `GET` | `/v1/agents/{id}/evolution/suggestions` | List evolution suggestions |
-| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | Update suggestion status (`pending` → `approved`/`rejected`/`rolled_back`) |
-| `POST` | `/v1/agents/{id}/evolution/skill-apply` | Apply an approved evolution suggestion as a new skill |
+| `GET` | `/v1/agents/{agentID}/evolution/metrics` | List raw or aggregated evolution metrics |
+| `GET` | `/v1/agents/{agentID}/evolution/suggestions` | List evolution suggestions |
+| `PATCH` | `/v1/agents/{agentID}/evolution/suggestions/{suggestionID}` | Update suggestion status (`pending` → `approved`/`rejected`/`rolled_back`) |
 
-**`GET /v1/agents/{id}/evolution/metrics` query params:**
+**`GET /v1/agents/{agentID}/evolution/metrics` query params:**
 
 | Param | Type | Description |
 |-------|------|-------------|
@@ -26544,7 +27317,7 @@ Track tool-usage metrics and receive automated improvement suggestions.
 | `since` | ISO 8601 | Start timestamp (default: 7 days ago) |
 | `limit` | integer | Max results (default: 100, max: 500) |
 
-**`GET /v1/agents/{id}/evolution/suggestions` query params:** `status` (filter: `pending`/`approved`/`applied`/`rejected`/`rolled_back`), `limit`
+**`GET /v1/agents/{agentID}/evolution/suggestions` query params:** `status` (filter: `pending`/`approved`/`applied`/`rejected`/`rolled_back`), `limit`
 
 ---
 
@@ -26587,7 +27360,10 @@ Admin-scoped endpoints for cross-agent vault operations.
 | `POST` | `/v1/vault/rescan` | Trigger vault rescan |
 | `POST` | `/v1/vault/search` | Global vault semantic search |
 | `GET` | `/v1/vault/enrichment/status` | Check enrichment worker status |
+| `POST` | `/v1/vault/enrichment/stop` | Stop the enrichment worker for the current agent |
 | `GET` | `/v1/vault/documents` | List documents across all agents |
+| `GET` | `/v1/vault/tree` | Returns hierarchical tree view of vault document structure |
+| `GET` | `/v1/vault/graph` | Returns vault document graph visualization data (cross-tenant, node limit 2000) |
 
 #### Agent-Scoped Vault Endpoints
 
@@ -26643,8 +27419,8 @@ Per-agent flags controlling v3 subsystems.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/v3-flags` | Get all v3 flags for an agent |
-| `PATCH` | `/v1/agents/{id}/v3-flags` | Update flags (partial update accepted) |
+| `GET` | `/v1/agents/{agentID}/v3-flags` | Get all v3 flags for an agent |
+| `PATCH` | `/v1/agents/{agentID}/v3-flags` | Update flags (partial update accepted) |
 
 **Flag keys:** `evolution_enabled`, `episodic_enabled`, `vault_enabled`, `orchestration_enabled`, `skill_evolve`, `self_evolve`
 
@@ -26664,6 +27440,7 @@ Per-agent entity-relation graph.
 | `POST` | `/v1/agents/{agentID}/kg/extract` | LLM-powered entity extraction |
 | `GET` | `/v1/agents/{agentID}/kg/stats` | Knowledge graph statistics |
 | `GET` | `/v1/agents/{agentID}/kg/graph` | Full graph for visualization |
+| `GET` | `/v1/agents/{agentID}/kg/graph/compact` | Compact graph representation (lighter payload than full graph) |
 | `POST` | `/v1/agents/{agentID}/kg/dedup/scan` | Scan for duplicate entities |
 | `GET` | `/v1/agents/{agentID}/kg/dedup` | List dedup candidates |
 | `POST` | `/v1/agents/{agentID}/kg/merge` | Merge duplicate entities |
@@ -26996,20 +27773,6 @@ Also available as a shared download endpoint (shared with agent export tokens):
 
 ---
 
-## Delegations
-
-### `GET /v1/delegations`
-
-List delegation history (agent-to-agent task handoffs).
-
-**Filters:** `source_agent_id`, `target_agent_id`, `team_id`, `user_id`, `status`, `limit`, `offset`
-
-### `GET /v1/delegations/{id}`
-
-Get a single delegation record.
-
----
-
 ## Pending Messages
 
 | Method | Path | Description |
@@ -27034,6 +27797,7 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `DELETE` | `/v1/cli-credentials/{id}` | Delete credential |
 | `GET` | `/v1/cli-credentials/presets` | Get preset credential templates |
 | `POST` | `/v1/cli-credentials/{id}/test` | Test credential connection (dry-run) |
+| `POST` | `/v1/cli-credentials/check-binary` | Validate a binary path for CLI credential use |
 
 ### Per-User CLI Credentials
 
@@ -27073,6 +27837,108 @@ Changes to grants emit a `cache_invalidate` event on the message bus so connecte
 
 ---
 
+## Text-to-Speech (TTS)
+
+Per-tenant TTS synthesis and configuration. Requires `RoleOperator` for synthesis/test endpoints and `RoleAdmin` for config endpoints.
+
+### `POST /v1/tts/synthesize`
+
+Convert text to audio using the configured TTS provider.
+
+**Request body:**
+
+```json
+{
+  "text": "Hello, world!",
+  "provider": "openai",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | string | Text to synthesize. Required. Max 500 characters. |
+| `provider` | string | Override provider (`openai`, `elevenlabs`, `minimax`, `edge`). Optional — defaults to tenant-configured provider. |
+| `voice_id` | string | Voice identifier. Optional. |
+| `model_id` | string | Model identifier. Optional. |
+
+**Response:** Raw audio bytes with `Content-Type` matching the provider's MIME type (e.g., `audio/mpeg`).
+
+**Errors:** `400` text empty or exceeds limit · `404` no provider configured · `422` invalid model ID · `429` rate limited · `504` synthesis timeout
+
+### `POST /v1/tts/test-connection`
+
+Test connectivity to a TTS provider using supplied credentials (does not persist config).
+
+**Request body:**
+
+```json
+{
+  "provider": "openai",
+  "api_key": "sk-...",
+  "api_base": "",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "provider": "openai",
+  "latency_ms": 312
+}
+```
+
+### `GET /v1/tts/config`
+
+Return the current tenant's TTS configuration. API keys are masked as `"***"`.
+
+**Response:**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": { "api_key": "***", "api_base": "", "voice": "alloy", "model": "tts-1" },
+  "elevenlabs": {},
+  "edge": {},
+  "minimax": {}
+}
+```
+
+### `POST /v1/tts/config`
+
+Save TTS configuration for the current tenant.
+
+**Request body:**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": {
+    "api_key": "sk-...",
+    "api_base": "",
+    "voice": "alloy",
+    "model": "tts-1"
+  }
+}
+```
+
+Pass `"***"` as `api_key` to leave existing stored key unchanged.
+
+**Response:** `{ "ok": true }`
+
+---
+
 ## Runtime & Packages
 
 Manage system (apk), Python (pip), and Node (npm) packages. Requires authentication.
@@ -27100,6 +27966,36 @@ Check if Python and Node runtimes are available.
 ```json
 { "python": true, "node": true }
 ```
+
+### `GET /v1/packages/github-releases`
+
+List GitHub releases for a repository (used by the package picker UI). Auth: viewer+.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `repo` | string | Repository in `owner/repo` format. Required. |
+| `limit` | integer | Max releases to return (1–50, default 10). |
+
+**Response:**
+
+```json
+{
+  "releases": [
+    {
+      "tag": "v2.40.1",
+      "name": "GitHub CLI 2.40.1",
+      "published_at": "2024-01-15T12:00:00Z",
+      "prerelease": false,
+      "matching_assets": [{ "name": "gh_2.40.1_linux_amd64.tar.gz", "size_bytes": 10485760 }],
+      "all_assets_count": 12
+    }
+  ]
+}
+```
+
+`matching_assets` contains the asset matching the server's OS/arch (empty if no match). Draft releases are excluded.
 
 ### `GET /v1/shell-deny-groups`
 
@@ -27371,7 +28267,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | updated: 2026-04-15 -->
 
 ---
 
@@ -27582,6 +28478,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `config.apply` | Replace config entirely |
 | `config.patch` | Patch specific config fields |
 | `config.schema` | Get JSON schema for config |
+| `config.defaults` | Get compiled-in defaults + agents.defaults overlay (read-only, master scope) |
 | `config.permissions.list` | `{agentId, configType?}` | List permissions for an agent |
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
@@ -27606,6 +28503,77 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `skills.list` | — | List skills |
 | `skills.get` | `{id}` | Get skill details |
 | `skills.update` | `{id, ...fields}` | Update skill metadata |
+
+### Hooks
+
+Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality-gates) for full concepts and examples.
+
+**Required roles:** `viewer` for list/history; `operator` for test; `admin` for create/update/delete/toggle.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `hooks.list` | `{event?, scope?, agentId?, enabled?}` | List hooks visible to the caller's scope |
+| `hooks.create` | hook config object | Create a hook; returns `{hookId}` |
+| `hooks.update` | `{hookId, updates}` | Patch a hook's fields; re-validates merged config |
+| `hooks.delete` | `{hookId}` | Delete a hook (builtin hooks return error) |
+| `hooks.toggle` | `{hookId, enabled}` | Enable or disable a hook |
+| `hooks.test` | `{config, sampleEvent?}` | Dry-run a hook config; no audit row written |
+| `hooks.history` | — | List `hook_executions` audit records |
+
+**`hooks.list` — filter params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `event` | string | Filter by event name (e.g. `pre_tool_use`) |
+| `scope` | string | Filter by scope: `global`, `tenant`, `agent` |
+| `agentId` | string (UUID) | Filter to a specific agent |
+| `enabled` | boolean | Filter by enabled state |
+
+**`hooks.list` response:**
+```json
+{ "hooks": [ { "id": "uuid", "event": "pre_tool_use", "handler_type": "http",
+               "scope": "tenant", "enabled": true, "priority": 0, ... } ] }
+```
+
+**`hooks.create` request params** (all fields are the `HookConfig` schema):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `event` | string | yes | Lifecycle event name |
+| `handler_type` | string | yes | `command`, `http`, or `prompt` |
+| `scope` | string | yes | `global`, `tenant`, or `agent` |
+| `name` | string | no | Human-readable label |
+| `matcher` | string | no | Tool name regex (optional for command/http; required for prompt) |
+| `if_expr` | string | no | CEL expression alternative to matcher |
+| `timeout_ms` | int | no | Per-hook timeout ms (default 5000, max 10000) |
+| `on_timeout` | string | no | `block` (default) or `allow` |
+| `priority` | int | no | Higher runs first |
+| `enabled` | bool | no | Default true |
+| `config` | object | yes | Handler-specific sub-config |
+| `agent_ids` | array | no | UUID list for scope=agent |
+
+**`hooks.test` — `sampleEvent` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `toolName` | string | Tool name for pre/post_tool_use events |
+| `toolInput` | object | Tool arguments map |
+| `rawInput` | string | Raw user message (for user_prompt_submit) |
+
+**`hooks.test` response:**
+```json
+{
+  "result": {
+    "decision": "allow",
+    "reason": "...",
+    "durationMs": 42,
+    "stdout": "...",
+    "stderr": "...",
+    "statusCode": 200,
+    "updatedInput": {}
+  }
+}
+```
 
 ### Channels
 
@@ -27725,6 +28693,8 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `whatsapp.qr.start` | `{instance_id}` | Start WhatsApp QR login flow for direct WhatsApp channel |
 | `zalo.personal.qr.start` | `{instance_id}` | Start Zalo Personal QR login flow |
 | `zalo.personal.contacts` | `{instance_id}` | Fetch Zalo friends and groups |
+
+> **Status: Planned** — `whatsapp.qr.start`, `zalo.personal.qr.start`, and `zalo.personal.contacts` have protocol constants defined but handlers are not yet implemented in the gateway.
 
 ---
 
@@ -27874,7 +28844,7 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: c651cde5 | updated: 2026-04-15 -->
 
 ---
 

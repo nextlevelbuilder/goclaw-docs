@@ -150,6 +150,8 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Cập nhật user file (admin) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Cập nhật instance metadata |
 
+> Để đọc nội dung file, hãy liệt kê file qua `GET /v1/agents/{id}/instances/{userID}/files` rồi truy xuất qua API [Vault](#knowledge-vault) hoặc [Storage](#storage). Không có endpoint GET đơn lẻ cho instance file.
+
 ### Export / Import Agent
 
 Xuất và nhập cấu hình + dữ liệu agent dưới dạng archive tar.gz. Hỗ trợ xuất từng section tuỳ chọn.
@@ -529,10 +531,9 @@ Theo dõi metric sử dụng tool và nhận gợi ý cải thiện tự động
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `GET` | `/v1/agents/{id}/evolution/metrics` | Liệt kê metric evolution thô hoặc tổng hợp |
-| `GET` | `/v1/agents/{id}/evolution/suggestions` | Liệt kê gợi ý evolution |
-| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | Cập nhật trạng thái gợi ý (`pending` → `approved`/`rejected`/`rolled_back`) |
-| `POST` | `/v1/agents/{id}/evolution/skill-apply` | Áp dụng gợi ý đã duyệt thành skill mới |
+| `GET` | `/v1/agents/{agentID}/evolution/metrics` | Liệt kê metric evolution thô hoặc tổng hợp |
+| `GET` | `/v1/agents/{agentID}/evolution/suggestions` | Liệt kê gợi ý evolution |
+| `PATCH` | `/v1/agents/{agentID}/evolution/suggestions/{suggestionID}` | Cập nhật trạng thái gợi ý (`pending` → `approved`/`rejected`/`rolled_back`) |
 
 **Query params của `GET .../evolution/metrics`:** `type` (lọc: `tool`/`retrieval`/`feedback`), `aggregate` (boolean), `since` (ISO 8601), `limit`
 
@@ -594,8 +595,8 @@ Các cờ tính năng theo từng agent kiểm soát các hệ thống con v3.
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `GET` | `/v1/agents/{id}/v3-flags` | Lấy tất cả v3 flag của agent |
-| `PATCH` | `/v1/agents/{id}/v3-flags` | Cập nhật flag (chấp nhận partial update) |
+| `GET` | `/v1/agents/{agentID}/v3-flags` | Lấy tất cả v3 flag của agent |
+| `PATCH` | `/v1/agents/{agentID}/v3-flags` | Cập nhật flag (chấp nhận partial update) |
 
 **Các flag:** `evolution_enabled`, `episodic_enabled`, `vault_enabled`, `orchestration_enabled`, `skill_evolve`, `self_evolve`
 
@@ -1012,6 +1013,108 @@ Thay đổi grant sẽ phát sự kiện `cache_invalidate` trên message bus đ
 
 ---
 
+## Text-to-Speech (TTS)
+
+Tổng hợp giọng nói và cấu hình TTS per-tenant. Các endpoint synthesis/test yêu cầu `RoleOperator`; endpoint config yêu cầu `RoleAdmin`.
+
+### `POST /v1/tts/synthesize`
+
+Chuyển văn bản thành audio bằng TTS provider đã cấu hình.
+
+**Request body:**
+
+```json
+{
+  "text": "Xin chào!",
+  "provider": "openai",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `text` | string | Văn bản cần tổng hợp. Bắt buộc. Tối đa 500 ký tự. |
+| `provider` | string | Ghi đè provider (`openai`, `elevenlabs`, `minimax`, `edge`). Tùy chọn — mặc định dùng provider cấu hình của tenant. |
+| `voice_id` | string | ID giọng nói. Tùy chọn. |
+| `model_id` | string | ID model. Tùy chọn. |
+
+**Response:** Bytes audio thô với `Content-Type` khớp MIME type của provider (ví dụ: `audio/mpeg`).
+
+**Lỗi:** `400` văn bản rỗng hoặc quá giới hạn · `404` chưa cấu hình provider · `422` model ID không hợp lệ · `429` rate limit · `504` timeout tổng hợp
+
+### `POST /v1/tts/test-connection`
+
+Kiểm tra kết nối đến TTS provider bằng credentials được cung cấp (không lưu cấu hình).
+
+**Request body:**
+
+```json
+{
+  "provider": "openai",
+  "api_key": "sk-...",
+  "api_base": "",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "provider": "openai",
+  "latency_ms": 312
+}
+```
+
+### `GET /v1/tts/config`
+
+Trả về cấu hình TTS của tenant hiện tại. API key được che dưới dạng `"***"`.
+
+**Response:**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": { "api_key": "***", "api_base": "", "voice": "alloy", "model": "tts-1" },
+  "elevenlabs": {},
+  "edge": {},
+  "minimax": {}
+}
+```
+
+### `POST /v1/tts/config`
+
+Lưu cấu hình TTS cho tenant hiện tại.
+
+**Request body:**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": {
+    "api_key": "sk-...",
+    "api_base": "",
+    "voice": "alloy",
+    "model": "tts-1"
+  }
+}
+```
+
+Truyền `"***"` làm `api_key` để giữ nguyên key đã lưu.
+
+**Response:** `{ "ok": true }`
+
+---
+
 ## Runtime & Packages
 
 Quản lý package system (apk), Python (pip), và Node (npm). Yêu cầu authentication.
@@ -1039,6 +1142,36 @@ Kiểm tra Python và Node runtime có sẵn hay không.
 ```json
 { "python": true, "node": true }
 ```
+
+### `GET /v1/packages/github-releases`
+
+Liệt kê GitHub release của một repository (dùng cho giao diện chọn package). Auth: viewer+.
+
+**Query params:**
+
+| Param | Type | Mô tả |
+|-------|------|-------|
+| `repo` | string | Repository theo dạng `owner/repo`. Bắt buộc. |
+| `limit` | integer | Số release tối đa trả về (1–50, mặc định 10). |
+
+**Response:**
+
+```json
+{
+  "releases": [
+    {
+      "tag": "v2.40.1",
+      "name": "GitHub CLI 2.40.1",
+      "published_at": "2024-01-15T12:00:00Z",
+      "prerelease": false,
+      "matching_assets": [{ "name": "gh_2.40.1_linux_amd64.tar.gz", "size_bytes": 10485760 }],
+      "all_assets_count": 12
+    }
+  ]
+}
+```
+
+`matching_assets` chứa asset phù hợp OS/arch của server (rỗng nếu không có). Release draft bị loại trừ.
 
 ### `GET /v1/shell-deny-groups`
 

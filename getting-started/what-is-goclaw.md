@@ -12,7 +12,10 @@ GoClaw is an open-source AI agent gateway written in Go. It lets you run AI agen
 |----------|-------------|
 | **Multi-Tenant v3** | Per-user isolation for context, sessions, memory, and traces; per-edition rate limits |
 | **8-Stage Agent Pipeline** | context → history → prompt → think → act → observe → memory → summarize (v3, always-on) |
-| **22 Provider Types** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more (15 LLM APIs + local models + CLI agents + media) |
+| **22 Provider Types** | OpenAI, Anthropic, Google, Groq, DeepSeek, Mistral, xAI, and more (15 LLM APIs + local models + ACP CLI agents + media) |
+| **ACP Provider** | Agentic Claude Protocol — runs Claude Code, Codex, Gemini CLI as agents via JSON-RPC 2.0 stdio subprocess |
+| **Hooks System** | 7 lifecycle events (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart/Stop) — sync/async, SSRF-hardened HTTP handlers, audit logging |
+| **Audio / TTS Manager** | Unified audio manager with 4 TTS providers: ElevenLabs (streaming), OpenAI, Edge TTS, MiniMax; voice LRU cache (1 000 tenants, 1 h TTL) |
 | **Messaging Channels** | Telegram, Discord, WhatsApp (native), Zalo, Zalo Personal, Larksuite, Slack, WebSocket |
 | **32 Built-in Tools** | File system, web search, browser, code execution, memory, and more |
 | **64+ WebSocket RPC Methods** | Real-time control — chat, agent management, traces, and more via `/ws` |
@@ -68,4 +71,4 @@ graph LR
 - [Quick Start](/quick-start) — Your first agent in 5 minutes
 - [How GoClaw Works](/how-goclaw-works) — Deep dive into the architecture
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->

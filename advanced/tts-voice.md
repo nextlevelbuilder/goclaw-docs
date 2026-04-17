@@ -79,6 +79,17 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`. Default m
 
 Find voice IDs in your [ElevenLabs voice library](https://elevenlabs.io/voice-library). Default model: `eleven_multilingual_v2`.
 
+#### ElevenLabs Model Variants
+
+| Model ID | Characteristic | Best For |
+|----------|---------------|---------|
+| `eleven_v3` | Latest flagship (Nov 2025), highest quality | Premium voice, complex speech |
+| `eleven_multilingual_v2` | High-quality, 29 languages | Default; multilingual content |
+| `eleven_turbo_v2_5` | Cost-optimized, fast | High-volume, budget-conscious |
+| `eleven_flash_v2_5` | Lowest latency, 32 languages | Real-time / interactive use |
+
+Only these four model IDs are accepted — unknown IDs are rejected at the gateway boundary.
+
 ---
 
 ### Edge TTS (Free)
@@ -220,6 +231,36 @@ pip install edge-tts
 
 ---
 
+## Agent-Level Voice Config
+
+Each agent can override the global TTS voice and model via its `other_config` JSONB field. This lets different agents use different voices without changing the system-wide config.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `tts_voice_id` | string | ElevenLabs voice ID for this agent |
+| `tts_model_id` | string | ElevenLabs model ID for this agent (must be an [allowed model](#elevenlabs-model-variants)) |
+
+**Resolution order:** CLI args → agent `other_config` → tenant override → provider default.
+
+**Example** — set a distinct voice per agent via the Web UI or API:
+
+```json
+{
+  "other_config": {
+    "tts_voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "tts_model_id": "eleven_flash_v2_5"
+  }
+}
+```
+
+---
+
+## STT Builtin Tool
+
+The `stt` builtin tool (seeded by migration 050) enables agents to transcribe voice/audio input using ElevenLabs Scribe or a compatible proxy — see [Tools Overview](/tools-overview) for how to enable and configure it.
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -239,4 +280,4 @@ pip install edge-tts
 - [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->

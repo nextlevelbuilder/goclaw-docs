@@ -27,7 +27,7 @@
 - [Editing Personality](zh/agents/editing-personality.md): 通过两个核心文件修改 agent 的语调、身份和边界：SOUL.md（personality 与风格）和 IDENTITY.md（名称、emoji、形态）。
 - [Sharing & Access Control](zh/agents/sharing-and-access.md): 控制谁可以使用你的 agent。访问权限通过所有者与非所有者的区分来执行；角色标签存储供未来使用。
 - [User Overrides](zh/agents/user-overrides.md): **部分实现的功能。** 数据库 schema 和 store API 已存在，但运行时尚未应用覆盖配置。本页记录计划中的行为和当前的 store API。
-- [System Prompt Anatomy](zh/agents/system-prompt-anatomy.md): 了解 GoClaw 如何构建 system prompt：19+ 个部分，动态组装，智能截断以适应 context。
+- [System Prompt Anatomy](zh/agents/system-prompt-anatomy.md): 了解 GoClaw 如何构建 system prompt：23 个部分，动态组装，智能截断以适应 context。
 
 ## Providers
 - [Provider Overview](zh/providers/overview.md): Provider 是 GoClaw 与 LLM API 之间的接口——配置一个（或多个），所有 agent 即可使用。
@@ -89,7 +89,7 @@
 - [Caching](zh/advanced/caching.md): 使用内存或 Redis 缓存频繁访问的数据，减少数据库查询。
 - [Browser Automation](zh/advanced/browser-automation.md): 为 agent 提供真实浏览器 — 导航页面、截图、抓取内容、填写表单。
 - [Extended Thinking](zh/advanced/extended-thinking.md): 让 agent 在回答前"大声思考" — 在复杂任务上获得更好的结果，代价是额外的 token 和延迟。
-- [Hooks & Quality Gates](zh/advanced/hooks-quality-gates.md): 在 agent 操作前后自动运行检查 — 拦截不良输出、要求审批或触发自定义验证逻辑。
+- [Agent Hooks](zh/advanced/hooks-quality-gates.md): 在 agent loop 的定义点拦截、观察或注入行为 — 阻止不安全的 tool 调用、写入后自动审计、注入会话 context 或停止时通知。
 - [Authentication & OAuth](zh/advanced/authentication.md): 通过 OAuth 将 GoClaw 连接到 ChatGPT — 无需 API key，使用你现有的 OpenAI 账号。
 - [API Keys & RBAC](zh/advanced/api-keys-rbac.md): 为多用户和程序化访问部署管理带角色权限控制的 API key。
 - [CLI Credentials](zh/advanced/cli-credentials.md): 安全存储和管理用于 shell 工具执行的命名凭据集。

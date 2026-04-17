@@ -149,7 +149,7 @@ Re-trigger LLM-based summoning for predefined agents.
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Update instance metadata (admin) |
 | `GET` | `/v1/agents/{id}/system-prompt-preview` | Preview rendered system prompt (admin) |
 
-> To fetch file content, list files via `GET /v1/agents/{id}/instances/{userID}/files` then retrieve through the [Vault](#knowledge-vault) or [Storage](#storage) API.
+> To read file content, list files via `GET /v1/agents/{id}/instances/{userID}/files` then retrieve through the [Vault](#knowledge-vault) or [Storage](#storage) API. There is no single-file GET for instance files.
 
 ### Agent Export / Import
 
@@ -530,12 +530,11 @@ Track tool-usage metrics and receive automated improvement suggestions.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/evolution/metrics` | List raw or aggregated evolution metrics |
-| `GET` | `/v1/agents/{id}/evolution/suggestions` | List evolution suggestions |
-| `PATCH` | `/v1/agents/{id}/evolution/suggestions/{suggestionID}` | Update suggestion status (`pending` → `approved`/`rejected`/`rolled_back`) |
-| `POST` | `/v1/agents/{id}/evolution/skill-apply` | Apply an approved evolution suggestion as a new skill |
+| `GET` | `/v1/agents/{agentID}/evolution/metrics` | List raw or aggregated evolution metrics |
+| `GET` | `/v1/agents/{agentID}/evolution/suggestions` | List evolution suggestions |
+| `PATCH` | `/v1/agents/{agentID}/evolution/suggestions/{suggestionID}` | Update suggestion status (`pending` → `approved`/`rejected`/`rolled_back`) |
 
-**`GET /v1/agents/{id}/evolution/metrics` query params:**
+**`GET /v1/agents/{agentID}/evolution/metrics` query params:**
 
 | Param | Type | Description |
 |-------|------|-------------|
@@ -544,7 +543,7 @@ Track tool-usage metrics and receive automated improvement suggestions.
 | `since` | ISO 8601 | Start timestamp (default: 7 days ago) |
 | `limit` | integer | Max results (default: 100, max: 500) |
 
-**`GET /v1/agents/{id}/evolution/suggestions` query params:** `status` (filter: `pending`/`approved`/`applied`/`rejected`/`rolled_back`), `limit`
+**`GET /v1/agents/{agentID}/evolution/suggestions` query params:** `status` (filter: `pending`/`approved`/`applied`/`rejected`/`rolled_back`), `limit`
 
 ---
 
@@ -646,8 +645,8 @@ Per-agent flags controlling v3 subsystems.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/v3-flags` | Get all v3 flags for an agent |
-| `PATCH` | `/v1/agents/{id}/v3-flags` | Update flags (partial update accepted) |
+| `GET` | `/v1/agents/{agentID}/v3-flags` | Get all v3 flags for an agent |
+| `PATCH` | `/v1/agents/{agentID}/v3-flags` | Update flags (partial update accepted) |
 
 **Flag keys:** `evolution_enabled`, `episodic_enabled`, `vault_enabled`, `orchestration_enabled`, `skill_evolve`, `self_evolve`
 
@@ -1064,6 +1063,108 @@ Changes to grants emit a `cache_invalidate` event on the message bus so connecte
 
 ---
 
+## Text-to-Speech (TTS)
+
+Per-tenant TTS synthesis and configuration. Requires `RoleOperator` for synthesis/test endpoints and `RoleAdmin` for config endpoints.
+
+### `POST /v1/tts/synthesize`
+
+Convert text to audio using the configured TTS provider.
+
+**Request body:**
+
+```json
+{
+  "text": "Hello, world!",
+  "provider": "openai",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | string | Text to synthesize. Required. Max 500 characters. |
+| `provider` | string | Override provider (`openai`, `elevenlabs`, `minimax`, `edge`). Optional — defaults to tenant-configured provider. |
+| `voice_id` | string | Voice identifier. Optional. |
+| `model_id` | string | Model identifier. Optional. |
+
+**Response:** Raw audio bytes with `Content-Type` matching the provider's MIME type (e.g., `audio/mpeg`).
+
+**Errors:** `400` text empty or exceeds limit · `404` no provider configured · `422` invalid model ID · `429` rate limited · `504` synthesis timeout
+
+### `POST /v1/tts/test-connection`
+
+Test connectivity to a TTS provider using supplied credentials (does not persist config).
+
+**Request body:**
+
+```json
+{
+  "provider": "openai",
+  "api_key": "sk-...",
+  "api_base": "",
+  "voice_id": "alloy",
+  "model_id": "tts-1"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "provider": "openai",
+  "latency_ms": 312
+}
+```
+
+### `GET /v1/tts/config`
+
+Return the current tenant's TTS configuration. API keys are masked as `"***"`.
+
+**Response:**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": { "api_key": "***", "api_base": "", "voice": "alloy", "model": "tts-1" },
+  "elevenlabs": {},
+  "edge": {},
+  "minimax": {}
+}
+```
+
+### `POST /v1/tts/config`
+
+Save TTS configuration for the current tenant.
+
+**Request body:**
+
+```json
+{
+  "provider": "openai",
+  "auto": "off",
+  "mode": "final",
+  "max_length": 1500,
+  "openai": {
+    "api_key": "sk-...",
+    "api_base": "",
+    "voice": "alloy",
+    "model": "tts-1"
+  }
+}
+```
+
+Pass `"***"` as `api_key` to leave existing stored key unchanged.
+
+**Response:** `{ "ok": true }`
+
+---
+
 ## Runtime & Packages
 
 Manage system (apk), Python (pip), and Node (npm) packages. Requires authentication.
@@ -1091,6 +1192,36 @@ Check if Python and Node runtimes are available.
 ```json
 { "python": true, "node": true }
 ```
+
+### `GET /v1/packages/github-releases`
+
+List GitHub releases for a repository (used by the package picker UI). Auth: viewer+.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `repo` | string | Repository in `owner/repo` format. Required. |
+| `limit` | integer | Max releases to return (1–50, default 10). |
+
+**Response:**
+
+```json
+{
+  "releases": [
+    {
+      "tag": "v2.40.1",
+      "name": "GitHub CLI 2.40.1",
+      "published_at": "2024-01-15T12:00:00Z",
+      "prerelease": false,
+      "matching_assets": [{ "name": "gh_2.40.1_linux_amd64.tar.gz", "size_bytes": 10485760 }],
+      "all_assets_count": 12
+    }
+  ]
+}
+```
+
+`matching_assets` contains the asset matching the server's OS/arch (empty if no match). Draft releases are excluded.
 
 ### `GET /v1/shell-deny-groups`
 
