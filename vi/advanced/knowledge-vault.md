@@ -52,6 +52,28 @@ Tài liệu được phân vùng theo **tenant** (ranh giới cô lập), **agen
 | `team` | Tài liệu workspace team được chia sẻ với các thành viên |
 | `shared` | Tri thức chia sẻ liên tenant (dự kiến tương lai) |
 
+### Bất Biến Scope & Quyền Sở Hữu Tài Liệu
+
+Trường `scope` có bất biến quyền sở hữu chặt chẽ được thực thi ở cấp database bởi migration `000055` (ràng buộc CHECK `vault_documents_scope_consistency`):
+
+| `scope` | `agent_id` | `team_id` | Khả năng truy cập |
+|---------|------------|-----------|-------------------|
+| `personal` | có giá trị | NULL | Chỉ agent sở hữu (trong tenant) |
+| `team` | NULL | có giá trị | Các thành viên của team (trong tenant) |
+| `shared` | NULL | NULL | Tất cả agent trong tenant |
+| `custom` | tùy ý | tùy ý | Tự định nghĩa qua `custom_scope` |
+
+Ràng buộc CHECK từ chối mọi INSERT hoặc UPDATE vi phạm mối quan hệ `scope × agent_id × team_id` ở trên. `scope='custom'` là ngoại lệ — được thiết kế không có ràng buộc, cho phép ngữ nghĩa quyền sở hữu do người dùng định nghĩa.
+
+#### Ngữ Nghĩa Đọc của Agent
+
+`vault_search`, `ListDocuments` và `CountDocuments` luôn trả về:
+
+- Tài liệu thuộc sở hữu của agent đang truy vấn (`agent_id = <agent>`)
+- CỘNG VỚI tài liệu shared (`agent_id IS NULL`)
+
+Trong ngữ cảnh team (một `RunContext` với `TeamID` được đặt), kết quả cũng bao gồm tài liệu team-scoped của team đó (`scope = 'team'` với `team_id = <team>`). Cô lập tenant (`tenant_id = <tenant>`) luôn được thực thi bất kể scope.
+
 ---
 
 ## Mô Hình Dữ Liệu
@@ -332,4 +354,4 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 - [Memory System](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dạng vector
 - [Context Files](../../agents/context-files.md) — Tài liệu tĩnh được inject vào context của agent
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

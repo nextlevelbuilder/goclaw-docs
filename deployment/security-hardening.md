@@ -152,6 +152,28 @@ For tools that need credentials (e.g., `gh`, `aws`), GoClaw uses direct process 
 
 Shell metacharacters (`;`, `|`, `&`, `$()`, backticks) are detected and rejected before execution.
 
+### Exec grant enforcement
+
+Agent-level grant enforcement runs **before** any process spawn, blocking ungranted agents from executing registered binaries:
+
+| Control | Detail |
+|---------|--------|
+| **Grant lookup** | `store.SecureCLIStore.IsRegisteredBinary()` checks the `secure_cli_agent_grants` table. Non-global binaries require a row for the calling agent. |
+| **Fail-closed** | If the grant lookup errors (DB down, timeout), exec is denied with a retry message. Per-lookup timeout: 2 seconds. |
+| **Env scrubbing** | When a command bypasses the credentialed path (e.g., via adversarial use of the `exec` tool), the child process environment is scrubbed of all credential keys before spawn — static deny list plus dynamic keys from every registered binary in the tenant. |
+| **Wrapper unwrap** | Shell wrappers (`sh -c`, `bash -c`, etc.) that attempt to evade binary path matching are blocked. GoClaw checks up to 3 levels of nesting; deeper chains are rejected as adversarial. |
+| **Subagent wiring** | Subagent `ExecTool`s use the same `SecureCLIStore` via `buildSubagentToolsRegistry`. Parent agents cannot bypass the gate by delegating exec to spawned subagents. |
+
+Security log events emitted by the grant gate:
+
+| Event | Meaning |
+|-------|---------|
+| `security.credentialed_binary_denied` | Agent attempted to run a binary it has no grant for |
+| `security.credentialed_binary_gate_error` | Grant lookup failed (DB error); exec denied |
+| `security.credentialed_binary_wrapper_too_deep` | Shell wrapper nesting exceeded 3 levels; rejected as adversarial |
+
+All three events include: `binary`, `wrapper`, `agent_id`, `tenant_id`, and `command` prefix fields.
+
 ### Shell output limit
 
 Host-executed commands have stdout and stderr capped at **1 MB** each. If a command exceeds this limit, output is truncated with a flag to prevent further writes. Sandboxed execution uses Docker container limits instead.
@@ -478,6 +500,9 @@ All security events log at `slog.Warn` with a `security.*` prefix:
 | `security.rate_limited` | Request rejected by rate limiter |
 | `security.cors_rejected` | WebSocket connection rejected by CORS policy |
 | `security.message_truncated` | Message truncated at `max_message_chars` |
+| `security.credentialed_binary_denied` | Agent attempted exec without a grant |
+| `security.credentialed_binary_gate_error` | Grant lookup failed; exec denied fail-closed |
+| `security.credentialed_binary_wrapper_too_deep` | Shell wrapper nesting > 3 levels rejected |
 
 Filter all security events:
 
@@ -509,4 +534,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

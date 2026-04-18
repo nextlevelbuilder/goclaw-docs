@@ -187,7 +187,7 @@ Jaeger UI：[http://localhost:16686](http://localhost:16686)
 
 ### `docker-compose.browser.yml`
 
-启动 `zenika/alpine-chrome:124`，在端口 9222 启用 CDP。GoClaw 通过 `GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222` 连接。
+启动 `chromedp/headless-shell:latest`，在端口 9222 启用 CDP。GoClaw 通过 `GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222` 连接。
 
 ### `docker-compose.otel.yml`
 
@@ -465,4 +465,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [可观测性](/deploy-observability) — OpenTelemetry 和 Jaeger 配置
 - [Tailscale](/deploy-tailscale) — 通过 Tailscale 实现安全远程访问
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-09 -->

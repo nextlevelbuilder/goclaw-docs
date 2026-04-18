@@ -221,7 +221,29 @@ GoClaw tự động phát hiện và cài đặt dependency thiếu cho skill:
 
 1. **Scanner** — phân tích tĩnh thư mục `scripts/` tìm import Python (`import X`, `from X import`) và Node.js (`require('X')`, `import from 'X'`)
 2. **Checker** — xác minh từng import có resolve được lúc runtime qua subprocess (`python3 -c "import X"` / `node -e "require.resolve('X')"`)
-3. **Installer** — cài theo prefix: `pip:name` → `pip3 install`, `npm:name` → `npm install -g`, `apk:name` → `doas apk add`
+3. **Installer** — cài theo prefix:
+
+| Prefix | Hiệu ứng |
+|--------|---------|
+| `pip:name` | `pip3 install` (Python package) |
+| `npm:name` | `npm install -g` (Node.js package) |
+| `system:name` | `apk add` qua pkg-helper (system package) |
+| `github:owner/repo[@tag]` | GitHub Releases installer — chỉ admin, xác minh SHA256, kiểm tra ELF. Binary được cài vào `/app/data/.runtime/bin/` (trên `$PATH`). |
+
+Ví dụ frontmatter trong SKILL.md dùng `github:`:
+
+```yaml
+---
+name: my-skill
+description: Does things using ripgrep and gh CLI.
+deps:
+  - github:BurntSushi/ripgrep@14.1.0
+  - github:cli/cli@v2.40.0
+  - pip:requests
+---
+```
+
+Installer `github:` tải release từ GitHub Releases, tự động chọn asset phù hợp `linux` + arch (amd64 / arm64), xác minh SHA256 nếu publisher cung cấp `checksums.txt`, kiểm tra ELF magic bytes, và giải nén vào `/app/data/.runtime/bin/`. Nếu không chỉ định `@tag`, release mới nhất được dùng.
 
 Kiểm tra dependency chạy trong goroutine nền lúc khởi động (không chặn luồng chính). Skill thiếu dependency được tự động archive; được kích hoạt lại sau khi cài xong. Bạn cũng có thể trigger rescan qua **Skills → Rescan Deps** trên Dashboard hoặc `POST /v1/skills/rescan-deps`.
 
@@ -401,4 +423,4 @@ Xem [Agent Evolution](agent-evolution.md) để biết chi tiết về tool `ski
 - [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->

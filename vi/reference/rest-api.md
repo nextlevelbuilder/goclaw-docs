@@ -133,6 +133,10 @@ Tạo lại context file của agent từ template.
 
 Kích hoạt lại LLM-based summoning cho predefined agent.
 
+### `POST /v1/agents/{id}/cancel-summon`
+
+Hủy bỏ cưỡng bức quá trình summoning bị kẹt. Chuyển agent đang ở trạng thái `summoning` sang `summon_failed` để có thể cấu hình lại hoặc kích hoạt lại. Trả về `409` nếu agent không ở trạng thái `summoning`.
+
 ### Agent Shares
 
 | Method | Path | Mô tả |
@@ -149,6 +153,7 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | Liệt kê context file của user |
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | Cập nhật user file (admin) |
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | Cập nhật instance metadata |
+| `GET` | `/v1/agents/{id}/system-prompt-preview` | Xem trước system prompt đã render (admin) |
 
 > Để đọc nội dung file, hãy liệt kê file qua `GET /v1/agents/{id}/instances/{userID}/files` rồi truy xuất qua API [Vault](#knowledge-vault) hoặc [Storage](#storage). Không có endpoint GET đơn lẻ cho instance file.
 
@@ -1115,6 +1120,30 @@ Truyền `"***"` làm `api_key` để giữ nguyên key đã lưu.
 
 ---
 
+## Giọng nói (Voices)
+
+Danh sách giọng nói ElevenLabs với cache theo tenant. Yêu cầu đã cấu hình API key ElevenLabs trong cài đặt TTS.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/voices` | Liệt kê giọng nói có sẵn (phục vụ từ cache; tự động fetch live khi cache miss) |
+| `POST` | `/v1/voices/refresh` | Xóa cache giọng nói và fetch lại từ ElevenLabs. Yêu cầu quyền admin. |
+
+**Response của `GET /v1/voices`:**
+
+```json
+{
+  "voices": [
+    { "voice_id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel", "preview_url": "https://..." },
+    ...
+  ]
+}
+```
+
+Trả về `404` khi chưa cấu hình API key ElevenLabs. Trả về `502` khi lệnh gọi API ElevenLabs thất bại.
+
+---
+
 ## Runtime & Packages
 
 Quản lý package system (apk), Python (pip), và Node (npm). Yêu cầu authentication.
@@ -1298,6 +1327,12 @@ Backup toàn hệ thống để phục hồi sau sự cố. Yêu cầu quyền a
 | `GET` | `/v1/system/backup/preflight` | Kiểm tra điều kiện trước khi backup |
 | `GET` | `/v1/system/backup/download/{token}` | Tải archive backup theo token ngắn hạn |
 
+### System Restore (Admin)
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/system/restore` | Khôi phục tenant/hệ thống từ archive backup. Yêu cầu quyền admin. |
+
 ### System Backup S3
 
 | Method | Path | Mô tả |
@@ -1437,4 +1472,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: c651cde5 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->

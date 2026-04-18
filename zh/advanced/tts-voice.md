@@ -257,6 +257,91 @@ pip install edge-tts
 
 ---
 
+## Voices API
+
+GoClaw 提供用于发现可用 TTS 音色的 HTTP 端点。这些端点按租户隔离，需要租户 admin 或 operator 角色。
+
+| Method | Path | 说明 |
+|--------|------|------|
+| `GET` | `/v1/voices` | 列出可用音色（内存缓存，TTL 1 小时） |
+| `POST` | `/v1/voices/refresh` | 强制使音色缓存失效（仅 admin） |
+
+### `GET /v1/voices`
+
+返回当前租户已配置的 ElevenLabs provider 的音色列表。结果按租户在内存中缓存，TTL 1 小时，所有 HTTP 和 WebSocket handler 共享同一缓存。
+
+```json
+[
+  {
+    "voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "name": "Alice",
+    "preview_url": "https://...",
+    "category": "premade",
+    "labels": {
+      "use_case": "conversational",
+      "accent": "american"
+    }
+  }
+]
+```
+
+缓存未命中时立即从 ElevenLabs 拉取。Provider 不可达时返回 `500`。
+
+### `POST /v1/voices/refresh`
+
+使当前租户的音色缓存失效，下次 `GET /v1/voices` 请求将从 provider 获取最新列表。适用于向 ElevenLabs 账号添加音色后或 CDN 过期问题后。
+
+```json
+{ "message": "voice cache invalidated" }
+```
+
+响应为 `202 Accepted`。
+
+---
+
+## 语音识别（STT）
+
+GoClaw 通过统一的 `audio.Manager` 和 provider 链处理所有语音/音频转录。Telegram、Discord、Feishu、WhatsApp 等 channel 共享同一 STT 基础设施。
+
+### 统一转录流程
+
+```mermaid
+flowchart TD
+    VOICE["语音/音频消息"] --> ROUTE{Channel 类型?}
+
+    ROUTE -->|Telegram / Discord / Feishu| DOWNLOAD["下载音频文件"]
+    ROUTE -->|WhatsApp| WA_CHECK{"settings 中\nwhatsapp_enabled?"}
+
+    WA_CHECK -->|否| WA_FALLBACK["[Voice message]\n（默认关闭）"]
+    WA_CHECK -->|是| DOWNLOAD
+
+    DOWNLOAD --> STT_CHECK{"已配置 STT\nproviders?"}
+    STT_CHECK -->|是| STT_CHAIN["按顺序尝试：\nelevenlabs_scribe, proxy"]
+    STT_CHECK -->|否| FALLBACK["[Voice message]"]
+
+    STT_CHAIN -->|成功| TEXT["转录文本\n→ agent 上下文"]
+    STT_CHAIN -->|失败 / 10s 超时| FALLBACK
+```
+
+### WhatsApp 选择加入
+
+WhatsApp STT **默认关闭**（`whatsapp_enabled: false`）。原因：WhatsApp 语音消息经过端到端加密，将音频发送到外部 STT provider 会破坏 E2E 加密。管理员须在 **Config → Audio → STT** 中明确启用并确认此变更。
+
+关闭时（默认）：语音消息在 agent 上下文中显示为 `[Voice message]`——音频不会离开设备。
+启用后：音频通过配置的 STT 链转录；失败或超时（10 秒）时回退到 `[Voice message]`。
+
+### STT Provider 链
+
+| 设置 | 行为 |
+|------|------|
+| `providers: ["elevenlabs_scribe", "proxy_stt"]` | 优先尝试 ElevenLabs Scribe；回退到旧版代理 |
+| `providers: []`（空） | 跳过所有 STT；语音 → `[Voice message]` |
+| `providers` 缺失（nil） | 启动时检查旧版 `STTProxyURL` bridge |
+
+通过 Web UI 的 **Config → Audio → STT** 配置（存储在 `builtin_tools[stt].settings.providers`）。该列表存在时，将覆盖所有旧版 channel 专属 STT 配置。
+
+---
+
 ## STT 内置工具
 
 `stt` 内置工具（由 migration 050 种子化）允许 agent 使用 ElevenLabs Scribe 或兼容代理对语音/音频输入进行转录 — 启用和配置方式请参阅 [Tools Overview](/tools-overview)。
@@ -282,4 +367,4 @@ pip install edge-tts
 - [定时任务与 Cron](/scheduling-cron) — 按计划触发 agent
 - [扩展思维](/extended-thinking) — 复杂回复的深度推理
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->

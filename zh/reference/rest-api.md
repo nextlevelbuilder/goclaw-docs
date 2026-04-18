@@ -133,6 +133,10 @@ curl -X POST http://localhost:18790/v1/agents \
 
 为 predefined agent 重新触发基于 LLM 的 summoning。
 
+### `POST /v1/agents/{id}/cancel-summon`
+
+强制中止卡住的 summoning 进程。将处于 `summoning` 状态的 agent 转换为 `summon_failed`，以便重新配置或重新触发。如果 agent 不在 `summoning` 状态，返回 `409`。
+
 ### Agent 共享
 
 | 方法 | 路径 | 说明 |
@@ -149,6 +153,7 @@ curl -X POST http://localhost:18790/v1/agents \
 | `GET` | `/v1/agents/{id}/instances/{userID}/files` | 列出用户 context 文件 |
 | `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` | 更新用户 context 文件（管理员）|
 | `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` | 更新实例元数据 |
+| `GET` | `/v1/agents/{id}/system-prompt-preview` | 预览已渲染的 system prompt（管理员）|
 
 > 如需读取文件内容，请先通过 `GET /v1/agents/{id}/instances/{userID}/files` 列出文件，再通过 [Vault](#knowledge-vault) 或 [Storage](#storage) API 获取。不存在单文件 GET 的实例文件端点。
 
@@ -1083,6 +1088,30 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 
 ---
 
+## 语音（Voices）
+
+ElevenLabs 语音列表，按租户缓存。需要在 TTS 配置中设置 ElevenLabs API key。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/voices` | 列出可用语音（从缓存响应；缓存未命中时实时拉取）|
+| `POST` | `/v1/voices/refresh` | 清除语音缓存并从 ElevenLabs 重新拉取。需要管理员角色。 |
+
+**`GET /v1/voices` 响应：**
+
+```json
+{
+  "voices": [
+    { "voice_id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel", "preview_url": "https://..." },
+    ...
+  ]
+}
+```
+
+未配置 ElevenLabs API key 时返回 `404`。ElevenLabs API 调用失败时返回 `502`。
+
+---
+
 ## 运行时与包
 
 管理系统（apk）、Python（pip）和 Node（npm）包。需要认证。
@@ -1266,6 +1295,12 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | `GET` | `/v1/system/backup/preflight` | 检查备份前置条件 |
 | `GET` | `/v1/system/backup/download/{token}` | 通过短期 token 下载备份 archive |
 
+### 系统恢复（管理员）
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `POST` | `/v1/system/restore` | 从备份 archive 恢复租户/系统。需要管理员权限。 |
+
 ### 系统备份 S3
 
 | 方法 | 路径 | 说明 |
@@ -1405,4 +1440,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: c651cde5 | 更新: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->

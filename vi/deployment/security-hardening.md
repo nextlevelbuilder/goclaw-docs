@@ -154,6 +154,28 @@ Với các tool cần credentials (ví dụ: `gh`, `aws`), GoClaw dùng direct p
 
 Shell metacharacter (`;`, `|`, `&`, `$()`, backtick) được phát hiện và từ chối trước khi thực thi.
 
+### Kiểm tra grant thực thi (Exec grant enforcement)
+
+Kiểm tra grant ở cấp agent chạy **trước** bất kỳ lần spawn process nào, chặn agent không được cấp quyền thực thi binary đã đăng ký:
+
+| Kiểm soát | Chi tiết |
+|---------|---------|
+| **Tra cứu grant** | `store.SecureCLIStore.IsRegisteredBinary()` kiểm tra bảng `secure_cli_agent_grants`. Binary không phải global yêu cầu có row cho agent đang gọi. |
+| **Fail-closed** | Nếu tra cứu grant lỗi (DB down, timeout), exec bị từ chối kèm thông báo thử lại. Timeout mỗi lần tra cứu: 2 giây. |
+| **Env scrubbing** | Khi lệnh bỏ qua đường dẫn credentialed (ví dụ: qua việc dùng tool `exec` theo cách xấu), môi trường process con được scrub khỏi tất cả credential key trước khi spawn — danh sách từ chối tĩnh cộng với key động từ mọi binary đã đăng ký trong tenant. |
+| **Wrapper unwrap** | Shell wrapper (`sh -c`, `bash -c`, v.v.) cố tình né tránh path matching bị chặn. GoClaw kiểm tra tối đa 3 cấp nesting; chain sâu hơn bị từ chối là adversarial. |
+| **Subagent wiring** | `ExecTool` của subagent dùng cùng `SecureCLIStore` qua `buildSubagentToolsRegistry`. Agent cha không thể bỏ qua gate bằng cách ủy quyền exec cho subagent đã spawn. |
+
+Security log event từ grant gate:
+
+| Event | Ý nghĩa |
+|-------|---------|
+| `security.credentialed_binary_denied` | Agent cố thực thi binary mà không có grant |
+| `security.credentialed_binary_gate_error` | Tra cứu grant thất bại (DB error); exec bị từ chối |
+| `security.credentialed_binary_wrapper_too_deep` | Shell wrapper lồng nhau > 3 cấp; bị từ chối là adversarial |
+
+Cả ba event đều gồm các trường: `binary`, `wrapper`, `agent_id`, `tenant_id`, và tiền tố `command`.
+
 ### Giới hạn đầu ra shell
 
 Lệnh thực thi trên host có stdout và stderr giới hạn **1 MB** mỗi loại. Nếu lệnh vượt giới hạn này, đầu ra bị cắt bớt kèm cờ hiệu để ngăn ghi thêm. Thực thi trong sandbox dùng giới hạn container Docker thay thế.
@@ -480,6 +502,9 @@ Tất cả security event log ở `slog.Warn` với prefix `security.*`:
 | `security.rate_limited` | Request bị reject bởi rate limiter |
 | `security.cors_rejected` | WebSocket connection bị reject bởi CORS policy |
 | `security.message_truncated` | Tin nhắn bị cắt ở `max_message_chars` |
+| `security.credentialed_binary_denied` | Agent cố thực thi binary không có grant |
+| `security.credentialed_binary_gate_error` | Tra cứu grant thất bại; exec bị từ chối fail-closed |
+| `security.credentialed_binary_wrapper_too_deep` | Shell wrapper lồng nhau > 3 cấp bị từ chối |
 
 Lọc tất cả security event:
 
@@ -511,4 +536,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploy với security settings qua compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS và encrypted secret storage
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

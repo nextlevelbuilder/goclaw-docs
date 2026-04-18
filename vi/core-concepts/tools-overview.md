@@ -40,19 +40,21 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Brave** | Yêu cầu `BRAVE_API_KEY` |
 | **DuckDuckGo** | Fallback miễn phí — dùng cuối cùng nếu không có API key cho các provider khác |
 
-Cấu hình thứ tự provider qua `provider_order` trong cài đặt tool:
+> **Breaking change (v3.2+):** `config.json5 tools.web.*` đã bị xóa. Cấu hình giờ chỉ theo tenant. Các key hiện có được tự động migrate khi khởi động lần đầu (data hook 055).
 
-```json
+Cấu hình `web_search` qua dashboard (**Config → Tools → Web Search**) hoặc API:
+
+```bash
+# Đặt thứ tự provider qua tenant-config API
+PUT /v1/tools/builtin/web_search/tenant-config
 {
-  "tools": {
-    "web_search": {
-      "provider_order": ["exa", "tavily", "brave", "duckduckgo"]
-    }
-  }
+  "provider_order": ["exa", "tavily", "brave", "duckduckgo"],
+  "brave": { "enabled": true, "max_results": 5 },
+  "exa": { "enabled": false }
 }
 ```
 
-DuckDuckGo không cần API key và luôn khả dụng như fallback cuối cùng.
+DuckDuckGo không cần API key và luôn khả dụng như fallback cuối cùng — không thể tắt.
 
 ### Tool Memory & Vault mới trong V3
 
@@ -312,4 +314,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->

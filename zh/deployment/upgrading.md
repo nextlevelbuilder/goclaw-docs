@@ -210,9 +210,11 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 ## 近期迁移
 
-### v3 迁移（037–044）— v2→v3 升级指南
+### v3 迁移（037–055）— v2→v3 升级指南
 
 这些迁移通过 `./goclaw upgrade` 自动应用，构成 **v3 主版本**。从 v2 升级前请仔细阅读以下重大变更。
+
+迁移 048–055 引入了 vault 媒体链接、vault scope 一致性约束、agent hooks 系统（第 1–4 阶段），以及 `web_search` 的 tenant-config 迁移。无需手动步骤——数据钩子 055 会在首次启动时自动将旧 `config.json5 tools.web.*` 和 `builtin_tool_tenant_configs.settings` 中的 API 密钥迁移到 `config_secrets`。
 
 | 版本 | 变更内容 |
 |------|---------|
@@ -248,6 +250,7 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 删除 `docker-compose.whatsapp.yml` | bridge sidecar Docker Compose overlay 不再存在 | 从部署脚本中删除 |
 | 文件工具自动解析团队工作区 | 指向团队工作区路径的 `read_file`/`write_file` 直接工作 | 无——透明处理 |
 | Store 统一（`internal/store/base/`） | 仅内部重构 | 无——无 schema 或配置变更 |
+| 移除 `config.json5 tools.web.*` | `web_search` 现在仅限租户级别；全局路径不再被解析 | 从 `config.json5` 中删除 `tools.web.*`；通过 **Config → Tools → Web Search** UI 或 `/v1/tools/builtin/web_search/tenant-config` API 配置。API 密钥在启动时自动迁移（钩子 055） |
 
 ### v2.x 迁移（024–032）
 
@@ -322,4 +325,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->

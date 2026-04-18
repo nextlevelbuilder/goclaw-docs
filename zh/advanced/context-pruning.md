@@ -22,8 +22,10 @@
 裁剪是**可选启用（opt-in）**的 — 仅在 agent 上设置了 `mode: "cache-ttl"` 时才会运行。流程：
 
 ```
-历史 → limitHistoryTurns → pruneContextMessages → sanitizeHistory → LLM
+历史 → limitHistoryTurns → sanitizeHistory → LLM
 ```
+
+> **注意：** `pruneContextMessages`（PruneStage）**不在**上述主 pipeline 中。它以 opt-in 方式独立运行 — 仅当设置了 `mode: "cache-ttl"` 时才生效。上图反映的是标准历史处理路径。
 
 每次 LLM 调用前，GoClaw：
 
@@ -276,4 +278,4 @@ Tool output 现在在加入上下文之前就在源头截断。不再等待 prun
 - [记忆系统](../../core-concepts/memory-system.md) — 三层记忆架构与整合 pipeline
 - [配置参考](/config-reference) — 完整的 agent 配置参考
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-09 -->

@@ -50,6 +50,28 @@ Documents are scoped by **tenant** (isolation boundary), **agent** (namespace), 
 | `team` | Team workspace documents shared across team members |
 | `shared` | Cross-tenant shared knowledge (future) |
 
+### Document Scope & Ownership Invariant
+
+The `scope` field has a strict ownership invariant enforced at the database level by migration `000055` (`vault_documents_scope_consistency` CHECK constraint):
+
+| `scope` | `agent_id` | `team_id` | Visibility |
+|---------|------------|-----------|------------|
+| `personal` | set | NULL | Owning agent only (within tenant) |
+| `team` | NULL | set | Members of the team (within tenant) |
+| `shared` | NULL | NULL | All agents within the tenant |
+| `custom` | any | any | User-defined via `custom_scope` |
+
+The CHECK constraint rejects any INSERT or UPDATE that violates the `scope × agent_id × team_id` relationship above. `scope='custom'` is the exception — it is intentionally unconstrained, allowing user-defined ownership semantics.
+
+#### Agent Read Semantics
+
+`vault_search`, `ListDocuments`, and `CountDocuments` always return:
+
+- Documents owned by the querying agent (`agent_id = <agent>`)
+- PLUS shared documents (`agent_id IS NULL`)
+
+Within a team context (a `RunContext` with `TeamID` set), results also include team-scoped documents for that team (`scope = 'team'` with `team_id = <team>`). Tenant isolation (`tenant_id = <tenant>`) is always enforced regardless of scope.
+
 ---
 
 ## Data Model
@@ -391,4 +413,4 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 - [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
 - [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

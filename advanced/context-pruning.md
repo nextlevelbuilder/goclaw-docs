@@ -20,8 +20,10 @@ Context pruning is distinct from [session compaction](../core-concepts/sessions-
 Pruning is **opt-in** — it only runs when `mode: "cache-ttl"` is set on the agent. The flow:
 
 ```
-history → limitHistoryTurns → pruneContextMessages → sanitizeHistory → LLM
+history → limitHistoryTurns → sanitizeHistory → LLM
 ```
+
+> **Note:** `pruneContextMessages` (PruneStage) is **not** part of the main pipeline above. It runs opt-in and separately — only when `mode: "cache-ttl"` is set. The diagram above reflects the standard history preparation path.
 
 Before each LLM call, GoClaw:
 
@@ -274,4 +276,4 @@ Tool output is now capped at the source before being added to context. Rather th
 - [Memory System](../core-concepts/memory-system.md) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

@@ -221,7 +221,29 @@ GoClaw 自动检测并安装缺失的 skill 依赖：
 
 1. **扫描器** — 静态分析 `scripts/` 子目录中的 Python（`import X`、`from X import`）和 Node.js（`require('X')`、`import from 'X'`）导入
 2. **检查器** — 通过子进程验证每个导入在运行时是否可解析（`python3 -c "import X"` / `node -e "require.resolve('X')"`）
-3. **安装器** — 按前缀安装：`pip:name` → `pip3 install`，`npm:name` → `npm install -g`，`apk:name` → `doas apk add`
+3. **安装器** — 按前缀安装：
+
+| 前缀 | 效果 |
+|------|------|
+| `pip:name` | `pip3 install`（Python 包） |
+| `npm:name` | `npm install -g`（Node.js 包） |
+| `system:name` | 通过 pkg-helper 执行 `apk add`（系统包） |
+| `github:owner/repo[@tag]` | GitHub Releases 安装器——仅管理员可用，SHA256 验证，ELF 验证。二进制文件安装至 `/app/data/.runtime/bin/`（已加入 `$PATH`）。 |
+
+使用 `github:` 的 SKILL.md frontmatter 示例：
+
+```yaml
+---
+name: my-skill
+description: Does things using ripgrep and gh CLI.
+deps:
+  - github:BurntSushi/ripgrep@14.1.0
+  - github:cli/cli@v2.40.0
+  - pip:requests
+---
+```
+
+`github:` 安装器从 GitHub Releases 获取发布，自动选择匹配 `linux` + 当前架构（amd64 / arm64）的资源，若发布者提供 `checksums.txt` 则验证 SHA256，校验 ELF magic bytes，并解压至 `/app/data/.runtime/bin/`。不指定 `@tag` 时使用最新发布。
 
 依赖检查在启动时的后台 goroutine 中运行（非阻塞）。缺少依赖的 skill 会被自动归档；安装依赖后重新激活。也可通过 Dashboard 的 **Skills → Rescan Deps** 或 `POST /v1/skills/rescan-deps` 触发重新扫描。
 
@@ -401,4 +423,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->

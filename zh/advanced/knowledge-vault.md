@@ -52,6 +52,28 @@ Agent 写入文档 → Workspace FS
 | `team` | 团队工作区文档，供团队成员共享 |
 | `shared` | 跨租户共享知识（未来计划） |
 
+### 文档范围与所有权不变量
+
+`scope` 字段具有严格的所有权不变量，由 migration `000055` 在数据库层面强制执行（CHECK 约束 `vault_documents_scope_consistency`）：
+
+| `scope` | `agent_id` | `team_id` | 可见性 |
+|---------|------------|-----------|--------|
+| `personal` | 已设置 | NULL | 仅所属 agent（租户内） |
+| `team` | NULL | 已设置 | 团队成员（租户内） |
+| `shared` | NULL | NULL | 租户内所有 agent |
+| `custom` | 任意 | 任意 | 通过 `custom_scope` 用户自定义 |
+
+CHECK 约束会拒绝任何违反上述 `scope × agent_id × team_id` 关系的 INSERT 或 UPDATE。`scope='custom'` 是例外 — 它有意不加约束，允许用户定义所有权语义。
+
+#### Agent 读取语义
+
+`vault_search`、`ListDocuments` 和 `CountDocuments` 始终返回：
+
+- 查询 agent 所拥有的文档（`agent_id = <agent>`）
+- 加上共享文档（`agent_id IS NULL`）
+
+在团队上下文中（设置了 `TeamID` 的 `RunContext`），结果还包括该团队的团队范围文档（`scope = 'team'` 且 `team_id = <team>`）。无论范围如何，租户隔离（`tenant_id = <tenant>`）始终强制执行。
+
 ---
 
 ## 数据模型
@@ -332,4 +354,4 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 - [Memory 系统](../../core-concepts/memory-system.md) — 向量化长期记忆
 - [Context 文件](../../agents/context-files.md) — 注入 agent context 的静态文档
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

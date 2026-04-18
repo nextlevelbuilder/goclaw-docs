@@ -89,6 +89,10 @@ For config-file-based channels (instead of DB instances):
 | `features.comment_reply` | bool | -- | Enable comment replies |
 | `features.first_inbox` | bool | -- | Send a one-time DM to a commenter after their first comment reply |
 | `features.auto_react` | bool | -- | Auto-like user comments on Facebook (Facebook only) |
+| `auto_react_options.allow_post_ids` | list | -- | Only react to comments on these post IDs (nil = all posts) |
+| `auto_react_options.deny_post_ids` | list | -- | Never react to comments on these post IDs (overrides allow) |
+| `auto_react_options.allow_user_ids` | list | -- | Only react to comments from these user IDs (nil = all users) |
+| `auto_react_options.deny_user_ids` | list | -- | Never react to comments from these user IDs (overrides allow) |
 | `comment_reply_options.include_post_context` | bool | false | Prepend post text to comment content sent to the agent |
 | `comment_reply_options.filter` | string | `"all"` | Comment filter mode: `"all"` or `"keyword"` |
 | `comment_reply_options.keywords` | list | -- | Required when `filter="keyword"` — only process comments containing these keywords |
@@ -232,6 +236,17 @@ When `features.comment_reply: true`, additional options control comment handling
 
 **Auto-react** (`features.auto_react: true`): automatically likes every valid incoming comment on Facebook (Facebook platform only). Fires independently of `comment_reply` — you can react without replying.
 
+Scope the reactions further with `auto_react_options`:
+
+| Field | Type | Behavior |
+|-------|------|----------|
+| `allow_post_ids` | list | React only on comments for these post IDs (nil = all posts) |
+| `deny_post_ids` | list | Never react on these post IDs (overrides allow) |
+| `allow_user_ids` | list | React only to comments from these user IDs (nil = all users) |
+| `deny_user_ids` | list | Never react to comments from these user IDs (overrides allow) |
+
+Deny lists always take precedence over allow lists. Omitting `auto_react_options` entirely means no scope filter (react to all valid comments).
+
 **First inbox** (`features.first_inbox: true`): after replying to a comment, sends a one-time private DM to the commenter inviting them to continue via inbox. Only sent once per sender per session restart. Customize the DM text with `first_inbox_message`.
 
 ### Channel Health
@@ -268,4 +283,4 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Multi-Channel Setup](/recipe-multi-channel) — Configure multiple channels
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

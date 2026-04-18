@@ -187,7 +187,7 @@ Mount `/var/run/docker.sock` để GoClaw có thể tạo container cô lập ch
 
 ### `docker-compose.browser.yml`
 
-Khởi động `zenika/alpine-chrome:124` với CDP trên port 9222. GoClaw kết nối qua `GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222`.
+Khởi động `chromedp/headless-shell:latest` với CDP trên port 9222. GoClaw kết nối qua `GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222`.
 
 ### `docker-compose.otel.yml`
 
@@ -466,4 +466,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](/deploy-observability) — cấu hình OpenTelemetry và Jaeger
 - [Tailscale](/deploy-tailscale) — truy cập từ xa an toàn qua Tailscale
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | cập nhật: 2026-04-09 -->

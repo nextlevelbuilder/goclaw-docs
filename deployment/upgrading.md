@@ -208,9 +208,11 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v3 Migrations (037–044) — v2→v3 Upgrade Guide
+### v3 Migrations (037–055) — v2→v3 Upgrade Guide
 
 These migrations are applied automatically via `./goclaw upgrade`. They constitute the **v3 major release**. Read the breaking changes below before upgrading from v2.
+
+Migrations 048–055 introduce the vault media linking, vault scope consistency enforcement, agent hooks system (phases 1–4), and the `web_search` tenant-config migration. No manual steps are required — data hook 055 auto-migrates any API keys from legacy `config.json5 tools.web.*` and `builtin_tool_tenant_configs.settings` blobs to `config_secrets` on first startup.
 
 | Version | What changed |
 |---------|-------------|
@@ -247,6 +249,7 @@ These migrations are applied automatically via `./goclaw upgrade`. They constitu
 | Team workspace files: file tools auto-resolve | `read_file`/`write_file` targeting team workspace paths work directly | None — transparent |
 | Store unification (`internal/store/base/`) | Internal refactor only | None — no schema or config changes |
 | Gateway decomposed into modules | Internal refactor only | None |
+| `config.json5 tools.web.*` removed | `web_search` is now tenant-only; global path no longer parsed | Remove `tools.web.*` from `config.json5`; configure via **Config → Tools → Web Search** UI or `/v1/tools/builtin/web_search/tenant-config` API. API keys auto-migrated on startup (hook 055) |
 
 ### v2.x Migrations (024–032)
 
@@ -321,4 +324,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

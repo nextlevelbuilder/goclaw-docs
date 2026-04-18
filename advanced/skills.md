@@ -219,7 +219,29 @@ GoClaw auto-detects and installs missing skill dependencies:
 
 1. **Scanner** — statically analyzes `scripts/` subdirectory for Python (`import X`, `from X import`) and Node.js (`require('X')`, `import from 'X'`) imports
 2. **Checker** — verifies each import resolves at runtime via subprocess (`python3 -c "import X"` / `node -e "require.resolve('X')"`)
-3. **Installer** — installs by prefix: `pip:name` → `pip3 install`, `npm:name` → `npm install -g`, `apk:name` → `doas apk add`
+3. **Installer** — installs by prefix:
+
+| Prefix | Effect |
+|--------|--------|
+| `pip:name` | `pip3 install` (Python package) |
+| `npm:name` | `npm install -g` (Node.js package) |
+| `system:name` | `apk add` via pkg-helper (system package) |
+| `github:owner/repo[@tag]` | GitHub Releases installer — admin-only, SHA256-verified, ELF-validated. Binary lands in `/app/data/.runtime/bin/` (on `$PATH`). |
+
+Example SKILL.md frontmatter using `github:`:
+
+```yaml
+---
+name: my-skill
+description: Does things using ripgrep and gh CLI.
+deps:
+  - github:BurntSushi/ripgrep@14.1.0
+  - github:cli/cli@v2.40.0
+  - pip:requests
+---
+```
+
+The `github:` installer fetches the release from GitHub Releases, auto-selects the `linux` + arch-matching asset (amd64 / arm64), verifies SHA256 if the publisher ships `checksums.txt`, validates ELF magic bytes, and extracts to `/app/data/.runtime/bin/`. If no `@tag` is specified, the latest release is used.
 
 Dep checks run in a background goroutine at startup (non-blocking). Skills with missing deps are archived automatically; they are re-activated after deps are installed. You can also trigger a rescan via **Skills → Rescan Deps** in the Dashboard or `POST /v1/skills/rescan-deps`.
 
@@ -399,4 +421,4 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

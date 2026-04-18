@@ -91,6 +91,10 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | `features.comment_reply` | bool | -- | 启用评论回复 |
 | `features.first_inbox` | bool | -- | 首次评论回复后向评论者发送一次性私信 |
 | `features.auto_react` | bool | -- | 自动为用户评论点赞（仅限 Facebook） |
+| `auto_react_options.allow_post_ids` | list | -- | 仅对这些帖子 ID 的评论点赞（nil = 所有帖子） |
+| `auto_react_options.deny_post_ids` | list | -- | 永不对这些帖子 ID 点赞（覆盖 allow） |
+| `auto_react_options.allow_user_ids` | list | -- | 仅对这些用户 ID 的评论点赞（nil = 所有用户） |
+| `auto_react_options.deny_user_ids` | list | -- | 永不对这些用户 ID 的评论点赞（覆盖 allow） |
 | `comment_reply_options.include_post_context` | bool | false | 将原帖内容附加到发送给 agent 的评论内容前 |
 | `comment_reply_options.filter` | string | `"all"` | 评论过滤模式：`"all"` 或 `"keyword"` |
 | `comment_reply_options.keywords` | list | -- | `filter="keyword"` 时必填——仅处理包含这些关键词的评论 |
@@ -234,6 +238,17 @@ Pancake 支持两种会话类型：
 
 **Auto-react**（`features.auto_react: true`）：自动为 Facebook 上每条有效的新评论点赞（仅限 Facebook 平台）。与 `comment_reply` 独立运作——可以只点赞不回复。
 
+通过 `auto_react_options` 进一步限定点赞范围：
+
+| 字段 | 类型 | 行为 |
+|------|------|------|
+| `allow_post_ids` | list | 仅对这些帖子 ID 的评论点赞（nil = 所有帖子） |
+| `deny_post_ids` | list | 永不对这些帖子 ID 点赞（覆盖 allow） |
+| `allow_user_ids` | list | 仅对这些用户 ID 的评论点赞（nil = 所有用户） |
+| `deny_user_ids` | list | 永不对这些用户 ID 的评论点赞（覆盖 allow） |
+
+Deny 列表始终优先于 allow 列表。完全省略 `auto_react_options` 表示无范围过滤（对所有有效评论点赞）。
+
 **First inbox**（`features.first_inbox: true`）：回复评论后，向评论者发送一条一次性私信，邀请其通过收件箱继续对话。每位用户每次服务重启后仅发送一次。可通过 `first_inbox_message` 自定义私信内容。
 
 ### Channel 健康状态
@@ -270,4 +285,4 @@ API 错误映射到 channel 健康状态：
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [多 Channel 设置](/recipe-multi-channel) — 配置多个 channel
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->

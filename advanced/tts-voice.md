@@ -255,6 +255,91 @@ Each agent can override the global TTS voice and model via its `other_config` JS
 
 ---
 
+## Voices API
+
+GoClaw exposes HTTP endpoints for discovering available TTS voices. These are tenant-scoped and require tenant admin or operator role.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/voices` | List available voices (in-memory cached, TTL 1h) |
+| `POST` | `/v1/voices/refresh` | Force-invalidate the voice cache (admin only) |
+
+### `GET /v1/voices`
+
+Returns the voice list for the current tenant's configured ElevenLabs provider. Results are cached in-memory per tenant with a 1-hour TTL — shared across all HTTP and WebSocket handlers.
+
+```json
+[
+  {
+    "voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "name": "Alice",
+    "preview_url": "https://...",
+    "category": "premade",
+    "labels": {
+      "use_case": "conversational",
+      "accent": "american"
+    }
+  }
+]
+```
+
+A cache miss triggers an immediate fetch from ElevenLabs. Returns `500` if the provider is unreachable.
+
+### `POST /v1/voices/refresh`
+
+Invalidates the voice cache for the current tenant so the next `GET /v1/voices` request fetches a fresh list from the provider. Useful after adding voices to your ElevenLabs account or after CDN expiry.
+
+```json
+{ "message": "voice cache invalidated" }
+```
+
+Response is `202 Accepted`.
+
+---
+
+## Speech-to-Text (STT)
+
+GoClaw routes all voice/audio transcription through a unified `audio.Manager` with a provider chain. Channels (Telegram, Discord, Feishu, WhatsApp) share the same STT infrastructure.
+
+### Unified Transcription Flow
+
+```mermaid
+flowchart TD
+    VOICE["Voice/audio message"] --> ROUTE{Channel type?}
+
+    ROUTE -->|Telegram / Discord / Feishu| DOWNLOAD["Download audio file"]
+    ROUTE -->|WhatsApp| WA_CHECK{"whatsapp_enabled\nin settings?"}
+
+    WA_CHECK -->|No| WA_FALLBACK["[Voice message]\n(default opt-out)"]
+    WA_CHECK -->|Yes| DOWNLOAD
+
+    DOWNLOAD --> STT_CHECK{"STT providers\nconfigured?"}
+    STT_CHECK -->|Yes| STT_CHAIN["Try providers in order:\nelevenlabs_scribe, proxy"]
+    STT_CHECK -->|No| FALLBACK["[Voice message]"]
+
+    STT_CHAIN -->|Success| TEXT["Transcribed text\n→ agent context"]
+    STT_CHAIN -->|Fail / 10s timeout| FALLBACK
+```
+
+### WhatsApp Opt-In
+
+WhatsApp STT is **off by default** (`whatsapp_enabled: false`). Rationale: WhatsApp voice messages are end-to-end encrypted. Sending audio bytes to an external STT provider breaks E2E encryption. Admins must explicitly enable it in **Config → Audio → STT** and acknowledge the E2E breaking change.
+
+When disabled (default): voice messages appear in agent context as `[Voice message]` — no audio leaves the device.
+When enabled: audio is transcribed via the configured STT chain; falls back to `[Voice message]` on failure or timeout (10 s wall clock).
+
+### STT Provider Chain
+
+| Setting | Behavior |
+|---------|----------|
+| `providers: ["elevenlabs_scribe", "proxy_stt"]` | Try ElevenLabs Scribe first; fall back to legacy proxy |
+| `providers: []` (empty) | Skip all STT; voice → `[Voice message]` |
+| `providers` missing (nil) | Check for legacy `STTProxyURL` bridge at startup |
+
+Configure via **Config → Audio → STT** in the web UI (stored in `builtin_tools[stt].settings.providers`). When this list is present it overrides all legacy channel-specific STT configs.
+
+---
+
 ## STT Builtin Tool
 
 The `stt` builtin tool (seeded by migration 050) enables agents to transcribe voice/audio input using ElevenLabs Scribe or a compatible proxy — see [Tools Overview](/tools-overview) for how to enable and configure it.
@@ -280,4 +365,4 @@ The `stt` builtin tool (seeded by migration 050) enables agents to transcribe vo
 - [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

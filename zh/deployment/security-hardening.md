@@ -154,6 +154,28 @@ flowchart TD
 
 Shell 元字符（`;`、`|`、`&`、`$()`、反引号）在执行前被检测并拒绝。
 
+### 执行授权强制（Exec grant enforcement）
+
+Agent 级别的授权检查在任何进程 spawn **之前**运行，阻止未授权的 agent 执行已注册的二进制文件：
+
+| 控制 | 详情 |
+|------|------|
+| **授权查找** | `store.SecureCLIStore.IsRegisteredBinary()` 检查 `secure_cli_agent_grants` 表。非全局二进制文件要求调用 agent 有对应记录。 |
+| **失败关闭** | 如果授权查找出错（DB 故障、超时），exec 被拒绝并返回重试消息。每次查找超时：2 秒。 |
+| **环境变量清除** | 当命令绕过凭据路径（如通过恶意使用 `exec` 工具）时，子进程环境在 spawn 前被清除所有凭据键——包括静态拒绝列表和租户中所有已注册二进制文件的动态键。 |
+| **包装器解包** | 试图规避二进制路径匹配的 shell 包装器（`sh -c`、`bash -c` 等）会被阻止。GoClaw 最多检查 3 层嵌套；更深的链被视为恶意攻击而拒绝。 |
+| **子 agent 接线** | 子 agent 的 `ExecTool` 通过 `buildSubagentToolsRegistry` 使用相同的 `SecureCLIStore`。父 agent 无法通过将 exec 委托给生成的子 agent 来绕过检查门。 |
+
+授权门发出的安全日志事件：
+
+| 事件 | 含义 |
+|------|------|
+| `security.credentialed_binary_denied` | Agent 尝试在无授权情况下执行二进制文件 |
+| `security.credentialed_binary_gate_error` | 授权查找失败（DB 错误）；exec 被拒绝 |
+| `security.credentialed_binary_wrapper_too_deep` | Shell 包装器嵌套超过 3 层，被拒绝为恶意攻击 |
+
+三个事件均包含字段：`binary`、`wrapper`、`agent_id`、`tenant_id` 和 `command` 前缀。
+
 ### Shell 输出限制
 
 主机执行的命令 stdout 和 stderr 各限制 **1 MB**。超出限制时，输出被截断并标记以防止继续写入。沙箱执行使用 Docker 容器限制。
@@ -480,6 +502,9 @@ GoClaw 通过 `safego` 包将所有后台 goroutine（工具执行、cron 任务
 | `security.rate_limited` | 请求被速率限制器拒绝 |
 | `security.cors_rejected` | WebSocket 连接被 CORS 策略拒绝 |
 | `security.message_truncated` | 消息在 `max_message_chars` 处被截断 |
+| `security.credentialed_binary_denied` | Agent 尝试执行无授权二进制文件 |
+| `security.credentialed_binary_gate_error` | 授权查找失败；exec 被失败关闭拒绝 |
+| `security.credentialed_binary_wrapper_too_deep` | Shell 包装器嵌套 > 3 层被拒绝 |
 
 过滤所有安全事件：
 
@@ -511,4 +536,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — 通过 compose overlay 部署安全设置
 - [数据库设置](./database-setup.md) — PostgreSQL TLS 和加密密钥存储
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->

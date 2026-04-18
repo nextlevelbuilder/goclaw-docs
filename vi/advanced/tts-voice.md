@@ -257,6 +257,91 @@ Mỗi agent có thể ghi đè giọng và model TTS toàn cục qua trường `
 
 ---
 
+## Voices API
+
+GoClaw cung cấp các HTTP endpoint để khám phá giọng TTS có sẵn. Các endpoint này được phân theo tenant và yêu cầu vai trò admin hoặc operator của tenant.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/voices` | Danh sách giọng có sẵn (cache trong bộ nhớ, TTL 1 giờ) |
+| `POST` | `/v1/voices/refresh` | Buộc xóa cache giọng (chỉ admin) |
+
+### `GET /v1/voices`
+
+Trả về danh sách giọng cho provider ElevenLabs đã cấu hình của tenant hiện tại. Kết quả được cache trong bộ nhớ theo tenant với TTL 1 giờ — dùng chung cho tất cả HTTP và WebSocket handler.
+
+```json
+[
+  {
+    "voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "name": "Alice",
+    "preview_url": "https://...",
+    "category": "premade",
+    "labels": {
+      "use_case": "conversational",
+      "accent": "american"
+    }
+  }
+]
+```
+
+Cache miss sẽ kích hoạt lấy dữ liệu ngay lập tức từ ElevenLabs. Trả về `500` nếu provider không tiếp cận được.
+
+### `POST /v1/voices/refresh`
+
+Xóa cache giọng cho tenant hiện tại để lần `GET /v1/voices` tiếp theo lấy danh sách mới từ provider. Hữu ích sau khi thêm giọng vào tài khoản ElevenLabs hoặc sau sự cố CDN hết hạn.
+
+```json
+{ "message": "voice cache invalidated" }
+```
+
+Phản hồi là `202 Accepted`.
+
+---
+
+## Nhận dạng giọng nói (STT)
+
+GoClaw định tuyến tất cả phiên âm giọng nói/audio qua `audio.Manager` thống nhất với chuỗi provider. Các channel (Telegram, Discord, Feishu, WhatsApp) dùng chung cơ sở hạ tầng STT.
+
+### Luồng phiên âm thống nhất
+
+```mermaid
+flowchart TD
+    VOICE["Tin nhắn thoại/audio"] --> ROUTE{Loại channel?}
+
+    ROUTE -->|Telegram / Discord / Feishu| DOWNLOAD["Tải xuống file audio"]
+    ROUTE -->|WhatsApp| WA_CHECK{"whatsapp_enabled\ntrong settings?"}
+
+    WA_CHECK -->|Không| WA_FALLBACK["[Voice message]\n(mặc định tắt)"]
+    WA_CHECK -->|Có| DOWNLOAD
+
+    DOWNLOAD --> STT_CHECK{"STT providers\nđã cấu hình?"}
+    STT_CHECK -->|Có| STT_CHAIN["Thử providers theo thứ tự:\nelevenlabs_scribe, proxy"]
+    STT_CHECK -->|Không| FALLBACK["[Voice message]"]
+
+    STT_CHAIN -->|Thành công| TEXT["Văn bản phiên âm\n→ ngữ cảnh agent"]
+    STT_CHAIN -->|Thất bại / timeout 10s| FALLBACK
+```
+
+### Opt-in WhatsApp
+
+STT WhatsApp **tắt theo mặc định** (`whatsapp_enabled: false`). Lý do: tin nhắn thoại WhatsApp được mã hóa đầu cuối. Gửi dữ liệu audio đến provider STT bên ngoài phá vỡ mã hóa E2E. Admin phải bật tường minh tại **Config → Audio → STT** và xác nhận thay đổi này.
+
+Khi tắt (mặc định): tin nhắn thoại xuất hiện trong ngữ cảnh agent dưới dạng `[Voice message]` — không có audio nào rời khỏi thiết bị.
+Khi bật: audio được phiên âm qua chuỗi STT đã cấu hình; fallback về `[Voice message]` khi thất bại hoặc timeout (10 giây).
+
+### Chuỗi provider STT
+
+| Cài đặt | Hành vi |
+|---------|---------|
+| `providers: ["elevenlabs_scribe", "proxy_stt"]` | Thử ElevenLabs Scribe trước; fallback về legacy proxy |
+| `providers: []` (rỗng) | Bỏ qua tất cả STT; giọng → `[Voice message]` |
+| `providers` thiếu (nil) | Kiểm tra legacy `STTProxyURL` bridge khi khởi động |
+
+Cấu hình qua **Config → Audio → STT** trong giao diện web (lưu trong `builtin_tools[stt].settings.providers`). Khi danh sách này có mặt, nó ghi đè tất cả cấu hình STT riêng theo channel cũ.
+
+---
+
 ## Tool STT tích hợp sẵn
 
 Tool `stt` tích hợp sẵn (được seed bởi migration 050) cho phép agent phiên âm giọng nói/audio đầu vào bằng ElevenLabs Scribe hoặc proxy tương thích — xem [Tools Overview](/tools-overview) để biết cách bật và cấu hình.
@@ -282,4 +367,4 @@ Tool `stt` tích hợp sẵn (được seed bởi migration 050) cho phép agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — kích hoạt agent theo lịch
 - [Extended Thinking](../advanced/extended-thinking.md) — suy luận sâu hơn cho câu trả lời phức tạp
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->

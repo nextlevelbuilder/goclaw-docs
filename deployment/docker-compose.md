@@ -185,7 +185,7 @@ Mounts `/var/run/docker.sock` so GoClaw can spin up isolated containers for agen
 
 ### `docker-compose.browser.yml`
 
-Starts `zenika/alpine-chrome:124` with CDP enabled on port 9222. GoClaw connects via `GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222`.
+Starts `chromedp/headless-shell:latest` with CDP enabled on port 9222. GoClaw connects via `GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222`.
 
 ### `docker-compose.otel.yml`
 
@@ -464,4 +464,4 @@ docker pull ghcr.io/nextlevelbuilder/goclaw:otel
 - [Observability](/deploy-observability) — OpenTelemetry and Jaeger configuration
 - [Tailscale](/deploy-tailscale) — secure remote access via Tailscale
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

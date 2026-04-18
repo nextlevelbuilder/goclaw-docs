@@ -38,19 +38,21 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Brave** | Requires `BRAVE_API_KEY` |
 | **DuckDuckGo** | Free fallback — used last if no API keys for the others |
 
-Configure provider order via `provider_order` in tool settings:
+> **Breaking change (v3.2+):** `config.json5 tools.web.*` has been removed. Configuration is now tenant-only. Existing keys are auto-migrated on first startup (data hook 055).
 
-```json
+Configure `web_search` via the dashboard (**Config → Tools → Web Search**) or the API:
+
+```bash
+# Set provider order via tenant-config API
+PUT /v1/tools/builtin/web_search/tenant-config
 {
-  "tools": {
-    "web_search": {
-      "provider_order": ["exa", "tavily", "brave", "duckduckgo"]
-    }
-  }
+  "provider_order": ["exa", "tavily", "brave", "duckduckgo"],
+  "brave": { "enabled": true, "max_results": 5 },
+  "exa": { "enabled": false }
 }
 ```
 
-DuckDuckGo requires no API key and is always available as the final fallback.
+DuckDuckGo requires no API key and is always available as the final fallback — it cannot be disabled.
 
 ### v3 Memory & Vault Tools
 
@@ -310,4 +312,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->

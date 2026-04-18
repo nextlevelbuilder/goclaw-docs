@@ -91,6 +91,10 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 | `features.comment_reply` | bool | -- | Bật trả lời bình luận |
 | `features.first_inbox` | bool | -- | Gửi tin nhắn DM một lần cho người bình luận sau lần đầu reply |
 | `features.auto_react` | bool | -- | Tự động thích bình luận của người dùng trên Facebook (chỉ Facebook) |
+| `auto_react_options.allow_post_ids` | list | -- | Chỉ react bình luận trên các post ID này (nil = tất cả bài đăng) |
+| `auto_react_options.deny_post_ids` | list | -- | Không bao giờ react trên các post ID này (ghi đè allow) |
+| `auto_react_options.allow_user_ids` | list | -- | Chỉ react bình luận từ các user ID này (nil = tất cả người dùng) |
+| `auto_react_options.deny_user_ids` | list | -- | Không bao giờ react bình luận từ các user ID này (ghi đè allow) |
 | `comment_reply_options.include_post_context` | bool | false | Thêm nội dung bài đăng gốc vào đầu comment gửi cho agent |
 | `comment_reply_options.filter` | string | `"all"` | Chế độ lọc bình luận: `"all"` hoặc `"keyword"` |
 | `comment_reply_options.keywords` | list | -- | Bắt buộc khi `filter="keyword"` — chỉ xử lý bình luận chứa các từ khóa này |
@@ -234,6 +238,17 @@ Khi `features.comment_reply: true`, các tùy chọn bổ sung kiểm soát xử
 
 **Auto-react** (`features.auto_react: true`): tự động thích mọi bình luận hợp lệ đến trên Facebook (chỉ nền tảng Facebook). Hoạt động độc lập với `comment_reply` — có thể react mà không cần reply.
 
+Giới hạn phạm vi react bằng `auto_react_options`:
+
+| Trường | Kiểu | Hành vi |
+|--------|------|---------|
+| `allow_post_ids` | list | Chỉ react bình luận trên các post ID này (nil = tất cả bài đăng) |
+| `deny_post_ids` | list | Không bao giờ react trên các post ID này (ghi đè allow) |
+| `allow_user_ids` | list | Chỉ react bình luận từ các user ID này (nil = tất cả người dùng) |
+| `deny_user_ids` | list | Không bao giờ react bình luận từ các user ID này (ghi đè allow) |
+
+Danh sách deny luôn được ưu tiên hơn danh sách allow. Bỏ qua `auto_react_options` hoàn toàn nghĩa là không có lọc phạm vi (react tất cả bình luận hợp lệ).
+
 **First inbox** (`features.first_inbox: true`): sau khi reply bình luận, gửi một DM riêng tư một lần cho người bình luận, mời họ tiếp tục qua inbox. Chỉ gửi một lần mỗi người dùng mỗi lần khởi động lại. Tùy chỉnh nội dung DM bằng `first_inbox_message`.
 
 ### Tình trạng kênh
@@ -270,4 +285,4 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Cài đặt đa kênh](/recipe-multi-channel) — Cấu hình nhiều kênh
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-17 -->
+<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->

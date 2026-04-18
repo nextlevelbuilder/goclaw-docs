@@ -131,6 +131,10 @@ Regenerate agent context files from templates.
 
 Re-trigger LLM-based summoning for predefined agents.
 
+### `POST /v1/agents/{id}/cancel-summon`
+
+Force-abort a stuck summoning process. Transitions a `summoning` agent to `summon_failed` so it can be reconfigured or re-triggered. Returns `409` if the agent is not currently in `summoning` state.
+
 ### Agent Shares
 
 | Method | Path | Description |
@@ -1165,6 +1169,30 @@ Pass `"***"` as `api_key` to leave existing stored key unchanged.
 
 ---
 
+## Voices
+
+ElevenLabs voice list with tenant-scoped caching. Requires a configured ElevenLabs API key in TTS config.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/voices` | List available voices (served from cache; fetches live on cache miss) |
+| `POST` | `/v1/voices/refresh` | Invalidate the voice cache and re-fetch live voices from ElevenLabs. Requires admin role. |
+
+**`GET /v1/voices` response:**
+
+```json
+{
+  "voices": [
+    { "voice_id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel", "preview_url": "https://..." },
+    ...
+  ]
+}
+```
+
+Returns `404` when no ElevenLabs API key is configured. Returns `502` when the ElevenLabs API call fails.
+
+---
+
 ## Runtime & Packages
 
 Manage system (apk), Python (pip), and Node (npm) packages. Requires authentication.
@@ -1493,4 +1521,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: c651cde5 | updated: 2026-04-15 -->
+<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
