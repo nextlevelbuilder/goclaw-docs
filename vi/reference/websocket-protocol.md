@@ -177,7 +177,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `agents.list` | — | Liệt kê tất cả agents |
 | `agent.wait` | `{agentId}` | Chờ agent hoàn thành run hiện tại |
 | `agents.create` | agent object | Tạo agent |
-| `agents.update` | `{id, ...fields}` | Cập nhật agent |
+| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Cập nhật agent |
 | `agents.delete` | `{id}` | Xóa agent |
 | `agents.files.list` | `{agentId}` | Liệt kê context file |
 | `agents.files.get` | `{agentId, fileName}` | Lấy context file |
@@ -547,4 +547,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: c651cde5 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->

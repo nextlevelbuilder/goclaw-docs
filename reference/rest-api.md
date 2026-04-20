@@ -1089,17 +1089,17 @@ Convert text to audio using the configured TTS provider.
 | Field | Type | Description |
 |-------|------|-------------|
 | `text` | string | Text to synthesize. Required. Max 500 characters. |
-| `provider` | string | Override provider (`openai`, `elevenlabs`, `minimax`, `edge`). Optional — defaults to tenant-configured provider. |
+| `provider` | string | Override provider (`openai`, `elevenlabs`, `minimax`, `edge`, `gemini`). Optional — defaults to tenant-configured provider. |
 | `voice_id` | string | Voice identifier. Optional. |
 | `model_id` | string | Model identifier. Optional. |
 
 **Response:** Raw audio bytes with `Content-Type` matching the provider's MIME type (e.g., `audio/mpeg`).
 
-**Errors:** `400` text empty or exceeds limit · `404` no provider configured · `422` invalid model ID · `429` rate limited · `504` synthesis timeout
+**Errors:** `400` text empty or exceeds limit · `404` no provider configured · `422` invalid model or params · `429` rate limited · `504` synthesis timeout
 
 ### `POST /v1/tts/test-connection`
 
-Test connectivity to a TTS provider using supplied credentials (does not persist config).
+Test connectivity to a TTS provider using supplied credentials (does not persist config). Supports the same provider set as synthesize. Pass `"***"` as `api_key` to re-test a previously saved key without retyping it.
 
 **Request body:**
 
@@ -1109,9 +1109,23 @@ Test connectivity to a TTS provider using supplied credentials (does not persist
   "api_key": "sk-...",
   "api_base": "",
   "voice_id": "alloy",
-  "model_id": "tts-1"
+  "model_id": "tts-1",
+  "group_id": "",
+  "timeout_ms": 10000
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Required. One of `openai`, `elevenlabs`, `minimax`, `edge`, `gemini`. |
+| `api_key` | string | API key. Required for all providers except `edge`. Pass `"***"` to reuse a stored key. |
+| `api_base` | string | Custom API base URL. Optional. |
+| `voice_id` | string | Voice identifier. Optional. |
+| `model_id` | string | Model identifier. Optional. |
+| `group_id` | string | MiniMax group ID. Required for `minimax`. |
+| `rate` | string | Speech rate (Edge TTS only). Optional. |
+| `timeout_ms` | integer | Request timeout in ms. Optional (default: 10 000). |
+| `params` | object | Provider-specific params blob. Optional. |
 
 **Response:**
 
@@ -1123,9 +1137,38 @@ Test connectivity to a TTS provider using supplied credentials (does not persist
 }
 ```
 
+On failure: `{"success": false, "error": "..."}`
+
+**Errors:** `400` missing required fields · `422` invalid voice/model/params · `504` test timeout · `502` upstream error
+
+### `GET /v1/tts/capabilities`
+
+Return the static capability catalog for every known TTS provider — independent of which providers are configured at runtime. Use this to render per-provider param editors before saving credentials.
+
+**Response:**
+
+```json
+{
+  "providers": [
+    {
+      "provider": "openai",
+      "models": ["tts-1", "tts-1-hd"],
+      "params": [
+        { "key": "speed", "type": "float", "min": 0.25, "max": 4.0, "default": 1.0 }
+      ]
+    },
+    ...
+  ]
+}
+```
+
+Each entry in `params` has: `key`, `type` (`string`|`float`|`int`|`bool`|`enum`), optional `min`/`max`/`default`/`enum_values`, and optional `depends_on` condition.
+
+**Auth:** `RoleOperator`
+
 ### `GET /v1/tts/config`
 
-Return the current tenant's TTS configuration. API keys are masked as `"***"`.
+Return the current tenant's TTS configuration. API keys are masked as `"***"`. Requires `RoleAdmin` and a valid tenant context.
 
 **Response:**
 
@@ -1135,16 +1178,18 @@ Return the current tenant's TTS configuration. API keys are masked as `"***"`.
   "auto": "off",
   "mode": "final",
   "max_length": 1500,
+  "timeout_ms": 30000,
   "openai": { "api_key": "***", "api_base": "", "voice": "alloy", "model": "tts-1" },
-  "elevenlabs": {},
-  "edge": {},
-  "minimax": {}
+  "elevenlabs": { "api_key": "***", "voice_id": "", "model_id": "" },
+  "edge": { "voice_id": "", "rate": "" },
+  "minimax": { "api_key": "***", "group_id": "", "voice_id": "", "model_id": "" },
+  "gemini": { "api_key": "***", "voice_id": "", "model_id": "" }
 }
 ```
 
 ### `POST /v1/tts/config`
 
-Save TTS configuration for the current tenant.
+Save TTS configuration for the current tenant. Requires `RoleAdmin`.
 
 **Request body:**
 
@@ -1154,16 +1199,33 @@ Save TTS configuration for the current tenant.
   "auto": "off",
   "mode": "final",
   "max_length": 1500,
+  "timeout_ms": 30000,
   "openai": {
     "api_key": "sk-...",
     "api_base": "",
     "voice": "alloy",
-    "model": "tts-1"
+    "model": "tts-1",
+    "params": {}
+  },
+  "gemini": {
+    "api_key": "...",
+    "voice_id": "Aoede",
+    "model_id": "gemini-2.5-flash-preview-tts",
+    "speakers": "[{\"name\":\"Speaker1\",\"voice\":\"Aoede\"}]"
   }
 }
 ```
 
-Pass `"***"` as `api_key` to leave existing stored key unchanged.
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Active TTS provider slug. |
+| `auto` | string | Auto-apply mode: `off`, `final`, `all`. |
+| `mode` | string | Synthesis trigger: `final` (end of turn) or `chunk` (streaming). |
+| `max_length` | integer | Max characters per synthesis call. |
+| `timeout_ms` | integer | Provider request timeout in ms. |
+| `{provider}` | object | Per-provider config. `api_key: "***"` leaves stored key unchanged. |
+| `{provider}.params` | object | Provider-specific params blob (validated against capability schema). |
+| `gemini.speakers` | string | JSON-encoded `[]SpeakerVoice` for Gemini multi-speaker mode. |
 
 **Response:** `{ "ok": true }`
 
@@ -1171,12 +1233,18 @@ Pass `"***"` as `api_key` to leave existing stored key unchanged.
 
 ## Voices
 
-ElevenLabs voice list with tenant-scoped caching. Requires a configured ElevenLabs API key in TTS config.
+Voice list discovery for TTS providers with tenant-scoped caching. Supports ElevenLabs and MiniMax. Requires a configured API key for the requested provider in TTS config.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/voices` | List available voices (served from cache; fetches live on cache miss) |
-| `POST` | `/v1/voices/refresh` | Invalidate the voice cache and re-fetch live voices from ElevenLabs. Requires admin role. |
+| `POST` | `/v1/voices/refresh` | Invalidate the voice cache and re-fetch live voices. Requires admin role. |
+
+**Query params (`GET /v1/voices`):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Voice provider: `elevenlabs` (default) or `minimax`. |
 
 **`GET /v1/voices` response:**
 
@@ -1189,7 +1257,7 @@ ElevenLabs voice list with tenant-scoped caching. Requires a configured ElevenLa
 }
 ```
 
-Returns `404` when no ElevenLabs API key is configured. Returns `502` when the ElevenLabs API call fails.
+Returns `404` when no API key is configured for the requested provider. Returns `502` when the provider API call fails.
 
 ---
 
@@ -1521,4 +1589,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->

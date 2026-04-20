@@ -1008,17 +1008,17 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | 字段 | 类型 | 说明 |
 |-------|------|-------------|
 | `text` | string | 要合成的文本。必填。最多 500 个字符。 |
-| `provider` | string | 覆盖 provider（`openai`、`elevenlabs`、`minimax`、`edge`）。可选——默认使用租户配置的 provider。 |
+| `provider` | string | 覆盖 provider（`openai`、`elevenlabs`、`minimax`、`edge`、`gemini`）。可选——默认使用租户配置的 provider。 |
 | `voice_id` | string | 语音标识符。可选。 |
 | `model_id` | string | 模型标识符。可选。 |
 
 **响应：** 原始音频字节，`Content-Type` 与 provider 的 MIME 类型匹配（例如 `audio/mpeg`）。
 
-**错误：** `400` 文本为空或超限 · `404` 未配置 provider · `422` 无效的模型 ID · `429` 频率限制 · `504` 合成超时
+**错误：** `400` 文本为空或超限 · `404` 未配置 provider · `422` 模型或参数无效 · `429` 频率限制 · `504` 合成超时
 
 ### `POST /v1/tts/test-connection`
 
-使用提供的凭证测试 TTS provider 连通性（不持久化配置）。
+使用提供的凭证测试 TTS provider 连通性（不持久化配置）。支持与 synthesize 相同的 provider 集。传入 `"***"` 作为 `api_key` 可复用已保存的密钥。
 
 **请求体：**
 
@@ -1028,9 +1028,23 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
   "api_key": "sk-...",
   "api_base": "",
   "voice_id": "alloy",
-  "model_id": "tts-1"
+  "model_id": "tts-1",
+  "group_id": "",
+  "timeout_ms": 10000
 }
 ```
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `provider` | string | 必填。可选值：`openai`、`elevenlabs`、`minimax`、`edge`、`gemini`。 |
+| `api_key` | string | API key。`edge` 以外的 provider 必填。传入 `"***"` 可复用已保存的密钥。 |
+| `api_base` | string | 自定义 API 基础 URL。可选。 |
+| `voice_id` | string | 语音标识符。可选。 |
+| `model_id` | string | 模型标识符。可选。 |
+| `group_id` | string | MiniMax 的 group ID。`minimax` 时必填。 |
+| `rate` | string | 语速（仅 Edge TTS）。可选。 |
+| `timeout_ms` | integer | 请求超时（毫秒）。可选（默认：10 000）。 |
+| `params` | object | provider 专属参数 blob。可选。 |
 
 **响应：**
 
@@ -1042,9 +1056,38 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 }
 ```
 
+失败时：`{"success": false, "error": "..."}`
+
+**错误：** `400` 缺少必填字段 · `422` voice/model/params 无效 · `504` 测试超时 · `502` 上游错误
+
+### `GET /v1/tts/capabilities`
+
+返回所有已知 TTS provider 的静态能力目录——与运行时实际配置的 provider 无关。用于在保存凭证前渲染 per-provider 参数编辑器。
+
+**响应：**
+
+```json
+{
+  "providers": [
+    {
+      "provider": "openai",
+      "models": ["tts-1", "tts-1-hd"],
+      "params": [
+        { "key": "speed", "type": "float", "min": 0.25, "max": 4.0, "default": 1.0 }
+      ]
+    },
+    ...
+  ]
+}
+```
+
+`params` 中每个条目包含：`key`、`type`（`string`|`float`|`int`|`bool`|`enum`）、可选的 `min`/`max`/`default`/`enum_values`，以及可选的 `depends_on` 条件。
+
+**认证：** `RoleOperator`
+
 ### `GET /v1/tts/config`
 
-返回当前租户的 TTS 配置。API key 以 `"***"` 脱敏显示。
+返回当前租户的 TTS 配置。API key 以 `"***"` 脱敏显示。需要 `RoleAdmin` 和有效的租户上下文。
 
 **响应：**
 
@@ -1054,16 +1097,18 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
   "auto": "off",
   "mode": "final",
   "max_length": 1500,
+  "timeout_ms": 30000,
   "openai": { "api_key": "***", "api_base": "", "voice": "alloy", "model": "tts-1" },
-  "elevenlabs": {},
-  "edge": {},
-  "minimax": {}
+  "elevenlabs": { "api_key": "***", "voice_id": "", "model_id": "" },
+  "edge": { "voice_id": "", "rate": "" },
+  "minimax": { "api_key": "***", "group_id": "", "voice_id": "", "model_id": "" },
+  "gemini": { "api_key": "***", "voice_id": "", "model_id": "" }
 }
 ```
 
 ### `POST /v1/tts/config`
 
-保存当前租户的 TTS 配置。
+保存当前租户的 TTS 配置。需要 `RoleAdmin`。
 
 **请求体：**
 
@@ -1073,16 +1118,33 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
   "auto": "off",
   "mode": "final",
   "max_length": 1500,
+  "timeout_ms": 30000,
   "openai": {
     "api_key": "sk-...",
     "api_base": "",
     "voice": "alloy",
-    "model": "tts-1"
+    "model": "tts-1",
+    "params": {}
+  },
+  "gemini": {
+    "api_key": "...",
+    "voice_id": "Aoede",
+    "model_id": "gemini-2.5-flash-preview-tts",
+    "speakers": "[{\"name\":\"Speaker1\",\"voice\":\"Aoede\"}]"
   }
 }
 ```
 
-将 `api_key` 设为 `"***"` 可保留已存储的 key 不变。
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `provider` | string | 当前使用的 TTS provider slug。 |
+| `auto` | string | 自动应用模式：`off`、`final`、`all`。 |
+| `mode` | string | 合成触发方式：`final`（轮次结束）或 `chunk`（流式）。 |
+| `max_length` | integer | 每次合成的最大字符数。 |
+| `timeout_ms` | integer | provider 请求超时（毫秒）。 |
+| `{provider}` | object | per-provider 配置。`api_key: "***"` 保留已存储的密钥不变。 |
+| `{provider}.params` | object | provider 专属参数 blob（根据能力 schema 验证）。 |
+| `gemini.speakers` | string | Gemini 多说话人模式的 JSON-encoded `[]SpeakerVoice`。 |
 
 **响应：** `{ "ok": true }`
 
@@ -1090,12 +1152,18 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 
 ## 语音（Voices）
 
-ElevenLabs 语音列表，按租户缓存。需要在 TTS 配置中设置 ElevenLabs API key。
+按租户缓存的语音列表。支持 ElevenLabs 和 MiniMax。需要在 TTS 配置中为所请求的 provider 配置 API key。
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/voices` | 列出可用语音（从缓存响应；缓存未命中时实时拉取）|
-| `POST` | `/v1/voices/refresh` | 清除语音缓存并从 ElevenLabs 重新拉取。需要管理员角色。 |
+| `POST` | `/v1/voices/refresh` | 清除语音缓存并重新拉取。需要管理员角色。 |
+
+**查询参数（`GET /v1/voices`）：**
+
+| 参数 | 类型 | 说明 |
+|-------|------|-------------|
+| `provider` | string | 语音 provider：`elevenlabs`（默认）或 `minimax`。 |
 
 **`GET /v1/voices` 响应：**
 
@@ -1108,7 +1176,7 @@ ElevenLabs 语音列表，按租户缓存。需要在 TTS 配置中设置 Eleven
 }
 ```
 
-未配置 ElevenLabs API key 时返回 `404`。ElevenLabs API 调用失败时返回 `502`。
+未为所请求的 provider 配置 API key 时返回 `404`。provider API 调用失败时返回 `502`。
 
 ---
 
@@ -1440,4 +1508,4 @@ ElevenLabs 语音列表，按租户缓存。需要在 TTS 配置中设置 Eleven
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | 更新: 2026-04-20 -->

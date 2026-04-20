@@ -281,6 +281,16 @@ Primary discovery tool. Searches across vault, episodic memory, and Knowledge Gr
 }
 ```
 
+Each result carries a **source-specific ID field** that tells you which follow-up tool to use:
+
+| Source | ID field | Follow-up tool |
+|--------|----------|---------------|
+| `vault` | `doc_id` | `vault_read(doc_id=...)` |
+| `kg` | `entity_id` | `knowledge_graph_search(entity_id=...)` |
+| `episodic` | `episodic_id` | `memory_expand(id=episodic_id)` |
+
+> **ID namespace protection:** If you pass a `entity_id` or `episodic_id` to `vault_read` by mistake, the tool returns a descriptive error telling you the correct tool to use — rather than a generic "document not found". Always use the `doc_id` from vault results with `vault_read`.
+
 > **Note on linking:** Explicit document linking is now handled automatically by the enrichment pipeline. The `vault_link` agent tool has been removed. Links are created via wikilink syntax in document content (`[[target]]`) or generated semantically by EnrichWorker. You can view links via `GET /v1/agents/{agentID}/vault/documents/{docID}/links`.
 
 ---
@@ -413,4 +423,4 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 - [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
 - [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->

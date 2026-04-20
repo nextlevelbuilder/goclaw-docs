@@ -283,6 +283,16 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 }
 ```
 
+每条结果携带**特定来源的 ID 字段**，指示应使用哪个后续工具：
+
+| 来源 | ID 字段 | 后续工具 |
+|------|---------|---------|
+| `vault` | `doc_id` | `vault_read(doc_id=...)` |
+| `kg` | `entity_id` | `knowledge_graph_search(entity_id=...)` |
+| `episodic` | `episodic_id` | `memory_expand(id=episodic_id)` |
+
+> **ID 命名空间保护：** 若误将 `entity_id` 或 `episodic_id` 传入 `vault_read`，工具会返回描述性错误信息，告知应使用的正确工具 — 而非泛泛的"document not found"。请始终将 vault 结果中的 `doc_id` 与 `vault_read` 配合使用。
+
 > **关于链接的说明：** 显式文档链接现在由 enrichment pipeline 自动处理。`vault_link` agent 工具已移除。链接通过文档内容中的 wikilink 语法（`[[target]]`）创建，或由 EnrichWorker 语义生成。可通过 `GET /v1/agents/{agentID}/vault/documents/{docID}/links` 查看链接。
 
 ---
@@ -354,4 +364,4 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 - [Memory 系统](../../core-concepts/memory-system.md) — 向量化长期记忆
 - [Context 文件](../../agents/context-files.md) — 注入 agent context 的静态文档
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | 更新: 2026-04-20 -->

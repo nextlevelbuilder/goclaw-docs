@@ -1,12 +1,12 @@
 # TTS Voice
 
-> Add voice replies to your agents — pick from four providers and control exactly when audio fires.
+> Add voice replies to your agents — pick from five providers and control exactly when audio fires.
 
 ## Overview
 
 GoClaw's TTS system converts agent text replies into audio and delivers them as voice messages on supported channels (e.g. Telegram voice bubbles). You configure a primary provider, set an auto-apply mode, and GoClaw handles the rest — stripping markdown, truncating long text, and choosing the right audio format per channel.
 
-Four providers are available:
+Five providers are available:
 
 | Provider | Key | Requires |
 |----------|-----|---------|
@@ -14,6 +14,7 @@ Four providers are available:
 | ElevenLabs | `elevenlabs` | API key |
 | Microsoft Edge TTS | `edge` | `edge-tts` CLI (free) — always available as fallback |
 | MiniMax | `minimax` | API key + Group ID |
+| Google Gemini TTS | `gemini` | API key |
 
 ---
 
@@ -57,7 +58,17 @@ Text shorter than 10 characters or containing a `MEDIA:` path is always skipped.
 }
 ```
 
-Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`. Default model: `gpt-4o-mini-tts`.
+Available voices: `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`, `onyx`, `nova`, `sage`, `shimmer`, `verse`, `marin`, `cedar`. Note: `ballad`, `verse`, `marin`, `cedar` are only compatible with `gpt-4o-mini-tts`.
+
+Supported models: `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` (default).
+
+#### OpenAI Advanced Params
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `speed` | range | 1.0 | 0.25–4.0; agent-overridable |
+| `response_format` | enum | `mp3` | mp3, opus, aac, flac, wav, pcm |
+| `instructions` | text | — | Style prompt; `gpt-4o-mini-tts` only (advanced) |
 
 ---
 
@@ -89,6 +100,21 @@ Find voice IDs in your [ElevenLabs voice library](https://elevenlabs.io/voice-li
 | `eleven_flash_v2_5` | Lowest latency, 32 languages | Real-time / interactive use |
 
 Only these four model IDs are accepted — unknown IDs are rejected at the gateway boundary.
+
+#### ElevenLabs Advanced Params
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `voice_settings.stability` | range | 0.5 | 0–1; voice consistency |
+| `voice_settings.similarity_boost` | range | 0.75 | 0–1; closeness to original |
+| `voice_settings.style` | range | 0.0 | 0–1; agent-overridable as `style` |
+| `voice_settings.use_speaker_boost` | boolean | true | — |
+| `voice_settings.speed` | range | 1.0 | 0.7–1.2; agent-overridable as `speed` |
+| `apply_text_normalization` | enum | auto | auto / on / off |
+| `seed` | integer | 0 | Reproducible output (advanced) |
+| `optimize_streaming_latency` | range | 0 | 0–4 (advanced) |
+| `language_code` | string | — | ISO 639-1 hint (advanced) |
+| `output_format` | enum | `mp3_44100_128` | Codec + bitrate; higher tiers need Creator+/Pro+ (advanced) |
 
 ---
 
@@ -124,11 +150,19 @@ edge-tts --list-voices
 
 Popular voices: `en-US-MichelleNeural`, `en-GB-SoniaNeural`, `vi-VN-HoaiMyNeural`. The `rate` field adjusts speed (e.g. `+20%` faster, `-10%` slower). Output is always MP3.
 
+#### Edge TTS Params
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `rate` | integer | 0 | Speed offset −50 to +100 (%) |
+| `pitch` | integer | 0 | Pitch offset −50 to +50 (Hz) |
+| `volume` | integer | 0 | Volume offset −50 to +100 (%) |
+
 ---
 
 ### MiniMax
 
-MiniMax's T2A API supports 300+ system voices and 40+ languages.
+MiniMax's T2A API supports 300+ system voices and 40+ languages. Voices are fetched dynamically — use the [Voices API](#voices-api) with `?provider=minimax`.
 
 ```json
 {
@@ -145,7 +179,153 @@ MiniMax's T2A API supports 300+ system voices and 40+ languages.
 }
 ```
 
-Models: `speech-02-hd` (high quality), `speech-02-turbo` (faster). Supported output formats: `mp3`, `opus`, `pcm`, `flac`, `wav`.
+Supported models: `speech-02-hd` (high quality), `speech-02-turbo` (faster), `speech-01-hd`, `speech-01-turbo`.
+
+#### MiniMax Advanced Params
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `speed` | range | 1.0 | 0.5–2.0; agent-overridable as `speed` |
+| `vol` | range | 1.0 | Volume 0.01–10.0 |
+| `pitch` | integer | 0 | Pitch in semitones −12 to +12 |
+| `emotion` | enum | — | happy/sad/angry/fearful/disgusted/surprised/neutral/excited/anxious; agent-overridable |
+| `text_normalization` | boolean | — | Omitted when not set |
+| `audio.format` | enum | `mp3` | mp3, pcm, flac, wav |
+| `language_boost` | enum | Auto | 18 languages; improves pronunciation |
+| `subtitle_enable` | boolean | — | Returns word-level timing data |
+| `audio.sample_rate` | enum | Default | 8k–44.1 kHz (advanced) |
+| `audio.bitrate` | enum | Default | 32–256 kbps; MP3 only (advanced) |
+| `audio.channel` | enum | Default | Mono / Stereo (advanced) |
+| `pronunciation_dict` | text | — | JSON array of `"word/phoneme"` rules, max 8 KB (advanced) |
+
+Voice metadata (gender + language) is parsed automatically from MiniMax naming conventions and displayed as labels in the voice picker.
+
+---
+
+### Google Gemini TTS
+
+Gemini TTS uses Google's latest preview models. An API key is required.
+
+```json
+{
+  "tts": {
+    "provider": "gemini",
+    "auto": "always",
+    "gemini": {
+      "api_key": "AIza...",
+      "model": "gemini-2.5-flash-preview-tts",
+      "voice": "Kore"
+    }
+  }
+}
+```
+
+Supported models (all preview-stage — UI shows a **Preview** badge):
+
+| Model | Notes |
+|-------|-------|
+| `gemini-2.5-flash-preview-tts` | Default; fast + cost-efficient |
+| `gemini-2.5-pro-preview-tts` | Highest quality |
+| `gemini-3.1-flash-tts-preview` | Experimental |
+
+#### Gemini Voices (30 prebuilt)
+
+Each voice has a style character label shown as a badge in the UI:
+
+| Voice | Style | Voice | Style |
+|-------|-------|-------|-------|
+| Zephyr | Bright | Puck | Upbeat |
+| Charon | Informative | Kore | Firm |
+| Fenrir | Excitable | Leda | Youthful |
+| Orus | Firm | Aoede | Breezy |
+| Callirrhoe | Easy-going | Autonoe | Bright |
+| Enceladus | Breathy | Iapetus | Clear |
+| Umbriel | Easy-going | Algieba | Smooth |
+| Despina | Smooth | Erinome | Clear |
+| Algenib | Gravelly | Rasalgethi | Informative |
+| Laomedeia | Upbeat | Achernar | Soft |
+| Alnilam | Firm | Schedar | Even |
+| Gacrux | Mature | Pulcherrima | Forward |
+| Achird | Friendly | Zubenelgenubi | Casual |
+| Vindemiatrix | Gentle | Sadachbia | Lively |
+| Sadaltager | Knowledgeable | Sulafat | Warm |
+
+#### Gemini Params
+
+| Param | Type | Default | Group |
+|-------|------|---------|-------|
+| `temperature` | range | API default (1.0) | Basic — subtle effect; primary expressiveness via audio tags |
+| `seed` | integer | — | Advanced |
+| `presencePenalty` | range | — | Advanced — experimental |
+| `frequencyPenalty` | range | — | Advanced — experimental |
+
+#### Gemini Multi-Speaker Mode
+
+Up to 2 speakers per request. Each speaker has a `name` and a `voice` from the 30 prebuilt voices. Configure via the portal's Voice Picker — stored as `tts.gemini.speakers` JSON blob.
+
+#### Gemini Audio Tags
+
+Inject expressive markers directly into the text:
+
+```
+Hello [laughs] world [sighs] how are you?
+```
+
+Categories: Emotion, Pacing, Effect, Voice quality. Full tag list is in the frontend tag picker.
+
+#### Gemini Language Support
+
+70+ languages — no explicit language parameter needed. Gemini detects language from input text automatically.
+
+#### Gemini Validation Errors (422)
+
+| Error | When |
+|-------|------|
+| `ErrInvalidVoice` | Voice ID not in the 30 prebuilt set |
+| `ErrSpeakerLimit` | More than 2 speakers in multi-speaker mode |
+| `ErrInvalidModel` | Model ID not in the allowed list |
+
+---
+
+## Agent-Level Voice Override
+
+Each agent can override TTS params via its `other_config` JSONB field without changing the system-wide config.
+
+### Voice and Model (ElevenLabs)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `tts_voice_id` | string | ElevenLabs voice ID for this agent |
+| `tts_model_id` | string | ElevenLabs model ID (must be an [allowed model](#elevenlabs-model-variants)) |
+
+### Per-Agent Params Override (v3.10.0+)
+
+Agents can override a subset of provider params stored in `other_config.tts_params`. Only these generic keys are allowed:
+
+| Generic key | Maps to (OpenAI) | Maps to (ElevenLabs) | Maps to (MiniMax) | Edge / Gemini |
+|-------------|------------------|----------------------|-------------------|---------------|
+| `speed` | `speed` | `voice_settings.speed` | `speed` | not mapped |
+| `emotion` | not mapped | not mapped | `emotion` | not mapped |
+| `style` | not mapped | `voice_settings.style` | not mapped | not mapped |
+
+Keys outside this allow-list are rejected at write time. The adapter runs per-attempt inside the provider fallback loop, so each attempt uses the correct mapping for that provider.
+
+**Resolution order:** CLI args → agent `other_config` → tenant override → provider default.
+
+**Example:**
+
+```json
+{
+  "other_config": {
+    "tts_voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "tts_model_id": "eleven_flash_v2_5",
+    "tts_params": {
+      "speed": 1.1,
+      "style": 0.3
+    }
+  }
+}
+```
 
 ---
 
@@ -166,6 +346,51 @@ Models: `speech-02-hd` (high quality), `speech-02-turbo` (faster). Supported out
 ```
 
 When the primary provider fails, GoClaw automatically tries the other registered providers.
+
+---
+
+## Voices API
+
+GoClaw exposes HTTP endpoints for discovering available TTS voices. These are tenant-scoped and require tenant admin or operator role.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/voices` | List available voices (in-memory cached, TTL 1h) |
+| `GET` | `/v1/voices?provider=minimax` | List MiniMax dynamic voices |
+| `POST` | `/v1/voices/refresh` | Force-invalidate the voice cache (admin only) |
+
+### `GET /v1/voices`
+
+Returns the voice list for the current tenant's configured provider. Results are cached in-memory per tenant with a 1-hour TTL. For ElevenLabs, voices are user-account-specific. For MiniMax, the `?provider=minimax` query parameter fetches that provider's voice list at runtime.
+
+```json
+[
+  {
+    "voice_id": "pMsXgVXv3BLzUgSXRplE",
+    "name": "Alice",
+    "labels": {
+      "use_case": "conversational",
+      "accent": "american"
+    }
+  }
+]
+```
+
+A cache miss triggers an immediate fetch from the provider. Returns `500` if the provider is unreachable.
+
+### `POST /v1/voices/refresh`
+
+Invalidates the voice cache for the current tenant so the next `GET /v1/voices` request fetches a fresh list. Returns `202 Accepted`.
+
+---
+
+## Capabilities API
+
+```
+GET /v1/tts/capabilities
+```
+
+Returns the full `ProviderCapabilities` schema for all registered providers — models, static voices, param schemas, and custom feature flags. The portal uses this to render dynamic per-provider settings forms and the agent override UI.
 
 ---
 
@@ -229,71 +454,22 @@ pip install edge-tts
 }
 ```
 
----
-
-## Agent-Level Voice Config
-
-Each agent can override the global TTS voice and model via its `other_config` JSONB field. This lets different agents use different voices without changing the system-wide config.
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `tts_voice_id` | string | ElevenLabs voice ID for this agent |
-| `tts_model_id` | string | ElevenLabs model ID for this agent (must be an [allowed model](#elevenlabs-model-variants)) |
-
-**Resolution order:** CLI args → agent `other_config` → tenant override → provider default.
-
-**Example** — set a distinct voice per agent via the Web UI or API:
+**Gemini multi-speaker with audio tags:**
 
 ```json
 {
-  "other_config": {
-    "tts_voice_id": "pMsXgVXv3BLzUgSXRplE",
-    "tts_model_id": "eleven_flash_v2_5"
+  "tts": {
+    "provider": "gemini",
+    "auto": "always",
+    "gemini": {
+      "api_key": "AIza...",
+      "model": "gemini-2.5-flash-preview-tts"
+    }
   }
 }
 ```
 
----
-
-## Voices API
-
-GoClaw exposes HTTP endpoints for discovering available TTS voices. These are tenant-scoped and require tenant admin or operator role.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/voices` | List available voices (in-memory cached, TTL 1h) |
-| `POST` | `/v1/voices/refresh` | Force-invalidate the voice cache (admin only) |
-
-### `GET /v1/voices`
-
-Returns the voice list for the current tenant's configured ElevenLabs provider. Results are cached in-memory per tenant with a 1-hour TTL — shared across all HTTP and WebSocket handlers.
-
-```json
-[
-  {
-    "voice_id": "pMsXgVXv3BLzUgSXRplE",
-    "name": "Alice",
-    "preview_url": "https://...",
-    "category": "premade",
-    "labels": {
-      "use_case": "conversational",
-      "accent": "american"
-    }
-  }
-]
-```
-
-A cache miss triggers an immediate fetch from ElevenLabs. Returns `500` if the provider is unreachable.
-
-### `POST /v1/voices/refresh`
-
-Invalidates the voice cache for the current tenant so the next `GET /v1/voices` request fetches a fresh list from the provider. Useful after adding voices to your ElevenLabs account or after CDN expiry.
-
-```json
-{ "message": "voice cache invalidated" }
-```
-
-Response is `202 Accepted`.
+Configure speakers in the portal Voice Picker — up to 2 speakers, each with a name and one of the 30 Gemini prebuilt voices.
 
 ---
 
@@ -357,6 +533,9 @@ The `stt` builtin tool (seeded by migration 050) enables agents to transcribe vo
 | Voice fires on tool results | `mode` is `all` | Set `mode: "final"` |
 | MiniMax returns empty audio | Missing `group_id` | Add `group_id` from MiniMax console |
 | Text cut off with `...` | Over `max_length` | Increase `max_length` in config |
+| Gemini 422 `ErrInvalidVoice` | Voice not in 30 prebuilt set | Use a valid voice ID from the table above |
+| Gemini 422 `ErrSpeakerLimit` | More than 2 speakers | Reduce to ≤ 2 speakers in Voice Picker |
+| `tts_params` key rejected | Key not in allow-list | Use only `speed`, `emotion`, `style` |
 
 ---
 
@@ -365,4 +544,4 @@ The `stt` builtin tool (seeded by migration 050) enables agents to transcribe vo
 - [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->

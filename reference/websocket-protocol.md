@@ -176,7 +176,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `agents.list` | — | List all agents |
 | `agent.wait` | `{agentId}` | Wait for agent to finish current run |
 | `agents.create` | agent object | Create an agent |
-| `agents.update` | `{id, ...fields}` | Update an agent |
+| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Update an agent |
 | `agents.delete` | `{id}` | Delete an agent |
 | `agents.files.list` | `{agentId}` | List context files |
 | `agents.files.get` | `{agentId, fileName}` | Get a context file |
@@ -571,4 +571,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: c651cde5 | updated: 2026-04-15 -->
+<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->

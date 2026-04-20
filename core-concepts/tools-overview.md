@@ -190,6 +190,8 @@ Writes to `MEMORY.md`, `memory.md`, or `memory/*` are routed to the `memory_docu
 
 The `credentialed_exec` tool runs CLI tools (gh, gcloud, aws, kubectl, terraform) with credentials auto-injected as environment variables directly into the child process — no shell, no credential leakage. Security layers: path verification (blocks `./gh` spoofing), shell operator blocking (`;`, `|`, `&&`), per-binary deny patterns (e.g., block `auth\s+`), and output scrubbing.
 
+**Windows environment inheritance:** On Windows, credentialed exec inherits system environment variables required by native CLIs — `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, and `PROGRAMFILES`. These are non-secret runtime variables that most Win32 programs need to function. Credential values are still injected separately and scrubbed from output.
+
 ### `exec` — Shell Safety
 
 The `exec` tool enforces 15 deny groups — all enabled by default:
@@ -312,4 +314,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->

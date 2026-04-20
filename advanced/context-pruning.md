@@ -17,13 +17,13 @@ Context pruning is distinct from [session compaction](../core-concepts/sessions-
 
 ## How Pruning Triggers
 
-Pruning is **opt-in** — it only runs when `mode: "cache-ttl"` is set on the agent. The flow:
+Pruning is **enabled by default** using `cache-ttl` mode. No configuration is required to activate it. Set `mode: "off"` to disable it explicitly. The flow:
 
 ```
 history → limitHistoryTurns → sanitizeHistory → LLM
 ```
 
-> **Note:** `pruneContextMessages` (PruneStage) is **not** part of the main pipeline above. It runs opt-in and separately — only when `mode: "cache-ttl"` is set. The diagram above reflects the standard history preparation path.
+> **Note:** `pruneContextMessages` (PruneStage) is **not** part of the main pipeline above. It runs as a separate stage — by default in `cache-ttl` mode unless explicitly disabled with `mode: "off"`. The diagram above reflects the standard history preparation path.
 
 Before each LLM call, GoClaw:
 
@@ -78,12 +78,12 @@ This placeholder is configurable. Hard clear can also be disabled entirely.
 
 ## Configuration
 
-Context pruning is **opt-in**. To enable it, set `mode: "cache-ttl"` in the agent config.
+Context pruning runs with `cache-ttl` mode **by default** — no config needed to activate it. To disable pruning entirely, set `mode: "off"`.
 
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl"
+    "mode": "off"
   }
 }
 ```
@@ -115,7 +115,7 @@ All other fields have sensible defaults and are optional.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `mode` | *(unset — pruning disabled)* | Set to `"cache-ttl"` to enable pruning. Omit or leave empty to keep pruning off. |
+| `mode` | `"cache-ttl"` *(enabled by default)* | Set to `"off"` to disable pruning. Omit or leave empty to keep the default `cache-ttl` mode. |
 | `keepLastAssistants` | `3` | Number of recent assistant turns to protect from pruning. |
 | `softTrimRatio` | `0.25` | Trigger soft trim when context fills this fraction of the context window. |
 | `hardClearRatio` | `0.5` | Trigger hard clear when context fills this fraction after soft trim. |
@@ -130,12 +130,14 @@ All other fields have sensible defaults and are optional.
 
 ## Configuration Examples
 
-### Enable pruning (minimum config)
+### Disable pruning
+
+Pruning is on by default. To turn it off:
 
 ```json
 {
   "contextPruning": {
-    "mode": "cache-ttl"
+    "mode": "off"
   }
 }
 ```
@@ -223,7 +225,7 @@ Once the consolidation pipeline has promoted a body of knowledge to L0 (via drea
 
 **Pruning never triggers**
 
-Confirm that `mode` is set to `"cache-ttl"` — pruning is opt-in and disabled by default. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios.
+Pruning is enabled by default. If it appears inactive, confirm that `mode` is not explicitly set to `"off"` in the agent config. Also confirm that `contextWindow` is set on the agent — pruning needs a token count to calculate ratios. Finally, verify the context ratio is actually reaching `softTrimRatio` (0.25 by default).
 
 **Agent re-runs tools unexpectedly**
 
@@ -276,4 +278,4 @@ Tool output is now capped at the source before being added to context. Rather th
 - [Memory System](../core-concepts/memory-system.md) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->

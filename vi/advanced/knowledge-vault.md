@@ -283,6 +283,16 @@ Công cụ khám phá chính. Tìm kiếm trên vault, episodic memory và Knowl
 }
 ```
 
+Mỗi kết quả mang **trường ID riêng theo nguồn** chỉ định công cụ tiếp theo cần dùng:
+
+| Nguồn | Trường ID | Công cụ tiếp theo |
+|-------|-----------|-------------------|
+| `vault` | `doc_id` | `vault_read(doc_id=...)` |
+| `kg` | `entity_id` | `knowledge_graph_search(entity_id=...)` |
+| `episodic` | `episodic_id` | `memory_expand(id=episodic_id)` |
+
+> **Bảo vệ namespace ID:** Nếu bạn vô tình truyền `entity_id` hoặc `episodic_id` vào `vault_read`, công cụ sẽ trả về thông báo lỗi mô tả rõ công cụ đúng cần dùng — thay vì thông báo chung chung "document not found". Luôn dùng `doc_id` từ kết quả vault với `vault_read`.
+
 > **Ghi chú về liên kết:** Liên kết tài liệu tường minh giờ được xử lý tự động bởi enrichment pipeline. Công cụ agent `vault_link` đã bị xóa. Liên kết được tạo qua cú pháp wikilink trong nội dung tài liệu (`[[target]]`) hoặc được EnrichWorker tạo theo ngữ nghĩa. Bạn có thể xem liên kết qua `GET /v1/agents/{agentID}/vault/documents/{docID}/links`.
 
 ---
@@ -354,4 +364,4 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 - [Memory System](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dạng vector
 - [Context Files](../../agents/context-files.md) — Tài liệu tĩnh được inject vào context của agent
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->

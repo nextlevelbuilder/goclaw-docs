@@ -192,6 +192,8 @@ Ghi vào `MEMORY.md`, `memory.md`, hoặc `memory/*` được định tuyến đ
 
 Tool `credentialed_exec` chạy CLI tool (gh, gcloud, aws, kubectl, terraform) với credentials được tự động inject trực tiếp vào process con dưới dạng biến môi trường — không qua shell, không lộ credentials. Các lớp bảo mật: xác minh đường dẫn (chặn giả mạo `./gh`), chặn toán tử shell (`;`, `|`, `&&`), pattern deny per-binary (ví dụ: chặn `auth\s+`), và output scrubbing.
 
+**Kế thừa biến môi trường trên Windows:** Trên Windows, credentialed exec kế thừa các biến môi trường hệ thống cần thiết cho CLI — `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA` và `PROGRAMFILES`. Đây là các biến runtime không chứa bí mật mà hầu hết chương trình Win32 cần để hoạt động. Giá trị credentials vẫn được inject riêng và bị scrub khỏi output.
+
 ### `exec` — Bảo mật Shell
 
 Tool `exec` áp dụng 15 nhóm deny — tất cả đều bật theo mặc định:
@@ -314,4 +316,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->
+<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->
