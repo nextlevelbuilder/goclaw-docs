@@ -16,13 +16,13 @@
 - [Agents Explained](vi/core-concepts/agents-explained.md): Agent là gì, hoạt động như thế nào, và sự khác biệt giữa open và predefined.
 - [Sessions & History](vi/core-concepts/sessions-and-history.md): Cách GoClaw theo dõi cuộc hội thoại và quản lý lịch sử tin nhắn.
 - [Tools Overview](vi/core-concepts/tools-overview.md): 50+ tool tích hợp sẵn mà agent có thể dùng, được phân loại theo nhóm.
-- [Memory System](vi/core-concepts/memory-system.md): Cách agent ghi nhớ thông tin qua các cuộc hội thoại bằng hybrid search.
+- [Memory System](vi/core-concepts/memory-system.md): Cách agent ghi nhớ thông tin qua các cuộc hội thoại bằng kiến trúc 3 tầng với consolidation tự động.
 - [Multi-Tenancy](vi/core-concepts/multi-tenancy.md): Cách GoClaw cô lập dữ liệu — từ một người dùng đơn lẻ đến một nền tảng SaaS với nhiều khách hàng.
 
 ## Agents
 - [Creating Agents](vi/agents/creating-agents.md): Thiết lập agent AI mới qua CLI, dashboard, hoặc managed API.
 - [Open vs Predefined Agents](vi/agents/open-vs-predefined.md): Hai kiến trúc agent: cô lập theo từng user (open) hay context dùng chung (predefined).
-- [Context Files](vi/agents/context-files.md): 7 file markdown định nghĩa personality, kiến thức và hành vi của agent.
+- [Context Files](vi/agents/context-files.md): 8 file markdown định nghĩa personality, kiến thức và hành vi của agent.
 - [Summoning & Bootstrap](vi/agents/summoning-bootstrap.md): Cách các file personality được tự động tạo ra khi tạo agent và lần sử dụng đầu tiên.
 - [Editing Personality](vi/agents/editing-personality.md): Thay đổi phong cách, danh tính và ranh giới của agent thông qua hai file cốt lõi: SOUL.md (personality & phong cách) và IDENTITY.md (tên, emoji, loại sinh vật).
 - [Sharing & Access Control](vi/agents/sharing-and-access.md): Kiểm soát ai có thể dùng agent của bạn. Quyền truy cập được thực thi dựa trên phân biệt owner vs. non-owner; nhãn vai trò được lưu để thực thi trong tương lai.
@@ -64,8 +64,9 @@
 - [Zalo OA](vi/channels/zalo-oa.md): Tích hợp Zalo Official Account (OA). Chỉ hỗ trợ DM với kiểm soát truy cập dựa trên pairing và hỗ trợ hình ảnh.
 - [Zalo Personal](vi/channels/zalo-personal.md): Tích hợp tài khoản Zalo cá nhân không chính thức sử dụng giao thức được dịch ngược (zcago). Hỗ trợ DM và nhóm với kiểm soát truy cập hạn chế.
 - [Slack](vi/channels/slack.md): Tích hợp Slack qua Socket Mode (WebSocket). Hỗ trợ DM, @mention trong channel, trả lời theo thread, streaming, reaction, media, và message debouncing.
-- [WhatsApp](vi/channels/whatsapp.md): Tích hợp WhatsApp qua WebSocket bridge bên ngoài. GoClaw kết nối với dịch vụ bridge (ví dụ: whatsapp-web.js) để xử lý giao thức WhatsApp.
-- [Pancake](vi/channels/pancake.md): Proxy channel đa nền tảng thống nhất (pages.fm) — một API key cho Facebook, Zalo OA, Instagram, TikTok, WhatsApp và Line qua webhook.
+- [WhatsApp](vi/channels/whatsapp.md): Tích hợp WhatsApp trực tiếp. GoClaw kết nối trực tiếp đến giao thức multi-device của WhatsApp — không cần bridge hay dịch vụ Node.js bên ngoài. Trạng thái xác thực được lưu trong database (PostgreSQL hoặc SQLite).
+- [Pancake](vi/channels/pancake.md): Proxy kênh đa nền tảng thống nhất được cung cấp bởi Pancake (pages.fm). Một API key Pancake duy nhất cho phép truy cập Facebook, Zalo OA, Instagram, TikTok, WhatsApp và Line — không cần OAuth riêng cho từng nền tảng.
+- [Facebook](vi/channels/facebook.md): Tích hợp Facebook Fanpage hỗ trợ tự động trả lời Messenger, tự động trả lời bình luận, và gửi DM đầu tiên qua Facebook Graph API.
 - [WebSocket](vi/channels/websocket.md): Giao tiếp RPC trực tiếp với GoClaw gateway qua WebSocket. Không cần nền tảng nhắn tin trung gian — lý tưởng cho client tuỳ chỉnh, web app, và kiểm thử.
 - [Browser Pairing](vi/channels/browser-pairing.md): Luồng xác thực bảo mật cho client WebSocket tuỳ chỉnh sử dụng mã pairing 8 ký tự. Lý tưởng cho web app riêng tư và desktop client cần xác minh danh tính thiết bị.
 
@@ -84,15 +85,16 @@
 - [Heartbeat](vi/advanced/heartbeat.md): Kiểm tra định kỳ chủ động — agent thực thi danh sách kiểm tra có thể cấu hình theo timer và báo cáo kết quả đến channel của bạn.
 - [Sandbox](vi/advanced/sandbox.md): Chạy lệnh shell của agent bên trong container Docker cô lập để code không đáng tin cậy không bao giờ chạm đến host.
 - [Media Generation](vi/advanced/media-generation.md): Tạo hình ảnh, video và âm thanh trực tiếp từ agent — với chuỗi provider tự động fallback.
-- [TTS & Voice](vi/advanced/tts-voice.md): Thêm trả lời bằng giọng nói cho agent — chọn từ bốn provider và kiểm soát chính xác khi nào audio được phát.
+- [TTS & Voice](vi/advanced/tts-voice.md): Thêm trả lời bằng giọng nói cho agent — chọn từ năm provider và kiểm soát chính xác khi nào audio được phát.
 - [Knowledge Graph](vi/advanced/knowledge-graph.md): Agent tự động trích xuất thực thể và mối quan hệ từ cuộc hội thoại, xây dựng đồ thị tìm kiếm được về người, dự án và khái niệm.
+- [Knowledge Vault](vi/advanced/knowledge-vault.md): Kho lưu trữ tri thức có cấu trúc, cho phép agent quản lý tài liệu workspace với wikilink hai chiều, tìm kiếm ngữ nghĩa và phân quyền theo team — tất cả đặt trên các hệ thống bộ nhớ hiện có.
 - [Caching](vi/advanced/caching.md): Giảm truy vấn database với bộ nhớ đệm in-memory hoặc Redis cho dữ liệu truy cập thường xuyên.
 - [Browser Automation](vi/advanced/browser-automation.md): Cấp cho agent một trình duyệt thật — điều hướng trang, chụp ảnh màn hình, scrape nội dung, và điền form.
 - [Extended Thinking](vi/advanced/extended-thinking.md): Để agent "suy nghĩ thành tiếng" trước khi trả lời — kết quả tốt hơn với các tác vụ phức tạp, đổi lấy thêm token và độ trễ.
-- [Agent Hooks](vi/advanced/hooks-quality-gates.md): Chặn, quan sát hoặc tiêm hành vi tại các điểm xác định trong agent loop — chặn tool call không an toàn, tự động audit sau khi ghi, tiêm context phiên, hoặc thông báo khi dừng.
+- [Hooks & Quality Gates](vi/advanced/hooks-quality-gates.md): Chặn, quan sát hoặc inject hành vi tại các điểm xác định trong vòng lặp agent — chặn tool call không an toàn, tự động audit sau khi ghi, inject context session, hoặc thông báo khi dừng.
 - [Authentication & OAuth](vi/advanced/authentication.md): Kết nối GoClaw với ChatGPT qua OAuth — không cần API key, dùng tài khoản OpenAI hiện có của bạn.
 - [API Keys & RBAC](vi/advanced/api-keys-rbac.md): Quản lý API key với phân quyền theo vai trò cho các triển khai đa người dùng và truy cập lập trình.
-- [CLI Credentials](vi/advanced/cli-credentials.md): Lưu trữ và quản lý bộ thông tin xác thực có tên cho thực thi lệnh shell.
+- [CLI Credentials](vi/advanced/cli-credentials.md): Lưu trữ và quản lý bộ thông tin xác thực có tên cho thực thi lệnh shell, với kiểm soát truy cập per-agent qua grants.
 - [Exec Approval](vi/advanced/exec-approval.md): Tạm dừng lệnh shell của agent để con người xem xét trước khi chạy — cho phép, từ chối, hoặc luôn cho phép từ dashboard.
 - [Context Pruning](vi/advanced/context-pruning.md): Tự động cắt tỉa kết quả tool cũ để giữ context agent trong giới hạn token.
 - [Channel Instances](vi/advanced/channel-instances.md): Chạy nhiều tài khoản trên cùng loại channel — mỗi tài khoản có thông tin xác thực, agent binding, và quyền writer riêng.
@@ -103,7 +105,7 @@
 
 ## Deployment
 - [Docker Compose](vi/deployment/docker-compose.md): GoClaw cung cấp cấu trúc docker-compose có thể kết hợp: một file base, thư mục `compose.d/` chứa các overlay luôn hoạt động, và thư mục `compose.options/` chứa các overlay tùy chọn để bạn chọn lựa.
-- [Database Setup](vi/deployment/database-setup.md): GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` để lưu trữ đa tenant, tìm kiếm memory, và theo dõi usage.
+- [Database Setup](vi/deployment/database-setup.md): GoClaw yêu cầu **PostgreSQL 15+** với `pgvector` để lưu trữ đa tenant, tìm kiếm memory ngữ nghĩa, và tính năng Knowledge Vault. Backend **SQLite** cũng có cho bản desktop (single-user) với tính năng bị giới hạn — xem [SQLite vs PostgreSQL](#sqlite-vs-postgresql) bên dưới.
 - [Security Hardening](vi/deployment/security-hardening.md): GoClaw dùng năm lớp bảo vệ độc lập — transport, input, tools, output, và isolation — để bypass một lớp không ảnh hưởng đến các lớp còn lại.
 - [Observability](vi/deployment/observability.md): Theo dõi mọi LLM call, tool use, và agent run — từ dashboard tích hợp đến Jaeger và xa hơn.
 - [Tailscale](vi/deployment/tailscale.md): Expose GoClaw gateway của bạn an toàn trên mạng Tailscale — không cần port forwarding, không cần IP public.
@@ -131,7 +133,6 @@
 - [AGENTS.md](vi/reference/templates/agents.md): File hướng dẫn vận hành mặc định được inject vào system prompt của mọi agent — bao gồm phong cách hội thoại, memory, hành vi group chat, và định dạng theo platform.
 - [SOUL.md](vi/reference/templates/soul.md): File personality — định nghĩa agent là ai, giọng điệu, quan điểm, ranh giới, và chuyên môn.
 - [IDENTITY.md](vi/reference/templates/identity.md): File có cấu trúc ngắn gọn nói với GoClaw (và chính agent) tên, bản chất, emoji, và avatar của nó.
-- [CAPABILITIES.md](vi/reference/templates/capabilities.md): Kiến thức domain, kỹ năng kỹ thuật và chuyên môn — những gì agent có thể LÀM.
 - [TOOLS.md](vi/reference/templates/tools.md): File ghi chú local cho chi tiết tool theo môi trường — tên camera, SSH host, TTS voice, biệt danh thiết bị.
 - [USER.md](vi/reference/templates/user.md): File profile per-user — ghi chú của agent về người dùng mà nó đang giúp đỡ.
 - [USER_PREDEFINED.md](vi/reference/templates/user-predefined.md): Quy tắc xử lý user ở cấp agent cho predefined agent — áp dụng cho tất cả người dùng.

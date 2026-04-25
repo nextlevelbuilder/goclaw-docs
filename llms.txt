@@ -16,13 +16,13 @@
 - [Agents Explained](core-concepts/agents-explained.md): What agents are, how they work, and the difference between open and predefined.
 - [Sessions & History](core-concepts/sessions-and-history.md): How GoClaw tracks conversations and manages message history.
 - [Tools Overview](core-concepts/tools-overview.md): The 50+ built-in tools agents can use, organized by category.
-- [Memory System](core-concepts/memory-system.md): How agents remember facts across conversations using hybrid search.
+- [Memory System](core-concepts/memory-system.md): How agents remember facts across conversations using a 3-tier architecture with automatic consolidation.
 - [Multi-Tenancy](core-concepts/multi-tenancy.md): How GoClaw isolates data — from a single user to a full SaaS platform with many customers.
 
 ## Agents
 - [Creating Agents](agents/creating-agents.md): Set up a new AI agent via CLI, dashboard, or managed API.
 - [Open vs Predefined Agents](agents/open-vs-predefined.md): Two agent architectures: per-user isolation (open) vs. shared context (predefined).
-- [Context Files](agents/context-files.md): The 7 markdown files that define an agent's personality, knowledge, and behavior.
+- [Context Files](agents/context-files.md): The 8 markdown files that define an agent's personality, knowledge, and behavior.
 - [Summoning & Bootstrap](agents/summoning-bootstrap.md): How personality files are generated automatically on agent creation and first use.
 - [Editing Personality](agents/editing-personality.md): Change your agent's tone, identity, and boundaries through two core files: SOUL.md (personality & style) and IDENTITY.md (name, emoji, creature).
 - [Sharing & Access Control](agents/sharing-and-access.md): Control who can use your agents. Access is enforced via owner vs. non-owner distinction; role labels are stored for future enforcement.
@@ -64,8 +64,9 @@
 - [Zalo OA](channels/zalo-oa.md): Zalo Official Account (OA) integration. DM-only with pairing-based access control and image support.
 - [Zalo Personal](channels/zalo-personal.md): Unofficial personal Zalo account integration using reverse-engineered protocol (zcago). Supports DMs and groups with restrictive access control.
 - [Slack](channels/slack.md): Slack integration via Socket Mode (WebSocket). Supports DMs, channel @mentions, threaded replies, streaming, reactions, media, and message debouncing.
-- [WhatsApp](channels/whatsapp.md): WhatsApp integration via external WebSocket bridge. GoClaw connects to a bridge service (e.g., whatsapp-web.js) that handles the WhatsApp protocol.
-- [Pancake](channels/pancake.md): Unified multi-platform channel proxy (pages.fm) — one API key for Facebook, Zalo OA, Instagram, TikTok, WhatsApp, and Line via webhook delivery.
+- [WhatsApp](channels/whatsapp.md): Direct WhatsApp integration. GoClaw connects directly to WhatsApp's multi-device protocol — no external bridge or Node.js service required. Auth state is stored in the database (PostgreSQL or SQLite).
+- [Pancake](channels/pancake.md): Unified multi-platform channel proxy powered by Pancake (pages.fm). A single Pancake API key gives access to Facebook, Zalo OA, Instagram, TikTok, WhatsApp, and Line — no per-platform OAuth required.
+- [Facebook](channels/facebook.md): Facebook Fanpage integration supporting Messenger inbox auto-reply, comment auto-reply, and first inbox DM via Facebook Graph API.
 - [WebSocket](channels/websocket.md): Direct RPC communication with the GoClaw gateway over WebSocket. No intermediate messaging platform needed—perfect for custom clients, web apps, and testing.
 - [Browser Pairing](channels/browser-pairing.md): Secure authentication flow for custom WebSocket clients using 8-character pairing codes. Ideal for private web apps and desktop clients that need to verify device identity.
 
@@ -84,15 +85,16 @@
 - [Heartbeat](advanced/heartbeat.md): Proactive periodic check-ins — agents execute a configurable checklist on a timer and report results to your channels.
 - [Sandbox](advanced/sandbox.md): Run agent shell commands inside an isolated Docker container so untrusted code never touches your host.
 - [Media Generation](advanced/media-generation.md): Generate images, videos, and audio directly from your agents — with automatic provider fallback chains.
-- [TTS & Voice](advanced/tts-voice.md): Add voice replies to your agents — pick from four providers and control exactly when audio fires.
+- [TTS & Voice](advanced/tts-voice.md): Add voice replies to your agents — pick from five providers and control exactly when audio fires.
 - [Knowledge Graph](advanced/knowledge-graph.md): Agents automatically extract entities and relationships from conversations, building a searchable graph of people, projects, and concepts.
+- [Knowledge Vault](advanced/knowledge-vault.md): A structured knowledge store that lets agents curate workspace documents with bidirectional wikilinks, semantic search, and team-scoped access — all layered on top of existing memory systems.
 - [Caching](advanced/caching.md): Reduce database queries with in-memory or Redis caching for frequently accessed data.
 - [Browser Automation](advanced/browser-automation.md): Give your agents a real browser — navigate pages, take screenshots, scrape content, and fill forms.
 - [Extended Thinking](advanced/extended-thinking.md): Let your agent "think out loud" before answering — better results on complex tasks, at the cost of extra tokens and latency.
-- [Agent Hooks](advanced/hooks-quality-gates.md): Intercept, observe, or inject behavior at defined points in the agent loop — block unsafe tool calls, auto-audit after writes, inject session context, or notify on stop.
+- [Hooks & Quality Gates](advanced/hooks-quality-gates.md): Intercept, observe, or inject behavior at defined points in the agent loop — block unsafe tool calls, auto-audit after writes, inject session context, or notify on stop.
 - [Authentication & OAuth](advanced/authentication.md): Connect GoClaw to ChatGPT via OAuth — no API key needed, uses your existing OpenAI account.
 - [API Keys & RBAC](advanced/api-keys-rbac.md): Manage API keys with role-based access control for multi-user and programmatic access deployments.
-- [CLI Credentials](advanced/cli-credentials.md): Securely store and manage named credential sets for shell tool execution.
+- [CLI Credentials](advanced/cli-credentials.md): Securely store and manage named credential sets for shell tool execution, with per-agent access control via grants.
 - [Exec Approval](advanced/exec-approval.md): Pause agent shell commands for human review before they run — approve, deny, or permanently allow from the dashboard.
 - [Context Pruning](advanced/context-pruning.md): Automatically trim old tool results to keep agent context within token limits.
 - [Channel Instances](advanced/channel-instances.md): Run multiple accounts per channel type — each with its own credentials, agent binding, and writer permissions.
@@ -103,7 +105,7 @@
 
 ## Deployment
 - [Docker Compose](deployment/docker-compose.md): GoClaw ships a composable docker-compose setup: a base file, a `compose.d/` directory of always-active overlays, and a `compose.options/` directory of opt-in overlays you mix and match.
-- [Database Setup](deployment/database-setup.md): GoClaw requires PostgreSQL 15+ with the `pgvector` extension for multi-tenant storage, memory search, and usage tracking.
+- [Database Setup](deployment/database-setup.md): GoClaw requires **PostgreSQL 15+** with `pgvector` for multi-tenant storage, semantic memory search, and Knowledge Vault features. A **SQLite** backend is also available for desktop (single-user) deployments with reduced feature set — see [SQLite vs PostgreSQL](#sqlite-vs-postgresql) below.
 - [Security Hardening](deployment/security-hardening.md): GoClaw uses five independent defense layers — transport, input, tools, output, and isolation — so a bypass of one layer doesn't compromise the rest.
 - [Observability](deployment/observability.md): Monitor every LLM call, tool use, and agent run — from the built-in dashboard to Jaeger and beyond.
 - [Tailscale](deployment/tailscale.md): Expose your GoClaw gateway securely on your Tailscale network — no port forwarding, no public IP required.

@@ -16,13 +16,13 @@
 - [Agents Explained](zh/core-concepts/agents-explained.md): Agent 是什么、如何工作，以及开放型与预定义型的区别。
 - [Sessions & History](zh/core-concepts/sessions-and-history.md): GoClaw 如何追踪对话并管理消息历史。
 - [Tools Overview](zh/core-concepts/tools-overview.md): Agent 可以使用的 50+ 内置工具，按类别组织。
-- [Memory System](zh/core-concepts/memory-system.md): Agent 如何通过混合搜索跨对话记住事实。
+- [Memory System](zh/core-concepts/memory-system.md): Agent 如何通过三层架构与自动整合跨对话记住事实。
 - [Multi-Tenancy](zh/core-concepts/multi-tenancy.md): GoClaw 如何隔离数据——从单用户到拥有众多客户的完整 SaaS 平台。
 
 ## Agents
 - [Creating Agents](zh/agents/creating-agents.md): 通过 CLI、Dashboard 或 HTTP API 创建新的 AI agent。
 - [Open vs Predefined Agents](zh/agents/open-vs-predefined.md): 两种 agent 架构：每用户独立隔离（open）与共享 context（predefined）。
-- [Context Files](zh/agents/context-files.md): 定义 agent personality、知识和行为的 7 个 markdown 文件。
+- [Context Files](zh/agents/context-files.md): 定义 agent personality、知识和行为的 8 个 markdown 文件。
 - [Summoning & Bootstrap](zh/agents/summoning-bootstrap.md): Agent 创建和首次使用时如何自动生成 personality 文件。
 - [Editing Personality](zh/agents/editing-personality.md): 通过两个核心文件修改 agent 的语调、身份和边界：SOUL.md（personality 与风格）和 IDENTITY.md（名称、emoji、形态）。
 - [Sharing & Access Control](zh/agents/sharing-and-access.md): 控制谁可以使用你的 agent。访问权限通过所有者与非所有者的区分来执行；角色标签存储供未来使用。
@@ -64,8 +64,9 @@
 - [Zalo OA](zh/channels/zalo-oa.md): Zalo 官方账号（OA）集成。仅支持 DM，基于配对的访问控制，支持图片。
 - [Zalo Personal](zh/channels/zalo-personal.md): 使用逆向工程协议（zcago）的非官方个人 Zalo 账号集成。支持 DM 和群组，采用严格访问控制。
 - [Slack](zh/channels/slack.md): 通过 Socket Mode（WebSocket）集成 Slack。支持 DM、channel @提及、线程回复、流式输出、表情回应、媒体和消息防抖。
-- [WhatsApp](zh/channels/whatsapp.md): 通过外部 WebSocket 桥接集成 WhatsApp。GoClaw 连接到处理 WhatsApp 协议的桥接服务（如 whatsapp-web.js）。
-- [Pancake](zh/channels/pancake.md): 统一多平台频道代理（pages.fm）—— 一个 API 密钥即可接入 Facebook、Zalo OA、Instagram、TikTok、WhatsApp 和 Line。
+- [WhatsApp](zh/channels/whatsapp.md): 直接集成 WhatsApp。GoClaw 直接连接 WhatsApp 多设备协议 —— 无需外部桥接或 Node.js 服务。认证状态存储在数据库中（PostgreSQL 或 SQLite）。
+- [Pancake](zh/channels/pancake.md): 由 Pancake (pages.fm) 驱动的统一多平台 channel 代理。一个 Pancake API key 即可访问 Facebook、Zalo OA、Instagram、TikTok、WhatsApp 和 Line——无需为每个平台单独进行 OAuth 授权。
+- [Facebook](zh/channels/facebook.md): Facebook 主页集成，支持 Messenger 收件箱自动回复、评论自动回复，以及通过 Facebook Graph API 发送首次私信。
 - [WebSocket](zh/channels/websocket.md): 通过 WebSocket 与 GoClaw gateway 直接 RPC 通信。无需中间消息平台——非常适合自定义客户端、Web 应用和测试。
 - [Browser Pairing](zh/channels/browser-pairing.md): 使用 8 位配对码为自定义 WebSocket 客户端提供安全认证流程。适用于需要验证设备身份的私有 Web 应用和桌面客户端。
 
@@ -84,15 +85,16 @@
 - [Heartbeat](zh/advanced/heartbeat.md): 主动定期检查 — agent 按计时器执行可配置的检查清单，并将结果报告到你的 channel。
 - [Sandbox](zh/advanced/sandbox.md): 在隔离的 Docker 容器中运行 agent shell 命令，让不受信任的代码永远无法接触宿主机。
 - [Media Generation](zh/advanced/media-generation.md): 直接从 agent 生成图片、视频和音频 — 支持自动 provider 故障转移链。
-- [TTS & Voice](zh/advanced/tts-voice.md): 为 agent 添加语音回复 — 从四个 provider 中选择，精确控制音频触发时机。
+- [TTS & Voice](zh/advanced/tts-voice.md): 为 agent 添加语音回复 — 从五个 provider 中选择，精确控制音频触发时机。
 - [Knowledge Graph](zh/advanced/knowledge-graph.md): Agent 自动从对话中提取实体和关系，构建一个可搜索的人物、项目和概念图谱。
+- [Knowledge Vault](zh/advanced/knowledge-vault.md): 一个结构化的知识存储，让 agent 能够管理工作区文档，支持双向 wikilink、语义搜索和团队范围访问控制 — 全部构建于现有内存系统之上。
 - [Caching](zh/advanced/caching.md): 使用内存或 Redis 缓存频繁访问的数据，减少数据库查询。
 - [Browser Automation](zh/advanced/browser-automation.md): 为 agent 提供真实浏览器 — 导航页面、截图、抓取内容、填写表单。
 - [Extended Thinking](zh/advanced/extended-thinking.md): 让 agent 在回答前"大声思考" — 在复杂任务上获得更好的结果，代价是额外的 token 和延迟。
-- [Agent Hooks](zh/advanced/hooks-quality-gates.md): 在 agent loop 的定义点拦截、观察或注入行为 — 阻止不安全的 tool 调用、写入后自动审计、注入会话 context 或停止时通知。
+- [Hooks & Quality Gates](zh/advanced/hooks-quality-gates.md): 在 agent 循环的定义节点拦截、观察或注入行为 — 阻止不安全的 tool call、写入后自动审计、注入 session 上下文，或在停止时发出通知。
 - [Authentication & OAuth](zh/advanced/authentication.md): 通过 OAuth 将 GoClaw 连接到 ChatGPT — 无需 API key，使用你现有的 OpenAI 账号。
 - [API Keys & RBAC](zh/advanced/api-keys-rbac.md): 为多用户和程序化访问部署管理带角色权限控制的 API key。
-- [CLI Credentials](zh/advanced/cli-credentials.md): 安全存储和管理用于 shell 工具执行的命名凭据集。
+- [CLI Credentials](zh/advanced/cli-credentials.md): 安全存储和管理用于 shell 工具执行的命名凭据集，通过 grants 实现 per-agent 访问控制。
 - [Exec Approval](zh/advanced/exec-approval.md): 在 agent shell 命令运行前暂停等待人工审阅 — 从 Dashboard 批准、拒绝或永久允许。
 - [Context Pruning](zh/advanced/context-pruning.md): 自动修剪旧的工具结果，将 agent 上下文保持在 token 限制内。
 - [Channel Instances](zh/advanced/channel-instances.md): 每种 channel 类型运行多个账号 — 各自拥有独立的凭据、agent 绑定和写入权限。
@@ -103,7 +105,7 @@
 
 ## Deployment
 - [Docker Compose](zh/deployment/docker-compose.md): GoClaw 提供可组合的 docker-compose 配置：一个基础文件、一个 `compose.d/` 目录（包含始终生效的 overlay）以及一个 `compose.options/` 目录（包含可按需启用的 overlay）。
-- [Database Setup](zh/deployment/database-setup.md): GoClaw 需要 PostgreSQL 15+ 并安装 `pgvector` 扩展，用于多租户存储、语义记忆搜索和用量统计。
+- [Database Setup](zh/deployment/database-setup.md): GoClaw 需要 **PostgreSQL 15+** 并安装 `pgvector` 扩展，用于多租户存储、语义记忆搜索和 Knowledge Vault 功能。桌面（单用户）部署也可使用 **SQLite** 后端，功能有所限制——详见 [SQLite vs PostgreSQL](#sqlite-vs-postgresql)。
 - [Security Hardening](zh/deployment/security-hardening.md): GoClaw 采用五层独立防御——传输、输入、工具、输出和隔离——一层被突破不会危及其余层。
 - [Observability](zh/deployment/observability.md): 监控每一次 LLM 调用、工具使用和 agent 运行——从内置仪表盘到 Jaeger 及更多。
 - [Tailscale](zh/deployment/tailscale.md): 在 Tailscale 网络上安全暴露 GoClaw gateway——无需端口转发，无需公网 IP。
@@ -131,7 +133,6 @@
 - [AGENTS.md](zh/reference/templates/agents.md): 注入每个 agent 系统提示的默认操作指令——涵盖对话风格、记忆、群聊行为和平台格式。
 - [SOUL.md](zh/reference/templates/soul.md): 个性文件——定义你的 agent 是谁、其语气、观点、边界和专业知识。
 - [IDENTITY.md](zh/reference/templates/identity.md): 一个简短的结构化文件，告诉 GoClaw（以及 agent 自身）其名称、性质、emoji 和头像。
-- [CAPABILITIES.md](zh/reference/templates/capabilities.md): 领域知识、技术技能和专业专长——你的 agent 能做什么。
 - [TOOLS.md](zh/reference/templates/tools.md): 用于环境特定工具详情的本地笔记文件——摄像头名称、SSH 主机、TTS 声音、设备昵称。
 - [USER.md](zh/reference/templates/user.md): 按用户的档案文件——agent 关于它所服务的人类的笔记。
 - [USER_PREDEFINED.md](zh/reference/templates/user-predefined.md): 预定义 agent 的 agent 级用户处理规则——对所有用户共享。
