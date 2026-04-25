@@ -45,7 +45,7 @@
     {"pattern": "internal/gateway/methods/teams*", "docs": ["agent-teams/creating-managing-teams.md", "agent-teams/delegation-and-handoff.md", "reference/websocket-protocol.md"], "priority": "high"},
     {"pattern": "internal/gateway/methods/chat*", "docs": ["reference/websocket-protocol.md", "deployment/security-hardening.md"], "priority": "high"},
     {"pattern": "internal/gateway/methods/agents*", "docs": ["reference/websocket-protocol.md", "agents/creating-agents.md"], "priority": "high"},
-    {"pattern": "internal/gateway/*", "docs": ["reference/websocket-protocol.md", "reference/rest-api.md", "core-concepts/how-goclaw-works.md", "troubleshooting/websocket.md"], "priority": "high"},
+    {"pattern": "internal/gateway/*", "docs": ["reference/websocket-protocol.md", "reference/rest-api.md", "reference/api-endpoints-catalog.md", "core-concepts/how-goclaw-works.md", "troubleshooting/websocket.md"], "priority": "high"},
 
     {"pattern": "internal/http/vault_*", "docs": ["advanced/knowledge-vault.md", "reference/rest-api.md"], "priority": "high"},
     {"pattern": "internal/http/memory_*", "docs": ["core-concepts/memory-system.md", "reference/rest-api.md"], "priority": "high"},
@@ -64,7 +64,7 @@
     {"pattern": "internal/http/skills_grants*", "docs": ["advanced/skills.md", "reference/rest-api.md"], "priority": "medium"},
     {"pattern": "internal/http/api_keys*", "docs": ["advanced/api-keys-rbac.md", "reference/rest-api.md"], "priority": "medium"},
     {"pattern": "internal/http/chat_completions*", "docs": ["reference/rest-api.md"], "priority": "low"},
-    {"pattern": "internal/http/*", "docs": ["reference/rest-api.md", "advanced/api-keys-rbac.md"], "priority": "medium"},
+    {"pattern": "internal/http/*", "docs": ["reference/rest-api.md", "reference/api-endpoints-catalog.md", "advanced/api-keys-rbac.md"], "priority": "medium"},
 
     {"pattern": "internal/store/pg/*", "docs": ["reference/database-schema.md", "troubleshooting/database.md"], "priority": "medium"},
     {"pattern": "internal/store/sqlitestore/*", "docs": ["reference/database-schema.md", "deployment/database-setup.md"], "priority": "medium"},
