@@ -27,7 +27,9 @@ agent:{agentId}:{channel}:{kind}:{chatId}
 
 此键格式意味着同一用户在 Telegram 和 Discord 上与同一 agent 的对话有两个独立 session，各自的历史互不干扰。
 
-> **Session 元数据：** 每个 session 除了键之外还追踪额外字段：`label`（显示名称）、`channel`、`model`、`provider`、`spawned_by`（子 agent 的父 session ID）、`spawn_depth`、`input_tokens`、`output_tokens`、`compaction_count` 和 `context_window`。这些字段可用于分析和调试。
+> **Session 元数据：** 每个 session 除了键之外还追踪额外字段：`label`（显示名称）、`channel`、`model`、`provider`、`spawned_by`（子 agent 的父 session ID）、`spawn_depth`、`input_tokens`、`output_tokens`、`compaction_count`、`context_window`、`last_prompt_tokens` 和 `last_message_count`。这些字段可用于分析和调试。
+>
+> `last_prompt_tokens` 和 `last_message_count` 由 FinalizeStage 在每次运行结束时写入，session 列表查询读取这两个字段以在 UI 中显示准确的 token 数和消息数。对于不含此字段的旧 session，查询会回退到 octet length 估算（`octet_length(messages) / 4 + 12000`），确保 UI 始终有数值可显示。
 
 ## 消息存储
 
@@ -108,6 +110,10 @@ graph LR
 
 如果上下文在循环过程中超过阈值，GoClaw 也可能在**长时间 agent 轮次期间**压缩历史。同样的 75% 摘要逻辑适用。这对 agent 透明——它以注入的压缩历史继续运行。
 
+### 压缩溢出恢复
+
+若上下文预算在一次压缩后**仍然超出**（例如 system prompt 和 tool schema 单独就几乎填满了上下文窗口），GoClaw 会在返回错误之前执行一次辅助恢复扫描。此溢出恢复路径（PR #958）最多重试一次，仅当第二次扫描仍失败时才向调用方返回 `context overflow after compaction` 错误。实践中，这可防止拥有大型 tool schema 或 system prompt 的 agent 出现硬性上下文溢出失败。
+
 ## 并发
 
 | 聊天类型 | 最大并发数 | 说明 |
@@ -148,4 +154,4 @@ graph LR
 - [工具概览](/tools-overview) — Agent 可用的工具
 - [多租户](/multi-tenancy) — 每用户 session 隔离
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

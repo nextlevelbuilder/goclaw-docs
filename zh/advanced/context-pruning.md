@@ -272,6 +272,24 @@ GoClaw 现在使用 tiktoken BPE tokenizer 进行精确 token 计数，取代旧
 
 Tool output 现在在加入上下文之前就在源头截断。不再等待 pruning pipeline 事后裁剪过大的结果，GoClaw 在采集时直接限制 tool output 大小。这减少了不必要的内存压力，使 pruning pipeline 更加可预测。
 
+### 动态压缩摘要预算
+
+会话压缩运行时，摘要的 output token 预算不再是固定上限，而是动态计算：
+
+```
+max_tokens = clamp(input_tokens / 25, 1024, 8192)
+```
+
+较短的历史获得较小的预算（下限：1024 token），较长的历史获得较大的预算（上限：8192 token）。此公式替代了此前文档中可能提到的静态 4096 token 上限。
+
+### Tool schema token 计入 OverheadTokens
+
+`OverheadTokens`——ContextStage 在裁剪前从可用窗口中减去的 token 数——现在包含所有已注册 tool schema 消耗的 token，而不仅仅是 system prompt。这意味着拥有大量或较大 tool 的 agent 会看到更高的 overhead 值，pruning 会略早触发。
+
+### 压缩溢出恢复
+
+当上下文在一次压缩后仍超出预算（例如 system prompt 和 tool schema 已接近填满上下文窗口）时，GoClaw 会在返回错误之前执行一次辅助恢复扫描。此溢出恢复路径（PR #958）最多重试一次，仅在第二次扫描仍失败时才返回 `context overflow after compaction` 错误。实践中，这可防止拥有大型 tool schema 或 system prompt 的 agent 出现硬性上下文溢出失败。
+
 ---
 
 ## 下一步
@@ -280,4 +298,4 @@ Tool output 现在在加入上下文之前就在源头截断。不再等待 prun
 - [记忆系统](../../core-concepts/memory-system.md) — 三层记忆架构与整合 pipeline
 - [配置参考](/config-reference) — 完整的 agent 配置参考
 
-<!-- goclaw-source: 1b862707 | 更新: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

@@ -270,6 +270,24 @@ When context is compacted, the summary now preserves key identifiers — agent I
 
 Tool output is now capped at the source before being added to context. Rather than waiting for the pruning pipeline to trim oversized results after the fact, GoClaw limits tool output size at ingestion time. This reduces unnecessary memory pressure and makes the pruning pipeline more predictable.
 
+### Dynamic Compaction Summary Budget
+
+When session compaction runs, the output-token budget for the summary is no longer a static cap. It is now computed dynamically:
+
+```
+max_tokens = clamp(input_tokens / 25, 1024, 8192)
+```
+
+Short histories get a smaller budget (floor: 1024 tokens) and long histories get a larger one (cap: 8192 tokens). This replaces any previously documented static 4096-token cap.
+
+### Tool-Schema Tokens in OverheadTokens
+
+`OverheadTokens` — the token count that ContextStage subtracts from the usable window before pruning — now includes the tokens consumed by all registered tool schemas, in addition to the system prompt. Previously only system-prompt tokens were counted. This means agents with many or large tools will see a higher overhead value and pruning will trigger slightly earlier.
+
+### Compaction Overflow Recovery
+
+When the context remains over budget even after a compaction sweep (for example, the system prompt and tool schemas alone nearly fill the window), GoClaw performs a secondary recovery sweep before surfacing an error. This overflow recovery path (PR #958) caps retries at one attempt and returns a `context overflow after compaction` error only when the second sweep also fails. In practice this prevents hard failures for agents with large tool schemas or system prompts.
+
 ---
 
 ## What's Next
@@ -278,4 +296,4 @@ Tool output is now capped at the source before being added to context. Rather th
 - [Memory System](../core-concepts/memory-system.md) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

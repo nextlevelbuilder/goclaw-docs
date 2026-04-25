@@ -226,9 +226,9 @@ Model hỗ trợ (tất cả đều ở giai đoạn preview — UI hiển thị
 
 | Model | Ghi chú |
 |-------|---------|
-| `gemini-2.5-flash-preview-tts` | Mặc định; nhanh và tiết kiệm chi phí |
+| `gemini-2.5-flash-preview-tts` | Nhanh và tiết kiệm chi phí |
 | `gemini-2.5-pro-preview-tts` | Chất lượng cao nhất |
-| `gemini-3.1-flash-tts-preview` | Thử nghiệm |
+| `gemini-3.1-flash-tts-preview` | **Mặc định** |
 
 #### Giọng Gemini (30 giọng có sẵn)
 
@@ -286,6 +286,7 @@ Danh mục: Cảm xúc, Nhịp điệu, Hiệu ứng, Chất lượng giọng. D
 | `ErrInvalidVoice` | Voice ID không thuộc 30 giọng có sẵn |
 | `ErrSpeakerLimit` | Nhiều hơn 2 người nói trong chế độ multi-speaker |
 | `ErrInvalidModel` | Model ID không trong danh sách cho phép |
+| `MsgTtsGeminiTextOnly` | Gemini trả về text thay vì audio sau khi tự động retry (xem mục xử lý sự cố) |
 
 ---
 
@@ -348,6 +349,14 @@ Key ngoài danh sách này bị từ chối khi ghi. Adapter chạy theo từng 
 ```
 
 Khi provider chính thất bại, GoClaw tự động thử các provider đã đăng ký khác.
+
+### Timeout tổng hợp theo tenant
+
+Thời hạn tổng hợp được kiểm soát qua key `tts.timeout_ms` trong `system_configs` (admin tenant → Config → Audio → TTS). Mặc định là **120000 ms (120 giây)**. Đặt giá trị cao hơn cho các provider chậm hoặc audio dài; gateway áp dụng deadline theo ngữ cảnh bằng giá trị này.
+
+```
+tts.timeout_ms = 120000   # mặc định; tăng lên nếu provider chậm
+```
 
 ---
 
@@ -537,6 +546,7 @@ Tool `stt` tích hợp sẵn (được seed bởi migration 050) cho phép agent
 | Văn bản bị cắt với `...` | Vượt quá `max_length` | Tăng `max_length` trong config |
 | Gemini 422 `ErrInvalidVoice` | Voice ID không thuộc 30 giọng có sẵn | Dùng voice ID hợp lệ từ bảng trên |
 | Gemini 422 `ErrSpeakerLimit` | Nhiều hơn 2 người nói | Giảm xuống ≤ 2 người nói trong Voice Picker |
+| Gemini 422 `MsgTtsGeminiTextOnly` | Gemini trả về text thay vì audio sau khi tự động retry | GoClaw tự retry một lần với inline audio prefix; nếu Gemini vẫn từ chối, lỗi trả về HTTP 422. Rút ngắn văn bản, bỏ phần dịch/bình luận, hoặc đổi model. |
 | Key `tts_params` bị từ chối | Key ngoài danh sách cho phép | Chỉ dùng `speed`, `emotion`, `style` |
 
 ---
@@ -546,4 +556,4 @@ Tool `stt` tích hợp sẵn (được seed bởi migration 050) cho phép agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — kích hoạt agent theo lịch
 - [Extended Thinking](../advanced/extended-thinking.md) — suy luận sâu hơn cho câu trả lời phức tạp
 
-<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

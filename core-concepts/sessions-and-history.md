@@ -25,7 +25,9 @@ agent:{agentId}:{channel}:{kind}:{chatId}
 
 This key format means the same user talking to the same agent on Telegram and Discord has two separate sessions with independent history.
 
-> **Session Metadata:** Each session tracks additional fields alongside the key: `label` (display name), `channel`, `model`, `provider`, `spawned_by` (parent session ID for subagents), `spawn_depth`, `input_tokens`, `output_tokens`, `compaction_count`, and `context_window`. These fields are queryable for analytics and debugging purposes.
+> **Session Metadata:** Each session tracks additional fields alongside the key: `label` (display name), `channel`, `model`, `provider`, `spawned_by` (parent session ID for subagents), `spawn_depth`, `input_tokens`, `output_tokens`, `compaction_count`, `context_window`, `last_prompt_tokens`, and `last_message_count`. These fields are queryable for analytics and debugging purposes.
+>
+> `last_prompt_tokens` and `last_message_count` are written by FinalizeStage at the end of every run and are read by the session-list query to display accurate token and message counts in the UI. Older sessions that pre-date this field fall back to an octet-length estimate (`octet_length(messages) / 4 + 12000`) so the UI always has a number to display.
 
 ## Message Storage
 
@@ -106,6 +108,10 @@ A per-session lock prevents concurrent compaction. If a second compaction trigge
 
 GoClaw may also compact history **during a long agent turn** if the context exceeds the threshold mid-loop. The same 75% summarization logic applies. This is transparent to the agent — it continues running with the compacted history injected.
 
+### Compaction Overflow Recovery
+
+If the context budget is still exceeded **after** a compaction sweep (for example, when the system prompt and tool schemas alone nearly fill the window), GoClaw performs a secondary recovery sweep before returning an error. This overflow recovery path (introduced in PR #958) caps the number of retry attempts at one and surfaces an error to the caller only if the context is still over budget after the recovery sweep. In practice this prevents hard context-overflow failures for agents with very large tool schemas or system prompts.
+
 ## Concurrency
 
 | Chat Type | Max Concurrent | Notes |
@@ -146,4 +152,4 @@ Queue capacity is 10 by default. When full, the oldest message is dropped (drop 
 - [Tools Overview](/tools-overview) — Available tools for agents
 - [Multi-Tenancy](/multi-tenancy) — Per-user session isolation
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

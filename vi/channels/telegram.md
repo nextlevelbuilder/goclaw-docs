@@ -145,6 +145,22 @@ flowchart TD
     BUFFER --> NEXT["Mention tiếp theo:<br/>history được đưa vào"]
 ```
 
+### Thông tin nhận dạng bot trong system prompt
+
+Khi khởi động, GoClaw xác định username và tên hiển thị của bot trên Telegram, sau đó chèn một đoạn nhận dạng ngắn vào system prompt của agent:
+
+```
+You are @mybot (My Bot) on this Telegram channel.
+```
+
+Điều này cho agent biết handle của chính mình để giải nghĩa đúng các @mention trong cuộc trò chuyện nhóm — đặc biệt hữu ích trong nhóm nhiều bot, khi các @mention của bot khác vẫn được giữ lại trong nội dung tin nhắn sau khi đã loại bỏ mention của bot.
+
+### Loại bỏ @mention của bot trong tin nhắn đến
+
+Trước khi truyền nội dung tin nhắn cho agent, GoClaw loại bỏ `@username` của bot khỏi văn bản. Như vậy agent nhận được nội dung sạch không có handle của chính mình. Ví dụ: tin nhắn `"@mybot thời tiết hôm nay thế nào?"` sẽ được gửi đến agent là `"thời tiết hôm nay thế nào?"`.
+
+Các @mention của bot khác được giữ nguyên để agent có thể phát hiện tương tác giữa các bot.
+
 ### Chú thích tin nhắn nhóm
 
 Trong chat nhóm, mỗi tin nhắn được thêm tiền tố `[From:]` để agent biết ai đang nói:
@@ -322,4 +338,4 @@ Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` 
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

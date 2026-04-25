@@ -241,10 +241,24 @@ docker ps --filter "label=goclaw.sandbox=true"
 | 会话结束后容器未清理 | 清理器未运行或 `idle_hours` 过高 | 降低 `idle_hours`；检查日志中的 `sandbox pruning started` |
 | 容器内写入失败 | `workspace_access: ro` 或 `read_only_root: true` 且无 tmpfs | 切换到 `rw` 或为目标路径添加 tmpfs 挂载 |
 
+## Team-Root 工作区边界
+
+当 agent 在 team-root 模式下运行（属于某个 agent team）时，它对 team 内其他 chat 的 workspace 拥有**读取权限**。但 read-allowed 路径与 write-allowed 路径是严格分离的：
+
+| 操作 | 使用的路径集 |
+|---|---|
+| `read_file`、`list_files` | Read-allowed — 包含 team root 及对等 chat 的 workspace |
+| `write_file`、`edit` | Write-allowed — 仅限该 agent 自身 chat 的 workspace |
+| `exec` / `shell` | Write-allowed — cwd 解析使用更严格的 write-allowed 前缀集 |
+
+这种不对称设计防止 team-root agent 在能读取对等 chat workspace 的同时对其进行修改。Shell 命令中的绝对路径也受 write-allowed 前缀约束，关闭了通过 `cd` 或绝对路径参数进行跨 chat 写入的通道。
+
+> **注意：** 此工作区边界不受 sandbox 模式影响。Sandbox 模式控制命令是否在 Docker 内运行；team-root 路径限制在工具层强制执行，早于 Docker 介入。
+
 ## 下一步
 
 - [自定义工具](/custom-tools) — 定义同样受益于 sandbox 隔离的 shell 工具
 - [Exec 审批](/exec-approval) — 在任何命令运行前要求人工审批，无论是否沙箱化
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行沙箱化的 agent 轮次
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

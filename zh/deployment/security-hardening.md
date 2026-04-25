@@ -120,6 +120,25 @@ flowchart TD
 }
 ```
 
+### 全局 shell deny-groups — 运行时切换
+
+`config.tools.shellDenyGroups` 是一个 `map[string]bool`，允许在不重启 gateway 的情况下全局启用或禁用 deny-group。更改通过 `bus.TopicConfigChanged` 实时生效（runtime-reloadable）。
+
+```json
+{
+  "tools": {
+    "shellDenyGroups": {
+      "package_install": false,
+      "env_dump": false
+    }
+  }
+}
+```
+
+**优先级：** per-agent 的 `shell_deny_groups` 始终优先于全局设置。全局值仅在 agent 自身 config 中未明确设置某个 deny-group 时生效。这样可以在全 gateway 范围内放开某个分组，同时仍对特定 agent 保持锁定。
+
+完整的 `tools.shellDenyGroups` 字段参考请见 [`reference/config-reference.md`](../reference/config-reference.md)。
+
 ### 路径遍历防护
 
 `resolvePath()` 依次应用 `filepath.Clean()` 和 `HasPrefix()`，确保所有文件路径保持在 agent 工作区内。启用 `restrict_to_workspace: true`（agent 默认值）时，工作区外的任何路径均被阻止。
@@ -536,4 +555,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — 通过 compose overlay 部署安全设置
 - [数据库设置](./database-setup.md) — PostgreSQL TLS 和加密密钥存储
 
-<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

@@ -240,10 +240,24 @@ docker ps --filter "label=goclaw.sandbox=true"
 | Container not cleaned up after session | Pruner not running or `idle_hours` too high | Lower `idle_hours`; check `sandbox pruning started` in logs |
 | Write fails inside container | `workspace_access: ro` or `read_only_root: true` with no tmpfs | Switch to `rw` or add a tmpfs mount for the target path |
 
+## Team-Root Workspace Boundaries
+
+When an agent runs in team-root mode (part of an agent team), it has **read access** to peer-chat workspaces across the team. However, read-allowed and write-allowed paths are kept separate:
+
+| Operation | Path set used |
+|---|---|
+| `read_file`, `list_files` | Read-allowed — includes team root and peer-chat workspaces |
+| `write_file`, `edit` | Write-allowed — restricted to the agent's own chat workspace only |
+| `exec` / `shell` | Write-allowed — cwd resolution uses the more restrictive write-allowed prefixes |
+
+This asymmetry prevents a team-root agent from mutating peer-chat workspaces even though it can read them. Absolute paths in shell commands are also bounded by the write-allowed prefix set, closing the path that allowed cross-chat mutations via `cd` or absolute argument injection.
+
+> **Note:** This workspace boundary applies regardless of sandbox mode. Sandbox mode controls whether commands run inside Docker; team-root path restrictions are enforced at the tool layer before Docker is involved.
+
 ## What's Next
 
 - [Custom Tools](/custom-tools) — define shell tools that also benefit from sandbox isolation
 - [Exec Approval](/exec-approval) — require human approval before any command runs, sandboxed or not
 - [Scheduling & Cron](/scheduling-cron) — run sandboxed agent turns on a schedule
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

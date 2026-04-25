@@ -143,6 +143,22 @@ flowchart TD
     BUFFER --> NEXT["Next mention:<br/>history included"]
 ```
 
+### Bot Self-Identity in System Prompt
+
+On startup, GoClaw resolves the bot's Telegram username and display name, then injects a short self-identity snippet into the agent system prompt:
+
+```
+You are @mybot (My Bot) on this Telegram channel.
+```
+
+This tells the agent its own handle so it can correctly interpret @mentions in group conversations — particularly useful in multi-bot groups where other bots' mentions are preserved in the message content after mention stripping.
+
+### Own @Mention Stripping
+
+Before passing message content to the agent, GoClaw strips the bot's own `@username` from the text. This means the agent receives clean input without its own handle. For example, a user message `"@mybot what's the weather?"` is delivered to the agent as `"what's the weather?"`.
+
+Other bots' @mentions are intentionally preserved so the agent can detect cross-bot interactions.
+
 ### Group Message Annotation
 
 In group chats, each message is prefixed with a `[From:]` annotation so the agent knows who is speaking:
@@ -318,4 +334,4 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation history
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

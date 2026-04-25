@@ -27,7 +27,9 @@ agent:{agentId}:{channel}:{kind}:{chatId}
 
 Định dạng key này có nghĩa là cùng một người dùng chat với cùng một agent trên Telegram và Discord sẽ có hai session riêng với lịch sử độc lập.
 
-> **Session Metadata:** Mỗi session theo dõi các trường bổ sung bên cạnh key: `label` (tên hiển thị), `channel`, `model`, `provider`, `spawned_by` (ID session cha cho subagent), `spawn_depth`, `input_tokens`, `output_tokens`, `compaction_count`, và `context_window`. Các trường này có thể truy vấn cho mục đích phân tích và debugging.
+> **Session Metadata:** Mỗi session theo dõi các trường bổ sung bên cạnh key: `label` (tên hiển thị), `channel`, `model`, `provider`, `spawned_by` (ID session cha cho subagent), `spawn_depth`, `input_tokens`, `output_tokens`, `compaction_count`, `context_window`, `last_prompt_tokens`, và `last_message_count`. Các trường này có thể truy vấn cho mục đích phân tích và debugging.
+>
+> `last_prompt_tokens` và `last_message_count` được FinalizeStage ghi vào cuối mỗi lần chạy và được truy vấn danh sách session để hiển thị số lượng token và tin nhắn chính xác trên giao diện. Các session cũ chưa có trường này sẽ dùng ước tính dựa trên octet length (`octet_length(messages) / 4 + 12000`) để giao diện luôn có số liệu hiển thị.
 
 ## Lưu trữ tin nhắn
 
@@ -108,6 +110,10 @@ Một per-session lock ngăn nén đồng thời. Nếu lần nén thứ hai kí
 
 GoClaw cũng có thể nén history **trong khi agent đang xử lý một lượt dài** nếu context vượt ngưỡng giữa vòng lặp. Logic tóm tắt 75% vẫn được áp dụng. Điều này hoàn toàn trong suốt với agent — nó tiếp tục chạy với history đã được nén.
 
+### Khôi phục khi nén tràn ngân sách (Compaction Overflow Recovery)
+
+Nếu ngân sách context **vẫn bị vượt** sau một lần nén (ví dụ: system prompt và tool schema đã gần lấp đầy context window), GoClaw thực hiện một lượt khôi phục thứ cấp trước khi trả về lỗi. Cơ chế này (được đưa vào từ PR #958) giới hạn tối đa một lần thử lại và chỉ trả về lỗi cho caller khi lượt khôi phục cũng thất bại. Trên thực tế, điều này ngăn lỗi context-overflow cứng đối với các agent có tool schema hoặc system prompt rất lớn.
+
 ## Concurrency
 
 | Loại chat | Tối đa đồng thời | Ghi chú |
@@ -148,4 +154,4 @@ Dung lượng queue mặc định là 10. Khi đầy, tin nhắn cũ nhất bị
 - [Tools Overview](/tools-overview) — Tool có sẵn cho agent
 - [Multi-Tenancy](/multi-tenancy) — Cách ly session per-user
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

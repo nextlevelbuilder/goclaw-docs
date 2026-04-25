@@ -242,10 +242,24 @@ docker ps --filter "label=goclaw.sandbox=true"
 | Container không dọn dẹp sau session | Pruner không chạy hoặc `idle_hours` quá cao | Giảm `idle_hours`; kiểm tra `sandbox pruning started` trong log |
 | Ghi thất bại bên trong container | `workspace_access: ro` hoặc `read_only_root: true` không có tmpfs | Chuyển sang `rw` hoặc thêm tmpfs mount cho đường dẫn đích |
 
+## Giới hạn Workspace trong Team-Root
+
+Khi agent chạy ở chế độ team-root (thuộc một agent team), nó có **quyền đọc** workspace của các chat khác trong team. Tuy nhiên, các đường dẫn read-allowed và write-allowed được tách biệt riêng:
+
+| Thao tác | Tập đường dẫn sử dụng |
+|---|---|
+| `read_file`, `list_files` | Read-allowed — bao gồm team root và workspace của các chat ngang hàng |
+| `write_file`, `edit` | Write-allowed — chỉ giới hạn trong workspace chat của agent đó |
+| `exec` / `shell` | Write-allowed — giải quyết cwd dùng tập write-allowed chặt hơn |
+
+Sự bất đối xứng này ngăn agent team-root thay đổi workspace của chat khác dù có thể đọc chúng. Đường dẫn tuyệt đối trong shell command cũng bị giới hạn bởi write-allowed prefix, đóng lỗ hổng cho phép thay đổi cross-chat qua `cd` hoặc đối số đường dẫn tuyệt đối.
+
+> **Lưu ý:** Giới hạn workspace này áp dụng bất kể chế độ sandbox là gì. Sandbox mode kiểm soát việc lệnh chạy trong Docker hay không; giới hạn đường dẫn team-root được áp dụng ở lớp tool trước khi Docker tham gia.
+
 ## Tiếp theo
 
 - [Custom Tools](../advanced/custom-tools.md) — định nghĩa shell tool cũng hưởng lợi từ cô lập sandbox
 - [Exec Approval](../advanced/exec-approval.md) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy, dù có sandbox hay không
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent turn được sandbox theo lịch
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

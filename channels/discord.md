@@ -94,6 +94,10 @@ Media files (images, video, audio) sent in group conversations are tracked in me
 
 On startup, the bot fetches its own user ID via `@me` endpoint to avoid responding to its own messages.
 
+### Allowlist and Pairing Policy
+
+`dm_policy` and `group_policy` work as documented — `pairing`, `allowlist`, and `open` modes are handled exclusively by the policy evaluation layer. There is no additional allowlist gate after the policy check, so paired users are not wrongly rejected when an `allow_from` list is also configured. If a user is paired but also listed in `allow_from`, both conditions are satisfied and the message proceeds normally.
+
 ### Group File Writer Management
 
 Discord supports slash-command-based management of group file writers (similar to Telegram's writer restriction). In server channels, write-sensitive operations can be restricted to designated writers:
@@ -135,4 +139,4 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 - [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

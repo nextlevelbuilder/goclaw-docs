@@ -224,9 +224,9 @@ Supported models (all preview-stage — UI shows a **Preview** badge):
 
 | Model | Notes |
 |-------|-------|
-| `gemini-2.5-flash-preview-tts` | Default; fast + cost-efficient |
+| `gemini-2.5-flash-preview-tts` | Fast + cost-efficient |
 | `gemini-2.5-pro-preview-tts` | Highest quality |
-| `gemini-3.1-flash-tts-preview` | Experimental |
+| `gemini-3.1-flash-tts-preview` | **Default** |
 
 #### Gemini Voices (30 prebuilt)
 
@@ -284,6 +284,7 @@ Categories: Emotion, Pacing, Effect, Voice quality. Full tag list is in the fron
 | `ErrInvalidVoice` | Voice ID not in the 30 prebuilt set |
 | `ErrSpeakerLimit` | More than 2 speakers in multi-speaker mode |
 | `ErrInvalidModel` | Model ID not in the allowed list |
+| `MsgTtsGeminiTextOnly` | Text-only response after auto-retry (see troubleshooting) |
 
 ---
 
@@ -346,6 +347,14 @@ Keys outside this allow-list are rejected at write time. The adapter runs per-at
 ```
 
 When the primary provider fails, GoClaw automatically tries the other registered providers.
+
+### Tenant Synthesis Timeout
+
+The synthesis deadline is controlled by the `tts.timeout_ms` key in `system_configs` (tenant admin → Config → Audio → TTS). Default is **120000 ms (120 s)**. Set a higher value for slower providers or long-form audio; the gateway enforces a per-request context deadline equal to this value.
+
+```
+tts.timeout_ms = 120000   # default; increase for slow providers
+```
 
 ---
 
@@ -535,6 +544,7 @@ The `stt` builtin tool (seeded by migration 050) enables agents to transcribe vo
 | Text cut off with `...` | Over `max_length` | Increase `max_length` in config |
 | Gemini 422 `ErrInvalidVoice` | Voice not in 30 prebuilt set | Use a valid voice ID from the table above |
 | Gemini 422 `ErrSpeakerLimit` | More than 2 speakers | Reduce to ≤ 2 speakers in Voice Picker |
+| Gemini 422 `MsgTtsGeminiTextOnly` | Gemini returned text instead of audio after auto-retry | GoClaw retries once with an inline audio prefix; if Gemini still refuses, the error surfaces as HTTP 422. Shorten the text, remove translation/commentary, or switch model. |
 | `tts_params` key rejected | Key not in allow-list | Use only `speed`, `emotion`, `style` |
 
 ---
@@ -544,4 +554,4 @@ The `stt` builtin tool (seeded by migration 050) enables agents to transcribe vo
 - [Scheduling & Cron](/scheduling-cron) — trigger agents on a schedule
 - [Extended Thinking](/extended-thinking) — deeper reasoning for complex replies
 
-<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

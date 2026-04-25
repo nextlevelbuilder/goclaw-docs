@@ -96,6 +96,10 @@ Các file media (hình ảnh, video, âm thanh) được gửi trong cuộc trò
 
 Khi khởi động, bot lấy user ID của chính mình qua endpoint `@me` để tránh phản hồi tin nhắn của chính mình.
 
+### Allowlist và chính sách Pairing
+
+`dm_policy` và `group_policy` hoạt động đúng như tài liệu mô tả — các chế độ `pairing`, `allowlist`, và `open` được xử lý hoàn toàn bởi lớp đánh giá policy. Không có allowlist gate bổ sung nào sau bước kiểm tra policy, do đó người dùng đã pairing sẽ không bị từ chối nhầm khi danh sách `allow_from` cũng được cấu hình. Nếu người dùng vừa được pairing vừa có trong `allow_from`, cả hai điều kiện đều được thỏa mãn và tin nhắn được xử lý bình thường.
+
 ### Quản lý Group File Writer
 
 Discord hỗ trợ quản lý group file writer qua slash command (tương tự giới hạn writer của Telegram). Trong server channel, các thao tác nhạy cảm với file có thể được giới hạn cho các writer được chỉ định:
@@ -137,4 +141,4 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

@@ -118,6 +118,25 @@ To allow a specific group for one agent, set it to `false` in the agent's config
 }
 ```
 
+### Global shell deny-groups — runtime toggle
+
+`config.tools.shellDenyGroups` is a `map[string]bool` that lets you enable or disable deny-groups globally without restarting the gateway. Changes take effect immediately via `bus.TopicConfigChanged` live-reload.
+
+```json
+{
+  "tools": {
+    "shellDenyGroups": {
+      "package_install": false,
+      "env_dump": false
+    }
+  }
+}
+```
+
+**Precedence:** per-agent `shell_deny_groups` always wins over the global setting. The global value only applies when a given group is not explicitly set in the agent's own config. This lets you relax a group gateway-wide while still locking it down for specific agents.
+
+See [`reference/config-reference.md`](../reference/config-reference.md) for the full `tools.shellDenyGroups` field reference.
+
 ### Path traversal prevention
 
 `resolvePath()` applies `filepath.Clean()` then `HasPrefix()` to ensure all file paths stay within the agent's workspace. With `restrict_to_workspace: true` (the default on agents), any path outside the workspace is blocked.
@@ -534,4 +553,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
