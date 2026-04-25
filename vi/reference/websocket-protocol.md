@@ -193,6 +193,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `sessions.patch` | `{sessionKey, ...fields}` | Patch metadata session |
 | `sessions.delete` | `{key}` | Xóa session |
 | `sessions.reset` | `{key}` | Xóa lịch sử session |
+| `sessions.compact` | `{key, keepLast?}` | Cắt history còn N message cuối (mặc định 4); bỏ qua nếu history < 6 |
 
 ### Config
 
@@ -377,6 +378,13 @@ Quản lý lifecycle hook lưu trong `agent_hooks`. Xem [Agent Hooks](/hooks-qua
 | `api_keys.list` | — | Liệt kê API key (non-admin chỉ thấy key của mình) |
 | `api_keys.create` | `{name, scopes, expires_in?, owner_id?, tenant_id?}` | Tạo API key; trả về raw key một lần duy nhất |
 | `api_keys.revoke` | `{id}` | Thu hồi API key (non-admin chỉ thu hồi key của mình) |
+
+### Voices (TTS)
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `voices.list` | — | Liệt kê ElevenLabs voices của tenant hiện tại (có cache) |
+| `voices.refresh` | — | Xóa cache và refetch voices từ provider |
 
 ### Tenants
 

@@ -196,6 +196,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `sessions.patch` | `{sessionKey, ...fields}` | Patch session metadata |
 | `sessions.delete` | `{key}` | Delete a session |
 | `sessions.reset` | `{key}` | Clear session history |
+| `sessions.compact` | `{key, keepLast?}` | Truncate history to last N messages (default 4); no-op if history < 6 |
 
 ### Config
 
@@ -399,6 +400,13 @@ Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality
 | `api_keys.list` | — | List API keys (non-admin sees own only) |
 | `api_keys.create` | `{name, scopes, expires_in?, owner_id?, tenant_id?}` | Create an API key; returns raw key once |
 | `api_keys.revoke` | `{id}` | Revoke an API key (non-admin can revoke own only) |
+
+### Voices (TTS)
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `voices.list` | — | List ElevenLabs voices for current tenant (cached) |
+| `voices.refresh` | — | Invalidate cache and refetch voices from provider |
 
 ### Tenants
 
