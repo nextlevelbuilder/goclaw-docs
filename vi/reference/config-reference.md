@@ -362,6 +362,25 @@ Khi group tích lũy nhiều hơn `threshold` tin nhắn đang chờ, các tin n
 | `rate_limit_per_hour` | integer | `150` | Max tool call mỗi session mỗi giờ |
 | `scrub_credentials` | boolean | `true` | Scrub secrets khỏi tool output |
 
+### `tools.shellDenyGroups`
+
+Bật hoặc tắt từng deny-group shell ở mức global. Đây là cấu hình runtime-reloadable — thay đổi được áp dụng ngay qua `bus.TopicConfigChanged` mà không cần restart gateway. Per-agent override vẫn có độ ưu tiên cao hơn giá trị global này.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `tools.shellDenyGroups` | `map[string]bool` | `{}` (không deny group nào) | Bật/tắt deny-group theo tên. Ví dụ: `{"package_install": true, "env_dump": true}` để chặn các lệnh cài package và dump biến môi trường |
+
+**Deny-group phổ biến:**
+
+| Tên group | Loại lệnh bị chặn |
+|-----------|-------------------|
+| `package_install` | pip, npm, apt, brew, v.v. |
+| `env_dump` | printenv, env, export -p, v.v. |
+
+> Xem thêm: [Security Hardening](/deployment/security-hardening) để biết cách kết hợp với per-agent shell policy.
+
+---
+
 ### `tools.web`
 
 | Field | Type | Mặc định | Mô tả |
@@ -698,4 +717,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](/database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

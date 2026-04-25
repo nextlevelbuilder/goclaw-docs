@@ -31,6 +31,7 @@ X-GoClaw-User-Id: user123
 | `X-GoClaw-Agent-Id` | Agent identifier cho scoped operation |
 | `X-GoClaw-Tenant-Id` | Tenant scope — UUID hoặc slug |
 | `Accept-Language` | Locale (`en`, `vi`, `zh`) cho i18n error message |
+| `X-GoClaw-No-Image-Gen` | (tùy chọn) Gửi để opt-out native image generation cho request đó. Bypass cả provider capability lẫn agent flag tri-level gate. Áp dụng cho chat endpoints. |
 
 **Kiểm tra input:** Tất cả string input được sanitize — ký tự đặc biệt SQL được escape trong ILIKE query, request body giới hạn 1 MB, tên agent/provider/tool được kiểm tra theo allowlist pattern (`[a-zA-Z0-9_-]`).
 
@@ -226,7 +227,7 @@ workspace/                                 — workspace directory files
 
 ---
 
-### `GET /v1/agents/{id}/codex-pool-activity`
+### `GET /v1/agents/{agentID}/codex-pool-activity`
 
 Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](/provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
 
@@ -238,11 +239,20 @@ Trả về hoạt động routing và sức khỏe từng tài khoản cho agent
 |-------|------|----------|-------|
 | `limit` | integer | `18` | Số request gần đây trả về (tối đa 50) |
 
+**Giá trị `strategy` trong response:**
+
+| Giá trị | Mô tả |
+|---------|-------|
+| `round_robin` | Phân phối đều theo vòng |
+| `priority_order` | Ưu tiên provider theo thứ tự cấu hình (mặc định) |
+
+> **BREAKING (v3.11.0):** Response giờ trả `priority_order` thay vì `primary_first` cho cùng cấu hình. Client so sánh strategy string theo giá trị literal phải cập nhật. Legacy values (`primary_first`, `manual`, `""`) vẫn được chấp nhận ở **request body** để backward-compat — chúng được normalize sang `priority_order` khi đọc.
+
 **Response:**
 
 ```json
 {
-  "strategy": "round_robin",
+  "strategy": "priority_order",
   "pool_providers": ["openai-codex", "codex-work"],
   "stats_sample_size": 24,
   "provider_counts": [
@@ -552,8 +562,8 @@ Tóm tắt cuộc trò chuyện theo session người dùng cho ngữ cảnh dà
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `GET` | `/v1/agents/{id}/episodic` | Liệt kê tóm tắt episodic |
-| `POST` | `/v1/agents/{id}/episodic/search` | Tìm kiếm hybrid BM25+vector trên episodic |
+| `GET` | `/v1/agents/{agentID}/episodic` | Liệt kê tóm tắt episodic |
+| `POST` | `/v1/agents/{agentID}/episodic/search` | Tìm kiếm hybrid BM25+vector trên episodic |
 
 **Query params:** `user_id`, `limit` (mặc định: 20, tối đa: 500), `offset`
 
@@ -571,12 +581,14 @@ Lưu trữ tài liệu bền vững với embedding vector và liên kết đồ
 | `GET` | `/v1/vault/tree` | Cấu trúc cây phân cấp của vault document |
 | `GET` | `/v1/vault/graph` | Dữ liệu đồ thị vault để trực quan hóa (cross-tenant, giới hạn 2000 node) |
 | `POST` | `/v1/vault/enrichment/stop` | Dừng enrichment worker cho agent hiện tại |
-| `GET` | `/v1/agents/{id}/vault/documents` | Liệt kê tài liệu của agent |
-| `GET` | `/v1/agents/{id}/vault/documents/{docID}` | Lấy một tài liệu (nội dung đầy đủ) |
-| `POST` | `/v1/agents/{id}/vault/search` | Tìm kiếm hybrid FTS+vector |
-| `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | Lấy outlink và backlink của tài liệu |
+| `GET` | `/v1/agents/{agentID}/vault/documents` | Liệt kê tài liệu của agent |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | Lấy một tài liệu (nội dung đầy đủ) |
+| `POST` | `/v1/agents/{agentID}/vault/search` | Tìm kiếm hybrid FTS+vector |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Lấy outlink và backlink của tài liệu |
 
 **Response dạng danh sách:** `{ "documents": [...], "total": 42 }`
+
+Response document object có thêm field `chat_id` (nullable string, thêm trong v3.11.0): scope chat cụ thể — `null` nghĩa là không scope theo chat.
 
 **Body tìm kiếm:** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -588,7 +600,7 @@ Kiểm soát cách agent định tuyến yêu cầu.
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `GET` | `/v1/agents/{id}/orchestration` | Lấy mode và target điều phối hiện tại |
+| `GET` | `/v1/agents/{agentID}/orchestration` | Lấy mode và target điều phối hiện tại |
 
 **Giá trị mode:** `standalone` (trực tiếp), `delegate` (qua agent link), `team` (qua hệ thống task team)
 
@@ -1540,4 +1552,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

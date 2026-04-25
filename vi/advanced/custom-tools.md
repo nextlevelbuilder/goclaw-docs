@@ -187,6 +187,31 @@ Kiểm tra được thực hiện trên **lệnh đã render đầy đủ** sau 
 | Tool không hiển thị với agent | Sai `agent_id` hoặc `enabled: false` | Kiểm tra agent ID; bật lại nếu đã tắt |
 | Timeout thực thi | Mặc định 60s quá ngắn cho tác vụ | Tăng `timeout_seconds` |
 
+## Built-in Tool: send_file
+
+Tool `send_file` gửi file đã có sẵn trong workspace dưới dạng attachment — **không tạo hay sửa file**, chỉ deliver.
+
+| Tham số | Bắt buộc | Mô tả |
+|---------|---------|-------|
+| `path` | Có | Đường dẫn file (relative to workspace hoặc absolute) |
+| `caption` | Không | Tin nhắn kèm theo file |
+
+**Ví dụ:** Agent đã tạo báo cáo tại `reports/summary.pdf`, sau đó gọi:
+
+```json
+{ "path": "reports/summary.pdf", "caption": "Báo cáo tuần này" }
+```
+
+### DeliveredMedia cross-tool dedup contract
+
+GoClaw duy trì một `DeliveredMedia` tracker trong suốt vòng đời một agent run. Khi tool `message` gửi `MEDIA:<path>`, path đó được đánh dấu là đã delivered. Nếu agent sau đó gọi `send_file` trên cùng path, lần gọi đó là **no-op** — file không bị gửi lại.
+
+Điều này tránh duplicate delivery trong pattern phổ biến: agent phản xạ gọi cả `write_file(deliver=true)` (sẽ tự gửi qua `message`) và `send_file` trên cùng file.
+
+> Source: `internal/tools/send_file.go`, `internal/tools/message.go`
+
+---
+
 ## Built-in Vault Tools
 
 Ngoài custom shell tool, GoClaw có sẵn các vault tool tích hợp cho quản lý kiến thức. Chúng luôn có sẵn khi vault store được bật.
@@ -227,4 +252,4 @@ Trả về tất cả tài liệu liên kết đến đường dẫn được ch
 - [Exec Approval](/exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy
 - [Sandbox](/sandbox) — chạy lệnh trong Docker để tăng cô lập
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

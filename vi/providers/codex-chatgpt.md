@@ -146,9 +146,10 @@ Khi tạo hoặc cập nhật provider qua `POST /v1/providers`, đặt field `s
 
 | Strategy | Hành vi |
 |----------|---------|
-| `primary_first` | Luôn dùng tài khoản chính; extras chỉ được thử khi có lỗi có thể retry (mặc định) |
 | `round_robin` | Luân phiên request qua tài khoản chính và tất cả extra provider |
-| `priority_order` | Thử provider theo thứ tự — chính trước, sau đó extra theo thứ tự |
+| `priority_order` | Thử provider theo thứ tự — chính trước, sau đó extra theo thứ tự (mặc định) |
+
+> **Migration note (v3.11.0):** Trước v3.11.0, API trả strategy `primary_first` cho cấu hình mặc định. Từ v3.11.0, surface chuẩn hoá thành `priority_order` (hành vi giống hệt — chọn primary trước, fallback theo thứ tự). Request body vẫn accept legacy values (`primary_first`, `manual`, `""`) để tương thích ngược; chúng được normalize sang `priority_order` khi đọc.
 
 `extra_provider_names` là danh sách thành viên chính thức của pool. Provider đã được liệt kê trong `extra_provider_names` của pool khác không thể tự quản lý pool của mình.
 
@@ -174,13 +175,12 @@ Các giá trị `override_mode`:
 | `inherit` | Dùng cấu hình `codex_pool` của primary provider (mặc định khi không đặt) |
 | `custom` | Áp dụng strategy override của agent này |
 
-Đặt `override_mode: "custom"` không có `extra_provider_names` và strategy `primary_first` sẽ tắt pool cho agent đó — chỉ dùng tài khoản chính.
-
 ### Lưu ý về routing
 
 - Các lỗi upstream có thể retry (HTTP 429, 5xx) tự động chuyển sang tài khoản tiếp theo trong cùng một request.
 - OAuth login và logout theo từng provider — mỗi tài khoản xác thực độc lập.
 - Pool chỉ hoạt động khi provider của agent là kiểu `chatgpt_oauth`. Provider không phải Codex không bị ảnh hưởng.
+- Round-robin counter được theo dõi riêng cho từng modality — chat request và image request luân phiên trên counter độc lập. Request sinh ảnh đi qua chuỗi `create_image` và được tính vào counter image riêng.
 
 ### Endpoint xem hoạt động pool
 
@@ -209,4 +209,4 @@ Xem [REST API](/rest-api) để biết cấu trúc response.
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
 - [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

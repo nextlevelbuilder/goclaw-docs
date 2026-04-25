@@ -88,6 +88,7 @@ Registry metadata của tài liệu. Nội dung lưu trên filesystem; registry 
 | `tenant_id` | UUID | Cô lập multi-tenant |
 | `agent_id` | UUID | Namespace theo agent; **có thể NULL** cho file team-scoped hoặc tenant-shared (migration 046) |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
+| `chat_id` | TEXT | Cô lập theo chat trong isolated team; NULL = không scope (team-wide hoặc legacy) |
 | `path` | TEXT | Đường dẫn tương đối trong workspace (vd: `workspace/notes/foo.md`) |
 | `title` | TEXT | Tên hiển thị |
 | `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic`, `image`, `video`, `audio`, `document` |
@@ -95,6 +96,35 @@ Registry metadata của tài liệu. Nội dung lưu trên filesystem; registry 
 | `embedding` | vector(1536) | pgvector tìm kiếm ngữ nghĩa |
 | `tsv` | tsvector | GIN FTS index trên title + path + summary |
 | `metadata` | JSONB | Các trường tùy chỉnh |
+
+### Cô Lập Theo Chat (Chat-scope Isolation)
+
+Migration `000056` thêm cột `chat_id` vào `vault_documents` để hỗ trợ isolated teams — nhóm mà mỗi chat channel được tách biệt hoàn toàn.
+
+**Invariant cho isolated teams:**
+- `chat_id != NULL` → tài liệu chỉ visible cho chat đó
+- `chat_id IS NULL` → tài liệu team-wide (shared hoặc legacy)
+- Cả rescan và search đều enforce filter này: `chat_id = <target> OR chat_id IS NULL`
+
+**Migration `000056` làm gì:**
+
+1. Thêm cột `vault_documents.chat_id TEXT` (nullable)
+2. Thêm composite index `idx_vault_docs_team_chat` trên `(team_id, chat_id) WHERE team_id IS NOT NULL`
+3. Drop ràng buộc `vault_documents_scope_consistency` trước backfill UPDATEs — ràng buộc này được thêm `NOT VALID` ở migration 55, tức là không check existing rows nhưng vẫn re-check trên mỗi UPDATE. Legacy data (trước M46/M43) thường vi phạm invariant, khiến backfill abort và để migration 56 ở trạng thái dirty (issue #1035, fix commit v3.11.2). Ràng buộc được re-add ở cuối migration với `NOT VALID`.
+
+**Backfill legacy data:**
+
+Migration 56 backfill `chat_id` cho hai nhóm:
+
+- **Team-scoped docs** (`scope='team'`): trích xuất chat segment từ path (`teams/<uuid>/<chat>/...` hoặc `tenants/<slug>/teams/<uuid>/<chat>/...`). Segment bắt đầu bằng `.` (config dirs như `.goclaw`) bị bỏ qua.
+- **Legacy docs** (`team_id IS NULL`): regex mở rộng cover **tất cả channel integrations**: `telegram`, `discord`, `zalo`, `feishu`, `lark`, `whatsapp`, `slack`, `line`, `messenger`, `wechat`, `viber`, `ws`, `delegate`, `api`. Không chỉ riêng telegram/discord như các phiên bản trước.
+
+**Tham số tìm kiếm liên quan:**
+
+| Tham số | Kiểu | Ghi chú |
+|---------|------|---------|
+| `ChatID` | *string | Pointer đến chat ID cần lọc; nil = không filter |
+| `TeamIsolated` | bool | true = áp dụng ChatID filter; false = bỏ qua (shared/personal) |
 
 ### vault_links
 
@@ -333,6 +363,7 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 | 046 | `vault_nullable_agent_id` | Cho phép `vault_documents.agent_id` là NULL cho file team-scoped và tenant-shared |
 | 048 | `vault_media_linking` | Thêm cột generated `base_name` vào `team_task_attachments`; thêm `metadata JSONB` vào `vault_links`; sửa CASCADE FK constraints |
 | 049 | `vault_path_prefix_index` | Thêm concurrent index `idx_vault_docs_path_prefix` với `text_pattern_ops` cho truy vấn prefix nhanh |
+| 056 | `vault_chat_id` | Thêm cột `chat_id` + index `idx_vault_docs_team_chat`; backfill legacy data từ tất cả channel integrations; drop/re-add scope-consistency CHECK (v3.11.1 + fix v3.11.2) |
 
 ---
 
@@ -364,4 +395,4 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 - [Memory System](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dạng vector
 - [Context Files](../../agents/context-files.md) — Tài liệu tĩnh được inject vào context của agent
 
-<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

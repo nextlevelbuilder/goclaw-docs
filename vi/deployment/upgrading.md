@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **55**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **56**.
 
 ```mermaid
 graph LR
@@ -210,11 +210,45 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ## Migration gần đây
 
-### Migration v3 (037–055) — Hướng dẫn nâng cấp v2→v3
+### v3.11.x — Highlights và Breaking Changes
+
+#### v3.11.2
+
+- fix(migrations): drop scope-consistency check trước backfill UPDATEs — migration #56 follow-up; tránh lỗi constraint khi backfill trên data cũ
+
+**Bước migration:** Migration #56 được áp dụng tự động khi khởi động lần tiếp theo (`goclaw upgrade` hoặc `GOCLAW_AUTO_UPGRADE=true`). Không cần bước thủ công.
+
+#### v3.11.1
+
+- ci(release): native arm64 runners + split-build manifest pattern
+
+> **Lưu ý asset tên file:** OTel variant asset đã bị drop khỏi release pipeline. Nếu deploy script đang download asset tên `*-otel*`, hãy chuyển sang dùng regular asset.
+
+#### v3.11.0
+
+**Tính năng mới:**
+
+- feat: Native `image_generation` cho Codex + OpenAI-compat — tri-level gate (provider capability → agent flag → per-request header `x-goclaw-no-image-gen`)
+- feat: Tool `send_file` builtin + `DeliveredMedia` cross-tool dedup
+- feat: `tools.shellDenyGroups` — runtime-reloadable global config cho deny-group (không cần restart)
+- feat: Vault `chat_id` isolation — migration #56 thêm cột `chat_id` vào `vault_documents` để scope document theo chat
+- feat: Pancake — TikTok + Shopee sub-platform support; private-reply stateless DM refactor
+- feat: Codex pool — collapse `primary_first` trên public surface, per-modality round-robin (chat vs image)
+- feat: Dynamic compact `max_tokens = clamp(in/25, 1024, 8192)` thay 4096 static; tool-schema tokens tính vào `OverheadTokens`
+- feat: TTS — tenant `tts.timeout_ms`; Gemini text-only 400 fix; default model bump `gemini-3.1-flash-tts-preview`
+- feat: Telegram bot self-identity injection + own @mention strip
+- fix: Discord allowlist gate (#985/#1010)
+- chore: Release pipeline — native arm64 runners, OTel variant DROPPED (đổi tên asset)
+
+**BREAKING (clients):** Codex pool API responses giờ trả `priority_order` thay vì `primary_first` / `manual` cho cùng cấu hình. Client so sánh strategy string theo giá trị literal phải cập nhật. Legacy values vẫn được chấp nhận ở request body.
+
+---
+
+### Migration v3 (037–056) — Hướng dẫn nâng cấp v2→v3
 
 Các migration này được áp dụng tự động qua `./goclaw upgrade`. Đây là **phiên bản major v3**. Đọc kỹ các breaking change trước khi nâng cấp từ v2.
 
-Migration 048–055 bổ sung vault media linking, vault scope consistency enforcement, hệ thống agent hooks (phase 1–4), và migration tenant-config cho `web_search`. Không cần bước thủ công — data hook 055 tự động migrate API key từ `config.json5 tools.web.*` và blob `builtin_tool_tenant_configs.settings` cũ sang `config_secrets` khi khởi động lần đầu.
+Migration 048–056 bổ sung vault media linking, vault scope consistency enforcement, hệ thống agent hooks (phase 1–4), migration tenant-config cho `web_search`, và vault chat_id isolation. Không cần bước thủ công — data hook 055 tự động migrate API key từ `config.json5 tools.web.*` và blob `builtin_tool_tenant_configs.settings` cũ sang `config_secrets` khi khởi động lần đầu; migration 056 chạy tự động khi khởi động.
 
 | Phiên bản | Thay đổi |
 |-----------|----------|
@@ -237,6 +271,7 @@ Migration 048–055 bổ sung vault media linking, vault scope consistency enfor
 | 053 | Mở rộng `agent_hooks`: thêm handler type `script` (script inline goja) và source marker `builtin`; xóa unique index theo scope để cho phép nhiều hook trên cùng một event. |
 | 054 | Thêm cột `name` vào `agent_hooks` để đặt tên cho hook; tạo bảng junction N:M `agent_hook_agents` (thay FK `agent_id` 1:N); chuyển dữ liệu agent hiện có sang junction; đổi tên `agent_hooks` → `hooks` và `agent_hook_agents` → `hook_agents`. |
 | 055 | Thêm CHECK constraint `vault_documents_scope_consistency` (NOT VALID) trên `vault_documents`. Đảm bảo: `personal` yêu cầu `agent_id NOT NULL`, `team` yêu cầu `team_id NOT NULL`, `shared` yêu cầu cả hai NULL, `custom` không ràng buộc. Chạy `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;` sau khi kiểm tra row cũ. |
+| 056 | `vault_chat_id` — thêm cột `chat_id TEXT NULL` vào `vault_documents` + index `(tenant_id, chat_id, agent_id)`; drop scope-consistency check trước backfill UPDATEs (fix v3.11.2). |
 
 #### Breaking Changes trong v3
 
@@ -325,4 +360,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->

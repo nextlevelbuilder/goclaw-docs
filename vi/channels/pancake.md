@@ -16,6 +16,7 @@ Pancake là nền tảng thương mại xã hội cung cấp proxy nhắn tin th
 | Zalo OA | 2.000 | Văn bản thuần (loại bỏ markdown) |
 | Instagram | 1.000 | Văn bản thuần (loại bỏ markdown) |
 | TikTok | 500 | Văn bản thuần, cắt ngắn ở 500 ký tự |
+| Shopee | 500 | Văn bản thuần, cắt ngắn ở 500 ký tự |
 | WhatsApp | 4.096 | Định dạng WhatsApp gốc (*in đậm*, _in nghiêng_) |
 | Line | 5.000 | Văn bản thuần (loại bỏ markdown) |
 
@@ -62,9 +63,11 @@ Dành cho channel dựa trên config file (thay vì DB instance):
             "features": {
               "inbox_reply": true,
               "comment_reply": true,
+              "private_reply": false,
               "first_inbox": true,
               "auto_react": false
             },
+            "private_reply_message": "Cảm ơn {{commenter_name}} đã bình luận! Chúng tôi sẽ DM bạn ngay.",
             "comment_reply_options": {
               "include_post_context": true,
               "filter": "all"
@@ -86,10 +89,10 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 | `webhook_secret` | string | -- | Secret xác minh HMAC-SHA256 tùy chọn |
 | `page_id` | string | -- | Định danh trang Pancake (bắt buộc) |
 | `webhook_page_id` | string | -- | Page ID nền tảng gốc trong webhook (nếu khác `page_id`) |
-| `platform` | string | tự phát hiện | Ghi đè nền tảng: facebook/zalo/instagram/tiktok/whatsapp/line |
+| `platform` | string | tự phát hiện | Ghi đè nền tảng: facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
 | `features.inbox_reply` | bool | -- | Bật trả lời tin nhắn inbox |
 | `features.comment_reply` | bool | -- | Bật trả lời bình luận |
-| `features.first_inbox` | bool | -- | Gửi tin nhắn DM một lần cho người bình luận sau lần đầu reply |
+| `features.private_reply` | bool | -- | Gửi một DM một lần cho người bình luận sau khi reply comment (stateless, không cần DB) |
 | `features.auto_react` | bool | -- | Tự động thích bình luận của người dùng trên Facebook (chỉ Facebook) |
 | `auto_react_options.allow_post_ids` | list | -- | Chỉ react bình luận trên các post ID này (nil = tất cả bài đăng) |
 | `auto_react_options.deny_post_ids` | list | -- | Không bao giờ react trên các post ID này (ghi đè allow) |
@@ -98,6 +101,7 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 | `comment_reply_options.include_post_context` | bool | false | Thêm nội dung bài đăng gốc vào đầu comment gửi cho agent |
 | `comment_reply_options.filter` | string | `"all"` | Chế độ lọc bình luận: `"all"` hoặc `"keyword"` |
 | `comment_reply_options.keywords` | list | -- | Bắt buộc khi `filter="keyword"` — chỉ xử lý bình luận chứa các từ khóa này |
+| `private_reply_message` | string | mặc định EN | Template DM gửi cho `features.private_reply`. Hỗ trợ biến `{{commenter_name}}` và `{{post_title}}`. Nếu để trống, dùng thông báo tiếng Anh mặc định. |
 | `first_inbox_message` | string | mặc định | Nội dung DM tùy chỉnh gửi cho tính năng first inbox |
 | `post_context_cache_ttl` | string | `"15m"` | TTL cache nội dung bài đăng lấy cho context bình luận (ví dụ `"30m"`) |
 | `block_reply` | bool | -- | Ghi đè gateway block_reply (nil=kế thừa) |
@@ -111,6 +115,7 @@ flowchart LR
     ZA["Zalo OA"]
     IG["Instagram"]
     TK["TikTok"]
+    SP["Shopee"]
     WA["WhatsApp"]
     LN["Line"]
 
@@ -121,6 +126,7 @@ flowchart LR
     ZA --> PC
     IG --> PC
     TK --> PC
+    SP --> PC
     WA --> PC
     LN --> PC
 
@@ -139,7 +145,7 @@ flowchart LR
 Một Pancake channel instance có thể phục vụ nhiều nền tảng đồng thời. Nền tảng được xác định bởi metadata trang Pancake:
 
 - Tại Start(), GoClaw gọi `GET /pages` để liệt kê tất cả trang và khớp với page_id đã cấu hình
-- Trường `platform` (facebook/zalo/instagram/tiktok/whatsapp/line) được lấy từ metadata trang
+- Trường `platform` (facebook/zalo/instagram/tiktok/shopee/whatsapp/line) được lấy từ metadata trang
 - Nếu nền tảng không được cấu hình hoặc phát hiện thất bại, mặc định là "facebook" với giới hạn 2.000 ký tự
 
 ### Webhook Delivery
@@ -175,14 +181,38 @@ Cấu trúc webhook payload:
 
 Chỉ xử lý sự kiện hội thoại `INBOX`. Sự kiện `COMMENT` bị bỏ qua trừ khi bật `comment_reply`.
 
+#### Webhook Shopee
+
+Shopee dùng định dạng conversation ID khác: `spo_{page_numeric}_{sender_id}`. GoClaw tự động nhận diện prefix `spo_` và tách `page_id` dạng `spo_{page_numeric}`:
+
+```json
+{
+  "event_type": "messaging",
+  "data": {
+    "conversation": {
+      "id": "spo_25409726_109139680425439630",
+      "type": "INBOX",
+      "from": { "id": "109139680425439630", "name": "Test Buyer" }
+    },
+    "message": {
+      "id": "spo_msg_1",
+      "content": "Shop oi con hang khong?"
+    }
+  }
+}
+```
+
+Dedup Shopee hoạt động ở webhook-level (giống TikTok) — dựa vào `message_id` trong payload, không dùng DB state.
+
 ### Loại trùng lặp tin nhắn
 
 Pancake dùng at-least-once delivery, vì vậy các webhook delivery trùng lặp là bình thường:
 
-- **Dedup tin nhắn**: `sync.Map` theo key `msg:{message_id}` với TTL 24 giờ
+- **Dedup tin nhắn**: `sync.Map` theo key `msg:{message_id}` với TTL 24 giờ (inbox) hoặc `comment:{message_id}` (comment)
 - **Phát hiện echo đi**: Lưu trước fingerprint tin nhắn trước khi gửi, triệt tiêu webhook echo của chính chúng ta (TTL 45 giây)
 - Background cleaner xóa các mục hết hạn mỗi 5 phút để tránh tốn bộ nhớ
 - Tin nhắn thiếu `message_id` bỏ qua dedup (tránh va chạm slot chung)
+- **TikTok và Shopee**: dedup ở webhook-level; không cần thêm DB state
 
 ### Ngăn vòng lặp trả lời
 
@@ -213,6 +243,7 @@ Output của LLM được chuyển từ Markdown sang định dạng phù hợp 
 | Facebook | Loại bỏ markdown, giữ văn bản thuần (Messenger không hỗ trợ định dạng phong phú) |
 | WhatsApp | Chuyển `**in đậm**` thành `*in đậm*`, giữ `_in nghiêng_`, loại bỏ header |
 | TikTok | Loại bỏ markdown + cắt ngắn ở 500 rune |
+| Shopee | Loại bỏ markdown + cắt ngắn ở 500 rune (giống TikTok) |
 | Instagram / Zalo / Line | Loại bỏ tất cả markdown, trả về văn bản thuần |
 
 Tin nhắn dài tự động được chia nhỏ theo giới hạn ký tự của từng nền tảng. Chia theo rune (không theo byte) đảm bảo các ký tự đa byte (CJK, tiếng Việt, emoji) không bị hỏng.
@@ -249,7 +280,30 @@ Giới hạn phạm vi react bằng `auto_react_options`:
 
 Danh sách deny luôn được ưu tiên hơn danh sách allow. Bỏ qua `auto_react_options` hoàn toàn nghĩa là không có lọc phạm vi (react tất cả bình luận hợp lệ).
 
-**First inbox** (`features.first_inbox: true`): sau khi reply bình luận, gửi một DM riêng tư một lần cho người bình luận, mời họ tiếp tục qua inbox. Chỉ gửi một lần mỗi người dùng mỗi lần khởi động lại. Tùy chỉnh nội dung DM bằng `first_inbox_message`.
+**First inbox** (`features.first_inbox: true`): sau khi reply bình luận, gửi một DM chào mời một lần cho người bình luận qua first-inbox flow. Chỉ gửi một lần mỗi người dùng mỗi lần khởi động lại. Tùy chỉnh nội dung DM bằng `first_inbox_message`.
+
+### Private Reply (Stateless DM)
+
+`features.private_reply: true` gửi một DM riêng tư đến người bình luận ngay sau khi reply comment công khai — không cần bảng DB hay trạng thái in-memory.
+
+**Cơ chế idempotency**: Dựa vào webhook-level comment dedup (phía trên) và Facebook's per-comment `private_replies` endpoint — Facebook trả về lỗi nếu DM đã được gửi cho comment đó, GoClaw log cảnh báo và tiếp tục.
+
+**Template message**: Cấu hình qua `private_reply_message` với các biến:
+
+| Biến | Nội dung |
+|------|---------|
+| `{{commenter_name}}` | Tên hiển thị của người bình luận (đã sanitize) |
+| `{{post_title}}` | Nội dung bài đăng liên quan (lấy từ post cache) |
+
+Biến được thay thế literal — giá trị bị pre-sanitize (xóa `{{` và `}}`) để ngăn template injection. Nếu `private_reply_message` để trống, dùng thông báo tiếng Anh mặc định: `"Thanks for your comment! We'll DM you shortly."`
+
+**Private reply khác first inbox như thế nào:**
+
+| | `private_reply` | `first_inbox` |
+|-|----------------|--------------|
+| Trigger | Mỗi lần reply comment | Lần đầu tiên mỗi user (per restart) |
+| Idempotency | FB API + webhook dedup (stateless) | In-memory set per restart |
+| Config key | `private_reply_message` | `first_inbox_message` |
 
 ### Tình trạng kênh
 
@@ -285,4 +339,4 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Cài đặt đa kênh](/recipe-multi-channel) — Cấu hình nhiều kênh
 
-<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
