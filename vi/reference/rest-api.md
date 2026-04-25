@@ -6,6 +6,8 @@
 
 ## Tổng quan
 
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~260 REST endpoint.
+
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
 Tài liệu tương tác: `/docs` (Swagger UI) · spec thô: `/v1/openapi.json`

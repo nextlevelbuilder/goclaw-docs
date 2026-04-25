@@ -219,6 +219,7 @@ const DOC_MAP = {
   'cli-commands': docEntry('reference', 'cli-commands', 'CLI Commands', 'CLI Commands', 'CLI 命令'),
   'websocket-protocol': docEntry('reference', 'websocket-protocol', 'WebSocket Protocol', 'WebSocket Protocol', 'WebSocket 协议'),
   'rest-api': docEntry('reference', 'rest-api', 'REST API', 'REST API', 'REST API'),
+  'reference-api-endpoints-catalog': docEntry('reference', 'api-endpoints-catalog', 'API Endpoint Catalog', 'Danh mục Endpoint API', 'API 端点目录'),
   'config-reference': docEntry('reference', 'config-reference', 'Configuration Reference', 'Config Reference', '配置参考'),
   'env-vars': docEntry('reference', 'environment-variables', 'Environment Variables', 'Environment Variables', '环境变量'),
   'database-schema': docEntry('reference', 'database-schema', 'Database Schema', 'Database Schema', '数据库 Schema'),

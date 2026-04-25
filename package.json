@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "npx wrangler pages dev ./",
     "deploy": "npx wrangler pages deploy ./",
-    "build:llms": "node build-llms.js"
+    "build:llms": "node build-llms.js",
+    "build:api-catalog": "node scripts/build-api-catalog.js"
   },
   "keywords": ["goclaw", "documentation", "ai-agent", "enterprise"],
   "license": "MIT"

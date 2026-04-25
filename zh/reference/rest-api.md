@@ -6,6 +6,8 @@
 
 ## 概览
 
+> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~260 REST 端点列表。
+
 GoClaw 的 HTTP API 与 WebSocket gateway 共用同一端口。所有端点需要在 `Authorization` 头中提供与 `GOCLAW_GATEWAY_TOKEN` 匹配的 `Bearer` token。
 
 交互式文档：`/docs`（Swagger UI）· 原始规范：`/v1/openapi.json`

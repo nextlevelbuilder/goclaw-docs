@@ -137,6 +137,7 @@
 - [CLI Commands](reference/cli-commands.md)
 - [WebSocket Protocol](reference/websocket-protocol.md)
 - [REST API](reference/rest-api.md)
+- [API Endpoint Catalog](reference/api-endpoints-catalog.md) _(auto-generated)_
 - [Configuration Reference](reference/config-reference.md)
 - [Environment Variables](reference/environment-variables.md)
 - [Database Schema](reference/database-schema.md)
@@ -184,7 +185,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for writing guidelines and bilingual proc
 ├── deployment/             # Deploy & operate (7 pages)
 ├── recipes/                # Step-by-step tutorials (5 pages)
 ├── showcases/              # Gallery & examples (1 page)
-├── reference/              # API, CLI & config reference (16 pages)
+├── reference/              # API, CLI & config reference (17 pages)
 ├── troubleshooting/        # Debug & FAQ (7 pages)
 ├── vi/                     # Vietnamese mirror
 ├── zh/                     # Chinese mirror

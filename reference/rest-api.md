@@ -4,6 +4,8 @@
 
 ## Overview
 
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~260 REST endpoints.
+
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
 Interactive documentation: `/docs` (Swagger UI) · raw spec: `/v1/openapi.json`
