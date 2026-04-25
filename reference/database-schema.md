@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **55**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **56**.
 
 ### v3 Store Unification
 
@@ -1031,6 +1031,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 53 | Extends `agent_hooks`: relaxes `handler_type` CHECK to add `'script'`; extends `source` CHECK to add `'builtin'`; drops per-scope uniqueness indexes (scripts routinely add many hooks per event) |
 | 54 | Adds `name VARCHAR(255)` column to `agent_hooks`; creates `agent_hook_agents` N:M junction table; migrates existing `agent_id` FK to junction; renames `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`; drops deprecated `agent_id` column from `hooks` |
 | 55 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents` enforcing scope/agent_id/team_id coherence: `personal` requires `agent_id NOT NULL`, `team` requires `team_id NOT NULL`, `shared` requires both NULL, `custom` is unconstrained |
+| 56 | `vault_chat_id` — adds `chat_id TEXT NULL` column to `vault_documents` and index `(tenant_id, chat_id, agent_id)` for chat-scoped vault isolation. Migration 056 follow-up (v3.11.2): drops scope-consistency check before backfill UPDATEs to prevent constraint errors on legacy data |
 
 ---
 
@@ -1179,7 +1180,7 @@ Stage 2 self-evolution: proposed behavioural changes derived from metrics, pendi
 
 ### `vault_documents`
 
-Knowledge Vault document registry. Filesystem holds content; the database holds path, hash, embedding, and links. (migration 038; `summary` column added migration 042; `team_id`, `custom_scope` added migration 043)
+Knowledge Vault document registry. Filesystem holds content; the database holds path, hash, embedding, and links. (migration 038; `summary` column added migration 042; `team_id`, `custom_scope` added migration 043; `chat_id` added migration 056)
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -1196,13 +1197,14 @@ Knowledge Vault document registry. Filesystem holds content; the database holds 
 | `metadata` | JSONB | DEFAULT `{}` | Extra metadata |
 | `team_id` | UUID FK → agent_teams (nullable) | ON DELETE SET NULL | Team scope; NULL = personal (migration 043) |
 | `custom_scope` | VARCHAR(255) | | Future extensibility (migration 043) |
+| `chat_id` | TEXT | NULL | Isolated-team chat scoping — scopes a vault document to a specific chat; NULL = no chat scope (migration 056) |
 | `path_basename` | TEXT GENERATED ALWAYS | | `lower(regexp_replace(path, '.+/', ''))` — fast basename lookup (migration 047) |
 | `tsv` | tsvector GENERATED | STORED | FTS on `title + path + summary` (rebuilt migration 042) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 
 **Unique:** `(tenant_id, COALESCE(agent_id, '00000000-0000-0000-0000-000000000000'), COALESCE(team_id, '00000000-0000-0000-0000-000000000000'), scope, path)` (migration 046 replaced migration 043's unique to support nullable `agent_id`)
 
-**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047), `idx_vault_docs_path_prefix` on `(path text_pattern_ops)` (migration 049 — fast `LIKE 'prefix%'` queries)
+**Indexes:** `tenant_id`, `(agent_id, scope)`, `(agent_id, doc_type)`, `content_hash`, HNSW cosine on `embedding` (m=16, ef=64), GIN on `tsv`, `team_id` (partial non-null), `idx_vault_docs_agent_scope` on `(agent_id, scope) WHERE agent_id IS NOT NULL` (migration 046), `idx_vault_docs_basename` on `(tenant_id, path_basename)` (migration 047), `idx_vault_docs_path_prefix` on `(path text_pattern_ops)` (migration 049 — fast `LIKE 'prefix%'` queries), `(tenant_id, chat_id, agent_id)` (migration 056)
 
 > **Triggers:**
 > - `trg_vault_docs_team_null_scope` — when `team_id` is set to NULL (team deleted), `scope` is automatically reset to `'personal'` to prevent orphaned team-scope docs.
@@ -1395,4 +1397,4 @@ Per-tenant monthly prompt-handler token/cost budget. One row per tenant tracks m
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

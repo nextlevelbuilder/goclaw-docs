@@ -185,6 +185,31 @@ The check runs on the **fully rendered command** after all `{{.param}}` substitu
 | Tool not visible to agent | Wrong `agent_id` or `enabled: false` | Verify agent ID; re-enable if disabled |
 | Execution timeout | Default 60 s too short for the task | Increase `timeout_seconds` |
 
+## Built-in Tool: send_file
+
+The `send_file` tool delivers an existing file in the workspace as an attachment — it does **not** create or modify files, only deliver them.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `path` | Yes | File path (relative to workspace or absolute) |
+| `caption` | No | Message to accompany the file |
+
+**Example:** An agent has generated a report at `reports/summary.pdf` and then calls:
+
+```json
+{ "path": "reports/summary.pdf", "caption": "Here's this week's report" }
+```
+
+### DeliveredMedia Cross-Tool Dedup Contract
+
+GoClaw maintains a `DeliveredMedia` tracker for the lifetime of an agent run. When the `message` tool sends `MEDIA:<path>`, that path is marked as delivered. If the agent subsequently calls `send_file` on the same path, the call is a **no-op** — the file is not sent again.
+
+This prevents duplicate delivery in the common pattern where an agent reflexively calls both `write_file(deliver=true)` (which auto-sends via `message`) and `send_file` on the same file.
+
+> Source: `internal/tools/send_file.go`, `internal/tools/message.go`
+
+---
+
 ## Built-in Vault Tools
 
 In addition to custom shell tools, GoClaw includes built-in vault tools for knowledge management. These are always available when the vault store is enabled.
@@ -225,4 +250,4 @@ Returns all documents that link to the specified path. Respects team boundaries 
 - [Exec Approval](/exec-approval) — require human approval before commands run
 - [Sandbox](/sandbox) — run commands inside Docker for extra isolation
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

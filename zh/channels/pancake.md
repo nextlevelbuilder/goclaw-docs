@@ -16,6 +16,7 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | Zalo OA | 2,000 | 纯文本（去除 markdown） |
 | Instagram | 1,000 | 纯文本（去除 markdown） |
 | TikTok | 500 | 纯文本，截断至 500 字符 |
+| Shopee | 500 | 纯文本，截断至 500 字符 |
 | WhatsApp | 4,096 | WhatsApp 原生格式（*粗体*、_斜体_） |
 | Line | 5,000 | 纯文本（去除 markdown） |
 
@@ -62,9 +63,11 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
             "features": {
               "inbox_reply": true,
               "comment_reply": true,
+              "private_reply": false,
               "first_inbox": true,
               "auto_react": false
             },
+            "private_reply_message": "感谢 {{commenter_name}} 的评论！我们会马上私信您。",
             "comment_reply_options": {
               "include_post_context": true,
               "filter": "all"
@@ -86,10 +89,10 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | `webhook_secret` | string | -- | 可选 HMAC-SHA256 验证 secret |
 | `page_id` | string | -- | Pancake 主页标识符（必填） |
 | `webhook_page_id` | string | -- | webhook 中的原生平台主页 ID（若与 `page_id` 不同） |
-| `platform` | string | 自动检测 | 平台覆盖：facebook/zalo/instagram/tiktok/whatsapp/line |
+| `platform` | string | 自动检测 | 平台覆盖：facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
 | `features.inbox_reply` | bool | -- | 启用收件箱消息回复 |
 | `features.comment_reply` | bool | -- | 启用评论回复 |
-| `features.first_inbox` | bool | -- | 首次评论回复后向评论者发送一次性私信 |
+| `features.private_reply` | bool | -- | 回复评论后向评论者发送一次性私信（无状态，不依赖 DB） |
 | `features.auto_react` | bool | -- | 自动为用户评论点赞（仅限 Facebook） |
 | `auto_react_options.allow_post_ids` | list | -- | 仅对这些帖子 ID 的评论点赞（nil = 所有帖子） |
 | `auto_react_options.deny_post_ids` | list | -- | 永不对这些帖子 ID 点赞（覆盖 allow） |
@@ -98,6 +101,7 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | `comment_reply_options.include_post_context` | bool | false | 将原帖内容附加到发送给 agent 的评论内容前 |
 | `comment_reply_options.filter` | string | `"all"` | 评论过滤模式：`"all"` 或 `"keyword"` |
 | `comment_reply_options.keywords` | list | -- | `filter="keyword"` 时必填——仅处理包含这些关键词的评论 |
+| `private_reply_message` | string | 默认英文 | `features.private_reply` 发送的 DM 模板，支持 `{{commenter_name}}` 和 `{{post_title}}` 变量。为空时使用内置英文文本。 |
 | `first_inbox_message` | string | 内置文本 | first inbox 功能发送的自定义私信内容 |
 | `post_context_cache_ttl` | string | `"15m"` | 评论 context 抓取的帖子内容缓存 TTL（如 `"30m"`） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
@@ -111,6 +115,7 @@ flowchart LR
     ZA["Zalo OA"]
     IG["Instagram"]
     TK["TikTok"]
+    SP["Shopee"]
     WA["WhatsApp"]
     LN["Line"]
 
@@ -121,6 +126,7 @@ flowchart LR
     ZA --> PC
     IG --> PC
     TK --> PC
+    SP --> PC
     WA --> PC
     LN --> PC
 
@@ -139,7 +145,7 @@ flowchart LR
 一个 Pancake channel 实例可同时服务多个平台。平台由 Pancake 主页元数据决定：
 
 - 启动时，GoClaw 调用 `GET /pages` 列出所有主页并匹配已配置的 page_id
-- 从主页元数据中提取 `platform` 字段（facebook/zalo/instagram/tiktok/whatsapp/line）
+- 从主页元数据中提取 `platform` 字段（facebook/zalo/instagram/tiktok/shopee/whatsapp/line）
 - 如果未配置平台或检测失败，默认为 "facebook"，字符限制 2,000
 
 ### Webhook 推送
@@ -175,14 +181,38 @@ Webhook payload 结构：
 
 仅处理 `INBOX` 类型的会话事件。除非启用 `comment_reply`，否则跳过 `COMMENT` 事件。
 
+#### Shopee Webhook
+
+Shopee 使用不同的 conversation ID 格式：`spo_{page_numeric}_{sender_id}`。GoClaw 自动识别 `spo_` 前缀并将 `page_id` 解析为 `spo_{page_numeric}` 形式：
+
+```json
+{
+  "event_type": "messaging",
+  "data": {
+    "conversation": {
+      "id": "spo_25409726_109139680425439630",
+      "type": "INBOX",
+      "from": { "id": "109139680425439630", "name": "Test Buyer" }
+    },
+    "message": {
+      "id": "spo_msg_1",
+      "content": "Shop oi con hang khong?"
+    }
+  }
+}
+```
+
+Shopee 去重在 webhook 层面进行（与 TikTok 相同）——依据 payload 中的 `message_id`，不使用 DB 状态。
+
 ### 消息去重
 
 Pancake 使用至少一次投递，因此重复的 webhook 投递是正常现象：
 
-- **消息去重**：`sync.Map` 以 `msg:{message_id}` 为 key，TTL 24 小时
+- **消息去重**：`sync.Map` 以 `msg:{message_id}` 为 key，TTL 24 小时（inbox）或 `comment:{message_id}`（评论）
 - **出站回声检测**：发送前预存消息指纹，抑制我们自己回复的 webhook 回声（TTL 45 秒）
 - 后台清理器每 5 分钟驱逐过期条目，防止内存无限增长
 - 缺少 `message_id` 的消息跳过去重（防止共享 slot 冲突）
+- **TikTok 和 Shopee**：在 webhook 层面去重；不需要额外的 DB 状态
 
 ### 防止回复循环
 
@@ -213,6 +243,7 @@ LLM 输出从 Markdown 转换为各平台适配的格式：
 | Facebook | 去除 markdown，保留纯文本（Messenger 不支持富文本格式） |
 | WhatsApp | 将 `**粗体**` 转换为 `*粗体*`，保留 `_斜体_`，去除标题 |
 | TikTok | 去除 markdown + 截断至 500 个 rune |
+| Shopee | 去除 markdown + 截断至 500 个 rune（与 TikTok 相同） |
 | Instagram / Zalo / Line | 去除所有 markdown，返回纯文本 |
 
 长消息自动按各平台字符限制拆分。基于 rune 拆分（非字节拆分）确保多字节字符（CJK、越南语、emoji）不被损坏。
@@ -249,7 +280,30 @@ Pancake 支持两种会话类型：
 
 Deny 列表始终优先于 allow 列表。完全省略 `auto_react_options` 表示无范围过滤（对所有有效评论点赞）。
 
-**First inbox**（`features.first_inbox: true`）：回复评论后，向评论者发送一条一次性私信，邀请其通过收件箱继续对话。每位用户每次服务重启后仅发送一次。可通过 `first_inbox_message` 自定义私信内容。
+**First inbox**（`features.first_inbox: true`）：回复评论后，通过 first-inbox 流向评论者发送一条邀请私信。每位用户每次服务重启后仅发送一次。可通过 `first_inbox_message` 自定义私信内容。
+
+### Private Reply（无状态私信）
+
+`features.private_reply: true` 在回复公开评论后立即向评论者发送一条私信——无需 DB 表或内存状态。
+
+**幂等性机制**：依赖 webhook 层面的评论去重（见上文）以及 Facebook 的 per-comment `private_replies` 接口——若该评论已发送过私信，Facebook 返回错误，GoClaw 记录警告并继续。
+
+**模板消息**：通过 `private_reply_message` 配置，支持以下变量：
+
+| 变量 | 内容 |
+|------|------|
+| `{{commenter_name}}` | 评论者显示名（已脱敏） |
+| `{{post_title}}` | 相关帖子内容（来自帖子缓存） |
+
+变量按字面替换——值在替换前已预脱敏（去除 `{{` 和 `}}`）以防模板注入。若 `private_reply_message` 为空，使用默认英文提示：`"Thanks for your comment! We'll DM you shortly."`
+
+**Private reply 与 first inbox 的区别：**
+
+| | `private_reply` | `first_inbox` |
+|-|----------------|--------------|
+| 触发时机 | 每次回复评论时 | 每位用户首次（每次重启） |
+| 幂等性 | FB API + webhook 去重（无状态） | 内存 set（每次重启重置） |
+| 配置项 | `private_reply_message` | `first_inbox_message` |
 
 ### Channel 健康状态
 
@@ -285,4 +339,4 @@ API 错误映射到 channel 健康状态：
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [多 Channel 设置](/recipe-multi-channel) — 配置多个 channel
 
-<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

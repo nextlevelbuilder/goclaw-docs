@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **55**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **56**.
 
 ```mermaid
 graph LR
@@ -208,11 +208,45 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v3 Migrations (037–055) — v2→v3 Upgrade Guide
+### v3.11.x — Highlights and Breaking Changes
+
+#### v3.11.2
+
+- fix(migrations): drop scope-consistency check before backfill UPDATEs — migration #56 follow-up; prevents constraint errors when backfilling over legacy data
+
+**Migration step:** Migration #56 is applied automatically on next startup (`goclaw upgrade` or `GOCLAW_AUTO_UPGRADE=true`). No manual steps required.
+
+#### v3.11.1
+
+- ci(release): native arm64 runners + split-build manifest pattern
+
+> **Asset naming note:** The OTel variant asset has been dropped from the release pipeline. If your deploy script downloads an asset matching `*-otel*`, switch to the regular asset.
+
+#### v3.11.0
+
+**New features:**
+
+- feat: Native `image_generation` for Codex + OpenAI-compat — tri-level gate (provider capability → agent flag → per-request header `x-goclaw-no-image-gen`)
+- feat: `send_file` builtin tool + `DeliveredMedia` cross-tool dedup
+- feat: `tools.shellDenyGroups` — runtime-reloadable global config for deny-groups (no restart required)
+- feat: Vault `chat_id` isolation — migration #56 adds `chat_id` column to `vault_documents` to scope documents per chat
+- feat: Pancake — TikTok + Shopee sub-platform support; private-reply stateless DM refactor
+- feat: Codex pool — collapse `primary_first` on public surface, per-modality round-robin (chat vs image)
+- feat: Dynamic compact `max_tokens = clamp(in/25, 1024, 8192)` replaces static 4096; tool-schema tokens counted in `OverheadTokens`
+- feat: TTS — tenant `tts.timeout_ms`; Gemini text-only 400 fix; default model bump `gemini-3.1-flash-tts-preview`
+- feat: Telegram bot self-identity injection + own @mention strip
+- fix: Discord allowlist gate (#985/#1010)
+- chore: Release pipeline — native arm64 runners, OTel variant DROPPED (asset renamed)
+
+**BREAKING (clients):** Codex pool API responses now return `priority_order` in place of legacy `primary_first` / `manual` for the same routing config. Request bodies still accept legacy values for backward compatibility. Update consumers comparing strategy strings literally.
+
+---
+
+### v3 Migrations (037–056) — v2→v3 Upgrade Guide
 
 These migrations are applied automatically via `./goclaw upgrade`. They constitute the **v3 major release**. Read the breaking changes below before upgrading from v2.
 
-Migrations 048–055 introduce the vault media linking, vault scope consistency enforcement, agent hooks system (phases 1–4), and the `web_search` tenant-config migration. No manual steps are required — data hook 055 auto-migrates any API keys from legacy `config.json5 tools.web.*` and `builtin_tool_tenant_configs.settings` blobs to `config_secrets` on first startup.
+Migrations 048–056 introduce the vault media linking, vault scope consistency enforcement, agent hooks system (phases 1–4), the `web_search` tenant-config migration, and vault chat_id isolation. No manual steps are required — data hook 055 auto-migrates any API keys from legacy `config.json5 tools.web.*` and `builtin_tool_tenant_configs.settings` blobs to `config_secrets` on first startup; migration 056 runs automatically on startup.
 
 | Version | What changed |
 |---------|-------------|
@@ -235,6 +269,7 @@ Migrations 048–055 introduce the vault media linking, vault scope consistency 
 | 053 | Extends `agent_hooks`: adds `script` handler type (goja-backed inline scripts) and `builtin` source marker; drops per-scope uniqueness indexes to allow multiple hooks per event. |
 | 054 | Adds `name` column to `agent_hooks` for user-facing labels; introduces `agent_hook_agents` N:M junction table (replaces single `agent_id` FK); migrates existing agent assignments; renames tables `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`. |
 | 055 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents`. Enforces: `personal` scope requires `agent_id NOT NULL`, `team` scope requires `team_id NOT NULL`, `shared` scope requires both NULL, `custom` is unconstrained. Run `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;` after auditing legacy rows. |
+| 056 | `vault_chat_id` — adds `chat_id TEXT NULL` column to `vault_documents` + index `(tenant_id, chat_id, agent_id)`; drops scope-consistency check before backfill UPDATEs (fix v3.11.2). |
 
 #### Breaking Changes in v3
 
@@ -324,4 +359,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

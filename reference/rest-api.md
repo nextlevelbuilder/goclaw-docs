@@ -29,6 +29,7 @@ X-GoClaw-User-Id: user123
 | `X-GoClaw-Agent-Id` | Agent identifier for scoped operations |
 | `X-GoClaw-Tenant-Id` | Tenant scope — UUID or slug |
 | `Accept-Language` | Locale (`en`, `vi`, `zh`) for i18n error messages |
+| `X-GoClaw-No-Image-Gen` | (optional) Send to opt out of native image generation for that request. Bypasses both the provider capability check and the agent flag tri-level gate. Applies to chat endpoints. |
 
 **Input validation:** All string inputs are sanitized — SQL special characters are escaped in ILIKE queries, request bodies are limited to 1 MB, and agent/provider/tool names are validated against allowlist patterns (`[a-zA-Z0-9_-]`).
 
@@ -224,7 +225,7 @@ workspace/                                 — workspace directory files
 
 ---
 
-### `GET /v1/agents/{id}/codex-pool-activity`
+### `GET /v1/agents/{agentID}/codex-pool-activity`
 
 Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
 
@@ -236,11 +237,20 @@ Returns routing activity and per-account health for agents using a [Codex OAuth 
 |-------|------|---------|-------------|
 | `limit` | integer | `18` | Number of recent requests to return (max 50) |
 
+**`strategy` values in response:**
+
+| Value | Description |
+|-------|-------------|
+| `round_robin` | Even distribution across accounts |
+| `priority_order` | Prefer providers in configured order (default) |
+
+> **BREAKING (clients):** Codex pool API responses now return `priority_order` in place of legacy `primary_first` / `manual` for the same routing config. Request bodies still accept legacy values for backward compatibility. Update consumers comparing strategy strings literally.
+
 **Response:**
 
 ```json
 {
-  "strategy": "round_robin",
+  "strategy": "priority_order",
   "pool_providers": ["openai-codex", "codex-work"],
   "stats_sample_size": 24,
   "provider_counts": [
@@ -557,12 +567,12 @@ Conversation summaries per user session for long-term context continuity.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/episodic` | List episodic summaries |
-| `POST` | `/v1/agents/{id}/episodic/search` | Hybrid BM25+vector search over episodic summaries |
+| `GET` | `/v1/agents/{agentID}/episodic` | List episodic summaries |
+| `POST` | `/v1/agents/{agentID}/episodic/search` | Hybrid BM25+vector search over episodic summaries |
 
-**`GET /v1/agents/{id}/episodic` query params:** `user_id`, `limit` (default: 20, max: 500), `offset`
+**`GET /v1/agents/{agentID}/episodic` query params:** `user_id`, `limit` (default: 20, max: 500), `offset`
 
-**`POST /v1/agents/{id}/episodic/search` body:**
+**`POST /v1/agents/{agentID}/episodic/search` body:**
 
 ```json
 { "query": "Docker optimization", "user_id": "optional", "max_results": 10, "min_score": 0.5 }
@@ -599,15 +609,15 @@ Admin-scoped endpoints for cross-agent vault operations.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/vault/documents` | List documents for a specific agent |
-| `GET` | `/v1/agents/{id}/vault/documents/{docID}` | Get a single document (full content) |
-| `POST` | `/v1/agents/{id}/vault/documents` | Create a vault document for an agent |
-| `PUT` | `/v1/agents/{id}/vault/documents/{docID}` | Update a vault document |
-| `DELETE` | `/v1/agents/{id}/vault/documents/{docID}` | Delete a vault document |
-| `POST` | `/v1/agents/{id}/vault/links` | Create a document link |
-| `DELETE` | `/v1/agents/{id}/vault/links/{linkID}` | Delete a document link |
-| `POST` | `/v1/agents/{id}/vault/search` | Hybrid FTS+vector search |
-| `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | Get outlinks and backlinks for a document |
+| `GET` | `/v1/agents/{agentID}/vault/documents` | List documents for a specific agent |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | Get a single document (full content) |
+| `POST` | `/v1/agents/{agentID}/vault/documents` | Create a vault document for an agent |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` | Update a vault document |
+| `DELETE` | `/v1/agents/{agentID}/vault/documents/{docID}` | Delete a vault document |
+| `POST` | `/v1/agents/{agentID}/vault/links` | Create a document link |
+| `DELETE` | `/v1/agents/{agentID}/vault/links/{linkID}` | Delete a document link |
+| `POST` | `/v1/agents/{agentID}/vault/search` | Hybrid FTS+vector search |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Get outlinks and backlinks for a document |
 
 **List query params:** `scope`, `doc_type` (comma-separated), `limit`, `offset`, `agent_id` (cross-agent only)
 
@@ -616,6 +626,8 @@ Admin-scoped endpoints for cross-agent vault operations.
 ```json
 { "documents": [...], "total": 42 }
 ```
+
+Document objects include a `chat_id` field (nullable string, added in v3.11.0): the specific chat scope — `null` means no chat scope.
 
 **Search body:** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -627,7 +639,7 @@ Controls how an agent routes requests (standalone, delegation, or team-based).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/orchestration` | Get current orchestration mode and targets |
+| `GET` | `/v1/agents/{agentID}/orchestration` | Get current orchestration mode and targets |
 
 **Response:**
 
@@ -1589,4 +1601,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

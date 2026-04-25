@@ -173,6 +173,18 @@ GPT-4o supports image input. Send images as base64 in the `images` field of a me
 
 OpenAI function calling works out of the box. GoClaw converts internal tool definitions to the OpenAI wire format (with `type: "function"` wrapper and `arguments` serialized as a JSON string) before sending.
 
+## Native Image Generation (OpenAI-compat)
+
+OpenAI-compatible providers support native image generation directly via a tool object in the request:
+
+```json
+{
+  "tools": [{ "type": "image_generation" }]
+}
+```
+
+GoClaw reads results from `choices[0].message.images[]` (or `choices[0].delta.images[]` when streaming) — each element is a data URL of the generated image. Images are saved to `{workspace}/media/{sha256}.{ext}` with embedded PNG metadata (model, prompt, timestamp). Streaming-aware: partial image events are surfaced as the final URL once the chunk is complete.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -194,4 +206,4 @@ This mapping only applies to native OpenAI infrastructure. Other OpenAI-compatib
 - [Anthropic](/provider-anthropic) — native Claude integration
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

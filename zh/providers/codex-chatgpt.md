@@ -146,9 +146,10 @@ Codex provider 使用 Responses API 格式，而非 chat completions：
 
 | 策略 | 行为 |
 |----------|----------|
-| `primary_first` | 始终使用主账户；仅在可重试失败时尝试备用账户（默认） |
 | `round_robin` | 在主账户和所有备用 provider 间轮询请求 |
-| `priority_order` | 按顺序尝试 provider——先主账户，再依次尝试备用账户 |
+| `priority_order` | 按顺序尝试 provider——先主账户，再依次尝试备用账户（默认） |
+
+> **迁移说明 (v3.11.0)：** 在 v3.11.0 之前，API 对默认路由配置返回 `primary_first` 策略。从 v3.11.0 开始，公开接口标准化为 `priority_order`（行为完全相同——优先使用主账号，按顺序回退）。为保持向后兼容，请求体仍接受旧值（`primary_first`、`manual`、`""`），读取时归一化为 `priority_order`。
 
 `extra_provider_names` 是成员权威列表。已列在其他池的 `extra_provider_names` 中的 provider 不能管理自己的池。
 
@@ -174,13 +175,12 @@ Codex provider 使用 Responses API 格式，而非 chat completions：
 | `inherit` | 使用主 provider 的 `codex_pool` 配置（未设置时默认） |
 | `custom` | 应用此 agent 自己的策略覆盖 |
 
-设置 `override_mode: "custom"` 且不带 `extra_provider_names`、策略为 `primary_first` 时，该 agent 禁用池——仅使用主账户。
-
 ### 路由说明
 
 - 可重试的上游失败（HTTP 429、5xx）会自动在同一请求中转移至下一个可用账户。
 - OAuth 登录和登出是 per-provider 的——每个账户独立认证。
 - 池仅在 agent 的 provider 为 `chatgpt_oauth` 类型时激活，非 Codex provider 不受影响。
+- Round-robin 计数器按模态单独跟踪——chat 请求和图片生成请求在各自独立的计数器上轮转。图片生成请求通过 `create_image` 链处理，计入单独的图片计数器。
 
 ### 池活动端点
 
@@ -209,4 +209,4 @@ GET /v1/agents/{id}/codex-pool-activity
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
 - [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

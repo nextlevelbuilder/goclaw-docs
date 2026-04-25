@@ -144,9 +144,10 @@ When creating or updating a provider via `POST /v1/providers`, set the `settings
 
 | Strategy | Behavior |
 |----------|----------|
-| `primary_first` | Always use the primary account; extras are only tried on retryable failures (default) |
 | `round_robin` | Rotate requests across the primary + all extra providers |
-| `priority_order` | Try providers in order — primary first, then extras in sequence |
+| `priority_order` | Try providers in order — primary first, then extras in sequence (default) |
+
+> **Migration note (v3.11.0):** Before v3.11.0, the API returned strategy `primary_first` for default routing. Starting v3.11.0, the public surface normalizes to `priority_order` (same behavior — primary first, fallback in order). Request bodies still accept legacy values (`primary_first`, `manual`, `""`) for backward compatibility; they normalize to `priority_order` on read.
 
 `extra_provider_names` is the authoritative membership list. A provider listed in another pool's `extra_provider_names` cannot manage its own pool.
 
@@ -172,13 +173,12 @@ Individual agents can override the pool behavior via `chatgpt_oauth_routing` in 
 | `inherit` | Use the primary provider's `codex_pool` settings (default when not set) |
 | `custom` | Apply this agent's own strategy override |
 
-Setting `override_mode: "custom"` with no `extra_provider_names` and strategy `primary_first` disables the pool for that agent — it will only use the primary account.
-
 ### Routing notes
 
 - Retryable upstream failures (HTTP 429, 5xx) automatically fall through to the next eligible account in the same request.
 - OAuth login and logout are per-provider — each account authenticates independently.
 - The pool is only active when the agent's provider is a `chatgpt_oauth` type. Non-Codex providers are unaffected.
+- Round-robin counters are tracked separately per modality — chat requests and image requests rotate on independent counters. Image generation requests go through the `create_image` chain and are tallied against the image counter only.
 
 ### Pool activity endpoint
 
@@ -207,4 +207,4 @@ See [REST API](/rest-api) for the response shape.
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
 - [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

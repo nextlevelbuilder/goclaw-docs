@@ -88,6 +88,7 @@ CHECK 约束会拒绝任何违反上述 `scope × agent_id × team_id` 关系的
 | `tenant_id` | UUID | 多租户隔离 |
 | `agent_id` | UUID | 按 agent 命名空间；团队范围或租户共享文件时**可为 NULL**（migration 046） |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
+| `chat_id` | TEXT | 按 chat 隔离，用于 isolated team；NULL = 无 chat 范围（team-wide 或旧数据） |
 | `path` | TEXT | 工作区相对路径（如 `workspace/notes/foo.md`） |
 | `title` | TEXT | 显示名称 |
 | `doc_type` | TEXT | `context`、`memory`、`note`、`skill`、`episodic`、`image`、`video`、`audio`、`document` |
@@ -95,6 +96,35 @@ CHECK 约束会拒绝任何违反上述 `scope × agent_id × team_id` 关系的
 | `embedding` | vector(1536) | pgvector 语义相似度 |
 | `tsv` | tsvector | title + path + summary 的 GIN FTS 索引 |
 | `metadata` | JSONB | 可选自定义字段 |
+
+### Chat 范围隔离（Chat-scope Isolation）
+
+Migration `000056` 在 `vault_documents` 中新增 `chat_id` 列，用于支持 isolated teams——即每个 chat channel 完全隔离的团队。
+
+**Isolated team 的不变量：**
+- `chat_id != NULL` → 文档仅对该 chat 可见
+- `chat_id IS NULL` → team-wide 文档（shared 或旧数据）
+- rescan 和 search 均强制此过滤：`chat_id = <target> OR chat_id IS NULL`
+
+**Migration `000056` 做了什么：**
+
+1. 新增列 `vault_documents.chat_id TEXT`（可为 NULL）
+2. 新增复合索引 `idx_vault_docs_team_chat`，作用于 `(team_id, chat_id) WHERE team_id IS NOT NULL`
+3. 在回填 UPDATE 之前 drop `vault_documents_scope_consistency` 约束——该约束在 migration 55 以 `NOT VALID` 方式添加，不检查已有行，但每次 UPDATE 时仍会重新校验。旧数据（M46/M43 之前）常违反此不变量，导致回填中止并使 migration 56 处于脏状态（issue #1035，v3.11.2 修复）。约束在 migration 末尾以 `NOT VALID` 重新添加。
+
+**旧数据回填：**
+
+Migration 56 对两类数据进行回填：
+
+- **Team-scoped docs**（`scope='team'`）：从路径中提取 chat segment（`teams/<uuid>/<chat>/...` 或 `tenants/<slug>/teams/<uuid>/<chat>/...`）。以 `.` 开头的 segment（如 config 目录 `.goclaw`）将被跳过。
+- **旧数据**（`team_id IS NULL`）：正则表达式覆盖**所有 channel 集成**：`telegram`、`discord`、`zalo`、`feishu`、`lark`、`whatsapp`、`slack`、`line`、`messenger`、`wechat`、`viber`、`ws`、`delegate`、`api`，而不只是早期版本中的 telegram/discord。
+
+**相关搜索参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `ChatID` | *string | 指向要过滤的 chat ID 的指针；nil = 不过滤 |
+| `TeamIsolated` | bool | true = 应用 ChatID 过滤；false = 跳过（shared/personal） |
 
 ### vault_links
 
@@ -333,6 +363,7 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 | 046 | `vault_nullable_agent_id` | 使 `vault_documents.agent_id` 可为 NULL，支持团队范围和租户共享的 vault 文件 |
 | 048 | `vault_media_linking` | 在 `team_task_attachments` 上添加生成列 `base_name`；在 `vault_links` 上添加 `metadata JSONB`；修复 CASCADE FK 约束 |
 | 049 | `vault_path_prefix_index` | 添加并发索引 `idx_vault_docs_path_prefix`（`text_pattern_ops`），用于快速前缀查询 |
+| 056 | `vault_chat_id` | 新增列 `chat_id` + 索引 `idx_vault_docs_team_chat`；回填所有 channel 集成的旧数据；drop/re-add scope-consistency CHECK（v3.11.1 + v3.11.2 修复） |
 
 ---
 
@@ -364,4 +395,4 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 - [Memory 系统](../../core-concepts/memory-system.md) — 向量化长期记忆
 - [Context 文件](../../agents/context-files.md) — 注入 agent context 的静态文档
 
-<!-- goclaw-source: 1b862707 | 更新: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

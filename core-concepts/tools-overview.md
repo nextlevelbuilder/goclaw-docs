@@ -10,17 +10,17 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 
 | Category | Tools | What They Do |
 |----------|-------|-------------|
-| **Filesystem** (`group:fs`) | read_file, write_file, edit, list_files, search, glob | Read, write, edit, and search files in the agent workspace |
+| **Filesystem** (`group:fs`) | read_file, write_file, edit, list_files, search, glob, send_file | Read, write, edit, and search files in the agent workspace; `send_file` delivers an existing file as an attachment |
 | **Runtime** (`group:runtime`) | exec, credentialed_exec | Run shell commands; execute CLI tools with injected credentials |
 | **Web** (`group:web`) | web_search, web_fetch | Search the web (Exa, Tavily, Brave, DuckDuckGo) and fetch pages |
 | **Memory** (`group:memory`) | memory_search, memory_get, memory_expand | Query long-term memory (hybrid vector + FTS search); expand full episodic content by ID (L2 retrieval) |
 | **Knowledge** (`group:knowledge`) | vault_search, knowledge_graph_search, skill_search | Unified vault/memory/knowledge-graph search; search entities and relationships; discover skills |
-| **Vault** | vault_search | Search vault documents and knowledge graph |
+| **Vault** (`group:vault`) | vault_search, vault_read | Search and read vault documents; governed by the `group:vault` policy group |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Manage conversation sessions; spawn subagents |
 | **Teams** (`group:teams`) | team_tasks, team_message | Collaborate with agent teams via shared task board and mailbox |
 | **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
-| **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts | Generate images, audio, video, and text-to-speech |
+| **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Generate images, audio, video, and text-to-speech; `image_generation` is a native tool for Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — see [Media Generation](/advanced/media-generation) |
 | **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
 | **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images, transcribe audio, extract documents, analyze video |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
@@ -214,6 +214,25 @@ The `exec` tool enforces 15 deny groups — all enabled by default:
 | `process_control` | `kill -9`, `killall`, `pkill` |
 | `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
 
+### Global shellDenyGroups (Runtime-Reloadable)
+
+In addition to per-agent overrides, admins can enable or disable deny groups **globally** via `config.tools.shellDenyGroups` (`map[string]bool`):
+
+```json
+{
+  "tools": {
+    "shellDenyGroups": {
+      "package_install": true,
+      "env_dump": true
+    }
+  }
+}
+```
+
+This config is **reloaded at runtime** via the `TopicConfigChanged` bus — no gateway restart required. Per-agent overrides (`shell_deny_groups` in agent config) take precedence per-key over the global setting.
+
+See also: [deployment/security-hardening](/deployment/security-hardening).
+
 ### Per-Agent Override
 
 Admins can disable specific groups per agent:
@@ -314,4 +333,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

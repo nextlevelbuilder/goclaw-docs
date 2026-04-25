@@ -14,6 +14,7 @@ Pancake is a social commerce platform that provides a unified messaging proxy ac
 | Zalo OA | 2,000 | Plain text (strips markdown) |
 | Instagram | 1,000 | Plain text (strips markdown) |
 | TikTok | 500 | Plain text, truncated at 500 chars |
+| Shopee | 500 | Plain text, truncated at 500 chars |
 | WhatsApp | 4,096 | WhatsApp-native (*bold*, _italic_) |
 | Line | 5,000 | Plain text (strips markdown) |
 
@@ -60,9 +61,11 @@ For config-file-based channels (instead of DB instances):
             "features": {
               "inbox_reply": true,
               "comment_reply": true,
+              "private_reply": false,
               "first_inbox": true,
               "auto_react": false
             },
+            "private_reply_message": "Thanks {{commenter_name}} for your comment! We'll DM you shortly.",
             "comment_reply_options": {
               "include_post_context": true,
               "filter": "all"
@@ -84,10 +87,10 @@ For config-file-based channels (instead of DB instances):
 | `webhook_secret` | string | -- | Optional HMAC-SHA256 verification secret |
 | `page_id` | string | -- | Pancake page identifier (required) |
 | `webhook_page_id` | string | -- | Native platform page ID sent in webhooks (if different from `page_id`) |
-| `platform` | string | auto-detected | Platform override: facebook/zalo/instagram/tiktok/whatsapp/line |
+| `platform` | string | auto-detected | Platform override: facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
 | `features.inbox_reply` | bool | -- | Enable inbox message replies |
 | `features.comment_reply` | bool | -- | Enable comment replies |
-| `features.first_inbox` | bool | -- | Send a one-time DM to a commenter after their first comment reply |
+| `features.private_reply` | bool | -- | Send a one-time DM to a commenter after each comment reply (stateless, no DB required) |
 | `features.auto_react` | bool | -- | Auto-like user comments on Facebook (Facebook only) |
 | `auto_react_options.allow_post_ids` | list | -- | Only react to comments on these post IDs (nil = all posts) |
 | `auto_react_options.deny_post_ids` | list | -- | Never react to comments on these post IDs (overrides allow) |
@@ -96,6 +99,7 @@ For config-file-based channels (instead of DB instances):
 | `comment_reply_options.include_post_context` | bool | false | Prepend post text to comment content sent to the agent |
 | `comment_reply_options.filter` | string | `"all"` | Comment filter mode: `"all"` or `"keyword"` |
 | `comment_reply_options.keywords` | list | -- | Required when `filter="keyword"` — only process comments containing these keywords |
+| `private_reply_message` | string | built-in EN | Template DM for `features.private_reply`. Supports `{{commenter_name}}` and `{{post_title}}` variables. Falls back to a built-in English message if empty. |
 | `first_inbox_message` | string | built-in | Custom DM text sent for first-inbox feature |
 | `post_context_cache_ttl` | string | `"15m"` | Cache TTL for post content fetched for comment context (e.g. `"30m"`) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
@@ -109,6 +113,7 @@ flowchart LR
     ZA["Zalo OA"]
     IG["Instagram"]
     TK["TikTok"]
+    SP["Shopee"]
     WA["WhatsApp"]
     LN["Line"]
 
@@ -119,6 +124,7 @@ flowchart LR
     ZA --> PC
     IG --> PC
     TK --> PC
+    SP --> PC
     WA --> PC
     LN --> PC
 
@@ -137,7 +143,7 @@ flowchart LR
 One Pancake channel instance can serve multiple platforms simultaneously. The platform is determined by the Pancake page metadata:
 
 - At Start(), GoClaw calls `GET /pages` to list all pages and match the configured page_id
-- The `platform` field (facebook/zalo/instagram/tiktok/whatsapp/line) is extracted from page metadata
+- The `platform` field (facebook/zalo/instagram/tiktok/shopee/whatsapp/line) is extracted from page metadata
 - If platform is not configured or detection fails, defaults to "facebook" with 2,000 char limit
 
 ### Webhook Delivery
@@ -173,14 +179,38 @@ Webhook payload structure:
 
 Only `INBOX` conversation events are processed. `COMMENT` events are skipped unless `comment_reply` is enabled.
 
+#### Shopee Webhooks
+
+Shopee uses a distinct conversation ID format: `spo_{page_numeric}_{sender_id}`. GoClaw automatically detects the `spo_` prefix and parses the `page_id` as `spo_{page_numeric}`:
+
+```json
+{
+  "event_type": "messaging",
+  "data": {
+    "conversation": {
+      "id": "spo_25409726_109139680425439630",
+      "type": "INBOX",
+      "from": { "id": "109139680425439630", "name": "Test Buyer" }
+    },
+    "message": {
+      "id": "spo_msg_1",
+      "content": "Shop oi con hang khong?"
+    }
+  }
+}
+```
+
+Shopee deduplication operates at webhook-level (same as TikTok) — based on `message_id` in the payload, no DB state required.
+
 ### Message Deduplication
 
 Pancake uses at-least-once delivery, so duplicate webhook deliveries are expected:
 
-- **Message dedup**: `sync.Map` keyed by `msg:{message_id}` with 24-hour TTL
+- **Message dedup**: `sync.Map` keyed by `msg:{message_id}` with 24-hour TTL (inbox) or `comment:{message_id}` (comment)
 - **Outbound echo detection**: Pre-stores message fingerprints before sending, suppresses webhook echoes of our own replies (45-second TTL)
 - Background cleaner evicts stale entries every 5 minutes to prevent memory growth
 - Messages missing `message_id` skip dedup (prevents shared slot collisions)
+- **TikTok and Shopee**: webhook-level dedup; no additional DB state required
 
 ### Reply Loop Prevention
 
@@ -211,6 +241,7 @@ LLM output is converted from Markdown to platform-appropriate formatting:
 | Facebook | Strips markdown, keeps plain text (Messenger doesn't support rich formatting) |
 | WhatsApp | Converts `**bold**` to `*bold*`, `_italic_` preserved, headers stripped |
 | TikTok | Strips markdown + truncates to 500 runes |
+| Shopee | Strips markdown + truncates to 500 runes (same as TikTok) |
 | Instagram / Zalo / Line | Strips all markdown, returns plain text |
 
 Long messages are automatically split into chunks respecting each platform's character limit. Rune-based splitting (not byte-based) ensures multi-byte characters (CJK, Vietnamese, emoji) are not corrupted.
@@ -247,7 +278,30 @@ Scope the reactions further with `auto_react_options`:
 
 Deny lists always take precedence over allow lists. Omitting `auto_react_options` entirely means no scope filter (react to all valid comments).
 
-**First inbox** (`features.first_inbox: true`): after replying to a comment, sends a one-time private DM to the commenter inviting them to continue via inbox. Only sent once per sender per session restart. Customize the DM text with `first_inbox_message`.
+**First inbox** (`features.first_inbox: true`): after replying to a comment, sends a one-time welcome DM to the commenter via the first-inbox flow. Only sent once per sender per session restart. Customize the DM text with `first_inbox_message`.
+
+### Private Reply (Stateless DM)
+
+`features.private_reply: true` sends a private DM to the commenter immediately after a public comment reply — no DB table or in-memory state required.
+
+**Idempotency mechanism**: Relies on webhook-level comment dedup (above) and Facebook's per-comment `private_replies` endpoint — Facebook returns an error if a DM was already sent for that comment, and GoClaw logs a warning and continues.
+
+**Template message**: Configured via `private_reply_message` with these variables:
+
+| Variable | Content |
+|----------|---------|
+| `{{commenter_name}}` | Commenter's display name (sanitized) |
+| `{{post_title}}` | Associated post content (fetched from post cache) |
+
+Variables are substituted literally — values are pre-sanitized (stripping `{{` and `}}`) to prevent template injection. If `private_reply_message` is empty, the built-in default is used: `"Thanks for your comment! We'll DM you shortly."`
+
+**How private_reply differs from first_inbox:**
+
+| | `private_reply` | `first_inbox` |
+|-|----------------|--------------|
+| Trigger | Every comment reply | First time per user (per restart) |
+| Idempotency | FB API + webhook dedup (stateless) | In-memory set per restart |
+| Config key | `private_reply_message` | `first_inbox_message` |
 
 ### Channel Health
 
@@ -283,4 +337,4 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Multi-Channel Setup](/recipe-multi-channel) — Configure multiple channels
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

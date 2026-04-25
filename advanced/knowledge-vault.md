@@ -86,6 +86,7 @@ Registry of document metadata. Content lives on the filesystem; the registry sto
 | `tenant_id` | UUID | Multi-tenant isolation |
 | `agent_id` | UUID | Per-agent namespace; **nullable** for team-scoped or tenant-shared files (migration 046) |
 | `scope` | TEXT | `personal` \| `team` \| `shared` |
+| `chat_id` | TEXT | Chat-scope isolation for isolated teams; NULL = no chat scope (team-wide or legacy) |
 | `path` | TEXT | Workspace-relative path (e.g., `workspace/notes/foo.md`) |
 | `title` | TEXT | Display name |
 | `doc_type` | TEXT | `context`, `memory`, `note`, `skill`, `episodic`, `image`, `video`, `audio`, `document` |
@@ -93,6 +94,35 @@ Registry of document metadata. Content lives on the filesystem; the registry sto
 | `embedding` | vector(1536) | pgvector semantic similarity |
 | `tsv` | tsvector | GIN FTS index on title + path + summary |
 | `metadata` | JSONB | Optional custom fields |
+
+### Chat-Scope Isolation
+
+Migration `000056` adds the `chat_id` column to `vault_documents` to support isolated teams — groups where each chat channel is fully partitioned.
+
+**Invariant for isolated teams:**
+- `chat_id != NULL` → document is visible only to that chat
+- `chat_id IS NULL` → document is team-wide (shared or legacy)
+- Both rescan and search enforce this filter: `chat_id = <target> OR chat_id IS NULL`
+
+**What migration `000056` does:**
+
+1. Adds column `vault_documents.chat_id TEXT` (nullable)
+2. Adds composite index `idx_vault_docs_team_chat` on `(team_id, chat_id) WHERE team_id IS NOT NULL`
+3. Drops the `vault_documents_scope_consistency` constraint before running backfill UPDATEs — the constraint was added as `NOT VALID` in migration 055, meaning it skipped existing rows but still re-checked every UPDATE. Legacy data (pre-M46/M43) often violated the invariant, causing the backfill to abort and leaving migration 056 in a dirty state (issue #1035, fixed in v3.11.2). The constraint is re-added at the end of the migration with `NOT VALID`.
+
+**Backfill logic:**
+
+Migration 056 backfills `chat_id` for two groups:
+
+- **Team-scoped docs** (`scope='team'`): extracts the chat segment from the path (`teams/<uuid>/<chat>/...` or `tenants/<slug>/teams/<uuid>/<chat>/...`). Segments starting with `.` (config dirs such as `.goclaw`) are skipped.
+- **Legacy docs** (`team_id IS NULL`): a broader regex covers **all channel integrations**: `telegram`, `discord`, `zalo`, `feishu`, `lark`, `whatsapp`, `slack`, `line`, `messenger`, `wechat`, `viber`, `ws`, `delegate`, `api` — not just telegram/discord as in older releases.
+
+**Related search parameters:**
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `ChatID` | *string | Pointer to the chat ID to filter by; nil = no filter |
+| `TeamIsolated` | bool | true = apply ChatID filter; false = skip (shared/personal) |
 
 ### vault_links
 
@@ -392,6 +422,7 @@ GET /v1/agents/agent-123/vault/documents/doc-456/links
 | 046 | `vault_nullable_agent_id` | Makes `vault_documents.agent_id` nullable for team-scoped and tenant-shared files |
 | 048 | `vault_media_linking` | Adds `base_name` generated column on `team_task_attachments`; adds `metadata JSONB` on `vault_links`; fixes CASCADE FK constraints |
 | 049 | `vault_path_prefix_index` | Adds concurrent index `idx_vault_docs_path_prefix` with `text_pattern_ops` for fast prefix queries |
+| 056 | `vault_chat_id` | Adds `chat_id` column + `idx_vault_docs_team_chat` index; backfills legacy data from all channel integrations; drops and re-adds scope-consistency CHECK (v3.11.1 + fix v3.11.2) |
 
 ---
 
@@ -423,4 +454,4 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 - [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
 - [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
-<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

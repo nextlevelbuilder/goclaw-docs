@@ -85,6 +85,59 @@ GoClaw 内置三个媒体生成工具：`create_image`、`create_video` 和 `cre
 
 ---
 
+## 原生图片生成（Codex + OpenAI-compat）
+
+Codex 及 OpenAI-compat provider 支持**原生**图片生成——`image_generation` tool object 直接附加到 LLM 请求，而非走普通 provider 链中的 `create_image`。
+
+### 三级开关（Tri-level gate）
+
+以下三个条件须同时满足，`image_generation` 才会被激活：
+
+| 开关 | 来源 | 默认值 |
+|------|------|--------|
+| Provider 能力（`ProviderCapabilities.ImageGeneration`） | Codex 和 OpenAI-compat 自动设为 `true` | — |
+| `AgentConfig.AllowImageGeneration` | agent 配置中的 `other_config.allow_image_generation` | `true` |
+| Header 退出 | 客户端发送 `x-goclaw-no-image-gen` 可按请求关闭 | 不发送 = 允许 |
+
+为特定 agent 禁用原生图片生成：
+
+```json
+{
+  "other_config": {
+    "allow_image_generation": false
+  }
+}
+```
+
+按请求退出，客户端发送 header：
+
+```
+x-goclaw-no-image-gen: 1
+```
+
+### Partial-image 流式输出
+
+生成图片过程中，Codex 通过 SSE 流发出 `response.image_generation_call.partial_image` 事件。GoClaw 将这些事件透传给客户端，使其可在最终图片完成前显示预览。
+
+### 存储与元数据
+
+图片文件保存至 `{workspace}/media/{sha256}.{ext}`（例如 `media/a3f7bc12.png`）。对于 PNG 文件，GoClaw 在 IEND 前嵌入 tEXt 元数据 chunk：
+
+| Chunk key | 值 |
+|-----------|-----|
+| `Description` | 用户 prompt |
+| `Software` | `goclaw` |
+
+元数据用于审计，便于从图片文件反向追溯 prompt。
+
+### Codex pool 路由
+
+配置了 Codex pool 时，图片生成请求通过 `create_image` 链处理，使用**按模态独立的 round-robin 计数器**——chat 计数器与图片计数器相互独立，避免图片生成影响 chat 的负载分配。
+
+> 参见源码：`internal/providers/codex_native_image.go`、`internal/providers/openai_image_url.go`、`internal/agent/media.go`、`internal/agent/png_metadata.go`、`internal/providers/capabilities.go`
+
+---
+
 ## 自定义 Provider 链
 
 通过 agent config 中的 `builtin_tools.settings` 按 agent 覆盖默认链：
@@ -194,4 +247,4 @@ GoClaw 内置三个媒体生成工具：`create_image`、`create_video` 和 `cre
 - [自定义工具](/custom-tools) — 构建你自己的工具
 - [Provider 概览](/providers-overview) — 配置 API key
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

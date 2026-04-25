@@ -187,6 +187,31 @@ DELETE /v1/tools/custom/{id}
 | 工具对 agent 不可见 | `agent_id` 错误或 `enabled: false` | 核对 agent ID；如已禁用则重新启用 |
 | 执行超时 | 默认 60 秒对该任务过短 | 增大 `timeout_seconds` |
 
+## 内置工具：send_file
+
+`send_file` 工具将工作空间中已存在的文件以附件形式发送——**不创建或修改文件**，仅负责投递。
+
+| 参数 | 必填 | 描述 |
+|------|------|------|
+| `path` | 是 | 文件路径（相对于工作空间或绝对路径） |
+| `caption` | 否 | 随文件附带的说明文字 |
+
+**示例：** agent 已在 `reports/summary.pdf` 生成报告，随后调用：
+
+```json
+{ "path": "reports/summary.pdf", "caption": "本周报告" }
+```
+
+### DeliveredMedia 跨工具去重协议
+
+GoClaw 在整个 agent run 生命周期中维护一个 `DeliveredMedia` 跟踪器。当 `message` 工具发送 `MEDIA:<path>` 时，该路径被标记为已投递。若 agent 随后对同一路径调用 `send_file`，该调用为 **no-op**——文件不会被重复发送。
+
+这可防止常见模式下的重复投递：agent 同时调用 `write_file(deliver=true)`（会通过 `message` 自动发送）和对同一文件调用 `send_file`。
+
+> 源码：`internal/tools/send_file.go`、`internal/tools/message.go`
+
+---
+
 ## 内置 Vault 工具
 
 除自定义 shell 工具外，GoClaw 还提供用于知识管理的内置 vault 工具。这些工具在 vault store 启用时始终可用。
@@ -227,4 +252,4 @@ DELETE /v1/tools/custom/{id}
 - [Exec 审批](/exec-approval) — 在命令执行前要求人工审批
 - [Sandbox](/sandbox) — 在 Docker 中运行命令以获得额外隔离
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

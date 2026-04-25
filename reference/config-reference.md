@@ -360,6 +360,25 @@ When a group accumulates more pending messages than `threshold`, older messages 
 | `rate_limit_per_hour` | integer | `150` | Max tool calls per session per hour |
 | `scrub_credentials` | boolean | `true` | Scrub secrets from tool outputs |
 
+### `tools.shellDenyGroups`
+
+Enable or disable individual shell deny-groups at the global level. This setting is runtime-reloadable — changes take effect immediately via `bus.TopicConfigChanged` without restarting the gateway. Per-agent overrides take precedence over this global value.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tools.shellDenyGroups` | `map[string]bool` | `{}` (no groups denied) | Enable or disable deny-groups by name. Example: `{"package_install": true, "env_dump": true}` blocks package install commands and environment variable dumps |
+
+**Common deny-groups:**
+
+| Group name | Commands blocked |
+|------------|-----------------|
+| `package_install` | pip, npm, apt, brew, etc. |
+| `env_dump` | printenv, env, export -p, etc. |
+
+> See also: [Security Hardening](/deployment/security-hardening) for combining with per-agent shell policy.
+
+---
+
 ### `tools.web`
 
 | Field | Type | Default | Description |
@@ -696,4 +715,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

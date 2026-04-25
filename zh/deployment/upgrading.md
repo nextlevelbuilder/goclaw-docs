@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **55**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **56**。
 
 ```mermaid
 graph LR
@@ -210,11 +210,45 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 ## 近期迁移
 
-### v3 迁移（037–055）— v2→v3 升级指南
+### v3.11.x — 功能亮点与重大变更
+
+#### v3.11.2
+
+- fix(migrations)：在回填 UPDATE 前 drop scope-consistency check——migration #56 follow-up；避免旧数据触发约束错误
+
+**迁移步骤：** Migration #56 在下次启动时自动应用（`goclaw upgrade` 或 `GOCLAW_AUTO_UPGRADE=true`）。无需手动操作。
+
+#### v3.11.1
+
+- ci(release)：native arm64 runners + split-build manifest 模式
+
+> **发布资产注意：** OTel variant 资产已从发布流水线移除。如果部署脚本正在下载名为 `*-otel*` 的资产，请改用常规资产。
+
+#### v3.11.0
+
+**新功能：**
+
+- feat：Codex + OpenAI-compat 原生 `image_generation`——tri-level gate（provider capability → agent flag → per-request header `x-goclaw-no-image-gen`）
+- feat：内置工具 `send_file` + `DeliveredMedia` 跨工具去重
+- feat：`tools.shellDenyGroups`——运行时热重载的全局 deny-group 配置（无需重启）
+- feat：Vault `chat_id` 隔离——migration #56 在 `vault_documents` 中新增 `chat_id` 列，实现按 chat 的文档范围隔离
+- feat：Pancake——TikTok + Shopee 子平台支持；private-reply 无状态 DM 重构
+- feat：Codex pool——折叠公共接口上的 `primary_first`，按模态（chat vs image）分别 round-robin
+- feat：动态 compact `max_tokens = clamp(in/25, 1024, 8192)`，替代静态 4096；tool-schema tokens 计入 `OverheadTokens`
+- feat：TTS——租户级 `tts.timeout_ms`；修复 Gemini text-only 400 错误；默认模型升级为 `gemini-3.1-flash-tts-preview`
+- feat：Telegram bot 自我身份注入 + 过滤 @mention 自身
+- fix：Discord allowlist gate（#985/#1010）
+- chore：发布流水线——native arm64 runners，OTel variant 已删除（资产改名）
+
+**重大变更（客户端影响）：** Codex 账号池 API 响应中，对于原本返回 `primary_first` / `manual` 的相同路由配置，现已改为返回 `priority_order`。请求体仍接受旧值以保持向后兼容。请更新所有按字面比较 strategy 字符串的客户端代码。
+
+---
+
+### v3 迁移（037–056）— v2→v3 升级指南
 
 这些迁移通过 `./goclaw upgrade` 自动应用，构成 **v3 主版本**。从 v2 升级前请仔细阅读以下重大变更。
 
-迁移 048–055 引入了 vault 媒体链接、vault scope 一致性约束、agent hooks 系统（第 1–4 阶段），以及 `web_search` 的 tenant-config 迁移。无需手动步骤——数据钩子 055 会在首次启动时自动将旧 `config.json5 tools.web.*` 和 `builtin_tool_tenant_configs.settings` 中的 API 密钥迁移到 `config_secrets`。
+迁移 048–056 引入了 vault 媒体链接、vault scope 一致性约束、agent hooks 系统（第 1–4 阶段）、`web_search` 的 tenant-config 迁移，以及 vault chat_id 隔离。无需手动步骤——数据钩子 055 会在首次启动时自动将旧 `config.json5 tools.web.*` 和 `builtin_tool_tenant_configs.settings` 中的 API 密钥迁移到 `config_secrets`；migration 056 在启动时自动运行。
 
 | 版本 | 变更内容 |
 |------|---------|
@@ -237,6 +271,7 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 | 053 | 扩展 `agent_hooks`：添加 `script` handler 类型（goja 支持的内联脚本）和 `builtin` 来源标记；删除按 scope 的唯一索引，允许同一 event 有多个 hook。 |
 | 054 | 为 `agent_hooks` 添加 `name` 列用于用户可见标签；引入 N:M 关联表 `agent_hook_agents`（替代单一 `agent_id` FK）；迁移现有 agent 分配；将 `agent_hooks` → `hooks`、`agent_hook_agents` → `hook_agents` 重命名。 |
 | 055 | 在 `vault_documents` 上添加 `vault_documents_scope_consistency` CHECK 约束（NOT VALID）。强制规则：`personal` scope 需 `agent_id NOT NULL`，`team` scope 需 `team_id NOT NULL`，`shared` scope 要求两者均为 NULL，`custom` 不受约束。审计历史数据后运行 `ALTER TABLE vault_documents VALIDATE CONSTRAINT vault_documents_scope_consistency;`。 |
+| 056 | `vault_chat_id` — 在 `vault_documents` 中新增 `chat_id TEXT NULL` 列 + 索引 `(tenant_id, chat_id, agent_id)`；在回填 UPDATE 前 drop scope-consistency check（v3.11.2 修复）。 |
 
 #### v3 重大变更
 
@@ -325,4 +360,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->

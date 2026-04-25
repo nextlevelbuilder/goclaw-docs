@@ -83,6 +83,59 @@ Video generation is slow — both Gemini and MiniMax poll up to ~6 minutes. The 
 
 ---
 
+## Native Image Generation (Codex + OpenAI-compat)
+
+Codex and OpenAI-compatible providers support **native** image generation — an `image_generation` tool object is attached directly to the LLM request rather than going through the `create_image` provider chain.
+
+### Tri-Level Gate
+
+All three conditions must be satisfied for `image_generation` to activate:
+
+| Gate | Source | Default |
+|------|--------|---------|
+| Provider capability (`ProviderCapabilities.ImageGeneration`) | Auto-set `true` for Codex and OpenAI-compat | — |
+| `AgentConfig.AllowImageGeneration` | `other_config.allow_image_generation` in agent config | `true` |
+| Header opt-out | Client sends `x-goclaw-no-image-gen` to disable per-request | not sent = allowed |
+
+To disable native image generation for a specific agent:
+
+```json
+{
+  "other_config": {
+    "allow_image_generation": false
+  }
+}
+```
+
+To opt out per-request, the client sends the header:
+
+```
+x-goclaw-no-image-gen: 1
+```
+
+### Partial-Image Streaming
+
+During image generation, Codex emits `response.image_generation_call.partial_image` events over the SSE stream. GoClaw surfaces these events so clients can display incremental previews before the final image is complete.
+
+### Storage and Metadata
+
+Image files are saved to `{workspace}/media/{sha256}.{ext}` (e.g. `media/a3f7bc12.png`). For PNG files, GoClaw embeds a tEXt metadata chunk immediately before IEND:
+
+| Chunk key | Value |
+|-----------|-------|
+| `Description` | User prompt |
+| `Software` | `goclaw` |
+
+This metadata supports audit and prompt traceability directly from the image file.
+
+### Codex Pool Routing
+
+When a Codex pool is configured, image generation requests go through the `create_image` chain with a **per-modality round-robin counter** — the chat counter and image counter operate independently. This prevents image generation from skewing the chat load distribution.
+
+> Source: `internal/providers/codex_native_image.go`, `internal/providers/openai_image_url.go`, `internal/agent/media.go`, `internal/agent/png_metadata.go`, `internal/providers/capabilities.go`
+
+---
+
 ## Customizing the Provider Chain
 
 Override the default chain per agent via `builtin_tools.settings` in the agent config:
@@ -192,4 +245,4 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 - [Custom Tools](/custom-tools) — Build your own tools
 - [Provider Overview](/providers-overview) — Configure API keys
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->

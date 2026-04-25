@@ -31,6 +31,7 @@ X-GoClaw-User-Id: user123
 | `X-GoClaw-Agent-Id` | 范围操作的 agent 标识符 |
 | `X-GoClaw-Tenant-Id` | 租户范围——UUID 或 slug |
 | `Accept-Language` | 国际化错误消息的语言（`en`、`vi`、`zh`）|
+| `X-GoClaw-No-Image-Gen` | （可选）在该请求中发送此头以 opt-out 原生图片生成。绕过 provider capability、agent flag 及 tri-level gate。适用于 chat 端点。 |
 
 **输入验证：** 所有字符串输入均经过净化——ILIKE 查询中 SQL 特殊字符会被转义，请求体限制为 1 MB，agent/provider/tool 名称通过白名单模式（`[a-zA-Z0-9_-]`）验证。
 
@@ -194,7 +195,7 @@ curl -X POST http://localhost:18790/v1/agents \
 
 ---
 
-### `GET /v1/agents/{id}/codex-pool-activity`
+### `GET /v1/agents/{agentID}/codex-pool-activity`
 
 返回使用 [Codex OAuth pool](/provider-codex) 的 agent 的路由活动和每账户健康状态。要求 agent 的 provider 为 `chatgpt_oauth` 类型并已配置 pool。
 
@@ -206,11 +207,20 @@ curl -X POST http://localhost:18790/v1/agents \
 |-------|------|---------|-------------|
 | `limit` | integer | `18` | 返回的最近请求数（最大 50）|
 
+**响应中 `strategy` 的取值：**
+
+| 取值 | 说明 |
+|------|------|
+| `round_robin` | 均匀轮询分发 |
+| `priority_order` | 按配置顺序优先选择 provider（默认） |
+
+> **重大变更（客户端影响）：** Codex 账号池 API 响应中，对于原本返回 `primary_first` / `manual` 的相同路由配置，现已改为返回 `priority_order`。请求体仍接受旧值以保持向后兼容。请更新所有按字面比较 strategy 字符串的客户端代码。
+
 **响应：**
 
 ```json
 {
-  "strategy": "round_robin",
+  "strategy": "priority_order",
   "pool_providers": ["openai-codex", "codex-work"],
   "stats_sample_size": 24,
   "provider_counts": [
@@ -520,8 +530,8 @@ POST /v1/tools/invoke
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/episodic` | 列出情节摘要 |
-| `POST` | `/v1/agents/{id}/episodic/search` | BM25+向量混合搜索情节摘要 |
+| `GET` | `/v1/agents/{agentID}/episodic` | 列出情节摘要 |
+| `POST` | `/v1/agents/{agentID}/episodic/search` | BM25+向量混合搜索情节摘要 |
 
 **查询参数：** `user_id`、`limit`（默认：20，最大：500）、`offset`
 
@@ -539,12 +549,14 @@ POST /v1/tools/invoke
 | `GET` | `/v1/vault/tree` | 返回 vault 文档结构的层级树视图 |
 | `GET` | `/v1/vault/graph` | 返回 vault 文档图谱可视化数据（跨租户，节点上限 2000）|
 | `POST` | `/v1/vault/enrichment/stop` | 停止当前 agent 的 enrichment worker |
-| `GET` | `/v1/agents/{id}/vault/documents` | 列出指定 agent 的文档 |
-| `GET` | `/v1/agents/{id}/vault/documents/{docID}` | 获取单个文档（完整内容）|
-| `POST` | `/v1/agents/{id}/vault/search` | FTS+向量混合搜索 |
-| `GET` | `/v1/agents/{id}/vault/documents/{docID}/links` | 获取文档的出链和反链 |
+| `GET` | `/v1/agents/{agentID}/vault/documents` | 列出指定 agent 的文档 |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | 获取单个文档（完整内容）|
+| `POST` | `/v1/agents/{agentID}/vault/search` | FTS+向量混合搜索 |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | 获取文档的出链和反链 |
 
 **列表响应格式：** `{ "documents": [...], "total": 42 }`
+
+响应的 document 对象新增 `chat_id` 字段（可为 null 的字符串，v3.11.0 新增）：表示该文档的 chat 范围——`null` 表示不按 chat 限定范围。
 
 **搜索请求体：** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -556,7 +568,7 @@ POST /v1/tools/invoke
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `GET` | `/v1/agents/{id}/orchestration` | 获取当前编排模式和目标 |
+| `GET` | `/v1/agents/{agentID}/orchestration` | 获取当前编排模式和目标 |
 
 **mode 取值：** `standalone`（直接处理）、`delegate`（通过 agent link 委托）、`team`（通过团队任务系统路由）
 
@@ -1508,4 +1520,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: 1b862707 | 更新: 2026-04-20 -->
+<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
