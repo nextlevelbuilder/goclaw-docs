@@ -30,6 +30,7 @@ const LANGUAGES = [
   { base: ROOT, out: path.join(ROOT, 'llms-full.txt'), header: '# GoClaw — Complete Documentation', tagline: '> GoClaw is a multi-agent AI gateway written in Go. It connects LLMs to tools, channels, and data via WebSocket RPC and OpenAI-compatible HTTP API.' },
   { base: path.join(ROOT, 'vi'), out: path.join(ROOT, 'vi', 'llms-full.txt'), header: '# GoClaw — Tài liệu đầy đủ (Tiếng Việt)', tagline: '> GoClaw là AI agent gateway đa tenant viết bằng Go. Kết nối LLM với tool, kênh, và dữ liệu qua WebSocket RPC và HTTP API tương thích OpenAI.' },
   { base: path.join(ROOT, 'zh'), out: path.join(ROOT, 'zh', 'llms-full.txt'), header: '# GoClaw — 完整文档（简体中文）', tagline: '> GoClaw 是用 Go 编写的多 agent AI gateway。通过 WebSocket RPC 和 OpenAI 兼容 HTTP API，将 LLM 连接到工具、渠道和数据。' },
+  { base: path.join(ROOT, 'ru'), out: path.join(ROOT, 'ru', 'llms-full.txt'), header: '# GoClaw — Полная документация (Русский)', tagline: '> GoClaw — это многоагентный AI-шлюз на языке Go. Он объединяет LLM с инструментами, каналами и данными через WebSocket RPC и OpenAI-совместимый HTTP API.' },
 ];
 
 for (const lang of LANGUAGES) {

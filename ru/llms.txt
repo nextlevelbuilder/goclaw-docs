@@ -1,0 +1,60 @@
+# GoClaw
+
+> Платформа для корпоративных ИИ-агентов — многопользовательский шлюз для управления агентами.
+
+## Начало работы
+- [Что такое GoClaw?](getting-started/what-is-goclaw.md): Шлюз для ИИ-агентов, соединяющий LLM с мессенджерами, инструментами и командами.
+- [Установка](getting-started/installation.md): Как запустить GoClaw на вашей машине за несколько минут.
+- [Быстрый старт](getting-started/quick-start.md): Первый разговор с агентом за 5 минут.
+- [Конфигурация](getting-started/configuration.md): Настройка через config.json и переменные окружения.
+- [Обзор панели управления](getting-started/web-dashboard-tour.md): Визуальный гид по веб-интерфейсу.
+
+## Основные концепции
+- [Как работает GoClaw](core-concepts/how-goclaw-works.md): Архитектура шлюза ИИ-агентов.
+- [Об агентах](core-concepts/agents-explained.md): Что такое агенты, типы (открытые и предопределенные).
+- [Сессии и история](core-concepts/sessions-and-history.md): Управление диалогами и историей сообщений.
+- [Обзор инструментов](core-concepts/tools-overview.md): Более 50 встроенных инструментов для агентов.
+- [Система памяти](core-concepts/memory-system.md): Как агенты запоминают факты между разговорами.
+
+## Агенты
+- [Создание агентов](agents/creating-agents.md): Настройка через CLI, панель управления или API.
+- [Файлы контекста](agents/context-files.md): Файлы, определяющие личность и знания агента (SOUL.md, IDENTITY.md).
+- [Призывание и бутстрап](agents/summoning-bootstrap.md): Автоматическая генерация личности агента.
+
+## Провайдеры (LLM)
+- [Anthropic (Claude)](providers/anthropic.md): Нативная интеграция с Claude.
+- [OpenAI](providers/openai.md): Подключение GPT-4o и других моделей OpenAI.
+- [Google Gemini](providers/gemini.md): Использование моделей Gemini.
+- [DeepSeek](providers/deepseek.md): Подключение мощных моделей DeepSeek.
+
+## Каналы связи
+- [Telegram](channels/telegram.md): Интеграция с ботами Telegram.
+- [Discord](channels/discord.md): Интеграция с серверами Discord.
+- [Slack](channels/slack.md): Работа через Slack Socket Mode.
+- [WhatsApp](channels/whatsapp.md): Прямая интеграция с протоколом WhatsApp.
+
+## Команды агентов
+- [Что такое команды?](agent-teams/what-are-teams.md): Совместная работа нескольких агентов над общими задачами.
+- [Доска задач](agent-teams/task-board.md): Общий список задач для всех участников команды.
+
+## Продвинутые темы
+- [Кастомные инструменты](advanced/custom-tools.md): Добавление своих shell-скриптов для агентов.
+- [Интеграция MCP](advanced/mcp-integration.md): Подключение внешних серверов инструментов.
+- [Навыки (Skills)](advanced/skills.md): Markdown-пакеты знаний для агентов.
+- [Граф знаний](advanced/knowledge-graph.md): Автоматическое извлечение сущностей и связей.
+- [Управление моделями](advanced/model-steering.md): Три уровня контроля (Track, Guard, Hint).
+
+## Развертывание
+- [Docker Compose](deployment/docker-compose.md): Быстрый запуск через Docker.
+- [Чек-лист для продакшена](deployment/production-checklist.md): Что проверить перед запуском.
+
+## Справка
+- [Команды CLI](reference/cli-commands.md): Справочник по командам `goclaw`.
+- [Глоссарий](reference/glossary.md): Определения основных терминов.
+
+## Решение проблем
+- [Общие проблемы](troubleshooting/common-issues.md): Типичные ошибки и их решение.
+- [Команды агентов](troubleshooting/agent-teams.md): Проблемы с делегированием и задачами.
+- [База данных](troubleshooting/database.md): Ошибки PostgreSQL и миграций.
+
+<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->

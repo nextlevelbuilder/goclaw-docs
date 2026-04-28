@@ -1,7 +1,7 @@
 # GoClaw Documentation
 
 > User-friendly docs for [GoClaw](https://goclaw.sh) — Enterprise AI Agent Platform.
-> Trilingual: English + Vietnamese (Tiếng Việt) + Chinese (中文)
+> Trilingual: English + Vietnamese (Tiếng Việt) + Chinese (中文) + Russian (Русский)
 
 ## Getting Started
 
