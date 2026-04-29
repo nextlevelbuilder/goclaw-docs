@@ -2,7 +2,7 @@
 
 > 自动生成的全部 REST 端点完整索引。请求/响应详情、示例和认证说明，请参见 [REST API 参考](rest-api.md)。
 
-**Total endpoints:** 260 — generated from goclaw `29457bb3` on `2026-04-25`.
+**Total endpoints:** 260 — generated from goclaw `364d2d34` on `2026-04-29`.
 
 ## 如何使用本页
 
@@ -460,6 +460,6 @@
 
 ---
 
-<!-- goclaw-source: 29457bb3 -->
-<!-- last-updated: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 -->
+<!-- last-updated: 2026-04-29 -->
 <!-- total-endpoints: 260 -->

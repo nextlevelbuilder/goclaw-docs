@@ -143,10 +143,28 @@ GoClaw v3 引入了统一的 `SSEScanner`（`providers/sse_reader.go`），由 O
 
 运行时通过仪表盘添加的 provider 凭证以 AES-256-GCM 加密存储在 `llm_providers` 中，并在请求时通过凭证解析器解析。agent 配置中的 per-agent 覆盖优先于全局 provider 设置。
 
+## Provider 创建打印"FAILED"但实际上已成功
+
+**受影响版本：** < v3.11.3
+
+创建 provider 后的自动验证流程使用了旧的 `{success, models}` 响应结构来检查新建 provider 是否有效。Provider 已在数据库中正确创建，但验证步骤读取了错误的字段，即使 provider 正常工作，控制台也会打印 `FAILED`。
+
+**v3.11.3 修复：** 验证流程现在使用 `{valid, error}` 响应结构，并在请求 body 为空时触发 ping 模式，因此空 body 验证在成功时返回 `{valid:true}`。升级到 v3.11.3+ 即可解决此问题。
+
+## `goclaw providers delete` 在 `agent_heartbeats` 上出现外键错误
+
+**受影响版本：** < v3.11.3
+
+v3.11.3 之前，`agent_heartbeats` 到 `llm_providers` 的外键定义为 `RESTRICT`。删除被任何 heartbeat 行引用的 provider 时会因外键约束错误而失败。
+
+**v3.11.3 修复：** Migration `000057_heartbeat_provider_fk_set_null` 将 FK 更改为 `ON DELETE SET NULL`。`DeleteProvider` 函数（PostgreSQL 和 SQLite）现在在事务中执行：先禁用所有受影响的 heartbeat 行，再删除 provider，确保下一个 scheduler tick 不会使用过期的 provider 配置。日志会记录 `slog.Warn("heartbeat.provider_cleared")`，包含已禁用的 heartbeat 数量。
+
+需要先应用 migration #057（`./goclaw migrate up`）。删除后检查 `heartbeat.provider_cleared` 日志以确认已清除的 heartbeat 数量。
+
 ## 下一步
 
 - [数据库问题](/troubleshoot-database)
 - [常见问题](/troubleshoot-common)
 - [Channel 问题](/troubleshoot-channels)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->

@@ -2,7 +2,7 @@
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 260 — generated from goclaw `29457bb3` on `2026-04-25`.
+**Total endpoints:** 260 — generated from goclaw `364d2d34` on `2026-04-29`.
 
 ## Cách sử dụng trang này
 
@@ -460,6 +460,6 @@
 
 ---
 
-<!-- goclaw-source: 29457bb3 -->
-<!-- last-updated: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 -->
+<!-- last-updated: 2026-04-29 -->
 <!-- total-endpoints: 260 -->

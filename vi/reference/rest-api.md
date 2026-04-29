@@ -358,7 +358,25 @@ Liệt kê model có sẵn từ provider (proxy đến upstream API).
 
 ### `POST /v1/providers/{id}/verify`
 
-Pre-flight check — xác minh API key và model có thể kết nối được.
+Xác minh kết nối provider hoặc một model cụ thể. Request body là tùy chọn (`requestBody.required: false`).
+
+**Ping mode** — bỏ qua body (hoặc gửi `{}`). Trả về `{"valid": true}` nếu provider đã được đăng ký và có thể kết nối. Tương đương kiểm tra `/healthz`; không thực hiện LLM call.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Chat-verify mode** — bao gồm `model` để thực hiện chat completion thực tế với một model alias cụ thể.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic/claude-sonnet-4"}'
+```
+
+**Response shape** — `{"valid": true}` khi thành công, `{"valid": false, "error": "<msg>"}` khi thất bại. Định dạng cũ `{success, models}` không còn được trả về.
 
 ### `POST /v1/providers/{id}/verify-embedding`
 
@@ -1554,4 +1572,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->

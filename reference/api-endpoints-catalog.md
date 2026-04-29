@@ -2,7 +2,7 @@
 
 > Auto-generated complete index of all REST endpoints. For request/response details, examples, and authentication, see [REST API Reference](rest-api.md).
 
-**Total endpoints:** 260 — generated from goclaw `29457bb3` on `2026-04-25`.
+**Total endpoints:** 260 — generated from goclaw `364d2d34` on `2026-04-29`.
 
 ## How to use this page
 
@@ -460,6 +460,6 @@
 
 ---
 
-<!-- goclaw-source: 29457bb3 -->
-<!-- last-updated: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 -->
+<!-- last-updated: 2026-04-29 -->
 <!-- total-endpoints: 260 -->

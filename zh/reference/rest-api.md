@@ -326,7 +326,25 @@ curl -X POST http://localhost:18790/v1/providers \
 
 ### `POST /v1/providers/{id}/verify`
 
-预检——验证 API key 和模型是否可达。
+验证 provider 连通性或指定模型。请求体为可选（`requestBody.required: false`）。
+
+**Ping mode** — 省略 body（或发送 `{}`）。若 provider 已注册且可达，返回 `{"valid": true}`。相当于 `/healthz` 检查，不发起 LLM 调用。
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Chat-verify mode** — 包含 `model` 字段，对指定 model alias 执行实际 chat completion。
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic/claude-sonnet-4"}'
+```
+
+**响应格式** — 成功返回 `{"valid": true}`，失败返回 `{"valid": false, "error": "<msg>"}`。旧格式 `{success, models}` 已废弃。
 
 ### `POST /v1/providers/{id}/verify-embedding`
 
@@ -1522,4 +1540,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->

@@ -356,7 +356,25 @@ List models available from the provider (proxied to the upstream API).
 
 ### `POST /v1/providers/{id}/verify`
 
-Pre-flight check — verify the API key and model are reachable.
+Verify provider connectivity or a specific model. Request body is optional (`requestBody.required: false`).
+
+**Ping mode** — omit body (or send `{}`). Returns `{"valid": true}` if the provider is registered and reachable. Equivalent to a `/healthz` check; no LLM call is made.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Chat-verify mode** — include `model` to perform an actual chat completion against a specific model alias.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic/claude-sonnet-4"}'
+```
+
+**Response shape** — `{"valid": true}` on success, `{"valid": false, "error": "<msg>"}` on failure. The legacy `{success, models}` shape is no longer returned.
 
 ### `POST /v1/providers/{id}/verify-embedding`
 
@@ -1603,4 +1621,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

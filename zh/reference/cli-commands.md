@@ -288,6 +288,8 @@ goclaw doctor
 
 检查项：二进制版本、配置文件、数据库连接、schema 版本、provider、channel、外部二进制文件（docker、curl、git）、工作区目录。打印每项检查的通过/失败摘要。
 
+`display_name` 为空的 provider 行现在显示规范的 `name`，不再渲染空行。
+
 ---
 
 ## `pairing`
@@ -451,18 +453,71 @@ goclaw channels list --json
 
 ## `providers`
 
-列出已配置的 LLM provider 及其状态。
+管理 LLM provider（需要 gateway 正在运行）。
+
+### `providers list`
+
+列出已配置的 provider。
 
 ```bash
 goclaw providers list
 goclaw providers list --json
+goclaw providers list --models
 ```
 
 | 标志 | 说明 |
 |------|------|
 | `--json` | 以 JSON 格式输出 |
+| `--models` | 同时显示每个 provider 的可用模型 |
 
-显示 provider 名称、类型、默认模型以及 API key 是否已配置。
+显示 provider 名称、类型、启用状态以及 API key 是否已配置。
+
+### `providers add`
+
+添加新 provider（交互式）。
+
+```bash
+goclaw providers add
+```
+
+交互式提示：provider 类型、名称、API key、base URL。创建后询问是否验证连通性。
+
+### `providers update <id>`
+
+更新 provider 名称或 API key。
+
+```bash
+goclaw providers update <id>
+```
+
+### `providers delete <id>`
+
+删除 provider。
+
+```bash
+goclaw providers delete <id>
+goclaw providers delete <id> --force
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--force` | 跳过确认提示 |
+
+### `providers verify <id>`
+
+验证 provider 连通性或指定模型。
+
+```bash
+goclaw providers verify <id>
+goclaw providers verify <id> --model anthropic/claude-sonnet-4
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--model <alias>` | 要验证的 model alias（省略则执行连通性 ping） |
+
+不带 `--model`：ping provider（检查已注册且可达）——不发起 LLM 调用。
+带 `--model`：发送小型 chat request 以验证 model alias。
 
 ---
 
@@ -599,4 +654,4 @@ goclaw tui setup     # TUI 版设置向导
 - [REST API](/rest-api) — HTTP API 端点列表
 - [配置参考](/config-reference) — 完整 `config.json` schema
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->

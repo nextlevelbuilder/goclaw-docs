@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **56**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **57**.
 
 ```mermaid
 graph LR
@@ -212,6 +212,19 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ### v3.11.x — Highlights và Breaking Changes
 
+#### v3.11.3
+
+- fix(migrations): `000057_heartbeat_provider_fk_set_null` — dọn sạch orphan phòng thủ; drop FK hiện có bằng cách tra tên constraint (xử lý tên tự sinh bị lệch), thêm lại với `ON DELETE SET NULL`. Khóa `ACCESS EXCLUSIVE` ngắn trên `agent_heartbeats` trong `ALTER TABLE` (dưới một giây với bảng nhỏ; heartbeat worker có thể tạm dừng ngắn).
+- SQLite: schema v25 → v26 — rebuild toàn bộ bảng `agent_heartbeats` với mệnh đề FK mới; `INSERT … SELECT` tường minh 25 cột giữ nguyên toàn bộ dữ liệu hiện có. `idx_heartbeats_due` được tạo lại.
+
+**Docker users:** BẮT BUỘC pull `ghcr.io/nextlevelbuilder/goclaw:v3.11.3` VÀ chạy `goclaw upgrade`. Image v3.11.2 cũ sẽ lỗi khi khởi động với:
+
+```
+schema version mismatch: required 57, current 56
+```
+
+**Bare-metal users:** rebuild binary và chạy `./goclaw upgrade`.
+
 #### v3.11.2
 
 - fix(migrations): drop scope-consistency check trước backfill UPDATEs — migration #56 follow-up; tránh lỗi constraint khi backfill trên data cũ
@@ -360,4 +373,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->

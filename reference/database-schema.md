@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **56**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **57**.
 
 ### v3 Store Unification
 
@@ -885,7 +885,7 @@ Per-agent heartbeat configuration for periodic proactive check-ins. (migration 0
 | `enabled` | BOOLEAN | NOT NULL DEFAULT false | Whether heartbeat is active |
 | `interval_sec` | INT | NOT NULL DEFAULT 1800 | Run interval in seconds |
 | `prompt` | TEXT | | Message sent to the agent each heartbeat |
-| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `provider_id` | UUID FK → llm_providers (nullable) | ON DELETE SET NULL (migration 057) | Override LLM provider; set to NULL if provider is deleted |
 | `model` | VARCHAR(200) | | Override model |
 | `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Run in a dedicated session |
 | `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject minimal context |
@@ -1032,6 +1032,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 54 | Adds `name VARCHAR(255)` column to `agent_hooks`; creates `agent_hook_agents` N:M junction table; migrates existing `agent_id` FK to junction; renames `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`; drops deprecated `agent_id` column from `hooks` |
 | 55 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents` enforcing scope/agent_id/team_id coherence: `personal` requires `agent_id NOT NULL`, `team` requires `team_id NOT NULL`, `shared` requires both NULL, `custom` is unconstrained |
 | 56 | `vault_chat_id` — adds `chat_id TEXT NULL` column to `vault_documents` and index `(tenant_id, chat_id, agent_id)` for chat-scoped vault isolation. Migration 056 follow-up (v3.11.2): drops scope-consistency check before backfill UPDATEs to prevent constraint errors on legacy data |
+| 57 | `heartbeat_provider_fk_set_null` (PG) — defensive orphan cleanup, drops existing FK by constraint-name lookup, re-adds as `agent_heartbeats_provider_id_fkey` with `ON DELETE SET NULL`. Brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during ALTER (sub-second on small tables). SQLite: schema v25 → v26, full table rebuild for `agent_heartbeats` with updated FK clause; 25-column `INSERT … SELECT` preserves existing rows; `idx_heartbeats_due` recreated. |
 
 ---
 
@@ -1397,4 +1398,4 @@ Per-tenant monthly prompt-handler token/cost budget. One row per tenant tracks m
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

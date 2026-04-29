@@ -214,10 +214,14 @@ To check whether your build uses SQLite:
 # SQLite builds will show: storage=sqlite
 ```
 
+## Migration #057 — Heartbeat FK Lock Note
+
+Migration `000057_heartbeat_provider_fk_set_null` drops the existing `RESTRICT` foreign key on `agent_heartbeats.provider_id` and re-adds it with `ON DELETE SET NULL`. The `ALTER TABLE` takes a brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during this change. On typical tables the lock is sub-second, but heartbeat workers may pause momentarily while it is held. If you have a very large `agent_heartbeats` table, plan the upgrade window accordingly and monitor for lock-wait timeouts.
+
 ## What's Next
 
 - [Common Issues](/troubleshoot-common)
 - [Provider issues](/troubleshoot-providers)
 - [Channel issues](/troubleshoot-channels)
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

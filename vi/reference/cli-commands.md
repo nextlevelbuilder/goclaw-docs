@@ -288,6 +288,8 @@ goclaw doctor
 
 Kiểm tra: phiên bản binary, config file, kết nối database, phiên bản schema, providers, channels, binary bên ngoài (docker, curl, git), thư mục workspace. In tóm tắt pass/fail cho mỗi mục kiểm tra.
 
+Provider có `display_name` rỗng nay hiển thị `name` chính thức thay vì dòng trống.
+
 ---
 
 ## `pairing`
@@ -451,18 +453,71 @@ Các cột output: `CHANNEL`, `ENABLED`, `CREDENTIALS` (ok/missing).
 
 ## `providers`
 
-Liệt kê LLM provider đã cấu hình và trạng thái.
+Quản lý LLM provider (yêu cầu gateway đang chạy).
+
+### `providers list`
+
+Liệt kê provider đã cấu hình.
 
 ```bash
 goclaw providers list
 goclaw providers list --json
+goclaw providers list --models
 ```
 
 | Flag | Mô tả |
 |------|-------|
 | `--json` | Output dạng JSON |
+| `--models` | Hiển thị thêm model khả dụng của mỗi provider |
 
-Hiển thị tên provider, loại, model mặc định, và trạng thái API key.
+Hiển thị tên provider, loại, trạng thái enabled, và trạng thái API key.
+
+### `providers add`
+
+Thêm provider mới (tương tác).
+
+```bash
+goclaw providers add
+```
+
+Nhập tương tác: loại provider, tên, API key, base URL. Hỏi xác minh kết nối sau khi tạo.
+
+### `providers update <id>`
+
+Cập nhật tên hoặc API key của provider.
+
+```bash
+goclaw providers update <id>
+```
+
+### `providers delete <id>`
+
+Xóa provider.
+
+```bash
+goclaw providers delete <id>
+goclaw providers delete <id> --force
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--force` | Bỏ qua xác nhận |
+
+### `providers verify <id>`
+
+Xác minh kết nối provider hoặc một model cụ thể.
+
+```bash
+goclaw providers verify <id>
+goclaw providers verify <id> --model anthropic/claude-sonnet-4
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--model <alias>` | Model alias cần xác minh (bỏ qua để ping kết nối) |
+
+Không có `--model`: ping provider (kiểm tra đã đăng ký và có thể kết nối) — không thực hiện LLM call.
+Có `--model`: gửi chat request nhỏ để xác minh model alias.
 
 ---
 
@@ -599,4 +654,4 @@ goclaw tui setup     # wizard setup dạng TUI
 - [REST API](/rest-api) — danh sách HTTP API endpoint
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

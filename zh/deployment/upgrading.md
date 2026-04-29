@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **56**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **57**。
 
 ```mermaid
 graph LR
@@ -212,6 +212,19 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 ### v3.11.x — 功能亮点与重大变更
 
+#### v3.11.3
+
+- fix(migrations)：`000057_heartbeat_provider_fk_set_null` — 防御性孤儿清理；通过 constraint 名称查找 drop 现有 FK（处理自动生成名称漂移），以 `ON DELETE SET NULL` 重新添加。`ALTER TABLE` 期间对 `agent_heartbeats` 持短暂 `ACCESS EXCLUSIVE` 锁（小表下不足一秒；heartbeat worker 可能短暂暂停）。
+- SQLite：schema v25 → v26 — 对 `agent_heartbeats` 进行全表 rebuild，采用新 FK 子句；显式 25 列 `INSERT … SELECT` 保留所有现有数据行。`idx_heartbeats_due` 重新创建。
+
+**Docker 用户：** 必须拉取 `ghcr.io/nextlevelbuilder/goclaw:v3.11.3` 并运行 `goclaw upgrade`。旧版 v3.11.2 镜像在启动时会报错：
+
+```
+schema version mismatch: required 57, current 56
+```
+
+**裸机用户：** 重新构建二进制并运行 `./goclaw upgrade`。
+
 #### v3.11.2
 
 - fix(migrations)：在回填 UPDATE 前 drop scope-consistency check——migration #56 follow-up；避免旧数据触发约束错误
@@ -360,4 +373,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->
