@@ -8,13 +8,32 @@ Zalo Official Account integration via OAuth v4. Production-ready, multi-OA, auto
 
 `zalo_oa` is the OAuth v4 variant of GoClaw's Zalo channel family. Operators connect a verified Zalo Official Account via the standard Zalo developer console; the gateway stores an encrypted refresh token and rotates access tokens automatically. Inbound messages reach the agent through one of two transports — long polling against `listrecentchat` (default) or webhook events POSTed by Zalo.
 
-This channel is meant for production deployments and supports multiple OAs per instance. If you only have a single small-scale bot and don't need OAuth, see [Zalo Bot](/channel-zalo-bot). For reverse-engineered personal-account integration (no OA required), see [Zalo Personal](/channel-zalo-personal).
+This channel is meant for production deployments and supports multiple OAs per instance.
 
-| Variant | Auth | Refresh | Multi-OA | Group support |
-|---------|------|---------|----------|---------------|
-| **Zalo OA** | OAuth v4 (App ID + Secret + Redirect URI) | Auto | Yes | No (DM-only) |
-| Zalo Bot | Static token | None needed | Single | No (DM-only) |
-| Zalo Personal | Account credentials | Manual re-login | Single | Yes (groups) |
+## Choosing your Zalo variant
+
+GoClaw exposes three Zalo channel types. They differ in coverage, supportability, and risk — pick by what your deployment can tolerate.
+
+|  | **Zalo OA** *(this page)* | **Zalo Bot** | **Zalo Personal** |
+|---|---|---|---|
+| **Officially supported** | Yes — Zalo OA API | Yes — `bot.zapps.me` (newer platform, surface still expanding) | **No** — reverse-engineered protocol |
+| **Auth** | OAuth v4 (App ID + Secret + consent) | Static bot token | Account credentials |
+| **Account type** | Verified Official Account (business) | Bot identity tied to a developer | Personal Zalo account |
+| **DMs** | Yes | Yes | Yes |
+| **Groups** | No | No | **Yes** |
+| **Multi-account per instance** | Yes (multi-OA) | One bot per channel | One account per channel |
+| **Token rotation** | Auto (1h access / 90d single-use refresh) | None — static token | Manual re-login when sessions die |
+| **Message types** | Full OA suite (text, image, file, list, button, …) | Text, image, sticker, typing — and growing | Broad (whatever the protocol exposes) |
+| **Image upload cap** | 1 MB | 5 MB (GoClaw cap) | -- |
+| **Quotas** | OA tier (broadcast caps; transactional within 7 days of user msg) | Bot platform quotas | Account-level, informal |
+| **Account ban risk** | None — first-party API | None — first-party API | **High** — Zalo can lock the account at any time |
+| **Best for** | Production CS / business messaging at scale | Lightweight bots, internal tools, dev / test, low-volume DM | Personal or group automation where no OA exists, accepting ban risk |
+
+> **About Zalo Bot —** the platform (`bot.zapps.me`) is newer than the OA API and Zalo is actively adding endpoints (sticker and typing actions landed recently). Treat it as evolving — re-check the [Bot API docs](https://bot.zapps.me/docs/) before assuming a feature is missing.
+>
+> **About Zalo Personal —** uses a reverse-engineered protocol; GoClaw logs `security.unofficial_api` on startup. **Not for production.** See [Zalo Personal](/channel-zalo-personal) for the full risk profile.
+
+**Quick decision** — Have an OA → **Zalo OA**. No OA but a bot is enough → [Zalo Bot](/channel-zalo-bot). Need groups, willing to accept ban risk → [Zalo Personal](/channel-zalo-personal).
 
 ## Prerequisites
 
@@ -260,4 +279,4 @@ Credentials (`app_id`, `secret_key`, `redirect_uri`, `webhook_secret_key`) are s
 - [Zalo Bot](/channel-zalo-bot) — static-token alternative for small deployments
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account
 
-<!-- goclaw-source: 6d0283ce | cập nhật: 2026-05-01 -->
+<!-- goclaw-source: 1ef22e84 | cập nhật: 2026-05-01 -->
