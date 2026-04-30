@@ -1,120 +1,242 @@
-> Bản dịch từ [English version](/channel-zalo-oa)
+<!-- TODO: translate to VI -->
 
-# Channel Zalo OA
+# Zalo OA Channel
 
-Tích hợp Zalo Official Account (OA). Chỉ hỗ trợ DM với kiểm soát truy cập dựa trên pairing và hỗ trợ hình ảnh.
+Zalo Official Account integration via OAuth v4. Production-ready, multi-OA, auto-refreshing tokens, with both polling (default) and webhook transports.
 
-## Thiết lập
+## Overview
 
-**Tạo Zalo OA:**
+`zalo_oa` is the OAuth v4 variant of GoClaw's Zalo channel family. Operators connect a verified Zalo Official Account via the standard Zalo developer console; the gateway stores an encrypted refresh token and rotates access tokens automatically. Inbound messages reach the agent through one of two transports — long polling against `listrecentchat` (default) or webhook events POSTed by Zalo.
 
-1. Vào https://oa.zalo.me
-2. Tạo Official Account (yêu cầu số điện thoại Zalo)
-3. Đặt tên OA, avatar và ảnh bìa
-4. Trong cài đặt OA, vào "Settings" → "API" → "Bot API"
-5. Tạo API key
-6. Sao chép API key để cấu hình
+This channel is meant for production deployments and supports multiple OAs per instance. If you only have a single small-scale bot and don't need OAuth, see [Zalo Bot](/channel-zalo-bot). For reverse-engineered personal-account integration (no OA required), see [Zalo Personal](/channel-zalo-personal).
 
-**Bật Zalo OA:**
+| Variant | Auth | Refresh | Multi-OA | Group support |
+|---------|------|---------|----------|---------------|
+| **Zalo OA** | OAuth v4 (App ID + Secret + Redirect URI) | Auto | Yes | No (DM-only) |
+| Zalo Bot | Static token | None needed | Single | No (DM-only) |
+| Zalo Personal | Account credentials | Manual re-login | Single | Yes (groups) |
+
+## Prerequisites
+
+Before adding the channel in GoClaw, you need a verified domain on the Zalo developer console — the OAuth callback will not work without it.
+
+1. Open `https://developers.zalo.me`, pick your app.
+2. Verify your gateway domain via HTML meta tag or DNS TXT record. Wait until the domain appears in the **Danh sách domain xác thực** list.
+3. Set the **Official Account Callback URL** to the same value you'll paste into GoClaw's Redirect URI field. Both must match exactly.
+4. Note your numeric **App ID** and the **Secret Key** (this is the OAuth secret, not the webhook secret).
+
+> **Heads up —** error code `-14003` from Zalo means either the domain isn't verified yet or the callback URL doesn't match what you registered.
+
+## GoClaw Setup Wizard
+
+In the GoClaw web UI go to **Channels → Add Channel → Zalo OA**. The wizard asks for three values:
+
+| Field | What to paste |
+|-------|---------------|
+| **App ID** | Numeric ID from `developers.zalo.me` |
+| **Secret Key** | OAuth secret from the same console |
+| **Redirect URI** | Same URL you set as the OA Callback URL |
+
+After you save, GoClaw opens the Zalo consent flow in a popup. Approve it with the Zalo account that owns the OA. On success, the OA ID is auto-discovered and stored encrypted; the channel detail page surfaces it read-only.
+
+The **Webhook Secret Key** field can stay empty during creation — you'll fill it in later if you switch to webhook mode (see [Webhook Mode](#webhook-mode)).
+
+## Ingestion Modes
+
+The channel listens for inbound messages in exactly one of two modes per instance:
+
+| Mode | When to use | What runs |
+|------|-------------|-----------|
+| **Polling** *(default)* | No public HTTPS endpoint, simpler ops | Periodic `listrecentchat` calls on a timer |
+| **Webhook** *(opt-in)* | Lower latency, event-driven, public endpoint available | Zalo POSTs to `/channels/zalo/webhook/<slug>` |
+
+Switching transports does not change agent behavior — both produce equivalent message shapes. Webhook deliveries do not fall back to polling on failure unless you explicitly enable `catch_up_on_restart`.
+
+## Webhook Mode
+
+Webhook mode is opt-in via `transport: "webhook"`. The setup uses a deliberate two-step bootstrap to get around Zalo's chicken-and-egg problem (you can't paste the secret before saving the URL, but Zalo verifies the URL before it shows you the secret).
+
+### Bootstrap flow
+
+1. Create the channel with `transport: "webhook"` and **leave `webhook_secret_key` empty**.
+2. The gateway answers Zalo's verification ping with HTTP 200 — signature checking is skipped while the secret is empty (the channel is `Degraded — awaiting webhook secret` during this window).
+3. Copy **Khóa bí mật OA** from the Zalo console and paste it into the channel's Credentials tab in GoClaw.
+4. Save. The channel transitions to `Healthy` and signature verification activates.
+
+This same flow handles toggling an existing polling channel to webhook — just clear the secret first, save URL on Zalo, then paste the new secret.
+
+### Slug rules
+
+Each channel gets a routing slug derived from its name. Override it via `webhook_path` if you need a stable URL (e.g. `customer-support` instead of an auto-generated one).
+
+- Lowercase letters, digits, hyphens only
+- Must start with `[a-z0-9]`
+- Length 2–63 chars
+- Reserved words rejected: `webhook`, `zalo`, `_health`, `_metrics`
+
+### Signature verification
+
+Zalo signs every event with `X-ZEvent-Signature: hex(SHA256(appID + body + timestamp + secret))`. The gateway verifies this against your saved secret and rejects mismatches.
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `webhook_signature_mode` | `"strict"` | Reject mismatches (production) |
+| `webhook_signature_mode` | `"log_only"` | Warn but allow (testing) |
+| `webhook_signature_mode` | `"disabled"` | Accept unsigned (diagnostic only — never in production) |
+| `webhook_replay_window_seconds` | `300` (clamp `[60, 3600]`) | Reject events older than this |
+
+The handler also drops events where `sender.id == oa_id` — Zalo redelivers your outbound replies through the same webhook, and you don't want the agent to react to its own messages.
+
+## Polling Mode
+
+Polling is the default. The gateway calls `listrecentchat` on an interval and processes new messages.
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `poll_interval_seconds` | `15` | Range `[5, 120]` |
+| `poll_count` | `10` | Page size; clamp `[1, 10]` (Zalo API hard cap — error `-210` above) |
+| `poll_burndown_max_pages` | `10` | Pages allowed per cycle without sleep; clamp `[1, 20]`; set to `1` to disable burn-down |
+| `catch_up_on_restart` | `false` | Single bounded sweep on Start; useful after long downtime |
+
+**Burn-down resilience** lets the gateway clear a backlog. A worst-case cycle of `10 × 10 = 100` messages happens before the next sleep. If 250 messages are pending, the burn-down empties them across 2–3 cycles instead of crawling 10 at a time.
+
+`catch_up_on_restart` is off by default because it can replay stale conversations on every restart. Turn it on if you want a single bounded `listrecentchat` sweep at boot, then normal polling resumes.
+
+When `transport: "webhook"`, all polling parameters are ignored.
+
+## Quoted Replies
+
+`quote_user_message` is **on by default**. Outbound replies quote the user's last inbound message via Zalo's `message.quote_message_id` field — handy in busy CS threads where context matters.
+
+| Behavior | Default | Notes |
+|----------|---------|-------|
+| Quote first chunk of multi-chunk reply | Yes | Subsequent chunks are unquoted |
+| Quote image / file / GIF sends | No | Zalo API restriction — silently dropped |
+| Quote source > 48h or deleted | No | Auto-retried without quote; logs `zalo_oa.send.quote_dropped_payload_error` |
+
+Set `quote_user_message: false` to disable globally.
+
+## Status Reactions
+
+Zalo OA can surface agent progress as emoji reactions on the user's inbound message. Reactions don't count against Zalo's monthly active-message quota, and failures never affect channel health.
+
+| Level | What you see |
+|-------|--------------|
+| `off` *(default)* | No reactions |
+| `minimal` | Terminal only — ❤ on success, 😢 on failure |
+| `full` | Adds 👍 on first intermediate event (debounced ≤1 per 700ms) |
+
+The `minimal` level is recommended for customer-service OAs — `full` chews through the 50-reaction-per-message cap and looks unprofessional. Mid-run tool / coding / web statuses are deliberately not mapped to Zalo OA. The frontend wizard may show `minimal` as the suggested default; the runtime config default remains `off`.
+
+`ClearReaction` sends a `/-remove` sentinel since Zalo has no separate clear endpoint.
+
+## Common Errors
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| Zalo returns `-14003` during OAuth | Domain unverified or callback URL mismatch | Re-verify domain on `developers.zalo.me`; align Redirect URI exactly |
+| Console URL-save fails | Gateway not reachable, or `>2s` to respond | Confirm public HTTPS reachability; channel must already exist in GoClaw |
+| Channel stuck on `Degraded — awaiting webhook secret` | Operator skipped the secret-paste step | Open Credentials tab, paste **Khóa bí mật OA** |
+| Webhook returns `401` | Signature mismatch (typo on paste) | Re-copy from Zalo console, save again |
+| Webhook returns `404` | Channel stopped or slug mismatch | Re-enable channel; verify `webhook_path` matches Zalo console URL |
+| No inbound events after secret saved | `webhook_signature_mode: "disabled"`, or Zalo auto-disabled webhook after 12h of non-200 retries | Restore mode to `strict`; re-save URL on Zalo console |
+| Refresh token rejected | User revoked consent or token aged out | Re-run OAuth flow; user pastes fresh consent code |
+| Token refresh fails with `invalid_grant` | Same as above | Re-consent in Zalo app |
+| `zalo_oa.webhook.bootstrap_drop` count growing | Events arriving during the secret-paste window | Normal during setup; resolves once secret is saved |
+
+### Zalo error code reference
+
+The most common Zalo Social API codes you'll see in `zalo_oa.*.error` logs:
+
+| Code | Meaning | What to check |
+| --- | --- | --- |
+| `-14003` | Invalid redirect URI or unverified domain | Verify domain on `developers.zalo.me`; align Redirect URI |
+| `-118` | `invalid_grant` — refresh token revoked / expired | Re-run OAuth consent |
+| `-201` | Invalid params (payload shape) | Inspect outbound payload against current Zalo spec |
+| `-210` | Page-size cap exceeded | Set `poll_count` ≤ 10 (Zalo hard cap) |
+| `-216` / `-401` | Access token invalid or expired | Triggers OAuth refresh; if refresh fails, re-consent |
+| `100` | Invalid parameter | Check API call shape and field types |
+| `110`–`112` | Recipient lookup failed; app not linked to OA | Confirm app is linked to OA in Zalo console |
+| `210` | User not visible | User needs to follow OA or grant friend permission |
+| `2000`–`2004` | App rate-limited or temporarily disabled | Check app status; request quota increase |
+| `12000`–`12012` | Quota / DND / friend-list / not-friend | Adjust outbound dispatch cadence |
+
+Full tables: <https://stc-developers.zdn.vn/docs/v2/social-api/tham-khao/ma-loi?lang=vi>. GoClaw's internal classification (which codes are retriable vs auth-refresh-triggering) lives in `internal/channels/zalo/oa/errors.go`.
+
+## Troubleshooting & Reference
+
+### Slog keys to watch
+
+```
+zalo_oa.webhook.event_received
+zalo_oa.webhook.bootstrap_drop
+zalo_oa.poll.burndown_capped
+zalo_oa.send.quote_dropped_payload_error
+zalo_webhook.handler_error
+zalo_webhook.empty_message_id_streak
+security.zalo_webhook_signature_mismatch
+```
+
+### Tracing
+
+Set `GOCLAW_ZALO_OA_TRACE=1` to dump raw Zalo response bodies at Debug level. **PII-sensitive** — never enable in production.
+
+### Polling config example
 
 ```json
 {
   "channels": {
-    "zalo": {
+    "zalo_oa": {
       "enabled": true,
-      "token": "YOUR_API_KEY",
-      "dm_policy": "pairing",
-      "allow_from": [],
-      "media_max_mb": 5
+      "transport": "polling",
+      "poll_interval_seconds": 15,
+      "poll_count": 10,
+      "poll_burndown_max_pages": 10,
+      "reaction_level": "minimal",
+      "quote_user_message": true,
+      "dm_policy": "pairing"
     }
   }
 }
 ```
 
-## Cấu hình
-
-Tất cả config key nằm trong `channels.zalo`:
-
-| Key | Kiểu | Mặc định | Mô tả |
-|-----|------|---------|-------------|
-| `enabled` | bool | false | Bật/tắt channel |
-| `token` | string | bắt buộc | API key từ Zalo OA console |
-| `allow_from` | list | -- | Danh sách trắng user ID |
-| `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
-| `webhook_url` | string | -- | URL webhook tuỳ chọn (ghi đè polling) |
-| `webhook_secret` | string | -- | Secret ký webhook tuỳ chọn |
-| `media_max_mb` | int | 5 | Kích thước file hình ảnh tối đa (MB) |
-| `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
-
-## Tính năng
-
-### Chỉ hỗ trợ DM
-
-Zalo OA chỉ hỗ trợ nhắn tin trực tiếp. Chức năng nhóm không có sẵn. Tất cả tin nhắn được xử lý như DM.
-
-### Long Polling
-
-Chế độ mặc định: Bot poll Zalo API mỗi 30 giây để lấy tin nhắn mới. Server trả về tin nhắn và đánh dấu chúng đã đọc.
-
-- Timeout poll: 30 giây (mặc định)
-- Backoff khi lỗi: 5 giây
-- Giới hạn văn bản: 2,000 ký tự mỗi tin nhắn
-- Giới hạn hình ảnh: 5 MB
-
-### Chế độ Webhook (Tuỳ chọn)
-
-Thay vì polling, cấu hình Zalo để POST event đến gateway của bạn:
+### Webhook config example
 
 ```json
 {
-  "webhook_url": "https://your-gateway.com/zalo/webhook",
-  "webhook_secret": "your_webhook_secret"
+  "channels": {
+    "zalo_oa": {
+      "enabled": true,
+      "transport": "webhook",
+      "webhook_path": "customer-support",
+      "webhook_signature_mode": "strict",
+      "webhook_replay_window_seconds": 300,
+      "reaction_level": "minimal",
+      "dm_policy": "pairing"
+    }
+  }
 }
 ```
 
-Zalo gửi chữ ký HMAC trong header `X-Zalo-Signature`. Implementation xác minh chữ ký này trước khi xử lý.
+Credentials (`app_id`, `secret_key`, `redirect_uri`, `webhook_secret_key`) are stored encrypted via the channel's Credentials tab — they are never written to `config.json`.
 
-### Hỗ trợ hình ảnh
+### Source files
 
-Bot có thể nhận và gửi hình ảnh (JPG, PNG). Tối đa 5 MB mặc định.
+- `internal/channels/zalo/oa/channel.go` — channel lifecycle
+- `internal/channels/zalo/oa/poll.go` — polling defaults and burn-down
+- `internal/channels/zalo/oa/reactions.go` — reaction levels
+- `internal/channels/zalo/oa/errors.go` — Zalo error-code registry
+- `internal/channels/zalo/common/webhook_router.go` — webhook routing
+- `internal/channels/zalo/common/slug.go` — slug validation
+- `internal/config/config_channels.go` — `ZaloOAConfig` struct
+- `internal/gateway/methods/zalo_webhook.go` — RPC `webhook_url`
+- `ui/web/src/pages/channels/zalo/zalo-oa-wizard-step.tsx` — setup wizard UI
+- `ui/web/src/pages/channels/zalo/zalo-webhook-url-section.tsx` — webhook bootstrap card
 
-**Nhận**: Hình ảnh được tải xuống và lưu dưới dạng file tạm thời trong quá trình xử lý tin nhắn.
+## What's Next
 
-**Gửi**: Hình ảnh có thể được gửi dưới dạng media attachment:
+- [Channels overview](/channels-overview) — DM policies, pairing, message flow
+- [Zalo Bot](/channel-zalo-bot) — static-token alternative for small deployments
+- [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account
 
-```json
-{
-  "channel": "zalo",
-  "content": "Here's your image",
-  "media": [
-    { "url": "/tmp/image.jpg", "type": "image" }
-  ]
-}
-```
-
-### Pairing mặc định
-
-Chính sách DM mặc định là `"pairing"`. User mới thấy hướng dẫn mã pairing với debounce 60 giây (không spam). Chủ sở hữu phê duyệt qua:
-
-```
-/pair CODE
-```
-
-## Xử lý sự cố
-
-| Vấn đề | Giải pháp |
-|-------|----------|
-| "Invalid API key" | Kiểm tra token từ Zalo OA console. Đảm bảo OA đang hoạt động và Bot API đã được bật. |
-| Không nhận được tin nhắn | Xác minh polling đang chạy (kiểm tra log). Đảm bảo OA có thể nhận tin nhắn (không bị tạm ngưng). |
-| Upload hình ảnh thất bại | Xác minh file hình ảnh tồn tại và dưới `media_max_mb`. Kiểm tra định dạng file (JPG/PNG). |
-| Chữ ký webhook không khớp | Đảm bảo `webhook_secret` khớp với Zalo console. Kiểm tra timestamp có còn gần đây không. |
-| Mã pairing không được gửi | Kiểm tra chính sách DM là `"pairing"`. Xác minh chủ sở hữu có thể gửi tin nhắn đến OA. |
-
-## Tiếp theo
-
-- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
-- [Zalo Personal](/channel-zalo-personal) — Tích hợp tài khoản Zalo cá nhân
-- [Telegram](/channel-telegram) — Thiết lập Telegram bot
-- [Browser Pairing](/channel-browser-pairing) — Luồng pairing
-
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: ab129fe9 | cập nhật: 2026-05-01 -->

@@ -9,26 +9,27 @@ Complete documentation for all messaging platform integrations in GoClaw.
 3. **[Discord](./discord.md)** — Gateway API, placeholder editing, threads
 4. **[Slack](./slack.md)** — Socket Mode, threads, streaming, reactions, debounce
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
-6. **[Zalo OA](./zalo-oa.md)** — Official Account, DM-only, pairing, images
-7. **[Zalo Personal](./zalo-personal.md)** — Personal account (unofficial), DM + groups
-8. **[WhatsApp](./whatsapp.md)** — Direct connection, QR auth, media, typing indicators, pairing
-9. **[WebSocket](./websocket.md)** — Direct RPC, custom clients, streaming events
-10. **[Browser Pairing](./browser-pairing.md)** — 8-char code auth, session tokens
+6. **[Zalo Bot](./zalo-bot.md)** — Static-token bot, DM-only, polling/webhook
+7. **[Zalo OA](./zalo-oa.md)** — Official Account (OAuth v4), polling/webhook, pairing, images
+8. **[Zalo Personal](./zalo-personal.md)** — Personal account (unofficial), DM + groups
+9. **[WhatsApp](./whatsapp.md)** — Direct connection, QR auth, media, typing indicators, pairing
+10. **[WebSocket](./websocket.md)** — Direct RPC, custom clients, streaming events
+11. **[Browser Pairing](./browser-pairing.md)** — 8-char code auth, session tokens
 
 ## Channel Comparison Table
 
-| Feature | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp | WebSocket |
-|---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
-| **Setup Complexity** | Easy | Easy | Easy | Medium | Medium | Hard | Medium | Very Easy |
-| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Direct connection | WebSocket |
-| **DM Support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | N/A |
-| **Group Support** | Yes | Yes | Yes | Yes | No | Yes | Yes | N/A |
-| **Streaming** | Yes | Yes | Yes | Yes | No | No | No | Yes |
-| **Rich Format** | HTML | Markdown | mrkdwn | Cards | Plain | Plain | WA native | JSON |
-| **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- | -- |
-| **Media** | Photos, Voice, Files | Files, Embeds | Files (20MB) | Images, Files | Images | -- | Images, Video, Audio, Docs | N/A |
-| **Auth Method** | Token | Token | 3 Tokens | App ID + Secret | API Key | Credentials | QR Code | Token + Pairing |
-| **Risk Level** | Low | Low | Low | Low | Low | High | Medium | Low |
+| Feature | Telegram | Discord | Slack | Larksuite | Zalo Bot | Zalo OA | Zalo Pers | WhatsApp | WebSocket |
+|---------|----------|---------|-------|--------|---------|---------|-----------|----------|-----------|
+| **Setup Complexity** | Easy | Easy | Easy | Medium | Easy | Medium | Hard | Medium | Very Easy |
+| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling/Webhook | Polling/Webhook | Protocol | Direct connection | WebSocket |
+| **DM Support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | N/A |
+| **Group Support** | Yes | Yes | Yes | Yes | No | No | Yes | Yes | N/A |
+| **Streaming** | Yes | Yes | Yes | Yes | No | No | No | No | Yes |
+| **Rich Format** | HTML | Markdown | mrkdwn | Cards | Plain | Plain | Plain | WA native | JSON |
+| **Reactions** | Yes | -- | Yes | Yes | -- | Yes (off/min/full) | -- | -- | -- |
+| **Media** | Photos, Voice, Files | Files, Embeds | Files (20MB) | Images, Files | Images | Images | -- | Images, Video, Audio, Docs | N/A |
+| **Auth Method** | Token | Token | 3 Tokens | App ID + Secret | Bot Token | OAuth v4 (App ID + Secret + Redirect) | Credentials | QR Code | Token + Pairing |
+| **Risk Level** | Low | Low | Low | Low | Low | Low | High | Medium | Low |
 
 ## Configuration Files
 
@@ -42,6 +43,7 @@ All channel config lives in the root `config.json`:
     "slack": { ... },
     "feishu": { ... },
     "zalo": { ... },
+    "zalo_oa": { ... },
     "zalo_personal": { ... },
     "whatsapp": { ... }
   }
@@ -126,12 +128,20 @@ Flexible format supporting:
 - [ ] If webhook: Set URL in Larksuite console
 - [ ] Enable in config
 
+### Zalo Bot
+
+- [ ] Create / open bot at developers.zalo.me Bot API
+- [ ] Copy access token
+- [ ] Enable in config (`channels.zalo`) with polling by default
+- [ ] Optionally switch to webhook with `transport: "webhook"` + secret
+
 ### Zalo OA
 
-- [ ] Create Official Account at oa.zalo.me
-- [ ] Enable Bot API
-- [ ] Copy API key
-- [ ] Enable in config (polling by default)
+- [ ] Verify gateway domain on developers.zalo.me
+- [ ] Set OA Callback URL on Zalo console
+- [ ] Copy App ID + Secret Key
+- [ ] Run GoClaw OAuth wizard with App ID, Secret, Redirect URI
+- [ ] Enable in config (polling by default; switch to webhook bootstrap flow if needed)
 
 ### Zalo Personal
 

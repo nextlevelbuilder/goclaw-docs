@@ -30,7 +30,7 @@
     {"pattern": "internal/channels/telegram/*", "docs": ["channels/telegram.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/discord/*", "docs": ["channels/discord.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/feishu/*", "docs": ["channels/feishu.md", "channels/larksuite.md", "troubleshooting/channels.md"], "priority": "medium"},
-    {"pattern": "internal/channels/zalo/*", "docs": ["channels/zalo-oa.md", "channels/zalo-personal.md", "troubleshooting/channels.md"], "priority": "medium"},
+    {"pattern": "internal/channels/zalo/*", "docs": ["channels/zalo-bot.md", "channels/zalo-oa.md", "channels/zalo-personal.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/whatsapp/*", "docs": ["channels/whatsapp.md", "troubleshooting/channels.md"], "priority": "medium"},
     {"pattern": "internal/channels/pancake/*", "docs": ["channels/pancake.md", "troubleshooting/channels.md"], "priority": "high"},
     {"pattern": "internal/channels/facebook/*", "docs": ["channels/facebook.md", "troubleshooting/channels.md"], "priority": "medium"},

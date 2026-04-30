@@ -11,26 +11,27 @@ GoClaw 所有消息平台集成的完整文档。
 3. **[Discord](./discord.md)** — Gateway API、占位符编辑、线程
 4. **[Slack](./slack.md)** — Socket Mode、线程、流式输出、表情回应、防抖
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook、流式卡片、媒体
-6. **[Zalo OA](./zalo-oa.md)** — 官方账号、仅 DM、配对、图片
-7. **[Zalo 个人](./zalo-personal.md)** — 个人账号（非官方）、DM + 群组
-8. **[WhatsApp](./whatsapp.md)** — 直连、QR 认证、媒体、输入指示器、配对
-9. **[WebSocket](./websocket.md)** — 直接 RPC、自定义客户端、流式事件
-10. **[Browser Pairing](./browser-pairing.md)** — 8 位码认证、session token
+6. **[Zalo Bot](./zalo-bot.md)** — 静态 token bot、仅 DM、轮询/webhook
+7. **[Zalo OA](./zalo-oa.md)** — 官方账号（OAuth v4）、轮询/webhook、配对、图片
+8. **[Zalo 个人](./zalo-personal.md)** — 个人账号（非官方）、DM + 群组
+9. **[WhatsApp](./whatsapp.md)** — 直连、QR 认证、媒体、输入指示器、配对
+10. **[WebSocket](./websocket.md)** — 直接 RPC、自定义客户端、流式事件
+11. **[Browser Pairing](./browser-pairing.md)** — 8 位码认证、session token
 
 ## Channel 对比表
 
-| 功能 | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo 个人 | WhatsApp | WebSocket |
-|---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
-| **设置复杂度** | 简单 | 简单 | 简单 | 中等 | 中等 | 困难 | 中等 | 非常简单 |
-| **传输方式** | 轮询 | Gateway | Socket Mode | WS/Webhook | 轮询 | 协议 | 直连 | WebSocket |
-| **DM 支持** | 是 | 是 | 是 | 是 | 是 | 是 | 是 | 无 |
-| **群组支持** | 是 | 是 | 是 | 是 | 否 | 是 | 是 | 无 |
-| **流式输出** | 是 | 是 | 是 | 是 | 否 | 否 | 否 | 是 |
-| **富文本格式** | HTML | Markdown | mrkdwn | 卡片 | 纯文本 | 纯文本 | WA 原生 | JSON |
-| **表情回应** | 是 | -- | 是 | 是 | -- | -- | -- | -- |
-| **媒体** | 图片、语音、文件 | 文件、嵌入 | 文件（20MB） | 图片、文件 | 图片 | -- | 图片、视频、音频、文档 | 无 |
-| **认证方式** | Token | Token | 3 Tokens | App ID + Secret | API Key | 凭据 | QR 码 | Token + 配对 |
-| **风险等级** | 低 | 低 | 低 | 低 | 低 | 高 | 中 | 低 |
+| 功能 | Telegram | Discord | Slack | Larksuite | Zalo Bot | Zalo OA | Zalo 个人 | WhatsApp | WebSocket |
+|---------|----------|---------|-------|--------|---------|---------|-----------|----------|-----------|
+| **设置复杂度** | 简单 | 简单 | 简单 | 中等 | 简单 | 中等 | 困难 | 中等 | 非常简单 |
+| **传输方式** | 轮询 | Gateway | Socket Mode | WS/Webhook | 轮询/Webhook | 轮询/Webhook | 协议 | 直连 | WebSocket |
+| **DM 支持** | 是 | 是 | 是 | 是 | 是 | 是 | 是 | 是 | 无 |
+| **群组支持** | 是 | 是 | 是 | 是 | 否 | 否 | 是 | 是 | 无 |
+| **流式输出** | 是 | 是 | 是 | 是 | 否 | 否 | 否 | 否 | 是 |
+| **富文本格式** | HTML | Markdown | mrkdwn | 卡片 | 纯文本 | 纯文本 | 纯文本 | WA 原生 | JSON |
+| **表情回应** | 是 | -- | 是 | 是 | -- | 是 | -- | -- | -- |
+| **媒体** | 图片、语音、文件 | 文件、嵌入 | 文件（20MB） | 图片、文件 | 图片 | 图片 | -- | 图片、视频、音频、文档 | 无 |
+| **认证方式** | Token | Token | 3 Tokens | App ID + Secret | Bot Token | OAuth v4 | 凭据 | QR 码 | Token + 配对 |
+| **风险等级** | 低 | 低 | 低 | 低 | 低 | 低 | 高 | 中 | 低 |
 
 ## 配置文件
 
@@ -44,6 +45,7 @@ GoClaw 所有消息平台集成的完整文档。
     "slack": { ... },
     "feishu": { ... },
     "zalo": { ... },
+    "zalo_oa": { ... },
     "zalo_personal": { ... },
     "whatsapp": { ... }
   }
@@ -128,12 +130,20 @@ GoClaw 所有消息平台集成的完整文档。
 - [ ] 若使用 webhook：在 Larksuite 控制台设置 URL
 - [ ] 在配置中启用
 
+### Zalo Bot
+
+- [ ] 在 developers.zalo.me Bot API 创建/打开 bot
+- [ ] 复制访问 token
+- [ ] 在配置中启用（`channels.zalo`），默认轮询
+- [ ] 可选：通过 `transport: "webhook"` 切换为 webhook 并设置 secret
+
 ### Zalo OA
 
-- [ ] 在 oa.zalo.me 创建官方账号
-- [ ] 启用 Bot API
-- [ ] 复制 API key
-- [ ] 在配置中启用（默认轮询）
+- [ ] 在 developers.zalo.me 验证网关域名
+- [ ] 在 Zalo 控制台设置 OA Callback URL
+- [ ] 复制 App ID + Secret Key
+- [ ] 在 GoClaw 中运行 OAuth 向导（App ID、Secret、Redirect URI）
+- [ ] 在配置中启用（默认轮询；如需 webhook 走 bootstrap 流程）
 
 ### Zalo 个人
 
