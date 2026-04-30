@@ -18,14 +18,20 @@ This channel is meant for production deployments and supports multiple OAs per i
 
 ## Prerequisites
 
-Before adding the channel in GoClaw, you need a verified domain on the Zalo developer console — the OAuth callback will not work without it.
+Two things to know first:
 
-1. Open `https://developers.zalo.me`, pick your app.
-2. Verify your gateway domain via HTML meta tag or DNS TXT record. Wait until the domain appears in the **Danh sách domain xác thực** list.
-3. Set the **Official Account Callback URL** to the same value you'll paste into GoClaw's Redirect URI field. Both must match exactly.
-4. Note your numeric **App ID** and the **Secret Key** (this is the OAuth secret, not the webhook secret).
+- **App** vs **OA** — an *app* (registered at `developers.zalo.me`) holds the App ID and Secret Key. An *OA* (created at `oa.zalo.me`) is the business account users follow. One app can be linked to multiple OAs.
+- **Vietnamese phone number** — required to register both the app and the OA.
 
-> **Heads up —** error code `-14003` from Zalo means either the domain isn't verified yet or the callback URL doesn't match what you registered.
+Then complete these on `developers.zalo.me`:
+
+1. **Create / activate** the app and copy **App ID** + **Secret Key** (the OAuth secret, not the webhook secret).
+2. **Link OA** — open the **Liên kết OA** tab and link the Official Account you want this channel to drive.
+3. **Verify your gateway domain** (HTML meta tag or DNS TXT). Wait until it appears in **Danh sách domain xác thực**.
+4. **Set the OA Callback URL** to the same value you'll paste into GoClaw's Redirect URI field — they must match exactly.
+5. **Request permissions** — open the app's Permissions tab and request: `Quản lý tin nhắn` (messages), `Quản lý người quan tâm` (followers), `Upload`, and `Webhook` (only if you'll use webhook mode). Approval can take 1–3 business days. Without these, API calls fail with `-216`.
+
+> **Heads up —** Zalo's `-14003` means the domain isn't verified yet or the callback URL doesn't match what you registered. `-216` means a permission group hasn't been granted to your app.
 
 ## GoClaw Setup Wizard
 
@@ -40,6 +46,8 @@ In the GoClaw web UI go to **Channels → Add Channel → Zalo OA**. The wizard 
 After you save, GoClaw opens the Zalo consent flow in a popup. Approve it with the Zalo account that owns the OA. On success, the OA ID is auto-discovered and stored encrypted; the channel detail page surfaces it read-only.
 
 The **Webhook Secret Key** field can stay empty during creation — you'll fill it in later if you switch to webhook mode (see [Webhook Mode](#webhook-mode)).
+
+> **About tokens —** Zalo issues a 1-hour access token plus a 90-day refresh token. The refresh token is **single-use** — every refresh returns a new one, and GoClaw rotates it automatically. If a refresh fails (e.g. token unused for 90 days, or revoked), the channel goes Degraded and the OA owner needs to re-run the consent flow.
 
 ## Ingestion Modes
 
@@ -104,6 +112,18 @@ Polling is the default. The gateway calls `listrecentchat` on an interval and pr
 
 When `transport: "webhook"`, all polling parameters are ignored.
 
+## Media Limits
+
+Zalo OA enforces per-endpoint upload caps — these are server-side, not configurable by GoClaw:
+
+| Endpoint | Max size | Allowed types |
+|----------|----------|---------------|
+| Image | 1 MB | JPEG, PNG |
+| File | 5 MB | PDF, DOC, DOCX |
+| GIF | 5 MB | GIF |
+
+Auth header for all upload calls is `access_token: <token>` — not a query string. GoClaw compresses oversized images before upload; oversized files fail fast with `-210`.
+
 ## Quoted Replies
 
 `quote_user_message` is **on by default**. Outbound replies quote the user's last inbound message via Zalo's `message.quote_message_id` field — handy in busy CS threads where context matters.
@@ -140,28 +160,29 @@ The `minimal` level is recommended for customer-service OAs — `full` chews thr
 | Webhook returns `401` | Signature mismatch (typo on paste) | Re-copy from Zalo console, save again |
 | Webhook returns `404` | Channel stopped or slug mismatch | Re-enable channel; verify `webhook_path` matches Zalo console URL |
 | No inbound events after secret saved | `webhook_signature_mode: "disabled"`, or Zalo auto-disabled webhook after 12h of non-200 retries | Restore mode to `strict`; re-save URL on Zalo console |
-| Refresh token rejected | User revoked consent or token aged out | Re-run OAuth flow; user pastes fresh consent code |
-| Token refresh fails with `invalid_grant` | Same as above | Re-consent in Zalo app |
+| Refresh token rejected (`-220` / `-118` / `invalid_grant`) | Refresh token unused for 90 days, revoked, or already consumed by another instance | OA owner re-runs OAuth consent; in multi-instance setups, ensure only one instance refreshes a given OA |
+| API calls fail with `-216` | Permission group not approved for the app | Request the relevant group (`Quản lý tin nhắn`, `Upload`, etc.) on `developers.zalo.me` |
 | `zalo_oa.webhook.bootstrap_drop` count growing | Events arriving during the secret-paste window | Normal during setup; resolves once secret is saved |
 
 ### Zalo error code reference
 
-The most common Zalo Social API codes you'll see in `zalo_oa.*.error` logs:
+The most common Zalo codes you'll see in `zalo_oa.*.error` logs:
 
-| Code | Meaning | What to check |
+| Code | Meaning | What to do |
 | --- | --- | --- |
-| `-14003` | Invalid redirect URI or unverified domain | Verify domain on `developers.zalo.me`; align Redirect URI |
-| `-118` | `invalid_grant` — refresh token revoked / expired | Re-run OAuth consent |
-| `-201` | Invalid params (payload shape) | Inspect outbound payload against current Zalo spec |
-| `-210` | Page-size cap exceeded | Set `poll_count` ≤ 10 (Zalo hard cap) |
-| `-216` / `-401` | Access token invalid or expired | Triggers OAuth refresh; if refresh fails, re-consent |
+| `-14003` | Invalid redirect URI or unverified domain | Verify domain on `developers.zalo.me`; align Redirect URI exactly |
+| `-201` | App not found / invalid params | Confirm App ID; inspect outbound payload shape |
+| `-210` | Invalid `count` (must be ≤ 10) or upload size exceeded | Set `poll_count` ≤ 10; check media against [Media Limits](#media-limits) |
+| `-216` | Insufficient permissions | Request the missing permission group on `developers.zalo.me` (1–3 day approval) |
+| `-217` | Access token expired | Triggers automatic refresh — no operator action unless it persists |
+| `-220` / `-118` | Refresh token expired or already used | OA owner must re-run OAuth consent flow |
 | `100` | Invalid parameter | Check API call shape and field types |
-| `110`–`112` | Recipient lookup failed; app not linked to OA | Confirm app is linked to OA in Zalo console |
-| `210` | User not visible | User needs to follow OA or grant friend permission |
+| `110`–`112` | Recipient lookup failed; app not linked to OA | Re-link OA in Zalo console (`Liên kết OA` tab) |
+| `210` | User not visible | User must follow the OA or grant friend permission |
 | `2000`–`2004` | App rate-limited or temporarily disabled | Check app status; request quota increase |
 | `12000`–`12012` | Quota / DND / friend-list / not-friend | Adjust outbound dispatch cadence |
 
-Full tables: <https://stc-developers.zdn.vn/docs/v2/social-api/tham-khao/ma-loi?lang=vi>. GoClaw's internal classification (which codes are retriable vs auth-refresh-triggering) lives in `internal/channels/zalo/oa/errors.go`.
+Full Social API table: <https://stc-developers.zdn.vn/docs/v2/social-api/tham-khao/ma-loi?lang=vi>. GoClaw's internal classification (which codes are retriable vs auth-refresh-triggering) lives in `internal/channels/zalo/oa/errors.go`.
 
 ## Troubleshooting & Reference
 
@@ -239,4 +260,4 @@ Credentials (`app_id`, `secret_key`, `redirect_uri`, `webhook_secret_key`) are s
 - [Zalo Bot](/channel-zalo-bot) — static-token alternative for small deployments
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account
 
-<!-- goclaw-source: ab129fe9 | updated: 2026-05-01 -->
+<!-- goclaw-source: 6d0283ce | updated: 2026-05-01 -->
