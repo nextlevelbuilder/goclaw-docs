@@ -11851,7 +11851,7 @@ Source: <https://bot.zapps.me/docs/error-code/>. The Bot API response always inc
 - [Zalo OA](/channel-zalo-oa) — OAuth variant with auto-refresh, multi-OA
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account (groups supported)
 
-<!-- goclaw-source: 1ef22e84 | updated: 2026-05-01 -->
+<!-- goclaw-source: bb68b750 | updated: 2026-05-01 -->
 
 ---
 
@@ -12056,7 +12056,7 @@ The most common Zalo codes you'll see in `zalo_oa.*.error` logs:
 | `2000`–`2004` | App rate-limited or temporarily disabled | Check app status; request quota increase |
 | `12000`–`12012` | Quota / DND / friend-list / not-friend | Adjust outbound dispatch cadence |
 
-Full Social API table: <https://stc-developers.zdn.vn/docs/v2/social-api/tham-khao/ma-loi?lang=vi>. GoClaw's internal classification (which codes are retriable vs auth-refresh-triggering) lives in `internal/channels/zalo/oa/errors.go`.
+Full Social API table: <https://developers.zalo.me/docs/social-api/tham-khao/ma-loi>. GoClaw's internal classification (which codes are retriable vs auth-refresh-triggering) lives in `internal/channels/zalo/oa/errors.go`.
 
 ## Troubleshooting & Reference
 
@@ -12134,7 +12134,7 @@ Credentials (`app_id`, `secret_key`, `redirect_uri`, `webhook_secret_key`) are s
 - [Zalo Bot](/channel-zalo-bot) — static-token alternative for small deployments
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account
 
-<!-- goclaw-source: 1ef22e84 | updated: 2026-05-01 -->
+<!-- goclaw-source: bb68b750 | updated: 2026-05-01 -->
 
 ---
 

@@ -224,4 +224,4 @@ Source: <https://bot.zapps.me/docs/error-code/>. The Bot API response always inc
 - [Zalo OA](/channel-zalo-oa) — OAuth variant with auto-refresh, multi-OA
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account (groups supported)
 
-<!-- goclaw-source: 1ef22e84 | updated: 2026-05-01 -->
+<!-- goclaw-source: bb68b750 | updated: 2026-05-01 -->
