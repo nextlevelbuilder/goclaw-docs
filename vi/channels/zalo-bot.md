@@ -210,20 +210,10 @@ Other DM policies:
 
 Source: <https://bot.zapps.me/docs/error-code/>. The Bot API response always includes a `description` field — check it for the specific reason; the numeric code only narrows the category.
 
-## Source Files
-
-- `internal/channels/zalo/bot/channel.go` — channel lifecycle
-- `internal/channels/zalo/bot/poll.go` — `getUpdates` long-polling loop
-- `internal/channels/zalo/bot/factory.go` — channel factory wiring
-- `internal/channels/zalo/common/webhook_router.go` — webhook routing
-- `internal/channels/zalo/common/slug.go` — slug validation
-- `internal/config/config_channels.go` — `ZaloConfig` struct
-- `ui/web/src/pages/channels/zalo/zalo-bot-wizard-step.tsx` — setup wizard UI
-
 ## What's Next
 
 - [Channels overview](/channels-overview) — DM policies, pairing, message flow
 - [Zalo OA](/channel-zalo-oa) — OAuth variant with auto-refresh, multi-OA
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account (groups supported)
 
-<!-- goclaw-source: bb68b750 | cập nhật: 2026-05-01 -->
+<!-- goclaw-source: 8f14d2cd | cập nhật: 2026-05-01 -->

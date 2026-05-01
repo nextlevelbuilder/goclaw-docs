@@ -11693,23 +11693,13 @@ Other DM policies:
 
 Source: <https://bot.zapps.me/docs/error-code/>. The Bot API response always includes a `description` field — check it for the specific reason; the numeric code only narrows the category.
 
-## Source Files
-
-- `internal/channels/zalo/bot/channel.go` — channel lifecycle
-- `internal/channels/zalo/bot/poll.go` — `getUpdates` long-polling loop
-- `internal/channels/zalo/bot/factory.go` — channel factory wiring
-- `internal/channels/zalo/common/webhook_router.go` — webhook routing
-- `internal/channels/zalo/common/slug.go` — slug validation
-- `internal/config/config_channels.go` — `ZaloConfig` struct
-- `ui/web/src/pages/channels/zalo/zalo-bot-wizard-step.tsx` — setup wizard UI
-
 ## What's Next
 
 - [Channels overview](/channels-overview) — DM policies, pairing, message flow
 - [Zalo OA](/channel-zalo-oa) — OAuth variant with auto-refresh, multi-OA
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account (groups supported)
 
-<!-- goclaw-source: bb68b750 | updated: 2026-05-01 -->
+<!-- goclaw-source: 8f14d2cd | updated: 2026-05-01 -->
 
 ---
 
@@ -11916,7 +11906,7 @@ The most common Zalo codes you'll see in `zalo_oa.*.error` logs:
 | `2000`–`2004` | App rate-limited or temporarily disabled | Check app status; request quota increase |
 | `12000`–`12012` | Quota / DND / friend-list / not-friend | Adjust outbound dispatch cadence |
 
-Full Social API table: <https://developers.zalo.me/docs/social-api/tham-khao/ma-loi>. GoClaw's internal classification (which codes are retriable vs auth-refresh-triggering) lives in `internal/channels/zalo/oa/errors.go`.
+Full Social API table: <https://developers.zalo.me/docs/social-api/tham-khao/ma-loi>. GoClaw's runtime classifies these codes internally as retriable, auth-refresh-triggering, or fatal — operators don't normally interact with that mapping; the symptom-based table above is the entry point for diagnostics.
 
 ## Troubleshooting & Reference
 
@@ -11975,26 +11965,13 @@ Set `GOCLAW_ZALO_OA_TRACE=1` to dump raw Zalo response bodies at Debug level. **
 
 Credentials (`app_id`, `secret_key`, `redirect_uri`, `webhook_secret_key`) are stored encrypted via the channel's Credentials tab — they are never written to `config.json`.
 
-### Source files
-
-- `internal/channels/zalo/oa/channel.go` — channel lifecycle
-- `internal/channels/zalo/oa/poll.go` — polling defaults and burn-down
-- `internal/channels/zalo/oa/reactions.go` — reaction levels
-- `internal/channels/zalo/oa/errors.go` — Zalo error-code registry
-- `internal/channels/zalo/common/webhook_router.go` — webhook routing
-- `internal/channels/zalo/common/slug.go` — slug validation
-- `internal/config/config_channels.go` — `ZaloOAConfig` struct
-- `internal/gateway/methods/zalo_webhook.go` — RPC `webhook_url`
-- `ui/web/src/pages/channels/zalo/zalo-oa-wizard-step.tsx` — setup wizard UI
-- `ui/web/src/pages/channels/zalo/zalo-webhook-url-section.tsx` — webhook bootstrap card
-
 ## What's Next
 
 - [Channels overview](/channels-overview) — DM policies, pairing, message flow
 - [Zalo Bot](/channel-zalo-bot) — static-token alternative for small deployments
 - [Zalo Personal](/channel-zalo-personal) — reverse-engineered personal account
 
-<!-- goclaw-source: bb68b750 | updated: 2026-05-01 -->
+<!-- goclaw-source: 8f14d2cd | updated: 2026-05-01 -->
 
 ---
 
