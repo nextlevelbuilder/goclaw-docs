@@ -1813,11 +1813,14 @@ Create, edit, and delete agents. Each agent card shows:
 
 Click an agent to open its detail page with these tabs:
 - **General** — Agent metadata and basic info
-- **Config** — Model, temperature, system prompt, tool permissions
+- **Config** — Model, temperature, system prompt, tool permissions; includes a **Model Fallback** section (drag-and-drop ordered list of fallback provider/model candidates triggered when the primary model is unavailable)
 - **Files** — Context files (IDENTITY.md, USER.md, etc.)
+- **Permissions** — Grant or deny specific users the ability to modify agent config types (`file_writer`, `heartbeat`, `cron`, `context_files`), scoped to DM, all groups, or a specific group. Includes a "Check Access" helper to test a user's effective permission before committing a rule. See [Config Permissions System](/deploy-security).
 - **Shares** — Share agents across tenants
 - **Links** — Configure which agents this agent can delegate to (permissions, concurrency limits, handoff rules)
 - **Skills** — Agent-specific skill assignments
+- **Evolution** — Agent evolution history
+- **Hooks** — Quality-gate hooks for this agent
 - **Instances** — Predefined agent instances (only for predefined agents)
 
 #### Agent Teams
@@ -1888,12 +1891,13 @@ System logs for debugging and monitoring gateway operations.
 
 #### Packages
 
-Manage runtime packages installed in the Docker container. Three categories:
+Manage runtime packages installed in the Docker container. The page uses a **4-tab layout**:
 - **System** — apk packages (managed by the root-privileged `pkg-helper` binary via Unix socket)
 - **Python** — pip packages
 - **Node** — npm packages
+- **GitHub** — GitHub release binaries installed via the built-in GitHub installer
 
-Shows installed versions and allows install/uninstall without rebuilding the image.
+All tabs show installed versions and allow install/uninstall without rebuilding the image. An updates strip at the top of the page lists available upgrades across all sources (pip, npm, GitHub). The **CLI Credentials** tab is also embedded here for admins — see [CLI Credentials](#cli-credentials) below.
 
 #### Providers
 
@@ -3634,7 +3638,13 @@ curl -X POST http://localhost:8080/v1/agents \
     "model": "claude-sonnet-4-6",
     "context_window": 200000,
     "max_tool_iterations": 20,
-    "workspace": "~/.goclaw/research-workspace"
+    "workspace": "~/.goclaw/research-workspace",
+    "model_fallback": {
+      "enabled": true,
+      "candidates": [
+        { "provider": "openai", "model": "gpt-4o-mini" }
+      ]
+    }
   }'
 ```
 
@@ -3671,6 +3681,36 @@ curl -X POST http://localhost:8080/v1/agents \
 | `max_tool_iterations` | integer | 20 | Max tool calls per request |
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Directory for context files |
 | `other_config` | JSON | `{}` | Custom fields (e.g., `description` for summoning) |
+| `model_fallback` | JSON | `{}` | Ordered fallback provider/model list. See [Model Fallback](../advanced/model-steering.md#model-fallback). |
+
+### `model_fallback` — Provider Fallback on Error
+
+The `model_fallback` field lets the agent automatically retry failed LLM calls against a prioritized list of backup providers and models. It only activates when `enabled` is `true` and at least one candidate is provided.
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+| Sub-field | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | boolean | `false` | Activate fallback. `false` or absent → feature disabled. |
+| `strategy` | string | `"priority_order"` | Only `"priority_order"` supported. |
+| `candidates` | array | `[]` | Ordered `{provider, model}` pairs to try after the primary fails. |
+| `max_attempts` | integer | `0` | Total attempt cap (primary + fallbacks). `0` = no cap. |
+| `cooldown_enabled` | boolean | `true` | Skip recently-failed providers during their cooldown window. |
+
+Fallback is triggered by retryable errors (rate-limit, overloaded, timeout) and permanent errors (billing, model not found). Context overflow errors are **not** retried. See [Model Fallback](../advanced/model-steering.md#model-fallback) for the full trigger table and cooldown durations.
 
 ### `other_config` — Workspace Sharing
 
@@ -8555,6 +8595,10 @@ flowchart TD
 
 In servers (channels), the bot requires being mentioned by default (`require_mention: true`). Pending messages are stored in a history buffer. When the bot is mentioned, history is included as context.
 
+**Group @mention detection:** A message is counted as an @mention when the bot's user ID appears in the `mentions` array of the Discord event, *or* when the message is a direct reply to one of the bot's own messages. Both conditions are checked before any policy or pairing logic runs.
+
+**Pairing replies in groups:** When `group_policy: "pairing"` is set and `require_mention: true` (the default), the bot only sends a pairing invite to an unpaired user if that user explicitly @mentioned the bot (or replied to the bot). Messages that do not address the bot are silently added to the group history buffer and never trigger a pairing reply. Set `require_mention: false` to send pairing invites unconditionally in groups (not recommended for public servers).
+
 ### Typing Indicator
 
 While the agent processes, a typing indicator is shown (9-second keepalive). The typing indicator stops automatically after successful message delivery.
@@ -9826,7 +9870,7 @@ Pancake is a social commerce platform that provides a unified messaging proxy ac
    - **API Key**: Your Pancake user-level API key
    - **Page Access Token**: Page-level token for all page APIs
    - **Page ID**: The Pancake page identifier
-3. Optionally set a **Webhook Secret** for HMAC-SHA256 signature verification
+3. Set a **Webhook Secret** — required for webhook delivery; GoClaw rejects all webhook events when this is not configured
 4. Configure platform-specific features (inbox reply, comment reply)
 
 That's it — one channel serves all platforms connected to that Pancake page.
@@ -9876,7 +9920,7 @@ For config-file-based channels (instead of DB instances):
 |-----|------|---------|-------------|
 | `api_key` | string | -- | User-level Pancake API key (required) |
 | `page_access_token` | string | -- | Page-level token for all page APIs (required) |
-| `webhook_secret` | string | -- | Optional HMAC-SHA256 verification secret |
+| `webhook_secret` | string | -- | HMAC-SHA256 webhook secret — **required** for webhook delivery; events are rejected without it |
 | `page_id` | string | -- | Pancake page identifier (required) |
 | `webhook_page_id` | string | -- | Native platform page ID sent in webhooks (if different from `page_id`) |
 | `platform` | string | auto-detected | Platform override: facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
@@ -9945,7 +9989,15 @@ Pancake uses webhook push (not polling) for message delivery:
 - GoClaw registers a single route: `POST /channels/pancake/webhook`
 - All Pancake page webhooks route through one handler, dispatched by `page_id`
 - Always returns HTTP 200 — Pancake suspends webhooks if >80% errors in a 30-min window
-- HMAC-SHA256 signature verification via `X-Pancake-Signature` header (when `webhook_secret` is set)
+- Request body is capped at 1 MB to prevent abuse
+
+**HMAC signature verification (required):** GoClaw verifies every incoming webhook using HMAC-SHA256. The `webhook_secret` credential must be set — without it, all webhook deliveries are rejected (HTTP 200 returned but event is dropped). Configure the same secret in your Pancake dashboard webhook settings.
+
+Pancake sends the signature in the `X-Pancake-Signature` request header with format `sha256=<hex-digest>`. GoClaw recomputes `HMAC-SHA256(body, webhook_secret)` and compares using a constant-time comparison to prevent timing attacks.
+
+**Replay protection:** After signature verification passes, GoClaw computes `SHA-256(body)` and stores it in an in-memory dedup map with a 24-hour TTL. Duplicate deliveries (same raw body) are silently dropped before any message processing occurs.
+
+> **Security note:** Enabling `features.auto_react` without a `webhook_secret` configured causes GoClaw to log a warning at startup (`security.pancake_auto_react_without_hmac`). Any actor who can reach the webhook endpoint could then trigger comment-like calls without authentication.
 
 Webhook payload structure:
 
@@ -10116,7 +10168,7 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 | "page_id is required" | Add `page_id` to config. Find it in your Pancake dashboard URL. |
 | Token verification failed | The `page_access_token` may be expired or invalid. Regenerate from Pancake dashboard. |
 | No messages received | Check Pancake webhook URL is configured: `https://your-goclaw-host/channels/pancake/webhook`. |
-| Webhook signature mismatch | Verify `webhook_secret` matches the secret configured in Pancake dashboard. |
+| Webhook signature mismatch / events not processed | Verify `webhook_secret` is set and matches the secret configured in the Pancake dashboard. Events are silently dropped when `webhook_secret` is empty. |
 | "no channel instance for page_id" | The `page_id` in the webhook doesn't match any registered channel. Check config. |
 | Platform shows as unknown | `platform` is auto-detected. Ensure the page is connected in Pancake. Can override manually. |
 | Media upload fails | Media paths must be absolute. Check file exists and is readable. |
@@ -10783,6 +10835,14 @@ On reconnect, use stored token:
 - **Fail-closed auth**: Authentication failures default to deny — no partial or ambiguous approval states
 - **Rate limiting**: Pairing code requests are rate-limited per sender to prevent brute-force enumeration
 - **Transient DB error handling**: `IsPaired` checks handle transient database errors gracefully — a DB error returns denied rather than accidentally allowing access
+
+## Channel-Specific Pairing Behaviour
+
+How channels trigger the pairing flow varies by channel type.
+
+**Discord groups:** When `group_policy: "pairing"` is active and `require_mention: true` (the Discord default), a pairing invite is only sent to an unpaired user if they explicitly @mentioned the bot or replied to one of the bot's messages. Messages sent to the group that do not address the bot are silently buffered and do not produce a pairing reply. This prevents pairing spam in public servers where many users can see the bot's messages.
+
+For DMs, the pairing invite fires unconditionally whenever an unpaired user sends a message (same as other channels).
 
 ## JavaScript Example
 
@@ -12930,6 +12990,39 @@ curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
+To grant with manage rights (see [Agent-Manage Grants](#agent-manage-grants) below), add `"can_manage": true`:
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "AGENT_UUID", "version": 1, "can_manage": true}'
+```
+
+List all agent grants for a skill:
+
+```bash
+curl http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "grants": [
+    {
+      "agent_id": "019...",
+      "agent_key": "my-agent",
+      "display_name": "My Agent",
+      "pinned_version": 1,
+      "granted_by": "admin@example.com",
+      "can_manage": false
+    }
+  ]
+}
+```
+
 Revoke an agent grant:
 
 ```bash
@@ -12952,6 +13045,27 @@ Revoke a user grant:
 curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### Agent-Manage Grants
+
+By default, only the skill owner and tenant admins can edit or delete a skill. The `can_manage` flag on `skill_agent_grants` lets you delegate that capability to a specific agent without promoting it to admin.
+
+When `can_manage = true`, the grantee agent can:
+- Update the skill's name, description, tags, and visibility via `PUT /v1/skills/{id}`
+- Delete the skill via `DELETE /v1/skills/{id}`
+- Publish new versions using the `skill_manage` tool inside conversations
+
+**Tenant scope enforcement** — both the skill and the agent must belong to the same tenant. Grant writes that cross tenant boundaries are rejected at the store layer (`verifySkillGrantScope`). A cleanup migration (`000067`) removes any pre-existing cross-tenant rows from earlier versions.
+
+**Visibility auto-promotion** — granting a `private` skill to any agent automatically promotes it to `internal` so the grantee can access it. Revoking the last agent grant demotes it back to `private` atomically.
+
+### Tenant-Scoped Grant Isolation
+
+In multi-tenant deployments, skill grant operations are tenant-scoped:
+
+- `POST /v1/skills/{id}/grants/agent` verifies that the target agent belongs to the same tenant as the skill. Cross-tenant grant attempts return `404` ("agent not found") to avoid leaking tenant topology.
+- System skills (`is_system = true`) bypass tenant filtering — they are accessible to all tenants.
+- `GET /v1/skills/{id}/grants/agent` returns only grants within the requesting tenant's scope.
 
 ### Visibility Levels
 
@@ -16685,7 +16799,8 @@ secure_cli_binaries (credential + defaults)
                             ├── deny_verbose (NULL = use binary default)
                             ├── timeout_seconds (NULL = use binary default)
                             ├── tips (NULL = use binary default)
-                            └── enabled
+                            ├── enabled
+                            └── encrypted_env (BYTEA, AES-256-GCM — optional per-grant env override)
 ```
 
 ## Agent Grants
@@ -16699,10 +16814,130 @@ The `secure_cli_agent_grants` table links a binary to a specific agent and optio
 | `timeout_seconds` | Override process timeout for this agent |
 | `tips` | Override the hint injected into TOOLS.md for this agent |
 | `enabled` | Disable a grant without deleting it |
+| `encrypted_env` | Optional per-grant env-var overrides (AES-256-GCM encrypted at rest) |
 
 When an agent runs a binary, GoClaw resolves settings in this order:
 1. Binary defaults
 2. Grant overrides (any non-null fields replace the binary default)
+3. Per-grant `encrypted_env` is decrypted and merged into the child process environment at execution time (overrides binary-level env vars for this agent only)
+
+## Per-Agent Env Overrides
+
+Since migration `000058`, each `secure_cli_agent_grants` row can carry an optional `encrypted_env` column (BYTEA, AES-256-GCM). This lets you give one agent a different set of environment variables for the same binary — for example, a different AWS account, a separate API key, or a staging endpoint — without creating a separate binary definition.
+
+**How it works:**
+
+- On grant create/update, send `env_vars` (a plaintext `string → string` map) in the request body.
+- GoClaw validates the keys against the denylist, then encrypts and persists them in `encrypted_env`.
+- Plaintext values are never stored or logged; the store layer encrypts before write and decrypts on read.
+- List and get responses expose only `env_keys` (sorted list of key names) and `env_set` (boolean). Values are never returned except via the `env:reveal` endpoint.
+
+**Create a grant with env overrides:**
+
+```bash
+curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "019...",
+    "env_vars": {
+      "AWS_PROFILE": "staging",
+      "AWS_DEFAULT_REGION": "us-west-2"
+    }
+  }'
+```
+
+Response (`201 Created`) includes `env_keys` but no values:
+
+```json
+{
+  "id": "019...",
+  "binary_id": "019...",
+  "agent_id": "019...",
+  "env_keys": ["AWS_DEFAULT_REGION", "AWS_PROFILE"],
+  "env_set": true,
+  "enabled": true,
+  "created_at": "2026-05-21T00:00:00Z",
+  "updated_at": "2026-05-21T00:00:00Z"
+}
+```
+
+**Update env vars on an existing grant:**
+
+Send `env_vars` in the `PUT` body. Three-state semantics:
+- **Absent** — existing env is unchanged
+- **`null`** — clears the env override (removes `encrypted_env`)
+- **`{...}`** — replaces the entire env map (empty `{}` treated the same as `null`)
+
+```bash
+curl -X PUT http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId} \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"env_vars": null}'
+```
+
+## Revealing Decrypted Env Vars
+
+`POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` returns the decrypted plaintext env vars for a specific grant. The endpoint is POST (not GET) to prevent HTTP caching and satisfy CSRF semantics.
+
+**Security controls:**
+- Requires `admin` role scoped to the correct tenant — master-scope callers are rejected.
+- Rate-limited to **10 reveals per minute per authenticated user** (burst of 3). Returns `429` when exceeded.
+- Response headers include `Cache-Control: no-store` to prevent proxy caching.
+- Every call is audited: caller ID, tenant ID, grant ID, binary ID, and timestamp are logged at INFO level.
+
+```bash
+curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "env_vars": {
+    "AWS_PROFILE": "staging",
+    "AWS_DEFAULT_REGION": "us-west-2"
+  }
+}
+```
+
+Returns `{"env_vars": {}}` when no env override is set for the grant.
+
+## Env Denylist
+
+Not all environment variable names are accepted. GoClaw rejects keys that could allow privilege escalation, shell injection, TLS bypass, or exfiltration.
+
+**Key shape requirement:** keys must match `^[A-Z_][A-Z0-9_]*$` — uppercase, digits, underscores only. Lowercase, spaces, and special characters (including Shellshock-class function definitions) are rejected.
+
+**Exact-match denials:**
+
+| Key | Reason |
+|-----|--------|
+| `PATH`, `HOME`, `USER`, `SHELL`, `PWD` | Core shell/user identity |
+| `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT` | Dynamic linker hijack |
+| `NODE_OPTIONS`, `NODE_PATH` | Node.js code injection |
+| `PYTHONPATH`, `PYTHONHOME`, `PYTHONSTARTUP` | Python path/startup injection |
+| `GIT_SSH_COMMAND`, `GIT_SSH`, `GIT_EXEC_PATH`, `GIT_CONFIG_SYSTEM` | Git command injection |
+| `SSH_AUTH_SOCK` | SSH key forwarding |
+| `BASH_ENV`, `ENV` | Non-interactive shell sourcing |
+| `PROMPT_COMMAND` | Shell prompt execution |
+| `PERL5LIB`, `RUBYOPT` | Perl/Ruby library injection |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY` | Exfiltration channel / proxy bypass |
+| `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE` | TLS CA override (MitM) |
+| `IFS` | Shell Internal Field Separator injection |
+
+**Prefix-match denials:** any key beginning with `DYLD_`, `GOCLAW_`, `LD_`, or `NPM_CONFIG_` is rejected.
+
+**Limits:** maximum 50 keys per grant; maximum 4 096 bytes per value; values must not contain NUL bytes or newlines.
+
+A `400` response on create/update includes the rejected key names in `rejected_keys`:
+
+```json
+{
+  "error": "env keys denied: LD_PRELOAD, PATH",
+  "rejected_keys": "LD_PRELOAD,PATH"
+}
 
 ## REST API
 
@@ -16724,6 +16959,8 @@ GET /v1/cli-credentials/{id}/agent-grants
       "deny_args": null,
       "timeout_seconds": 60,
       "enabled": true,
+      "env_keys": [],
+      "env_set": false,
       "created_at": "2026-04-05T00:00:00Z",
       "updated_at": "2026-04-05T00:00:00Z"
     }
@@ -16741,11 +16978,14 @@ POST /v1/cli-credentials/{id}/agent-grants
 {
   "agent_id": "019...",
   "timeout_seconds": 120,
-  "tips": "Use --output json for all commands"
+  "tips": "Use --output json for all commands",
+  "env_vars": {
+    "MY_API_KEY": "secret-value"
+  }
 }
 ```
 
-Omitted fields (`deny_args`, `deny_verbose`, `tips`, `enabled`) default to `null` / `true`.
+Omitted fields (`deny_args`, `deny_verbose`, `tips`, `enabled`, `env_vars`) default to `null` / `true`. `env_vars` values are encrypted at rest; only key names are returned in subsequent list/get calls.
 
 ### Get a grant
 
@@ -16759,7 +16999,7 @@ GET /v1/cli-credentials/{id}/agent-grants/{grantId}
 PUT /v1/cli-credentials/{id}/agent-grants/{grantId}
 ```
 
-Send only the fields to change. Allowed fields: `deny_args`, `deny_verbose`, `timeout_seconds`, `tips`, `enabled`.
+Send only the fields to change. Allowed fields: `deny_args`, `deny_verbose`, `timeout_seconds`, `tips`, `enabled`, `env_vars`.
 
 ### Delete a grant
 
@@ -16768,6 +17008,14 @@ DELETE /v1/cli-credentials/{id}/agent-grants/{grantId}
 ```
 
 Deleting a grant from a restricted binary (`is_global = false`) immediately revokes the agent's access to that binary.
+
+### Reveal env vars for a grant
+
+```
+POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal
+```
+
+Returns the decrypted plaintext env vars. Rate-limited to 10 calls/minute per user. See [Revealing Decrypted Env Vars](#revealing-decrypted-env-vars) for full details.
 
 ## Common Patterns
 
@@ -20447,18 +20695,74 @@ Secrets stored in PostgreSQL are encrypted with AES-256-GCM:
 | MCP server API keys | `mcp_servers` | `api_key` |
 | Custom tool env vars | `custom_tools` | `env` |
 | Channel credentials | `channel_instances` | `credentials` |
+| Webhook secrets | `webhooks` | `secret_hash`, `secret_enc` |
+| Workstation credentials | `workstations` | `metadata` |
 
 Set the encryption key before first run:
 
 ```bash
-# Generate a strong key
-openssl rand -hex 32
+# Generate a strong key (base64, 44 chars = 32 raw bytes)
+openssl rand -base64 32
 
 # Add to .env
-GOCLAW_ENCRYPTION_KEY=your-64-char-hex-key
+GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 ```
 
+The key is accepted in three formats: base64-encoded (44 chars, output of `openssl rand -base64 32`), hex-encoded (64 chars, output of `openssl rand -hex 32`), or raw 32 bytes. All three resolve to the same 32-byte AES key; use base64 as the canonical form to match the environment-variables reference.
+
 Format stored: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Values without the prefix are returned as plaintext for migration compatibility.
+
+> **Must match across replicas.** In a clustered deployment, every gateway instance must use the same `GOCLAW_ENCRYPTION_KEY`. Rotating the key requires re-encrypting all stored secrets before restarting.
+
+---
+
+## Webhook Security
+
+> See [Webhooks](/advanced/webhooks) for the full API reference.
+
+### Encryption key required
+
+The webhook subsystem only mounts when `GOCLAW_ENCRYPTION_KEY` is set. Without it, all `/v1/webhooks/*` routes return `404` and the gateway logs:
+
+```
+webhook subsystem disabled: GOCLAW_ENCRYPTION_KEY not set
+```
+
+This is intentional: an empty key would silently persist raw webhook secrets to the database, defeating the stated DB-leak protection. Set the key and restart to re-enable the subsystem.
+
+### HMAC signing (recommended)
+
+Each webhook row has an `hmac_signing_key` (returned once on create and on rotate). Use HMAC-SHA256 to sign requests instead of the bearer secret:
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+```
+
+Signing algorithm:
+
+```
+signing_key = hex.Decode(hmac_signing_key)       // hex_64 → 32 raw bytes
+payload     = "{unix_ts}.{raw_request_body}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+**Timestamp skew protection.** Requests where `|now - t| > 300` seconds are rejected. Keep caller clocks synchronized via NTP.
+
+**Replay protection.** After a valid HMAC signature is accepted, the gateway records `sha256(tenant_id|signature_hex)` in a per-process nonce cache (TTL 320 s). Replays return `401` with audit event `security.webhook.hmac_replay`.
+
+**Force HMAC-only auth.** Set `require_hmac: true` on the webhook row to disable bearer-secret authentication entirely. This is the recommended posture for production integrations.
+
+### Additional knobs
+
+| Field | Notes |
+|-------|-------|
+| `localhost_only` | Restrict callers to `127.0.0.1` / `::1`. Auto-set to `true` on Lite edition. |
+| `ip_allowlist` | IPs or CIDR ranges. Empty = any source. `X-Forwarded-For` not trusted. |
+| `rate_limit_per_min` | Per-webhook cap (0 = use tenant default). |
+
+See [Webhooks](/advanced/webhooks) for full create payload reference and signature verification examples in Go, Node.js, and Python.
 
 ---
 
@@ -20526,7 +20830,8 @@ GoClaw wraps all background goroutines (tool execution, cron jobs, summarization
 Use this before exposing GoClaw to the internet or shared users:
 
 - [ ] Set `GOCLAW_GATEWAY_TOKEN` to a strong random token
-- [ ] Set `GOCLAW_ENCRYPTION_KEY` to a 32-byte (64-char hex) random key
+- [ ] Set `GOCLAW_ENCRYPTION_KEY` to a base64-encoded 32-byte key (`openssl rand -base64 32`) — required for webhooks, workstation credentials, and CLI grant env overrides
+- [ ] Store `GOCLAW_ENCRYPTION_KEY` in a secret manager (Vault, AWS Secrets Manager, etc.) — never commit to `config.json` or version control
 - [ ] Set `gateway.allowed_origins` to your dashboard domain
 - [ ] Set `gateway.rate_limit_rpm` (e.g., `20`) to limit per-user request rate
 - [ ] Set `gateway.injection_action` to `"block"` for public-facing deployments
@@ -20541,6 +20846,9 @@ Use this before exposing GoClaw to the internet or shared users:
 - [ ] Review shell deny groups — all 15 are on by default; only relax for specific agents that need it
 - [ ] Verify sandbox mode does not fall back to host execution (fail-closed)
 - [ ] Confirm `GOCLAW_GATEWAY_TOKEN` is set — empty token enables dev mode (admin for all)
+- [ ] For webhooks: use `require_hmac: true` on webhook rows — disables bearer auth, forces HMAC-SHA256 signing
+- [ ] For webhooks: set `localhost_only: true` (or use `ip_allowlist`) on any webhook not meant to be public
+- [ ] No plaintext credentials anywhere in config files — use env vars and secret managers
 
 ---
 
@@ -20588,6 +20896,8 @@ journalctl -u goclaw | grep 'security\.'
 - [Sandbox](../advanced/sandbox.md) — Docker sandbox configuration details
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
+- [Webhooks](../advanced/webhooks.md) — HMAC-authenticated HTTP endpoints, signature verification, and replay protection
+- [Workstations](../advanced/workstations.md) — remote execution targets, permission model, and activity audit
 
 
 

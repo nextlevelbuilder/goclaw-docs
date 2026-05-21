@@ -76,7 +76,13 @@ curl -X POST http://localhost:8080/v1/agents \
     "model": "claude-sonnet-4-6",
     "context_window": 200000,
     "max_tool_iterations": 20,
-    "workspace": "~/.goclaw/research-workspace"
+    "workspace": "~/.goclaw/research-workspace",
+    "model_fallback": {
+      "enabled": true,
+      "candidates": [
+        { "provider": "openai", "model": "gpt-4o-mini" }
+      ]
+    }
   }'
 ```
 
@@ -113,6 +119,36 @@ curl -X POST http://localhost:8080/v1/agents \
 | `max_tool_iterations` | integer | 20 | Số lần gọi tool tối đa mỗi request |
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Thư mục chứa context file |
 | `other_config` | JSON | `{}` | Trường tuỳ chỉnh (ví dụ: `description` để kích hoạt summoning) |
+| `model_fallback` | JSON | `{}` | Danh sách provider/model fallback theo thứ tự ưu tiên. Xem [Model Fallback](../advanced/model-steering.md#model-fallback). |
+
+### `model_fallback` — Fallback Provider khi Lỗi
+
+Trường `model_fallback` cho phép agent tự động thử lại các LLM call thất bại với danh sách provider và model dự phòng theo thứ tự ưu tiên. Chỉ kích hoạt khi `enabled` là `true` và có ít nhất một candidate được cung cấp.
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+| Trường con | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------|
+| `enabled` | boolean | `false` | Kích hoạt fallback. `false` hoặc vắng mặt → tính năng tắt. |
+| `strategy` | string | `"priority_order"` | Chỉ hỗ trợ `"priority_order"`. |
+| `candidates` | array | `[]` | Các cặp `{provider, model}` theo thứ tự ưu tiên để thử khi primary thất bại. |
+| `max_attempts` | integer | `0` | Tổng số lần thử tối đa (primary + fallback). `0` = không giới hạn. |
+| `cooldown_enabled` | boolean | `true` | Bỏ qua provider đã thất bại gần đây trong thời gian cooldown. |
+
+Fallback được kích hoạt bởi lỗi có thể retry (rate-limit, overloaded, timeout) và lỗi vĩnh viễn (billing, model không tìm thấy). Lỗi context overflow **không** được retry. Xem [Model Fallback](../advanced/model-steering.md#model-fallback) để biết bảng kích hoạt đầy đủ và thời gian cooldown.
 
 ### `other_config` — Chia sẻ Workspace
 
@@ -214,4 +250,4 @@ Khi tạo agent, GoClaw seed các file context từ template tích hợp sẵn. 
 - [Context Files](./context-files.md) — tìm hiểu về SOUL.md, IDENTITY.md, và các file hệ thống khác
 - [Summoning & Bootstrap](/summoning-bootstrap) — cách LLM tạo ra file personality khi lần đầu sử dụng
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

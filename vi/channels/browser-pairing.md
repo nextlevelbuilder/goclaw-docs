@@ -174,6 +174,14 @@ Khi kết nối lại, dùng token đã lưu:
 - **Giới hạn tốc độ**: Yêu cầu mã pairing được giới hạn theo người gửi để ngăn bruteforce
 - **Xử lý lỗi DB tạm thời**: Kiểm tra `IsPaired` xử lý gracefully lỗi database tạm thời — lỗi DB trả về từ chối thay vì vô tình cho phép truy cập
 
+## Hành vi Pairing theo từng Channel
+
+Cách channel kích hoạt luồng pairing khác nhau tuỳ loại channel.
+
+**Nhóm Discord:** Khi `group_policy: "pairing"` được kích hoạt và `require_mention: true` (mặc định của Discord), lời mời pairing chỉ được gửi cho người dùng chưa pairing nếu họ @mention bot một cách rõ ràng hoặc reply vào tin nhắn của bot. Tin nhắn gửi vào nhóm mà không gửi đến bot sẽ được lưu vào buffer và không tạo ra pairing reply. Điều này ngăn spam pairing trong server công khai khi nhiều user có thể thấy tin nhắn của bot.
+
+Với DM, lời mời pairing được gửi ngay khi người dùng chưa pairing gửi tin nhắn (giống các channel khác).
+
 ## Ví dụ JavaScript
 
 ```javascript
@@ -248,4 +256,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Thiết lập Telegram
 - [WebSocket Protocol](/websocket-protocol) — Tài liệu giao thức đầy đủ
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

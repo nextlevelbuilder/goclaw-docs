@@ -36,7 +36,7 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
    - **API Key**：Pancake 用户级 API key
    - **Page Access Token**：所有 page API 的主页级 token
    - **Page ID**：Pancake 主页标识符
-3. 可选设置 **Webhook Secret** 用于 HMAC-SHA256 签名验证
+3. 设置 **Webhook Secret** — 接收 webhook 的必要条件；未配置时 GoClaw 将拒绝所有 webhook 事件
 4. 配置平台特定功能（inbox reply、comment reply）
 
 就这些——一个 channel 服务连接到该 Pancake 主页的所有平台。
@@ -86,7 +86,7 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 |--------|------|--------|------|
 | `api_key` | string | -- | Pancake 用户级 API key（必填） |
 | `page_access_token` | string | -- | 所有 page API 的主页级 token（必填） |
-| `webhook_secret` | string | -- | 可选 HMAC-SHA256 验证 secret |
+| `webhook_secret` | string | -- | HMAC-SHA256 webhook secret — 接收 webhook **必填**；未配置时事件将被拒绝 |
 | `page_id` | string | -- | Pancake 主页标识符（必填） |
 | `webhook_page_id` | string | -- | webhook 中的原生平台主页 ID（若与 `page_id` 不同） |
 | `platform` | string | 自动检测 | 平台覆盖：facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
@@ -155,7 +155,15 @@ Pancake 使用 webhook 推送（非轮询）进行消息投递：
 - GoClaw 注册单一路由：`POST /channels/pancake/webhook`
 - 所有 Pancake 主页 webhook 经一个 handler 处理，按 `page_id` 分发
 - 始终返回 HTTP 200 — 若 30 分钟窗口内错误率 >80%，Pancake 会暂停 webhook
-- 通过 `X-Pancake-Signature` header 进行 HMAC-SHA256 签名验证（设置 `webhook_secret` 时生效）
+- 请求体大小上限为 1 MB，防止滥用
+
+**HMAC 签名验证（必须）：** GoClaw 对每个入站 webhook 进行 HMAC-SHA256 验证。必须设置 `webhook_secret` 凭据——否则所有 webhook 投递都会被拒绝（返回 HTTP 200 但事件被丢弃）。请在 Pancake dashboard webhook 设置中配置相同的 secret。
+
+Pancake 在 `X-Pancake-Signature` 请求头中发送签名，格式为 `sha256=<hex-digest>`。GoClaw 重新计算 `HMAC-SHA256(body, webhook_secret)` 并使用常量时间比较，防止时序攻击。
+
+**防重放保护：** 签名验证通过后，GoClaw 计算 `SHA-256(body)` 并将其存入内存去重 map，TTL 为 24 小时。相同原始 body 的重复投递在消息处理之前被静默丢弃。
+
+> **安全提示：** 在未配置 `webhook_secret` 的情况下启用 `features.auto_react`，GoClaw 启动时会记录警告（`security.pancake_auto_react_without_hmac`）。任何能访问 webhook 端点的人都可以在无需认证的情况下触发评论点赞操作。
 
 Webhook payload 结构：
 
@@ -326,7 +334,7 @@ API 错误映射到 channel 健康状态：
 | "page_id is required" | 在 config 中添加 `page_id`。在 Pancake dashboard URL 中查找。 |
 | Token 验证失败 | `page_access_token` 可能已过期或无效。从 Pancake dashboard 重新生成。 |
 | 未收到消息 | 检查 Pancake webhook URL 是否已配置：`https://your-goclaw-host/channels/pancake/webhook`。 |
-| Webhook 签名不匹配 | 验证 `webhook_secret` 是否与 Pancake dashboard 中配置的 secret 一致。 |
+| Webhook 签名不匹配 / 事件未被处理 | 验证 `webhook_secret` 是否已设置，且与 Pancake dashboard 中的 secret 一致。`webhook_secret` 为空时事件会被静默丢弃。 |
 | "no channel instance for page_id" | webhook 中的 `page_id` 与任何已注册 channel 不匹配。检查配置。 |
 | 平台显示为 unknown | `platform` 为自动检测。确保主页已在 Pancake 中连接。可手动覆盖。 |
 | 媒体上传失败 | 媒体路径必须为绝对路径。检查文件是否存在且可读。 |
@@ -339,4 +347,4 @@ API 错误映射到 channel 健康状态：
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [多 Channel 设置](/recipe-multi-channel) — 配置多个 channel
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

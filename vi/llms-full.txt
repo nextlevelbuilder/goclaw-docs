@@ -1823,11 +1823,14 @@ Tạo, sửa, và xóa agent. Mỗi agent card hiển thị:
 
 Nhấn vào agent để mở trang chi tiết với các tab:
 - **General** — Thông tin cơ bản của agent
-- **Config** — Model, temperature, system prompt, quyền tool
+- **Config** — Model, temperature, system prompt, quyền tool; có mục **Model Fallback** (danh sách provider/model dự phòng theo thứ tự kéo-thả, kích hoạt khi model chính không khả dụng)
 - **Files** — File ngữ cảnh (IDENTITY.md, USER.md, v.v.)
+- **Permissions** — Cấp hoặc từ chối quyền cho user cụ thể để chỉnh sửa loại config của agent (`file_writer`, `heartbeat`, `cron`, `context_files`), theo phạm vi DM, tất cả nhóm, hoặc nhóm cụ thể. Có nút "Check Access" để kiểm tra quyền hiệu lực của user trước khi lưu. Xem [Config Permissions System](/deploy-security).
 - **Shares** — Chia sẻ agent giữa các tenant
 - **Links** — Cấu hình agent nào có thể được phân công (quyền, giới hạn concurrency, quy tắc handoff)
 - **Skills** — Gán skill riêng cho agent
+- **Evolution** — Lịch sử tiến hóa của agent
+- **Hooks** — Quality-gate hook cho agent này
 - **Instances** — Các instance agent được định nghĩa trước (chỉ hiện với predefined agent)
 
 #### Agent Teams
@@ -1898,12 +1901,13 @@ Log hệ thống để debug và giám sát hoạt động gateway.
 
 #### Packages
 
-Quản lý runtime package được cài trong Docker container. Ba danh mục:
+Quản lý runtime package được cài trong Docker container. Trang dùng **bố cục 4 tab**:
 - **System** — gói apk (quản lý bởi binary `pkg-helper` có quyền root qua Unix socket)
 - **Python** — gói pip
 - **Node** — gói npm
+- **GitHub** — binary từ GitHub release, cài qua bộ cài GitHub tích hợp
 
-Hiển thị phiên bản đã cài và cho phép cài/gỡ mà không cần build lại image.
+Tất cả tab hiển thị phiên bản đã cài và cho phép cài/gỡ mà không cần build lại image. Phần cập nhật ở đầu trang liệt kê các bản nâng cấp từ mọi nguồn (pip, npm, GitHub). Tab **CLI Credentials** cũng được nhúng vào đây dành cho admin — xem [CLI Credentials](#cli-credentials) bên dưới.
 
 #### Providers
 
@@ -3659,7 +3663,13 @@ curl -X POST http://localhost:8080/v1/agents \
     "model": "claude-sonnet-4-6",
     "context_window": 200000,
     "max_tool_iterations": 20,
-    "workspace": "~/.goclaw/research-workspace"
+    "workspace": "~/.goclaw/research-workspace",
+    "model_fallback": {
+      "enabled": true,
+      "candidates": [
+        { "provider": "openai", "model": "gpt-4o-mini" }
+      ]
+    }
   }'
 ```
 
@@ -3696,6 +3706,36 @@ curl -X POST http://localhost:8080/v1/agents \
 | `max_tool_iterations` | integer | 20 | Số lần gọi tool tối đa mỗi request |
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Thư mục chứa context file |
 | `other_config` | JSON | `{}` | Trường tuỳ chỉnh (ví dụ: `description` để kích hoạt summoning) |
+| `model_fallback` | JSON | `{}` | Danh sách provider/model fallback theo thứ tự ưu tiên. Xem [Model Fallback](../advanced/model-steering.md#model-fallback). |
+
+### `model_fallback` — Fallback Provider khi Lỗi
+
+Trường `model_fallback` cho phép agent tự động thử lại các LLM call thất bại với danh sách provider và model dự phòng theo thứ tự ưu tiên. Chỉ kích hoạt khi `enabled` là `true` và có ít nhất một candidate được cung cấp.
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+| Trường con | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------|
+| `enabled` | boolean | `false` | Kích hoạt fallback. `false` hoặc vắng mặt → tính năng tắt. |
+| `strategy` | string | `"priority_order"` | Chỉ hỗ trợ `"priority_order"`. |
+| `candidates` | array | `[]` | Các cặp `{provider, model}` theo thứ tự ưu tiên để thử khi primary thất bại. |
+| `max_attempts` | integer | `0` | Tổng số lần thử tối đa (primary + fallback). `0` = không giới hạn. |
+| `cooldown_enabled` | boolean | `true` | Bỏ qua provider đã thất bại gần đây trong thời gian cooldown. |
+
+Fallback được kích hoạt bởi lỗi có thể retry (rate-limit, overloaded, timeout) và lỗi vĩnh viễn (billing, model không tìm thấy). Lỗi context overflow **không** được retry. Xem [Model Fallback](../advanced/model-steering.md#model-fallback) để biết bảng kích hoạt đầy đủ và thời gian cooldown.
 
 ### `other_config` — Chia sẻ Workspace
 
@@ -8623,6 +8663,10 @@ flowchart TD
 
 Trong server (channel), bot mặc định yêu cầu được mention (`require_mention: true`). Tin nhắn chờ được lưu vào buffer lịch sử. Khi bot được mention, lịch sử được đưa vào làm context.
 
+**Phát hiện @mention trong nhóm:** Một tin nhắn được coi là @mention khi user ID của bot xuất hiện trong mảng `mentions` của Discord event, *hoặc* khi tin nhắn đó là reply trực tiếp vào một tin nhắn của chính bot. Cả hai điều kiện đều được kiểm tra trước khi chạy bất kỳ logic policy hay pairing nào.
+
+**Pairing reply trong nhóm:** Khi `group_policy: "pairing"` được đặt và `require_mention: true` (mặc định), bot chỉ gửi lời mời pairing cho người dùng chưa được pairing nếu họ @mention bot một cách rõ ràng (hoặc reply vào tin nhắn của bot). Các tin nhắn không gửi đến bot sẽ được thêm vào buffer lịch sử nhóm và không bao giờ kích hoạt pairing reply. Đặt `require_mention: false` để gửi lời mời pairing không điều kiện trong nhóm (không khuyến nghị cho server công khai).
+
 ### Typing Indicator
 
 Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 giây). Typing indicator dừng tự động sau khi tin nhắn được gửi thành công.
@@ -9906,7 +9950,7 @@ Pancake là nền tảng thương mại xã hội cung cấp proxy nhắn tin th
    - **API Key**: API key cấp người dùng của Pancake
    - **Page Access Token**: Token cấp trang cho tất cả page API
    - **Page ID**: Định danh trang Pancake
-3. Tùy chọn đặt **Webhook Secret** để xác minh chữ ký HMAC-SHA256
+3. Đặt **Webhook Secret** — bắt buộc để nhận webhook; GoClaw từ chối tất cả webhook khi chưa cấu hình
 4. Cấu hình tính năng theo nền tảng (inbox reply, comment reply)
 
 Chỉ vậy thôi — một channel phục vụ tất cả nền tảng kết nối với trang Pancake đó.
@@ -9956,7 +10000,7 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 |-----|------|----------|-------|
 | `api_key` | string | -- | API key cấp người dùng của Pancake (bắt buộc) |
 | `page_access_token` | string | -- | Token cấp trang cho tất cả page API (bắt buộc) |
-| `webhook_secret` | string | -- | Secret xác minh HMAC-SHA256 tùy chọn |
+| `webhook_secret` | string | -- | HMAC-SHA256 webhook secret — **bắt buộc** để nhận webhook; sự kiện bị từ chối nếu không có |
 | `page_id` | string | -- | Định danh trang Pancake (bắt buộc) |
 | `webhook_page_id` | string | -- | Page ID nền tảng gốc trong webhook (nếu khác `page_id`) |
 | `platform` | string | tự phát hiện | Ghi đè nền tảng: facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
@@ -10025,7 +10069,15 @@ Pancake dùng webhook push (không polling) để gửi tin nhắn:
 - GoClaw đăng ký một route duy nhất: `POST /channels/pancake/webhook`
 - Tất cả webhook trang Pancake định tuyến qua một handler, phân phối theo `page_id`
 - Luôn trả về HTTP 200 — Pancake tạm dừng webhook nếu >80% lỗi trong cửa sổ 30 phút
-- Xác minh chữ ký HMAC-SHA256 qua header `X-Pancake-Signature` (khi `webhook_secret` được đặt)
+- Request body được giới hạn tối đa 1 MB để tránh lạm dụng
+
+**Xác minh chữ ký HMAC (bắt buộc):** GoClaw xác minh mỗi webhook đến bằng HMAC-SHA256. `webhook_secret` phải được cấu hình — nếu không, tất cả webhook sẽ bị từ chối (trả về HTTP 200 nhưng sự kiện bị bỏ qua). Đặt cùng secret trong cài đặt webhook Pancake dashboard.
+
+Pancake gửi chữ ký trong header `X-Pancake-Signature` với định dạng `sha256=<hex-digest>`. GoClaw tính lại `HMAC-SHA256(body, webhook_secret)` và so sánh bằng constant-time comparison để tránh timing attack.
+
+**Bảo vệ chống replay:** Sau khi xác minh chữ ký thành công, GoClaw tính `SHA-256(body)` và lưu vào in-memory dedup map với TTL 24 giờ. Các delivery trùng lặp (cùng raw body) bị bỏ qua ngầm trước khi xử lý tin nhắn.
+
+> **Lưu ý bảo mật:** Bật `features.auto_react` mà không cấu hình `webhook_secret` sẽ khiến GoClaw log cảnh báo khi khởi động (`security.pancake_auto_react_without_hmac`). Bất kỳ ai tiếp cận được endpoint webhook đều có thể kích hoạt comment-like call mà không cần xác thực.
 
 Cấu trúc webhook payload:
 
@@ -10196,7 +10248,7 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 | "page_id is required" | Thêm `page_id` vào config. Tìm trong URL Pancake dashboard. |
 | Xác minh token thất bại | `page_access_token` có thể đã hết hạn hoặc không hợp lệ. Tạo lại từ Pancake dashboard. |
 | Không nhận được tin nhắn | Kiểm tra webhook URL đã được cấu hình: `https://your-goclaw-host/channels/pancake/webhook`. |
-| Webhook signature không khớp | Xác minh `webhook_secret` khớp với secret đã cấu hình trong Pancake dashboard. |
+| Webhook signature không khớp / sự kiện không được xử lý | Xác minh `webhook_secret` đã được đặt và khớp với secret trong Pancake dashboard. Sự kiện bị bỏ qua ngầm khi `webhook_secret` để trống. |
 | "no channel instance for page_id" | `page_id` trong webhook không khớp với channel nào đã đăng ký. Kiểm tra config. |
 | Nền tảng hiển thị là unknown | `platform` được tự phát hiện. Đảm bảo trang đã kết nối trong Pancake. Có thể ghi đè thủ công. |
 | Upload media thất bại | Đường dẫn media phải tuyệt đối. Kiểm tra file tồn tại và có thể đọc. |
@@ -10869,6 +10921,14 @@ Khi kết nối lại, dùng token đã lưu:
 - **Xác thực từ chối mặc định**: Khi xác thực thất bại, mặc định là từ chối — không có trạng thái phê duyệt một phần hay mơ hồ
 - **Giới hạn tốc độ**: Yêu cầu mã pairing được giới hạn theo người gửi để ngăn bruteforce
 - **Xử lý lỗi DB tạm thời**: Kiểm tra `IsPaired` xử lý gracefully lỗi database tạm thời — lỗi DB trả về từ chối thay vì vô tình cho phép truy cập
+
+## Hành vi Pairing theo từng Channel
+
+Cách channel kích hoạt luồng pairing khác nhau tuỳ loại channel.
+
+**Nhóm Discord:** Khi `group_policy: "pairing"` được kích hoạt và `require_mention: true` (mặc định của Discord), lời mời pairing chỉ được gửi cho người dùng chưa pairing nếu họ @mention bot một cách rõ ràng hoặc reply vào tin nhắn của bot. Tin nhắn gửi vào nhóm mà không gửi đến bot sẽ được lưu vào buffer và không tạo ra pairing reply. Điều này ngăn spam pairing trong server công khai khi nhiều user có thể thấy tin nhắn của bot.
+
+Với DM, lời mời pairing được gửi ngay khi người dùng chưa pairing gửi tin nhắn (giống các channel khác).
 
 ## Ví dụ JavaScript
 
@@ -13030,6 +13090,39 @@ curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
+Để cấp kèm quyền quản lý (xem [Agent-Manage Grants](#agent-manage-grants) bên dưới), thêm `"can_manage": true`:
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "AGENT_UUID", "version": 1, "can_manage": true}'
+```
+
+Liệt kê tất cả agent grant cho một skill:
+
+```bash
+curl http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "grants": [
+    {
+      "agent_id": "019...",
+      "agent_key": "my-agent",
+      "display_name": "My Agent",
+      "pinned_version": 1,
+      "granted_by": "admin@example.com",
+      "can_manage": false
+    }
+  ]
+}
+```
+
 Thu hồi quyền agent:
 
 ```bash
@@ -13052,6 +13145,27 @@ Thu hồi quyền user:
 curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### Agent-Manage Grants
+
+Mặc định, chỉ chủ sở hữu skill và tenant admin mới có thể chỉnh sửa hoặc xóa skill. Cờ `can_manage` trên `skill_agent_grants` cho phép ủy quyền đó cho một agent cụ thể mà không cần nâng cấp lên admin.
+
+Khi `can_manage = true`, agent được cấp quyền có thể:
+- Cập nhật tên, mô tả, tags và visibility của skill qua `PUT /v1/skills/{id}`
+- Xóa skill qua `DELETE /v1/skills/{id}`
+- Publish phiên bản mới bằng tool `skill_manage` trong cuộc hội thoại
+
+**Tenant scope enforcement** — cả skill và agent đều phải thuộc cùng tenant. Các lần ghi grant vượt ranh giới tenant bị từ chối ở tầng store (`verifySkillGrantScope`). Migration `000067` xóa các hàng cross-tenant tồn tại từ phiên bản cũ hơn.
+
+**Tự động nâng visibility** — khi cấp grant cho skill `private`, hệ thống tự động nâng lên `internal` để agent được cấp quyền có thể truy cập. Khi thu hồi agent grant cuối cùng, hệ thống tự động hạ xuống `private` theo cách nguyên tử.
+
+### Tenant-Scoped Grant Isolation
+
+Trong các deployment multi-tenant, thao tác skill grant được giới hạn trong phạm vi tenant:
+
+- `POST /v1/skills/{id}/grants/agent` xác minh agent đích thuộc cùng tenant với skill. Các lần thử grant cross-tenant trả về `404` ("agent not found") để tránh rò rỉ topology tenant.
+- System skill (`is_system = true`) bỏ qua lọc tenant — chúng truy cập được từ tất cả tenant.
+- `GET /v1/skills/{id}/grants/agent` chỉ trả về grant trong phạm vi tenant của request.
 
 ### Các mức Visibility
 
@@ -16703,7 +16817,8 @@ secure_cli_binaries (credential + mặc định)
                             ├── deny_verbose (NULL = dùng mặc định binary)
                             ├── timeout_seconds (NULL = dùng mặc định binary)
                             ├── tips (NULL = dùng mặc định binary)
-                            └── enabled
+                            ├── enabled
+                            └── encrypted_env (BYTEA, AES-256-GCM — override env per-grant tùy chọn)
 ```
 
 ## Agent Grants
@@ -16717,10 +16832,12 @@ Bảng `secure_cli_agent_grants` liên kết binary với agent cụ thể và t
 | `timeout_seconds` | Override timeout process cho agent này |
 | `tips` | Override gợi ý inject vào TOOLS.md cho agent này |
 | `enabled` | Vô hiệu hóa grant mà không xóa |
+| `encrypted_env` | Override env var per-grant tùy chọn (mã hóa AES-256-GCM khi lưu trữ) |
 
 Khi agent chạy binary, GoClaw áp dụng cài đặt theo thứ tự:
 1. Mặc định của binary
 2. Override từ grant (trường khác null sẽ thay thế mặc định binary)
+3. `encrypted_env` per-grant được giải mã và merge vào môi trường child process lúc thực thi (override env var ở cấp binary cho agent này)
 
 ## REST API
 
@@ -16742,6 +16859,8 @@ GET /v1/cli-credentials/{id}/agent-grants
       "deny_args": null,
       "timeout_seconds": 60,
       "enabled": true,
+      "env_keys": [],
+      "env_set": false,
       "created_at": "2026-04-05T00:00:00Z",
       "updated_at": "2026-04-05T00:00:00Z"
     }
@@ -16759,11 +16878,14 @@ POST /v1/cli-credentials/{id}/agent-grants
 {
   "agent_id": "019...",
   "timeout_seconds": 120,
-  "tips": "Dùng --output json cho tất cả lệnh"
+  "tips": "Dùng --output json cho tất cả lệnh",
+  "env_vars": {
+    "MY_API_KEY": "secret-value"
+  }
 }
 ```
 
-Các trường bỏ qua (`deny_args`, `deny_verbose`, `tips`, `enabled`) mặc định là `null` / `true`.
+Các trường bỏ qua (`deny_args`, `deny_verbose`, `tips`, `enabled`, `env_vars`) mặc định là `null` / `true`. Giá trị `env_vars` được mã hóa khi lưu trữ; chỉ tên key được trả về trong các lần list/get tiếp theo.
 
 ### Lấy thông tin grant
 
@@ -16777,7 +16899,7 @@ GET /v1/cli-credentials/{id}/agent-grants/{grantId}
 PUT /v1/cli-credentials/{id}/agent-grants/{grantId}
 ```
 
-Chỉ gửi các trường muốn thay đổi. Các trường được phép: `deny_args`, `deny_verbose`, `timeout_seconds`, `tips`, `enabled`.
+Chỉ gửi các trường muốn thay đổi. Các trường được phép: `deny_args`, `deny_verbose`, `timeout_seconds`, `tips`, `enabled`, `env_vars`.
 
 ### Xóa grant
 
@@ -16786,6 +16908,126 @@ DELETE /v1/cli-credentials/{id}/agent-grants/{grantId}
 ```
 
 Xóa grant của binary hạn chế (`is_global = false`) sẽ lập tức thu hồi quyền truy cập binary đó của agent.
+
+### Reveal env var của grant
+
+```
+POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal
+```
+
+Trả về env var plaintext đã giải mã. Rate-limit 10 lần/phút mỗi user. Xem [Reveal Env Var Đã Giải Mã](#reveal-env-var-đã-giải-mã) để biết chi tiết.
+
+## Override Env Per-Agent
+
+Từ migration `000058`, mỗi hàng `secure_cli_agent_grants` có thể mang cột `encrypted_env` tùy chọn (BYTEA, AES-256-GCM). Điều này cho phép cấp cho một agent bộ biến môi trường khác cho cùng binary — ví dụ: tài khoản AWS khác, API key riêng, hoặc endpoint staging — mà không cần tạo định nghĩa binary riêng biệt.
+
+**Cách hoạt động:**
+
+- Khi tạo/cập nhật grant, gửi `env_vars` (map `string → string` plaintext) trong body request.
+- GoClaw kiểm tra key với denylist, sau đó mã hóa và lưu vào `encrypted_env`.
+- Giá trị plaintext không bao giờ được lưu trữ hoặc log; tầng store mã hóa trước khi ghi và giải mã khi đọc.
+- Các response list và get chỉ trả về `env_keys` (danh sách tên key đã sắp xếp) và `env_set` (boolean). Giá trị không bao giờ được trả về ngoại trừ qua endpoint `env:reveal`.
+
+**Tạo grant với env override:**
+
+```bash
+curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "019...",
+    "env_vars": {
+      "AWS_PROFILE": "staging",
+      "AWS_DEFAULT_REGION": "us-west-2"
+    }
+  }'
+```
+
+Response (`201 Created`) bao gồm `env_keys` nhưng không có giá trị:
+
+```json
+{
+  "id": "019...",
+  "binary_id": "019...",
+  "agent_id": "019...",
+  "env_keys": ["AWS_DEFAULT_REGION", "AWS_PROFILE"],
+  "env_set": true,
+  "enabled": true,
+  "created_at": "2026-05-21T00:00:00Z",
+  "updated_at": "2026-05-21T00:00:00Z"
+}
+```
+
+**Cập nhật env var cho grant hiện có:**
+
+Gửi `env_vars` trong body `PUT`. Ba trạng thái:
+- **Không có** — env hiện tại không thay đổi
+- **`null`** — xóa env override (xóa `encrypted_env`)
+- **`{...}`** — thay thế toàn bộ env map (`{}` rỗng được xử lý như `null`)
+
+## Reveal Env Var Đã Giải Mã
+
+`POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` trả về env var plaintext đã giải mã của một grant cụ thể. Endpoint dùng POST (không phải GET) để ngăn HTTP caching và đảm bảo CSRF safety.
+
+**Kiểm soát bảo mật:**
+- Yêu cầu role `admin` có phạm vi đúng tenant — caller master-scope bị từ chối.
+- Rate-limit **10 reveal mỗi phút mỗi user** (burst 3). Trả về `429` khi vượt quá.
+- Header response bao gồm `Cache-Control: no-store` để ngăn proxy caching.
+- Mọi lần gọi đều được audit: caller ID, tenant ID, grant ID, binary ID, và timestamp được log ở mức INFO.
+
+```bash
+curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "env_vars": {
+    "AWS_PROFILE": "staging",
+    "AWS_DEFAULT_REGION": "us-west-2"
+  }
+}
+```
+
+Trả về `{"env_vars": {}}` khi grant không có env override.
+
+## Env Denylist
+
+Không phải tất cả tên biến môi trường đều được chấp nhận. GoClaw từ chối các key có thể cho phép leo thang đặc quyền, shell injection, TLS bypass, hoặc exfiltration.
+
+**Yêu cầu hình dạng key:** key phải khớp `^[A-Z_][A-Z0-9_]*$` — chỉ chữ hoa, chữ số, gạch dưới. Chữ thường, khoảng trắng, và ký tự đặc biệt (bao gồm function definition kiểu Shellshock) bị từ chối.
+
+**Từ chối chính xác:**
+
+| Key | Lý do |
+|-----|-------|
+| `PATH`, `HOME`, `USER`, `SHELL`, `PWD` | Định danh shell/user cốt lõi |
+| `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT` | Chiếm đoạt dynamic linker |
+| `NODE_OPTIONS`, `NODE_PATH` | Code injection Node.js |
+| `PYTHONPATH`, `PYTHONHOME`, `PYTHONSTARTUP` | Path/startup injection Python |
+| `GIT_SSH_COMMAND`, `GIT_SSH`, `GIT_EXEC_PATH`, `GIT_CONFIG_SYSTEM` | Command injection Git |
+| `SSH_AUTH_SOCK` | Chuyển tiếp SSH key |
+| `BASH_ENV`, `ENV` | Sourcing shell không tương tác |
+| `PROMPT_COMMAND` | Thực thi prompt shell |
+| `PERL5LIB`, `RUBYOPT` | Injection thư viện Perl/Ruby |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY` | Kênh exfiltration / bypass proxy |
+| `SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE` | Override TLS CA (MitM) |
+| `IFS` | Injection Internal Field Separator shell |
+
+**Từ chối theo prefix:** bất kỳ key nào bắt đầu bằng `DYLD_`, `GOCLAW_`, `LD_`, hoặc `NPM_CONFIG_` đều bị từ chối.
+
+**Giới hạn:** tối đa 50 key mỗi grant; tối đa 4 096 byte mỗi giá trị; giá trị không được chứa byte NUL hoặc ký tự xuống dòng.
+
+Response `400` khi tạo/cập nhật bao gồm tên key bị từ chối trong `rejected_keys`:
+
+```json
+{
+  "error": "env keys denied: LD_PRELOAD, PATH",
+  "rejected_keys": "LD_PRELOAD,PATH"
+}
+```
 
 ## Pattern phổ biến
 
@@ -20455,18 +20697,74 @@ Secrets lưu trong PostgreSQL được mã hóa AES-256-GCM:
 | MCP server API keys | `mcp_servers` | `api_key` |
 | Custom tool env vars | `custom_tools` | `env` |
 | Channel credentials | `channel_instances` | `credentials` |
+| Webhook secrets | `webhooks` | `secret_hash`, `secret_enc` |
+| Workstation credentials | `workstations` | `metadata` |
 
 Đặt encryption key trước lần chạy đầu:
 
 ```bash
-# Tạo key mạnh
-openssl rand -hex 32
+# Tạo key mạnh (base64, 44 ký tự = 32 byte thô)
+openssl rand -base64 32
 
 # Thêm vào .env
-GOCLAW_ENCRYPTION_KEY=your-64-char-hex-key
+GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 ```
 
+Key được chấp nhận ở ba định dạng: base64 (44 ký tự, kết quả của `openssl rand -base64 32`), hex (64 ký tự, kết quả của `openssl rand -hex 32`), hoặc 32 byte thô. Cả ba đều giải ra cùng khóa AES 32 byte; dùng base64 là dạng chuẩn theo tài liệu environment variables.
+
 Format lưu: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Giá trị không có prefix được trả về plaintext để tương thích migration.
+
+> **Phải giống nhau trên tất cả replica.** Trong deployment cluster, mọi gateway instance phải dùng cùng `GOCLAW_ENCRYPTION_KEY`. Rotate key yêu cầu mã hóa lại toàn bộ secret đã lưu trước khi khởi động lại.
+
+---
+
+## Bảo mật Webhook
+
+> Xem [Webhooks](/advanced/webhooks) để biết tài liệu API đầy đủ.
+
+### Bắt buộc có encryption key
+
+Hệ thống webhook chỉ khởi động khi `GOCLAW_ENCRYPTION_KEY` được đặt. Nếu không có, tất cả route `/v1/webhooks/*` trả về `404` và gateway ghi log:
+
+```
+webhook subsystem disabled: GOCLAW_ENCRYPTION_KEY not set
+```
+
+Đây là thiết kế có chủ ý: key trống sẽ lưu webhook secret dưới dạng plaintext vào database, phá vỡ toàn bộ bảo vệ. Đặt key và khởi động lại để bật lại hệ thống.
+
+### Ký HMAC (khuyến nghị)
+
+Mỗi webhook row có `hmac_signing_key` (trả về một lần lúc tạo và lúc rotate). Dùng HMAC-SHA256 để ký request thay vì bearer secret:
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+```
+
+Thuật toán ký:
+
+```
+signing_key = hex.Decode(hmac_signing_key)       // hex_64 → 32 byte thô
+payload     = "{unix_ts}.{raw_request_body}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+**Bảo vệ lệch thời gian.** Request có `|now - t| > 300` giây bị từ chối. Đồng bộ đồng hồ caller qua NTP.
+
+**Bảo vệ replay.** Sau khi HMAC signature hợp lệ được chấp nhận, gateway ghi `sha256(tenant_id|signature_hex)` vào nonce cache per-process (TTL 320 giây). Replay trả về `401` với audit event `security.webhook.hmac_replay`.
+
+**Bắt buộc HMAC-only.** Đặt `require_hmac: true` trên webhook row để tắt xác thực bearer secret. Đây là cấu hình khuyến nghị cho integration production.
+
+### Các tùy chọn bổ sung
+
+| Trường | Ghi chú |
+|--------|---------|
+| `localhost_only` | Giới hạn caller chỉ `127.0.0.1` / `::1`. Tự động bật trên Lite edition. |
+| `ip_allowlist` | IP hoặc dải CIDR. Để trống = cho phép mọi nguồn. `X-Forwarded-For` không được tin. |
+| `rate_limit_per_min` | Giới hạn per-webhook (0 = dùng mặc định tenant). |
+
+Xem [Webhooks](/advanced/webhooks) để biết tham chiếu payload tạo đầy đủ và ví dụ xác minh signature bằng Go, Node.js và Python.
 
 ---
 
@@ -20534,7 +20832,8 @@ GoClaw bọc tất cả goroutine nền trong panic recovery handler qua package
 Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ:
 
 - [ ] Đặt `GOCLAW_GATEWAY_TOKEN` bằng token ngẫu nhiên mạnh
-- [ ] Đặt `GOCLAW_ENCRYPTION_KEY` bằng key ngẫu nhiên 32 byte (64 ký tự hex)
+- [ ] Đặt `GOCLAW_ENCRYPTION_KEY` bằng key base64 32 byte (`openssl rand -base64 32`) — bắt buộc để dùng webhook, workstation credentials, và CLI grant env overrides
+- [ ] Lưu `GOCLAW_ENCRYPTION_KEY` trong secret manager (Vault, AWS Secrets Manager, v.v.) — không commit vào `config.json` hay version control
 - [ ] Đặt `gateway.allowed_origins` theo domain dashboard
 - [ ] Đặt `gateway.rate_limit_rpm` (ví dụ `20`) để giới hạn request rate mỗi user
 - [ ] Đặt `gateway.injection_action` thành `"block"` cho các deployment public-facing
@@ -20549,6 +20848,9 @@ Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ
 - [ ] Review shell deny groups — cả 15 group đều bật theo mặc định; chỉ nới lỏng cho agent cụ thể cần thiết
 - [ ] Xác minh sandbox mode không fallback sang thực thi host (fail-closed)
 - [ ] Xác nhận `GOCLAW_GATEWAY_TOKEN` đã được đặt — token trống bật dev mode (admin cho tất cả)
+- [ ] Với webhook: dùng `require_hmac: true` trên webhook row — tắt bearer auth, bắt buộc ký HMAC-SHA256
+- [ ] Với webhook: đặt `localhost_only: true` (hoặc dùng `ip_allowlist`) cho webhook không dành cho public
+- [ ] Không có plaintext credentials trong file config — dùng env var và secret manager
 
 ---
 
@@ -20585,7 +20887,7 @@ journalctl -u goclaw | grep 'security\.'
 | Agent đọc được file ngoài workspace | `restrict_to_workspace: false` trên agent | Bật lại (mặc định là `true`) |
 | Credentials xuất hiện trong tool output | `scrub_credentials: false` | Xóa override đó — scrubbing bật mặc định |
 | Sandbox không cô lập được | Sandbox mode là `"off"` | Đặt `sandbox.mode` thành `"non-main"` hoặc `"all"` |
-| Encryption key chưa đặt | `GOCLAW_ENCRYPTION_KEY` trống | Đặt trước lần chạy đầu; rotate cần re-encrypt stored secrets |
+| Encryption key chưa đặt hoặc webhook trả 404 | `GOCLAW_ENCRYPTION_KEY` trống | Đặt trước lần chạy đầu; hệ thống webhook sẽ bị tắt nếu không có key |
 | Tất cả user có quyền admin | `GOCLAW_GATEWAY_TOKEN` chưa đặt | Đặt token mạnh; để trống = dev mode |
 
 ---
@@ -20596,6 +20898,8 @@ journalctl -u goclaw | grep 'security\.'
 - [Sandbox](../advanced/sandbox.md) — chi tiết cấu hình Docker sandbox
 - [Docker Compose](./docker-compose.md) — deploy với security settings qua compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS và encrypted secret storage
+- [Webhooks](../advanced/webhooks.md) — HTTP endpoint xác thực HMAC, xác minh signature, và bảo vệ replay
+- [Workstations](../advanced/workstations.md) — mục tiêu thực thi từ xa, mô hình phân quyền, và nhật ký kiểm tra
 
 
 

@@ -76,7 +76,13 @@ curl -X POST http://localhost:8080/v1/agents \
     "model": "claude-sonnet-4-6",
     "context_window": 200000,
     "max_tool_iterations": 20,
-    "workspace": "~/.goclaw/research-workspace"
+    "workspace": "~/.goclaw/research-workspace",
+    "model_fallback": {
+      "enabled": true,
+      "candidates": [
+        { "provider": "openai", "model": "gpt-4o-mini" }
+      ]
+    }
   }'
 ```
 
@@ -113,6 +119,36 @@ curl -X POST http://localhost:8080/v1/agents \
 | `max_tool_iterations` | integer | 20 | 每次请求最大 tool 调用次数 |
 | `workspace` | string | `~/.goclaw/{key}-workspace` | context 文件目录 |
 | `other_config` | JSON | `{}` | 自定义字段（如用于 summoning 的 `description`） |
+| `model_fallback` | JSON | `{}` | 按优先级排列的 fallback provider/model 列表。参见 [Model Fallback](../advanced/model-steering.md#model-fallback)。 |
+
+### `model_fallback` — 出错时 Fallback Provider
+
+`model_fallback` 字段允许 agent 在 LLM 调用失败时，自动按优先顺序尝试备用 provider 和 model 列表。仅当 `enabled` 为 `true` 且至少提供了一个 candidate 时才激活。
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+| 子字段 | 类型 | 默认值 | 说明 |
+|-------|------|--------|------|
+| `enabled` | boolean | `false` | 激活 fallback。`false` 或缺失 → 功能关闭。 |
+| `strategy` | string | `"priority_order"` | 仅支持 `"priority_order"`。 |
+| `candidates` | array | `[]` | 主 provider 失败后按顺序尝试的 `{provider, model}` 对。 |
+| `max_attempts` | integer | `0` | 总尝试次数上限（主 + fallback）。`0` = 不限制。 |
+| `cooldown_enabled` | boolean | `true` | 在冷却窗口内跳过最近失败的 provider。 |
+
+Fallback 由可重试错误（rate-limit、overloaded、timeout）和永久错误（billing、model 未找到）触发。Context overflow 错误**不**重试。完整触发表和冷却时长参见 [Model Fallback](../advanced/model-steering.md#model-fallback)。
 
 ### `other_config` — 工作区共享
 
@@ -214,4 +250,4 @@ curl -X POST http://localhost:8080/v1/agents \
 - [Context Files](./context-files.md) — 学习 SOUL.md、IDENTITY.md 等系统文件
 - [Summoning & Bootstrap](/summoning-bootstrap) — LLM 如何在首次使用时生成 personality 文件
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

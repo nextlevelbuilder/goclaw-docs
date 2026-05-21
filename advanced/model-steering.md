@@ -466,10 +466,120 @@ GoClaw also applies **SOUL echo** for GPT/ChatGPT providers: a compact `## Style
 
 ---
 
+## Model Fallback
+
+When a provider call fails with a non-recoverable error, GoClaw can automatically retry the same request against a different provider and model. This is configured per-agent with the `model_fallback` field.
+
+### How It Works
+
+```mermaid
+flowchart TD
+    REQ([Agent Request]) --> PRIMARY["Try primary provider/model"]
+    PRIMARY -->|Success| RESP([Response])
+    PRIMARY -->|Retryable error\n(rate-limit, overloaded, timeout, auth)| COOLDOWN{Cooldown\ncheck}
+    COOLDOWN -->|Available or probe| NEXT["Try next fallback candidate"]
+    COOLDOWN -->|In cooldown| SKIP["Skip candidate"]
+    SKIP --> NEXT
+    NEXT -->|Success| RESP
+    NEXT -->|Permanent error\n(billing, model_not_found, auth_permanent, format)| NEXTMODEL["Skip to next candidate"]
+    NEXT -->|context_overflow| ABORT([Return error — no fallback])
+    NEXTMODEL --> NEXT
+    NEXT -->|All candidates exhausted| ERR([FailoverSummaryError])
+```
+
+**Trigger conditions (when the next candidate is tried):**
+
+| Error type | HTTP status / pattern | Action |
+|------------|-----------------------|--------|
+| Rate-limited | 429 | Try next candidate |
+| Overloaded | 529, `5xx overload` patterns | Try next candidate |
+| Timeout / network | Connection reset, EOF | Try next candidate |
+| Auth (transient) | 401 / 403 without revoked/disabled | Try next candidate |
+| Billing | 402 | Try next candidate |
+| Auth (permanent) | 401 / 403 with revoked/deactivated | Try next candidate |
+| Model not found | 404 with model pattern | Try next candidate |
+| Invalid format | 400 `tool_call`/`invalid_request` | Try next candidate |
+| Context overflow | Context/token limit patterns | **Stop — no fallback** |
+
+**Stream safety:** Once a streaming response has started emitting content, GoClaw does not fall back — partial output is returned as-is rather than silently discarded.
+
+### Cooldown Tracking
+
+When `cooldown_enabled` is `true` (the default), failed providers enter a cooldown window. Subsequent requests skip candidates in cooldown. A probe attempt is sent after the cooldown expires to test recovery.
+
+| Failure reason | Cooldown duration |
+|----------------|:-----------------:|
+| Rate-limit | 30 s |
+| Overloaded | 60 s |
+| Timeout | 15 s |
+| Auth (transient) | 10 min |
+| Auth (permanent) | 1 hr |
+| Billing | 5 min |
+| Model not found | 1 hr |
+| Format error | 5 min |
+| Unknown | 30 s |
+
+Cooldown state is **in-memory only** and does not survive a gateway restart.
+
+### Configuration
+
+Set `model_fallback` on an agent via the HTTP API or PATCH endpoint:
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o" },
+      { "provider": "openrouter", "model": "google/gemini-2.0-flash-001" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+**Field reference:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Must be `true` to activate fallback. If `false` or absent, feature is inactive. |
+| `strategy` | string | `"priority_order"` | Fallback strategy. Only `"priority_order"` is supported — candidates are tried in the order listed. |
+| `candidates` | array | `[]` | Ordered list of `{provider, model}` pairs to try after the primary fails. Duplicates are deduplicated. Empty array → feature inactive even if `enabled: true`. |
+| `max_attempts` | integer | `0` | Maximum total candidates to try (primary + fallbacks). `0` means no cap. |
+| `cooldown_enabled` | boolean | `true` | Tracks failed providers in-memory and skips them during their cooldown window. |
+
+**Semantics:**
+- The agent's configured `provider` + `model` is always the primary (index 0).
+- `candidates` lists only the fallbacks — the primary is never duplicated into the list.
+- Candidates with empty `provider` or `model` are silently dropped during normalization.
+- Setting `enabled: false` (or omitting `enabled`) is the same as having no fallback config — `ParseModelFallback()` returns `nil` and the feature is entirely bypassed.
+
+### Example: Anthropic Primary with Two Fallbacks
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "model_fallback": {
+    "enabled": true,
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ]
+  }
+}
+```
+
+With this config, a request first goes to `anthropic/claude-sonnet-4-6`. If that returns a 429 or 529, GoClaw immediately retries with `openai/gpt-4o-mini`. If that also fails, it tries `openrouter/gemini-flash-1.5`. If all three fail, the agent returns a `FailoverSummaryError` listing all attempts and their error reasons.
+
+---
+
 ## What's Next
 
 - [Sandbox](sandbox.md) — isolate shell command execution for agents
 - [Agent Teams](../agent-teams/what-are-teams.md) — multi-agent coordination where Track and Hint are most active
 - [Scheduling & Cron](scheduling-cron.md) — how cron lane requests are routed through Track
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
