@@ -34,7 +34,7 @@ Once connected, set an agent to use it:
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex"
+      "model": "gpt-5.5"
     }
   }
 }
@@ -46,7 +46,8 @@ The Codex provider supports models available through the Responses API:
 
 | Model | Notes |
 |---|---|
-| `gpt-5.3-codex` | Default; optimized for agentic coding tasks |
+| `gpt-5.5` | **Default**; latest ChatGPT subscription model |
+| `gpt-5.3-codex` | Alternative; optimized for agentic coding tasks |
 | `o3` | Strong reasoning model |
 | `o4-mini` | Faster reasoning, lower cost |
 | `gpt-4o` | General-purpose, multimodal |
@@ -92,7 +93,7 @@ This conversion is transparent — you interact with GoClaw the same way regardl
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "max_tokens": 8192
     }
   }
@@ -200,11 +201,11 @@ See [REST API](/rest-api) for the response shape.
 | OAuth callback fails | Port 1455 blocked | Ensure nothing else is listening on port 1455 during auth |
 | `model not found` | Model not in your subscription | Check your ChatGPT plan; some models require Pro |
 | Provider not available after restart | Token not persisted | GoClaw auto-loads the token from DB on startup; check DB connectivity |
-| Phase field in response | `gpt-5.3-codex` returns `commentary` + `final_answer` phases | GoClaw handles this automatically; both phases are captured |
+| Phase field in response | `gpt-5.5` and `gpt-5.3-codex` return `commentary` + `final_answer` phases | GoClaw handles this automatically; both phases are captured |
 
 ## What's Next
 
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
 - [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

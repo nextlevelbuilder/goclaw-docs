@@ -2675,7 +2675,7 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Vault** (`group:vault`) | vault_search, vault_read | Search and read vault documents; governed by the `group:vault` policy group |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Manage conversation sessions; spawn subagents |
 | **Teams** (`group:teams`) | team_tasks, team_message | Collaborate with agent teams via shared task board and mailbox |
-| **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
+| **Automation** (`group:automation`) | cron, datetime, wait | Schedule recurring jobs; get current date/time; pause execution between tool calls (`wait` — see below) |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
 | **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Generate images, audio, video, and text-to-speech; `image_generation` is a native tool for Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — see [Media Generation](/advanced/media-generation) |
 | **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
@@ -2731,6 +2731,19 @@ Use `memory_search` first to discover relevant episodic IDs, then `memory_expand
 > Additional tools like `mcp_tool_search` and channel-specific tools are registered dynamically. Tool groups can be referenced with `group:` prefix in allow/deny lists (e.g., `group:fs`).
 
 > **Delegation note**: The `delegate` tool has been removed. Delegation is now handled exclusively via agent teams: leads create tasks on the shared board (`team_tasks`) and delegate to member agents via `spawn`. See [Agent Teams](#agent-teams) for the current model.
+
+### `wait` — Pause Between Tool Calls
+
+The built-in `wait` tool suspends the current agent's tool sequence for a bounded duration. It is useful for rate-limit spacing, polling intervals, or waiting for an external async job to finish before the next tool call.
+
+| Field | Type | Notes |
+|------|------|-------|
+| `timeMs` | integer (required) | Duration in milliseconds. Default bounds: `100` ≤ `timeMs` ≤ `300000` (5 minutes). |
+| `reason` | string (optional) | Free-form reason logged with the wait result; useful in traces and debugging. |
+
+The minimum and maximum bounds can be tuned per-deployment via the tool's runtime config; defaults are 100 ms and 300 000 ms.
+
+> **Not the same as `spawn(action=wait)`:** `wait` is a top-level built-in tool that pauses **the calling agent** for `timeMs` milliseconds. The `spawn(action=wait)` pattern (also called **WaitAll**, see below) is a delegation primitive that blocks the parent **until previously spawned subagents finish**. Use `wait` for time-based pauses; use `spawn(action=wait)` for fan-out/fan-in delegation.
 
 ## Tool Execution Flow
 
@@ -2927,7 +2940,7 @@ The `spawn` tool (part of `group:sessions`) creates and runs subagents. Key capa
 
 | Capability | Detail |
 |-----------|--------|
-| **WaitAll** | `spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. Useful for fan-out/fan-in patterns. |
+| **WaitAll** | `spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. Useful for fan-out/fan-in patterns. Distinct from the built-in `wait` tool above, which pauses for a fixed duration regardless of subagent state. |
 | **Auto-retry** | Configurable `MaxRetries` (default `2`) with linear backoff on LLM failures. Transient errors are retried automatically. |
 | **Token tracking** | Each subagent accumulates per-call input/output token counts. Totals are included in announce messages so the parent can account for cost. |
 | **SubagentDenyAlways** | Subagents cannot spawn nested subagents — the `team_tasks` tool is blocked in subagent context. Prevents unbounded delegation chains. |
@@ -5305,6 +5318,7 @@ Providers that support extended thinking also implement `SupportsThinking() bool
 | **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
 | **acp** | JSON-RPC 2.0 subagents | `claude` |
 | **dashscope** | OpenAI-compat wrapper | `qwen3-max` |
+| **vertex** | OpenAI-compat (OAuth2) | `google/gemini-2.0-flash-001` |
 | **openai** (+ 15+ variants) | OpenAI-compatible | Model-specific |
 
 ### OpenAI-Compatible Providers
@@ -5477,6 +5491,7 @@ When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schem
 - [OpenAI](/provider-openai) — GPT-4o, o-series, GPT-5 reasoning models
 - [OpenRouter](/provider-openrouter) — access 100+ models through one API
 - [Gemini](/provider-gemini) — Google Gemini via OpenAI-compatible endpoint
+- [Vertex AI](/provider-vertex) — Google Cloud Vertex Gemini with OAuth2 / ADC
 - [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
 - [Groq](/provider-groq) — ultra-fast inference
 - [DashScope](/provider-dashscope) — Alibaba Qwen models with thinking support
@@ -6884,6 +6899,158 @@ GoClaw maps `thinking_level` to DashScope's `thinking_budget`:
 
 ---
 
+# Vertex AI
+
+> Use Google Cloud Vertex AI's OpenAI-compatible Gemini endpoint with OAuth2 service-account or Application Default Credentials.
+
+## Overview
+
+GoClaw connects to Google Cloud Vertex AI through its OpenAI-compatible API. Internally the provider is an `OpenAIProvider` instance wired with a Google OAuth2 token source — every request is signed with a short-lived bearer token that the gateway refreshes transparently every hour.
+
+The endpoint URL is built from your GCP project and region:
+
+```
+https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/endpoints/openapi
+```
+
+So with project `acme-prod` and region `us-central1`, requests target `https://us-central1-aiplatform.googleapis.com/v1/projects/acme-prod/locations/us-central1/endpoints/openapi`.
+
+## Prerequisites
+
+- A Google Cloud project with the **Vertex AI API** enabled.
+- Either:
+  - A service-account JSON key with the `roles/aiplatform.user` role, **or**
+  - Application Default Credentials (`gcloud auth application-default login` for local dev, or the metadata server on GCE/GKE/Cloud Run).
+- The OAuth scope `https://www.googleapis.com/auth/cloud-platform` is requested automatically — you do not configure it.
+
+## Credential precedence
+
+When the provider starts up it walks credential sources in this order and stops at the first hit:
+
+1. **Inline JSON** — `credentials_json` (DB Settings field) or `providers.vertex.api_key` (config.json). Service-account JSON pasted verbatim.
+2. **File path** — `credentials_file` env-resolved path. **Operator-only.** This path is read from disk by the gateway process; never expose it via the admin UI without a strict path allowlist.
+3. **Application Default Credentials** — falls back to `GOOGLE_APPLICATION_CREDENTIALS`, gcloud user creds, or the GCP metadata server. ADC discovery is capped at 10 seconds so a missing metadata server cannot stall startup.
+
+## config.json setup
+
+```json
+{
+  "providers": {
+    "vertex": {
+      "api_key": "{\"type\":\"service_account\",\"project_id\":\"acme-prod\", ... }",
+      "credentials_file": "",
+      "project_id": "acme-prod",
+      "region": "us-central1",
+      "model": "google/gemini-2.0-flash-001"
+    }
+  }
+}
+```
+
+The provider only initializes when **both** `project_id` and `region` are set. `api_key` accepts the entire service-account JSON as a single string. To rely on ADC instead, leave `api_key` and `credentials_file` empty.
+
+## Dashboard setup
+
+Create the provider from **Settings → Providers → Add provider** with `provider_type: "vertex"`. Vertex-specific fields live under `settings`:
+
+```json
+{
+  "name": "vertex-prod",
+  "provider_type": "vertex",
+  "api_key": "{\"type\":\"service_account\", ... }",
+  "settings": {
+    "project_id": "acme-prod",
+    "region": "us-central1",
+    "model": "google/gemini-2.5-pro-001"
+  }
+}
+```
+
+API keys and settings are encrypted at rest with AES-256-GCM. The DB-driven provider also walks the credential precedence above — leave `api_key` empty to use ADC on the gateway host.
+
+## Supported models
+
+Vertex AI's OpenAI-compatible endpoint accepts any Gemini model that Google publishes under the `google/` namespace, for example:
+
+| Model ID | Notes |
+|----------|-------|
+| `google/gemini-2.0-flash-001` | Default |
+| `google/gemini-2.5-pro-001` | Largest context, supports thinking |
+| `google/gemini-2.5-flash-001` | Fast, supports thinking |
+| `google/gemini-1.5-pro-002` | Previous generation, 2M context |
+
+Always include the `google/` prefix — Vertex's OpenAI shim requires it. Check the [Vertex model catalog](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) for the current list of regional availability.
+
+## Region and project validation
+
+The provider validates both values before making any network call:
+
+- `project_id` — 6–30 lowercase letters/digits/hyphens, must start with a letter (GCP project ID format).
+- `region` — lowercase, hyphen-separated alphanumeric segments (e.g. `us-central1`, `asia-southeast1`).
+
+A malformed value fails fast at startup. If you supply an `api_base_override`, the gateway also rejects URLs whose host is not under `*.googleapis.com` — protection against pointing the provider at an attacker-controlled endpoint while still authenticating to Google.
+
+## Examples
+
+### Quick smoke test from the agent loop
+
+```json
+{
+  "model": "google/gemini-2.0-flash-001",
+  "options": {
+    "temperature": 0.2
+  }
+}
+```
+
+### Pinning a per-request model
+
+Because Vertex shares the `OpenAIProvider` adapter, every request honors a per-request `model` override. Inline-message webhooks and the standard agent loop both accept it.
+
+### Inline credentials in config.json
+
+```json
+{
+  "providers": {
+    "vertex": {
+      "api_key": "{\n  \"type\": \"service_account\",\n  \"project_id\": \"acme-prod\",\n  \"private_key_id\": \"...\",\n  \"private_key\": \"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\n  \"client_email\": \"goclaw-vertex@acme-prod.iam.gserviceaccount.com\",\n  \"token_uri\": \"https://oauth2.googleapis.com/token\"\n}",
+      "project_id": "acme-prod",
+      "region": "us-central1"
+    }
+  }
+}
+```
+
+### ADC on GKE / Cloud Run
+
+Leave both `api_key` and `credentials_file` empty and grant the workload's service account `roles/aiplatform.user`. The provider picks up tokens from the metadata server automatically.
+
+## Streaming, tools, and vision
+
+The Vertex provider speaks OpenAI ChatCompletions through the same code path as the OpenAI and Gemini OpenAI-compatible adapters. Streaming, function/tool calling, and image inputs work the same way they do for `openai` or `gemini`. Extended thinking on Gemini 2.5 models is mapped from `thinking_level` to `reasoning_effort` automatically (see [Gemini](/provider-gemini) for the thinking_signature passback details).
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| `vertex: project_id is required` | Project or region missing | Set both `project_id` and `region` |
+| `vertex: invalid project_id` | ID has uppercase, underscores, or wrong length | Use the canonical GCP project ID (6–30 lowercase chars) |
+| `vertex: application default credentials not found` | No ADC source on host | Set `GOOGLE_APPLICATION_CREDENTIALS`, pass `credentials_file`, or run on GCP |
+| `vertex: parse inline credentials` | `api_key` is not valid service-account JSON | Paste the entire JSON file unmodified |
+| `403 Permission denied` from Vertex | Service account missing role | Grant `roles/aiplatform.user` |
+| `HTTP 429` | Quota exceeded | Request a quota bump in the GCP console; GoClaw retries automatically |
+| Model not found | Wrong model ID or wrong region | Confirm the model is available in the configured region; keep the `google/` prefix |
+
+## What's Next
+
+- [Gemini](/provider-gemini) — Gemini via the Google AI Studio OpenAI-compatible endpoint
+- [OpenAI](/provider-openai) — shared OpenAI-compatible adapter notes
+- [Providers Overview](/providers-overview) — adapter system, retry logic, credential resolver
+
+
+
+---
+
 # Bailian
 
 > Connect to Alibaba Cloud Bailian (百炼) models.
@@ -7279,7 +7446,7 @@ Once connected, set an agent to use it:
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex"
+      "model": "gpt-5.5"
     }
   }
 }
@@ -7291,7 +7458,8 @@ The Codex provider supports models available through the Responses API:
 
 | Model | Notes |
 |---|---|
-| `gpt-5.3-codex` | Default; optimized for agentic coding tasks |
+| `gpt-5.5` | **Default**; latest ChatGPT subscription model |
+| `gpt-5.3-codex` | Alternative; optimized for agentic coding tasks |
 | `o3` | Strong reasoning model |
 | `o4-mini` | Faster reasoning, lower cost |
 | `gpt-4o` | General-purpose, multimodal |
@@ -7337,7 +7505,7 @@ This conversion is transparent — you interact with GoClaw the same way regardl
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "max_tokens": 8192
     }
   }
@@ -17423,6 +17591,670 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 
 ---
 
+# Webhooks
+
+> Trigger agents or deliver channel messages from external systems via HMAC-authenticated HTTP endpoints.
+
+## Overview
+
+GoClaw webhooks expose two HTTP entry points that let external systems drive the gateway without speaking the WebSocket RPC protocol:
+
+| Kind | Endpoint | Purpose | Editions |
+|------|----------|---------|----------|
+| `llm` | `POST /v1/webhooks/llm` | Invoke an agent with a user prompt (sync or async) | Standard + Lite |
+| `message` | `POST /v1/webhooks/message` | Send a message to a user on a connected channel | Standard only |
+
+Each webhook is a tenant-scoped registry row. An admin creates the row via the CRUD API and receives a one-time bearer secret plus an HMAC signing key; callers then authenticate inbound requests with either credential.
+
+> **Encryption key required.** The webhook subsystem only mounts when `GOCLAW_ENCRYPTION_KEY` is set. Without it, all `/v1/webhooks/*` routes return `404` and the gateway logs `webhook subsystem disabled`. See [Security Hardening](/deploy-security) and [Environment Variables](/env-vars).
+
+## Admin CRUD
+
+All admin endpoints require a tenant-admin gateway token (`Authorization: Bearer <admin-token>`).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/v1/webhooks` | Create a webhook; returns raw secret and HMAC key (once) |
+| `GET` | `/v1/webhooks` | List webhooks for the tenant. Optional `?agent_id=<uuid>` filter |
+| `GET` | `/v1/webhooks/{id}` | Fetch a single webhook (no secret) |
+| `PATCH` | `/v1/webhooks/{id}` | Partial update; `kind` is immutable |
+| `POST` | `/v1/webhooks/{id}/rotate` | Issue a new secret (old secret invalidated immediately) |
+| `DELETE` | `/v1/webhooks/{id}` | Revoke; subsequent inbound calls return `401` |
+
+See [REST API → Webhooks](/rest-api) and the [Endpoint Catalog](/api-endpoints-catalog) for full request/response shapes.
+
+### Create
+
+```bash
+curl -X POST https://gw.example.com/v1/webhooks \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "billing-sync",
+    "kind": "llm",
+    "agent_id": "9c5a...e4",
+    "require_hmac": true,
+    "rate_limit_per_min": 60,
+    "ip_allowlist": ["10.0.0.0/8"]
+  }'
+```
+
+Response (201 Created):
+
+```json
+{
+  "id": "f5a1...",
+  "name": "billing-sync",
+  "secret_prefix": "wh_ABCD",
+  "secret": "wh_ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGH",
+  "hmac_signing_key": "a3f4...hex64chars",
+  "kind": "llm",
+  "rate_limit_per_min": 60,
+  "require_hmac": true,
+  "localhost_only": false,
+  "ip_allowlist": ["10.0.0.0/8"],
+  "created_at": "2026-05-21T12:00:00Z"
+}
+```
+
+> `secret` and `hmac_signing_key` are returned **once** — on create and on rotate. Store them in your secret manager immediately; they cannot be retrieved again.
+
+### Create payload fields
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `name` | string | yes | Max 100 chars |
+| `kind` | string | yes | `"llm"` or `"message"` |
+| `agent_id` | UUID | for `llm` kind | Agent to invoke |
+| `channel_id` | UUID | optional | Pin a `message` webhook to one channel instance |
+| `require_hmac` | bool | no | Force HMAC-only auth (disables bearer) |
+| `localhost_only` | bool | no | Restrict callers to 127.0.0.1/::1. Forced `true` on Lite |
+| `rate_limit_per_min` | int | no | Per-webhook cap (0 = use tenant default) |
+| `ip_allowlist` | []string | no | IPs or CIDR ranges. Empty allows any source |
+
+## Authentication
+
+The `require_hmac` flag on the webhook row decides which modes are accepted.
+
+### Bearer auth
+
+```
+Authorization: Bearer wh_ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGH
+```
+
+The gateway hashes the token with SHA-256, compares it to `secret_hash` via constant-time comparison, then decrypts the stored secret material with `GOCLAW_ENCRYPTION_KEY`. Bearer auth is **rejected** when `require_hmac=true`.
+
+### HMAC auth (recommended)
+
+Send three headers:
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+Content-Type: application/json
+```
+
+Signing algorithm:
+
+```
+signing_key = hex.Decode(hmac_signing_key)   // hex_64 → 32 raw bytes
+payload     = "{unix_ts}.{request_body_bytes}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+`hmac_signing_key` equals `hex(SHA-256(raw_secret))`. The gateway never stores the raw secret — only its hash and an AES-256-GCM ciphertext used by background workers to recompute HMAC at delivery time.
+
+**Timestamp skew.** Requests with `|now - t| > 300` seconds are rejected. Synchronize clocks via NTP.
+
+**Replay protection.** After a valid signature is accepted, the gateway records `sha256(tenant_id|signature_hex)` in an in-memory nonce cache (TTL 320s). Replays return `401` with the audit event `security.webhook.hmac_replay`. The cache is per-process — a multi-node deployment can theoretically accept a replay on a sibling node.
+
+**IP allowlist.** When `ip_allowlist` is non-empty, each entry is matched against the request's `RemoteAddr` after authentication. CIDR ranges and bare addresses are supported. `X-Forwarded-For` is **not** trusted.
+
+## POST /v1/webhooks/llm
+
+Triggers an agent with an input prompt. Available in all editions (Standard + Lite).
+
+```bash
+curl -X POST https://gw.example.com/v1/webhooks/llm \
+  -H "Authorization: Bearer wh_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "Summarize the latest metrics",
+    "session_key": "user-123-session",
+    "mode": "sync"
+  }'
+```
+
+Request fields:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `input` | string or array | yes | Plain string, or `[{role, content}]` array |
+| `session_key` | string | no | Stable key for multi-turn conversation continuity |
+| `user_id` | string | no | External user identifier for scoping |
+| `model` | string | no | Per-request model override |
+| `mode` | string | no | `"sync"` (default) or `"async"` |
+| `callback_url` | string | required when async | HTTPS URL; validated against the SSRF policy |
+| `metadata` | object | no | Echoed back to the async callback (max 8 KB) |
+
+**Sync mode** times out at 30 seconds and returns the full agent output:
+
+```json
+{
+  "call_id": "<uuid>",
+  "agent_id": "<uuid>",
+  "output": "Here are the metrics: ...",
+  "usage": {"prompt_tokens": 150, "completion_tokens": 200, "total_tokens": 350},
+  "finish_reason": "stop"
+}
+```
+
+**Async mode** returns `202 Accepted` with `{"call_id": "...", "status": "queued"}`; the result lands on `callback_url` via outbound delivery (see [Outbound callbacks](#outbound-callbacks)).
+
+Error codes:
+
+| Status | Code | When |
+|--------|------|------|
+| 400 | `invalid_request` | Missing `input`, bad `mode`, missing `callback_url` for async |
+| 401 | — | Bearer invalid, HMAC mismatch, revoked, HMAC replay |
+| 403 | `unauthorized` | `localhost_only` violated, IP denied, kind mismatch, tenant mismatch |
+| 404 | `not_found` | Agent not found |
+| 429 | — | Rate limit exceeded (`Retry-After: 60`) |
+| 503 | — | Webhook processing lane at capacity |
+| 504 | — | LLM timeout (sync only) |
+
+## POST /v1/webhooks/message
+
+Sends a message to a user on a connected channel. **Standard edition only.**
+
+```json
+{
+  "channel_name": "telegram-prod",
+  "chat_id": "123456789",
+  "content": "Hello from the integration!",
+  "media_url": "https://example.com/image.jpg",
+  "media_caption": "Optional caption",
+  "fallback_to_text": false
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `channel_name` | string | yes (unless the webhook has a bound `channel_id`) | Channel instance name |
+| `chat_id` | string | yes | Channel-specific recipient ID |
+| `content` | string | yes (unless `media_url`) | Text body; max 16 KB |
+| `media_url` | string | no | HTTPS URL. SSRF-guarded + HEAD-probed before fetch |
+| `media_caption` | string | no | Caption for media |
+| `fallback_to_text` | bool | no | If true, send text-only when channel cannot handle media |
+
+Response:
+
+```json
+{
+  "call_id": "<uuid>",
+  "status": "sent",
+  "channel_name": "telegram-prod",
+  "chat_id": "123456789",
+  "warning": ""
+}
+```
+
+`warning` is set to `"media_not_supported_fallback_text"` when `fallback_to_text=true` and the channel dropped the media. Channels that cannot deliver media (e.g., `zalo_oa`) return `501 Not Implemented` unless `fallback_to_text=true`.
+
+## Idempotency
+
+All webhook endpoints accept an `Idempotency-Key` header (max 255 chars).
+
+- First request with a key: processed normally.
+- Same key + identical body: returns the cached response with `200 OK`.
+- Same key + different body: returns `409 Conflict` (`webhook.idempotency_conflict`).
+- Keys expire after 24 hours (`webhook_calls` table TTL).
+
+Use a UUID or a hash of the request payload. Re-send the **exact same body** on retry.
+
+## Outbound callbacks
+
+Async LLM calls deliver results to `callback_url` via `HTTP POST`. Delivery is **at-least-once** — receivers must be idempotent.
+
+Every attempt carries these headers:
+
+```
+X-Webhook-Delivery-Id: <uuid>          ; stable across retries — dedupe on this
+X-Webhook-Signature:   t=<unix>,v1=<hex>; same HMAC scheme as inbound
+Content-Type:          application/json
+User-Agent:            goclaw-webhook/1
+```
+
+Payload:
+
+```json
+{
+  "call_id": "<uuid>",
+  "delivery_id": "<uuid>",
+  "agent_id": "<uuid>",
+  "status": "done",
+  "output": "Agent response text...",
+  "usage": {"prompt_tokens": 150, "completion_tokens": 200, "total_tokens": 350},
+  "metadata": {},
+  "error": ""
+}
+```
+
+`status` is `"done"` on success or `"failed"` on agent error (with `error` populated).
+
+Retry schedule (±10% jitter):
+
+| Attempt | Delay |
+|---------|-------|
+| 1 | 30 seconds |
+| 2 | 2 minutes |
+| 3 | 10 minutes |
+| 4 | 1 hour |
+| 5 | 6 hours |
+
+After 5 failures the row moves to `status=dead`. A `429 Retry-After` from the receiver is respected (capped at 6 hours). `4xx` responses other than `429` are treated as permanent failures. Any `2xx` marks the delivery as done.
+
+## Verifying signatures
+
+### Go
+
+```go
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "fmt"
+    "strings"
+    "time"
+)
+
+func verify(body []byte, sigHeader, hmacSigningKey string) error {
+    var ts int64
+    var sigHex string
+    for _, part := range strings.Split(sigHeader, ",") {
+        switch {
+        case strings.HasPrefix(part, "t="):
+            fmt.Sscanf(part[2:], "%d", &ts)
+        case strings.HasPrefix(part, "v1="):
+            sigHex = part[3:]
+        }
+    }
+    if abs(time.Now().Unix()-ts) > 300 {
+        return fmt.Errorf("timestamp skew")
+    }
+    key, err := hex.DecodeString(hmacSigningKey)
+    if err != nil {
+        return err
+    }
+    mac := hmac.New(sha256.New, key)
+    fmt.Fprintf(mac, "%d.", ts)
+    mac.Write(body)
+    expected := mac.Sum(nil)
+    received, err := hex.DecodeString(sigHex)
+    if err != nil || !hmac.Equal(expected, received) {
+        return fmt.Errorf("signature mismatch")
+    }
+    return nil
+}
+```
+
+### Node.js
+
+```js
+const crypto = require('crypto');
+
+function signWebhookRequest(body, hmacSigningKeyHex) {
+  const ts = Math.floor(Date.now() / 1000);
+  const key = Buffer.from(hmacSigningKeyHex, 'hex');
+  const payload = Buffer.concat([Buffer.from(`${ts}.`), Buffer.from(body)]);
+  const sig = crypto.createHmac('sha256', key).update(payload).digest('hex');
+  return { ts, header: `t=${ts},v1=${sig}` };
+}
+
+const body = JSON.stringify({ input: 'hello', mode: 'sync' });
+const { header } = signWebhookRequest(body, process.env.WEBHOOK_HMAC_KEY);
+
+await fetch('https://gw.example.com/v1/webhooks/llm', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Webhook-Id': process.env.WEBHOOK_ID,
+    'X-GoClaw-Signature': header,
+  },
+  body,
+});
+```
+
+### Python
+
+```python
+import hashlib, hmac, json, os, time, requests
+
+def sign(body: bytes, hmac_signing_key_hex: str) -> str:
+    ts = int(time.time())
+    key = bytes.fromhex(hmac_signing_key_hex)
+    payload = f"{ts}.".encode() + body
+    sig = hmac.new(key, payload, hashlib.sha256).hexdigest()
+    return f"t={ts},v1={sig}"
+
+body = json.dumps({"input": "hello", "mode": "sync"}).encode()
+requests.post(
+    "https://gw.example.com/v1/webhooks/llm",
+    headers={
+        "Content-Type": "application/json",
+        "X-Webhook-Id": os.environ["WEBHOOK_ID"],
+        "X-GoClaw-Signature": sign(body, os.environ["WEBHOOK_HMAC_KEY"]),
+    },
+    data=body,
+)
+```
+
+## Rate limits
+
+Two tiers must both pass:
+
+| Tier | Cap | Notes |
+|------|-----|-------|
+| Per-webhook | `rate_limit_per_min` field (0 = disabled) | Set on the webhook row |
+| Per-tenant | Platform default | Shared across all webhooks for one tenant |
+
+A reject from either tier returns `429 Too Many Requests` with `Retry-After: 60`.
+
+## Edition differences
+
+| Feature | Standard | Lite |
+|---------|----------|------|
+| `/v1/webhooks/llm` | Available | Available (`localhost_only` forced) |
+| `/v1/webhooks/message` | Available | Disabled |
+| `localhost_only=false` | Configurable | Always `true`; cannot be unset |
+| Creating `kind="message"` | Allowed | Rejected (`403`) |
+
+On Lite, every webhook is auto-created with `localhost_only=true`. A `PATCH` that tries to clear it returns `403`.
+
+## Security
+
+- **SSRF protection.** `media_url` and `callback_url` are validated against the SSRF policy and HEAD-probed; callback URLs are re-validated at delivery time to defeat DNS rebinding (`security.webhook.callback_ssrf_blocked`).
+- **Secret storage.** Only `SHA-256(secret)` and an AES-256-GCM ciphertext are persisted; raw secrets are never logged.
+- **Tenant isolation.** Agents and channels must belong to the webhook's tenant (`security.webhook.tenant_mismatch`).
+- **Rotation.** `POST /v1/webhooks/{id}/rotate` invalidates the old secret immediately — there is no grace window. Coordinate the cutover with your callers.
+- **Encryption key.** `GOCLAW_ENCRYPTION_KEY` (base64, 32 raw bytes) must be the same across every gateway replica. Rotating it re-encrypts all webhook secrets via the standard key-rotation migration.
+
+## Audit payload
+
+Every call writes one row to `webhook_calls` with `request_payload`:
+
+```json
+{
+  "body_hash": "<sha256-hex-64-chars>",
+  "meta": { /* handler-specific */ }
+}
+```
+
+`body_hash` is the SHA-256 of the raw request bytes — used by the idempotency checker to detect body-mismatch replays. For `llm` calls, `meta` mirrors the decoded request fields (`input`, `session_key`, `user_id`, `model`, `mode`, `callback_url`, `metadata`). For `message` calls, `meta` is `{channel_name, chat_id, has_media}`.
+
+## Common pitfalls
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `404` on every `/v1/webhooks/*` route | `GOCLAW_ENCRYPTION_KEY` not set | Set the env var and restart the gateway |
+| `401 timestamp skew` | Clock drift | Run NTP on the caller |
+| `401 hmac_replay` after retry | Re-sending the same signed payload | Re-sign with a fresh timestamp on each retry |
+| `409 idempotency_conflict` | Same `Idempotency-Key` with a different body | Always re-send the exact same body, or use a new key |
+| `403 unauthorized` from a Lite gateway | Trying to create a `message` webhook or unset `localhost_only` | Use a Standard gateway or change the request |
+| Async callback never arrives | `callback_url` failed SSRF validation or returned `4xx` | Inspect `webhook_calls.status` and the worker logs |
+
+## What's Next
+
+- [REST API → Webhooks](/rest-api)
+- [Environment Variables → `GOCLAW_ENCRYPTION_KEY`](/env-vars)
+- [Security Hardening](/deploy-security)
+- [Channels Overview](/channels-overview)
+
+
+
+---
+
+# Workstations
+
+> Run agent commands on remote machines through SSH or Docker, with a per-workstation allowlist and a full audit trail.
+
+## Overview
+
+A **workstation** is a remote execution target registered in GoClaw. When an agent calls the built-in `workstation_exec` tool, the gateway opens a session against the linked workstation, runs the command, streams stdout/stderr back as event-bus chunks, and writes one row to the activity log.
+
+Workstations are tenant-scoped and Standard-edition only. Two backend types are shipped:
+
+| Backend | `backendType` | Transport | Notes |
+|---------|---------------|-----------|-------|
+| SSH | `ssh` | OpenSSH client + pooled sessions | Inline PEM private key or password. TOFU host-key fingerprinting |
+| Docker | `docker` | Docker engine API | Image + container name; useful for ephemeral sandbox targets |
+
+The connection pool is shared per workstation row, so repeated `workstation_exec` calls reuse a warm SSH client instead of paying the TCP+TLS handshake every time.
+
+## Lifecycle
+
+1. **Create** the workstation — POST `/v1/workstations` with `workstationKey`, `name`, `backendType`, and `metadata`.
+2. **Test** the connection — `POST /v1/workstations/{id}/test`. The SSH backend dials, runs `echo ok`, and tears down within 5 seconds.
+3. **Seed the allowlist** — happens automatically on create. See [Permission model](#permission-model).
+4. **Link an agent** — over WebSocket: `workstations.linkAgent` with `{agentId, workstationId, isDefault}`.
+5. **Use it** — the agent calls the `workstation_exec` tool. Every call passes through the permission checker and is recorded in `workstation_activity`.
+
+`workstationKey` is the stable slug used in API calls; the regex is `^[a-z0-9][a-z0-9-]{0,99}$`.
+
+## Endpoints
+
+All HTTP endpoints require a tenant-admin gateway token (`Authorization: Bearer <admin-token>`).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/v1/workstations` | List active workstations |
+| `POST` | `/v1/workstations` | Create a workstation |
+| `GET` | `/v1/workstations/{id}` | Fetch one (sanitized view) |
+| `PUT` | `/v1/workstations/{id}` | Partial update |
+| `DELETE` | `/v1/workstations/{id}` | Hard delete (tenant-scoped) |
+| `POST` | `/v1/workstations/{id}/test` | Health-check the backend |
+| `GET` | `/v1/workstations/{id}/permissions` | List allowlist patterns |
+| `POST` | `/v1/workstations/{id}/permissions` | Add a pattern (default enabled) |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | Remove a pattern |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | Enable/disable a pattern |
+| `GET` | `/v1/workstations/{id}/activity` | Paged audit log (`limit`, `cursor`) |
+
+The same operations are also exposed as WebSocket RPC methods under `workstations.*` (see [WebSocket Protocol](/websocket-protocol)). `workstations.linkAgent` / `workstations.unlinkAgent` are only available over WebSocket.
+
+### Create
+
+```bash
+curl -X POST https://gw.example.com/v1/workstations \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workstationKey": "build-vm",
+    "name": "Build VM (us-west)",
+    "backendType": "ssh",
+    "metadata": {
+      "host": "10.0.4.21",
+      "port": 22,
+      "user": "deploy",
+      "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----\n",
+      "knownHostsFingerprint": "SHA256:abcdef..."
+    },
+    "defaultCwd": "/srv/builds",
+    "defaultEnv": {"PATH": "/usr/local/bin:/usr/bin"}
+  }'
+```
+
+Response (201 Created) returns a **sanitized view** — the private key and password are never echoed back. Only a metadata summary (`host`, `port`, `user`, `hasKey`) is included:
+
+```json
+{
+  "workstation": {
+    "id": "1c2d...",
+    "workstationKey": "build-vm",
+    "tenantId": "...",
+    "name": "Build VM (us-west)",
+    "backendType": "ssh",
+    "defaultCwd": "/srv/builds",
+    "active": true,
+    "createdAt": "2026-05-21T12:00:00Z",
+    "metadataSummary": {"host": "10.0.4.21", "port": 22, "user": "deploy", "hasKey": true}
+  }
+}
+```
+
+### SSH metadata
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `host` | yes | DNS name or IP |
+| `user` | yes | Remote user |
+| `port` | no | Defaults to `22`; must be 1–65535 |
+| `privateKey` | one of `privateKey`/`password` | PEM-encoded; stored AES-256-GCM encrypted |
+| `password` | one of `privateKey`/`password` | Prefer key auth |
+| `knownHostsFingerprint` | recommended | `SHA256:...` of the host key. Empty → TOFU on first connect |
+| `connectTimeoutSec` | no | Overrides the 10s TCP dial timeout |
+
+### Docker metadata
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `image` | yes | Container image reference |
+| `host` | one of `host`/`socketPath` | Remote Docker daemon URL |
+| `socketPath` | one of `host`/`socketPath` | Local UNIX socket path |
+| `network` | no | Docker network to attach to |
+
+## Permission model
+
+Workstations run a **default-deny** allowlist scoped to `argv[0]` — the binary name. Wildcard `*` is intentionally not supported.
+
+`workstation_permissions` rows live in their own table (migration `000063`) and seed automatically when a workstation is created. The default seed is a small set of read-only or low-risk binaries:
+
+```
+echo, pwd, ls, cat, git, whoami, hostname, date, uname, claude
+```
+
+Shells (`bash`, `sh`, `zsh`) are deliberately excluded — adding one would bypass the entire model by accepting arbitrary commands as arguments.
+
+Each pattern is either a literal binary name (`git`) or a prefix-glob (`python*`). To extend the allowlist:
+
+```bash
+curl -X POST https://gw.example.com/v1/workstations/<id>/permissions \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"pattern": "make"}'
+```
+
+Toggle a pattern off without deleting it:
+
+```bash
+curl -X PUT https://gw.example.com/v1/workstations/<id>/permissions/<permId>/toggle \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"enabled": false}'
+```
+
+A disabled pattern stays in the table but is skipped by the runtime checker.
+
+## Linking an agent
+
+Use the WebSocket RPC method `workstations.linkAgent`:
+
+```json
+{
+  "id": "req-1",
+  "method": "workstations.linkAgent",
+  "params": {
+    "agentId": "<agent-uuid>",
+    "workstationId": "<ws-uuid>",
+    "isDefault": true
+  }
+}
+```
+
+The `agent_workstation_links` table allows one default workstation per agent — setting `isDefault=true` clears any prior default. To unlink, call `workstations.unlinkAgent` with the same `agentId` and `workstationId`.
+
+When an agent runs the `workstation_exec` tool without explicitly naming a workstation, the gateway resolves it through this link table.
+
+## Activity audit
+
+Every call to `workstation_exec` writes one row to `workstation_activity` (migration `000064`). The table is append-only and pruned nightly via `Prune(before)` on the store interface.
+
+| Field | Notes |
+|-------|-------|
+| `action` | `"exec"` or `"deny"` |
+| `cmdHash` | SHA-256 of the full command (forensics) |
+| `cmdPreview` | First 200 chars with secrets redacted |
+| `exitCode`, `durationMs` | Populated for `exec` rows; null for `deny` |
+| `denyReason` | Populated for `deny` rows (e.g. `"binary 'curl' not allowed"`) |
+
+Read the log paged from newest to oldest:
+
+```bash
+curl "https://gw.example.com/v1/workstations/<id>/activity?limit=50" \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+The response includes `activity` (array) and `nextCursor` (pass back as `?cursor=...` to page further).
+
+## Using `workstation_exec`
+
+Once a workstation is linked and the allowlist contains the binary you need, an agent can call the tool directly. The tool streams stdout/stderr as event-bus chunks (`execChunkSize` 64 KiB), enforces caps on command length (`4 KiB`), argument bytes (`1 KiB`), env count (`50`) and env value size (`256` bytes each), and returns the exit code plus a 2 KiB tail of each stream.
+
+Each call rebuilds env from `defaultEnv` on the workstation row plus any overrides passed to the tool. Env keys denied by [`env_denylist`](/cli-credentials) (e.g. `LD_PRELOAD`, AWS root creds) are stripped before the SSH session is created.
+
+## Security considerations
+
+- **Encrypted at rest.** `metadata` and `defaultEnv` are stored AES-256-GCM encrypted. The same `GOCLAW_ENCRYPTION_KEY` env var that gates webhooks also encrypts workstation credentials.
+- **Sanitized responses.** Every API response uses `SanitizedWorkstation` — private keys, passwords, and the raw `defaultEnv` map never leave the gateway.
+- **Tenant isolation.** Every store query is tenant-scoped; the handler also re-checks ownership via `GetByID` before permission and activity operations.
+- **Host-key TOFU.** A workstation with an empty `knownHostsFingerprint` accepts the first host key and pins it for all subsequent connections. Pre-populate the fingerprint for production targets.
+- **Env denylist.** Forbidden env keys (loader hooks, ambient cloud credentials) are stripped before exec — see [CLI Credentials](/cli-credentials) for the full list.
+- **Default-deny allowlist.** Only seeded safe binaries can run until an admin extends the list. There is no `*` shortcut.
+
+## Common workflows
+
+**Wire a remote build host to an agent.**
+
+```bash
+# 1. Create the workstation
+curl -X POST .../v1/workstations -d @ssh-build-host.json
+
+# 2. Extend the allowlist with the binaries the build needs
+curl -X POST .../v1/workstations/<id>/permissions -d '{"pattern":"make"}'
+curl -X POST .../v1/workstations/<id>/permissions -d '{"pattern":"npm"}'
+
+# 3. Link the agent (over WebSocket) with isDefault=true
+# 4. Ask the agent to run `make build`; the tool streams output back live.
+```
+
+**Audit what an agent ran overnight.**
+
+```bash
+curl ".../v1/workstations/<id>/activity?limit=200" \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `501 not implemented` from `/test` | Test connection is a stub; full implementation pending | Validate connectivity with a tiny `echo` exec instead |
+| `invalid slug: workstationKey` | Key contains uppercase, underscores, or `>100` chars | Use kebab-case ASCII, e.g. `build-vm-west` |
+| `invalid metadata shape: ssh: privateKey or password is required` | Empty creds in SSH metadata | Supply either an inline PEM or a password |
+| `binary 'curl' not allowed` deny rows | Allowlist doesn't include the binary | Add a pattern via `POST /v1/workstations/{id}/permissions` |
+| `404 workstation not found` after a cross-tenant call | Workstation belongs to a different tenant | Use a token scoped to the correct tenant |
+| `ssh: health check dial` errors | Host unreachable, wrong port, or bad fingerprint | Verify network reachability and `knownHostsFingerprint` |
+
+## What's Next
+
+- [Tools Overview](/tools-overview) — how `workstation_exec` fits among the built-in tools
+- [CLI Credentials](/cli-credentials) — env denylist, secret injection
+- [REST API → Workstations](/rest-api)
+- [WebSocket Protocol → workstations.*](/websocket-protocol)
+- [Database Schema](/database-schema) — `workstations`, `workstation_permissions`, `workstation_activity`
+
+
+
+---
+
 # Usage & Quota
 
 > Track token consumption per agent and session, and enforce per-user request limits across hour, day, and week windows.
@@ -20374,7 +21206,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **56**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **57**.
 
 ```mermaid
 graph LR
@@ -20574,6 +21406,19 @@ Only do this if you understand what the failed migration was doing. When in doub
 ## Recent Migrations
 
 ### v3.11.x — Highlights and Breaking Changes
+
+#### v3.11.3
+
+- fix(migrations): `000057_heartbeat_provider_fk_set_null` — defensive orphan cleanup; drops existing FK by constraint-name lookup (handles auto-generated name drift), re-adds with `ON DELETE SET NULL`. Brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during `ALTER TABLE` (sub-second on small tables; heartbeat workers may pause briefly).
+- SQLite: schema v25 → v26 — full table rebuild for `agent_heartbeats` with updated FK clause; explicit 25-column `INSERT … SELECT` preserves all existing rows. `idx_heartbeats_due` recreated.
+
+**Docker users:** MUST pull `ghcr.io/nextlevelbuilder/goclaw:v3.11.3` AND run `goclaw upgrade`. A stale v3.11.2 image fails on boot with:
+
+```
+schema version mismatch: required 57, current 56
+```
+
+**Bare-metal users:** rebuild binary and run `./goclaw upgrade`.
 
 #### v3.11.2
 
@@ -22206,6 +23051,8 @@ goclaw doctor
 
 Checks: binary version, config file, database connectivity, schema version, providers, channels, external binaries (docker, curl, git), workspace directory. Prints a pass/fail summary for each check.
 
+Provider rows with an empty `display_name` now render the canonical `name` instead of a blank line.
+
 ---
 
 ## `pairing`
@@ -22369,18 +23216,71 @@ Output columns: `CHANNEL`, `ENABLED`, `CREDENTIALS` (ok/missing).
 
 ## `providers`
 
-List configured LLM providers and their status.
+Manage LLM providers (requires running gateway).
+
+### `providers list`
+
+List configured providers.
 
 ```bash
 goclaw providers list
 goclaw providers list --json
+goclaw providers list --models
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output as JSON |
+| `--models` | Also show available models per provider |
 
-Shows provider name, type, default model, and whether an API key is configured.
+Shows provider name, type, enabled status, and whether an API key is configured.
+
+### `providers add`
+
+Add a new provider (interactive).
+
+```bash
+goclaw providers add
+```
+
+Interactive prompts for provider type, name, API key, and base URL. Offers to verify connectivity after creation.
+
+### `providers update <id>`
+
+Update a provider's name or API key.
+
+```bash
+goclaw providers update <id>
+```
+
+### `providers delete <id>`
+
+Delete a provider.
+
+```bash
+goclaw providers delete <id>
+goclaw providers delete <id> --force
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompt |
+
+### `providers verify <id>`
+
+Verify provider connectivity or a specific model.
+
+```bash
+goclaw providers verify <id>
+goclaw providers verify <id> --model anthropic/claude-sonnet-4
+```
+
+| Flag | Description |
+|------|-------------|
+| `--model <alias>` | Model alias to verify (omit for connectivity ping) |
+
+Without `--model`: pings the provider (registered + reachable check) — no LLM call is made.
+With `--model`: sends a small chat request to validate the model alias.
 
 ---
 
@@ -22680,7 +23580,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `agents.list` | — | List all agents |
 | `agent.wait` | `{agentId}` | Wait for agent to finish current run |
 | `agents.create` | agent object | Create an agent |
-| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Update an agent |
+| `agents.update` | `{agentId, name?, provider?, model?, model_fallback?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Update an agent |
 | `agents.delete` | `{id}` | Delete an agent |
 | `agents.files.list` | `{agentId}` | List context files |
 | `agents.files.get` | `{agentId, fileName}` | Get a context file |
@@ -22712,6 +23612,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `config.schema` | Get JSON schema for config |
 | `config.defaults` | Get compiled-in defaults + agents.defaults overlay (read-only, master scope) |
 | `config.permissions.list` | `{agentId, configType?}` | List permissions for an agent |
+| `config.permissions.check` | `{agentId, scope, configType, userId}` | Evaluate the effective decision (`allow` / `deny`) without mutating |
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
 
@@ -22912,6 +23813,26 @@ Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality
 | `voices.list` | — | List ElevenLabs voices for current tenant (cached) |
 | `voices.refresh` | — | Invalidate cache and refetch voices from provider |
 
+### Workstations
+
+> **Standard edition only.** Methods are not registered when the gateway runs in Lite edition; calls return `method_not_found`. Admin role required for every method.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `workstations.list` | — | List workstations for the current tenant |
+| `workstations.get` | `{id}` | Get a workstation |
+| `workstations.create` | `{workstationKey, name, backendType, metadata, defaultCwd?, defaultEnv?}` | Create a workstation (`backendType` is `ssh` or `docker`) |
+| `workstations.update` | `{id, ...fields}` | Update a workstation |
+| `workstations.delete` | `{id}` | Delete a workstation |
+| `workstations.testConnection` | `{id}` | Probe backend connectivity without executing commands |
+| `workstations.linkAgent` | `{workstationId, agentId, isDefault?}` | Link an agent to a workstation |
+| `workstations.unlinkAgent` | `{workstationId, agentId}` | Remove the link |
+| `workstations.permissions.list` | `{workstationId}` | List allowlist patterns |
+| `workstations.permissions.add` | `{workstationId, pattern, description?, enabled?}` | Append an allowlist pattern |
+| `workstations.permissions.remove` | `{workstationId, permissionId}` | Remove a pattern |
+| `workstations.permissions.toggle` | `{workstationId, permissionId, enabled}` | Enable/disable a pattern |
+| `workstations.activity.list` | `{workstationId, limit?, before?, action?}` | Paginated activity audit log; `action` filter accepts `exec` or `deny` |
+
 ### Tenants
 
 | Method | Params | Description |
@@ -23092,6 +24013,8 @@ ws.onmessage = (e) => {
 > All `/v1` HTTP endpoints for agent management, providers, skills, traces, and more.
 
 ## Overview
+
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~286 REST endpoints.
 
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
@@ -23277,7 +24200,7 @@ workspace/                                 — workspace directory files
 
 ---
 
-### `GET /v1/agents/{agentID}/codex-pool-activity`
+### `GET /v1/agents/{id}/codex-pool-activity`
 
 Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
 
@@ -23406,7 +24329,25 @@ List models available from the provider (proxied to the upstream API).
 
 ### `POST /v1/providers/{id}/verify`
 
-Pre-flight check — verify the API key and model are reachable.
+Verify provider connectivity or a specific model. Request body is optional (`requestBody.required: false`).
+
+**Ping mode** — omit body (or send `{}`). Returns `{"valid": true}` if the provider is registered and reachable. Equivalent to a `/healthz` check; no LLM call is made.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Chat-verify mode** — include `model` to perform an actual chat completion against a specific model alias.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic/claude-sonnet-4"}'
+```
+
+**Response shape** — `{"valid": true}` on success, `{"valid": false, "error": "<msg>"}` on failure. The legacy `{success, models}` shape is no longer returned.
 
 ### `POST /v1/providers/{id}/verify-embedding`
 
@@ -23508,7 +24449,8 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/skills/{id}/grants/agent` | Grant skill to an agent |
+| `GET` | `/v1/skills/{id}/grants/agent` | List agent grants for a skill (admin+) |
+| `POST` | `/v1/skills/{id}/grants/agent` | Grant skill to an agent (body supports `can_manage` flag, migration 66) |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` | Revoke agent grant |
 | `POST` | `/v1/skills/{id}/grants/user` | Grant skill to a user |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` | Revoke user grant |
@@ -23977,7 +24919,7 @@ Delete a channel instance.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/contacts` | List contacts (paginated) |
-| `GET` | `/v1/contacts/resolve?ids=...` | Resolve contacts by IDs (max 100) |
+| `GET` | `/v1/contacts/resolve` | Resolve contacts by IDs (query string `ids=` repeated; max 100) |
 | `POST` | `/v1/contacts/merge` | Merge duplicate contact records |
 | `POST` | `/v1/contacts/unmerge` | Unmerge previously merged contacts |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` | List merged contacts for a tenant user |
@@ -24113,19 +25055,23 @@ Per-agent binary grants — control which agents can use a specific CLI credenti
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Get a specific grant |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Update a grant |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Delete a grant |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` | Reveal decrypted env vars for a grant (rate-limited; never cacheable — POST chosen over GET for CSRF safety) |
 
 **Create/update grant fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `agent_id` | UUID | Agent to grant access (required on create) |
+| `env_vars` | object | Per-grant env-var overrides (plaintext on input; encrypted at rest via `GOCLAW_ENCRYPTION_KEY`; only key names ever returned in list/get responses) |
 | `deny_args` | JSON | Argument restrictions (optional) |
 | `deny_verbose` | JSON | Verbose output restrictions (optional) |
 | `timeout_seconds` | integer | Per-agent execution timeout override (optional) |
 | `tips` | string | Usage hints for the agent (optional) |
 | `enabled` | boolean | Enable/disable the grant (default: `true`) |
 
-**Create response** (`201 Created`): the created grant object.
+**Create response** (`201 Created`): the created grant object (no plaintext env values — only `env_keys` + `env_set`).
+
+> **`env:reveal`** returns the decrypted plaintext for the grant's env vars. The endpoint is rate-limited per credential (configurable RPM + burst) and audited. Requires `GOCLAW_ENCRYPTION_KEY` to be set; otherwise grants store unencrypted env on disk only when explicitly configured to do so.
 
 Changes to grants emit a `cache_invalidate` event on the message bus so connected agents pick up the update immediately.
 
@@ -24387,6 +25333,19 @@ List GitHub releases for a repository (used by the package picker UI). Auth: vie
 
 List shell command deny groups (security policy).
 
+### Package Updates
+
+Watch and apply package updates across system / pip / npm registries. Read access requires viewer+; writes require admin.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/packages/updates` | List pending updates discovered from each registry |
+| `POST` | `/v1/packages/updates/refresh` | Force-refresh the update registry cache |
+| `POST` | `/v1/packages/update` | Apply a single update — body `{ "package": "pip:pandas" }` |
+| `POST` | `/v1/packages/updates/apply-all` | Apply every pending update (long-running; returns SSE progress when `?stream=true`) |
+
+Updates emit `cache_invalidate` events on the bus so connected clients refresh their package lists.
+
 ---
 
 ## Storage
@@ -24581,6 +25540,164 @@ Exposes GoClaw tools to Claude CLI via streamable HTTP at `/mcp/bridge`. Only li
 
 ---
 
+## Workstations
+
+> **Standard edition only.** Gateway routes return `403` on Lite. Requires admin role.
+
+Workstations are remote execution endpoints (SSH or Docker) that agents can target for sandboxed command execution. Each workstation has an allowlist of permitted command patterns and a tamper-evident activity audit log.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/workstations` | List workstations for the current tenant |
+| `POST` | `/v1/workstations` | Create a workstation |
+| `GET` | `/v1/workstations/{id}` | Get a workstation by ID |
+| `PUT` | `/v1/workstations/{id}` | Update a workstation |
+| `DELETE` | `/v1/workstations/{id}` | Delete a workstation |
+| `POST` | `/v1/workstations/{id}/test` | Test connectivity (SSH probe or `docker ps`) — does not execute commands |
+| `GET` | `/v1/workstations/{id}/permissions` | List allowlist patterns |
+| `POST` | `/v1/workstations/{id}/permissions` | Add an allowlist pattern |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | Remove a pattern |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | Enable/disable a pattern without deleting |
+| `GET` | `/v1/workstations/{id}/activity` | List activity audit entries (filterable, paginated) |
+
+**Create body:**
+
+```json
+{
+  "workstation_key": "build-host",
+  "name": "Build host",
+  "backend_type": "ssh",
+  "metadata": {
+    "host": "build.internal",
+    "port": 22,
+    "user": "claw",
+    "private_key_ref": "kms://..."
+  },
+  "default_cwd": "/srv/builds",
+  "default_env": {"PATH": "/usr/local/bin:/usr/bin"}
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workstation_key` | string | Stable client-facing key — unique per tenant |
+| `name` | string | Display name |
+| `backend_type` | enum | `ssh` or `docker` (DB CHECK constraint) |
+| `metadata` | object | Backend-specific connection config — encrypted at rest |
+| `default_cwd` | string | Default working directory for exec calls |
+| `default_env` | object | Env vars merged into every exec — encrypted at rest |
+| `active` | boolean | Workstation is selectable for agent linking |
+
+**Activity log entries:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `action` | enum | `exec` (ran) or `deny` (rejected by allowlist) |
+| `cmd_hash` | string | SHA-256 of the full command line |
+| `cmd_preview` | string | First 200 bytes of the command (truncated, no secrets) |
+| `exit_code` | integer | Process exit code (nullable for `deny`) |
+| `duration_ms` | integer | Wall time (nullable for `deny`) |
+| `agent_id` | UUID | Agent that initiated the call |
+
+> Workstation backends share a single per-tenant rate limit and obey the global shell deny-groups list.
+
+---
+
+## Webhooks
+
+Two surfaces:
+
+1. **Inbound webhook endpoints** — receive HMAC-signed requests from external systems and route them through agents or channels. No bearer token required; auth is performed via `X-GoClaw-Signature` (HMAC-SHA256) + IP allowlist + optional `localhost_only` gate.
+2. **Webhook administration** — CRUD over the webhook registry. Requires admin role and gateway token.
+
+> Inbound webhooks require `GOCLAW_ENCRYPTION_KEY` to be set so secrets can be stored encrypted at rest. See [Environment Variables](environment-variables.md#secrets).
+
+### Inbound Receivers
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/webhooks/llm` | LLM-kind webhook entrypoint (OpenAI-compatible payload routed to the configured agent) |
+| `POST` | `/v1/webhooks/message` | Message-kind webhook entrypoint (delivers to a channel/chat) |
+
+Both receivers require headers:
+
+| Header | Purpose |
+|--------|---------|
+| `X-GoClaw-Webhook-Id` | Webhook UUID |
+| `X-GoClaw-Signature` | `sha256=...` HMAC of the raw body using the webhook's signing key |
+| `X-GoClaw-Timestamp` | RFC3339 timestamp (≤ 5 min skew) |
+| `Idempotency-Key` | Optional — dedupes repeated deliveries (TTL stored in `webhook_calls`) |
+
+Mode is selected via the query string `?mode=sync|async` (default `sync` for `llm`, `async` for `message`).
+
+### Webhook Administration
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/webhooks` | List webhooks for the current tenant |
+| `POST` | `/v1/webhooks` | Create a webhook — response includes one-time `secret` + `hmac_signing_key` |
+| `GET` | `/v1/webhooks/{id}` | Get a webhook (`secret` is never returned again after creation) |
+| `PATCH` | `/v1/webhooks/{id}` | Update mutable fields (scopes, rate limits, allowlist, flags) |
+| `POST` | `/v1/webhooks/{id}/rotate` | Rotate signing key — returns the new secret once |
+| `DELETE` | `/v1/webhooks/{id}` | Revoke a webhook (soft-delete; sets `revoked=true`) |
+
+**Create body:**
+
+```json
+{
+  "name": "Datadog incidents",
+  "kind": "message",
+  "agent_id": "uuid (required for kind=llm)",
+  "channel_id": "uuid (required for kind=message)",
+  "scopes": ["chat.send"],
+  "rate_limit_per_min": 60,
+  "ip_allowlist": ["10.0.0.0/8", "203.0.113.42"],
+  "require_hmac": true,
+  "localhost_only": false
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | enum | `llm` or `message` (DB CHECK constraint) |
+| `agent_id` | UUID | Required for `llm`; ignored for `message` |
+| `channel_id` | UUID | Required for `message`; ignored for `llm` |
+| `scopes` | string[] | Permission scopes the inbound request can exercise (default minimal) |
+| `rate_limit_per_min` | integer | Per-webhook rate limit (default tenant-wide cap) |
+| `ip_allowlist` | string[] | CIDR or single-IP entries; empty = no IP restriction |
+| `require_hmac` | boolean | Enforce HMAC signature (default `true`) |
+| `localhost_only` | boolean | Reject non-loopback callers (Lite edition forces `true`) |
+
+**Create response** (`201 Created`):
+
+```json
+{
+  "id": "uuid",
+  "secret": "wh_...",
+  "hmac_signing_key": "raw 32-byte hex",
+  "secret_prefix": "wh_xxxx",
+  "kind": "message",
+  "...": "..."
+}
+```
+
+> `secret` and `hmac_signing_key` are returned **only on create and rotate**. Subsequent GETs expose `secret_prefix` (first 4 chars) and a one-way `secret_hash`. The `webhook_calls` table records every delivery with `attempts`, `status` (`queued|running|done|failed|dead`), `mode` (`sync|async`), `delivery_id`, and an optional `lease_token` for async lease-based dispatch.
+
+---
+
+## Gateway Self-Upgrade
+
+Admin-only self-upgrade flow that downloads a signed release archive and restarts the gateway process in-place.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/system/gateway/upgrade` | Trigger an upgrade — body `{ "target_version": "v3.12.0" }` or omitted for latest |
+| `GET` | `/v1/system/gateway/upgrade/status` | Poll upgrade progress (`idle | downloading | verifying | applying | restarting | done | failed`) |
+
+> Upgrade is a one-way operation; restore from backup if a release proves bad. The endpoint refuses to run when the gateway is launched without write access to its own binary.
+
+---
+
 ## System
 
 | Method | Path | Description |
@@ -24633,7 +25750,8 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - **Sessions:** List, preview, patch, delete, reset (`sessions.*`)
 - **Cron jobs:** List, create, update, delete, toggle, status, run, runs (`cron.*`)
 - **Config management:** Get, apply, patch, schema (`config.*`)
-- **Config permissions:** List, grant, revoke (`config.permissions.*`)
+- **Config permissions:** List, check, grant, revoke (`config.permissions.*`)
+- **Workstations:** List, get, create, update, delete, test, link/unlink agent, permissions CRUD, activity (`workstations.*`)
 - **Send messages:** Send to channels (`send`)
 - **Chat:** Send, history, abort, inject, session status (`chat.*`)
 - **Heartbeat:** Get, set, toggle, test, logs, checklist, targets (`heartbeat.*`)
@@ -24652,6 +25770,514 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [WebSocket Protocol](/websocket-protocol) — real-time RPC for chat and agent events
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
+
+
+
+---
+
+# REST API Endpoint Catalog
+
+> Auto-generated complete index of all REST endpoints. For request/response details, examples, and authentication, see [REST API Reference](rest-api.md).
+
+**Total endpoints:** 286 — generated from goclaw `392f0fda` on `2026-05-21`.
+
+## How to use this page
+
+- This is a flat catalog — one row per endpoint.
+- Endpoints are grouped by handler domain (the source file in `goclaw/internal/http/`).
+- For full request/response schemas of OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses`), see [REST API Reference](rest-api.md).
+- Authentication: all `/v1/*` endpoints require `Authorization: Bearer <api-key>` unless noted.
+
+## Endpoints by Domain
+
+### Activity (`internal/http/activity.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/activity` |
+
+### Agents (`internal/http/agents.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents` |
+| `POST` | `/v1/agents` |
+| `DELETE` | `/v1/agents/{id}` |
+| `GET` | `/v1/agents/{id}` |
+| `PUT` | `/v1/agents/{id}` |
+| `POST` | `/v1/agents/{id}/cancel-summon` |
+| `GET` | `/v1/agents/{id}/codex-pool-activity` |
+| `GET` | `/v1/agents/{id}/export` |
+| `GET` | `/v1/agents/{id}/export/download/{token}` |
+| `GET` | `/v1/agents/{id}/export/preview` |
+| `POST` | `/v1/agents/{id}/import` |
+| `GET` | `/v1/agents/{id}/instances` |
+| `GET` | `/v1/agents/{id}/instances/{userID}/files` |
+| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` |
+| `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` |
+| `POST` | `/v1/agents/{id}/regenerate` |
+| `POST` | `/v1/agents/{id}/resummon` |
+| `GET` | `/v1/agents/{id}/shares` |
+| `POST` | `/v1/agents/{id}/shares` |
+| `DELETE` | `/v1/agents/{id}/shares/{userID}` |
+| `GET` | `/v1/agents/{id}/system-prompt-preview` |
+| `POST` | `/v1/agents/import` |
+| `POST` | `/v1/agents/import/preview` |
+| `POST` | `/v1/agents/sync-workspace` |
+| `GET` | `/v1/export/download/{token}` |
+| `GET` | `/v1/teams/{id}/export` |
+| `GET` | `/v1/teams/{id}/export/preview` |
+| `POST` | `/v1/teams/import` |
+
+### API Keys (`internal/http/api_keys.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/api-keys` |
+| `POST` | `/v1/api-keys` |
+| `POST` | `/v1/api-keys/{id}/revoke` |
+
+### Backup (`internal/http/backup_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/backup` |
+| `GET` | `/v1/system/backup/download/{token}` |
+| `GET` | `/v1/system/backup/preflight` |
+
+### Backup (S3) (`internal/http/backup_s3_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/backup/s3/backup` |
+| `GET` | `/v1/system/backup/s3/config` |
+| `PUT` | `/v1/system/backup/s3/config` |
+| `GET` | `/v1/system/backup/s3/list` |
+| `POST` | `/v1/system/backup/s3/upload` |
+
+### Builtin Tools (`internal/http/builtin_tools.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/tools/builtin` |
+| `GET` | `/v1/tools/builtin/{name}` |
+| `PUT` | `/v1/tools/builtin/{name}` |
+| `DELETE` | `/v1/tools/builtin/{name}/tenant-config` |
+| `GET` | `/v1/tools/builtin/{name}/tenant-config` |
+| `PUT` | `/v1/tools/builtin/{name}/tenant-config` |
+
+### Channels (`internal/http/channel_instances.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/channels/instances` |
+| `POST` | `/v1/channels/instances` |
+| `DELETE` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}` |
+| `PUT` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}/writers` |
+| `POST` | `/v1/channels/instances/{id}/writers` |
+| `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
+| `GET` | `/v1/channels/instances/{id}/writers/groups` |
+| `GET` | `/v1/contacts` |
+| `POST` | `/v1/contacts/merge` |
+| `GET` | `/v1/contacts/merged/{tenantUserId}` |
+| `GET` | `/v1/contacts/resolve` |
+| `POST` | `/v1/contacts/unmerge` |
+| `GET` | `/v1/tenant-users` |
+| `GET` | `/v1/users/search` |
+
+### Edition (`internal/http/edition.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/edition` |
+
+### Episodic Memory (`internal/http/episodic_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/episodic` |
+| `POST` | `/v1/agents/{agentID}/episodic/search` |
+
+### Evolution (`internal/http/evolution_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/evolution/metrics` |
+| `GET` | `/v1/agents/{agentID}/evolution/suggestions` |
+| `PATCH` | `/v1/agents/{agentID}/evolution/suggestions/{suggestionID}` |
+
+### Feature Flags (`internal/http/v3_flags_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/v3-flags` |
+| `PATCH` | `/v1/agents/{agentID}/v3-flags` |
+
+### Files (`internal/http/files.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/files/{path...}` |
+| `POST` | `/v1/files/sign` |
+
+### Gateway Upgrade (`internal/http/gateway_upgrade.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/gateway/upgrade` |
+| `GET` | `/v1/system/gateway/upgrade/status` |
+
+### Knowledge Graph (`internal/http/knowledge_graph.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/kg/dedup` |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/dismiss` |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/scan` |
+| `GET` | `/v1/agents/{agentID}/kg/entities` |
+| `POST` | `/v1/agents/{agentID}/kg/entities` |
+| `DELETE` | `/v1/agents/{agentID}/kg/entities/{entityID}` |
+| `GET` | `/v1/agents/{agentID}/kg/entities/{entityID}` |
+| `POST` | `/v1/agents/{agentID}/kg/extract` |
+| `GET` | `/v1/agents/{agentID}/kg/graph` |
+| `POST` | `/v1/agents/{agentID}/kg/merge` |
+| `GET` | `/v1/agents/{agentID}/kg/stats` |
+| `POST` | `/v1/agents/{agentID}/kg/traverse` |
+
+### MCP Servers (`internal/http/mcp.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/mcp/export` |
+| `GET` | `/v1/mcp/export/preview` |
+| `GET` | `/v1/mcp/grants/agent/{agentID}` |
+| `POST` | `/v1/mcp/import` |
+| `GET` | `/v1/mcp/requests` |
+| `POST` | `/v1/mcp/requests` |
+| `POST` | `/v1/mcp/requests/{id}/review` |
+| `GET` | `/v1/mcp/servers` |
+| `POST` | `/v1/mcp/servers` |
+| `DELETE` | `/v1/mcp/servers/{id}` |
+| `GET` | `/v1/mcp/servers/{id}` |
+| `PUT` | `/v1/mcp/servers/{id}` |
+| `GET` | `/v1/mcp/servers/{id}/grants` |
+| `POST` | `/v1/mcp/servers/{id}/grants/agent` |
+| `DELETE` | `/v1/mcp/servers/{id}/grants/agent/{agentID}` |
+| `POST` | `/v1/mcp/servers/{id}/grants/user` |
+| `DELETE` | `/v1/mcp/servers/{id}/grants/user/{userID}` |
+| `POST` | `/v1/mcp/servers/{id}/reconnect` |
+| `GET` | `/v1/mcp/servers/{id}/tools` |
+| `POST` | `/v1/mcp/servers/test` |
+
+### MCP User Credentials (`internal/http/mcp_user_credentials.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` |
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` |
+
+### Media (`internal/http/media_serve.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/media/{id}` |
+| `POST` | `/v1/media/upload` |
+
+### Memory (`internal/http/memory.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/memory/chunks` |
+| `GET` | `/v1/agents/{agentID}/memory/documents` |
+| `DELETE` | `/v1/agents/{agentID}/memory/documents/{path...}` |
+| `GET` | `/v1/agents/{agentID}/memory/documents/{path...}` |
+| `PUT` | `/v1/agents/{agentID}/memory/documents/{path...}` |
+| `POST` | `/v1/agents/{agentID}/memory/index` |
+| `POST` | `/v1/agents/{agentID}/memory/index-all` |
+| `POST` | `/v1/agents/{agentID}/memory/search` |
+| `GET` | `/v1/memory/documents` |
+
+### OAuth (`internal/http/oauth.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/auth/chatgpt/{provider}/callback` |
+| `POST` | `/v1/auth/chatgpt/{provider}/logout` |
+| `GET` | `/v1/auth/chatgpt/{provider}/quota` |
+| `POST` | `/v1/auth/chatgpt/{provider}/start` |
+| `GET` | `/v1/auth/chatgpt/{provider}/status` |
+| `POST` | `/v1/auth/openai/callback` |
+| `POST` | `/v1/auth/openai/logout` |
+| `GET` | `/v1/auth/openai/quota` |
+| `POST` | `/v1/auth/openai/start` |
+| `GET` | `/v1/auth/openai/status` |
+
+### OpenAPI (`internal/http/openapi.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/docs` |
+| `GET` | `/docs/` |
+| `GET` | `/v1/openapi.json` |
+
+### Orchestration (`internal/http/orchestration_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/orchestration` |
+
+### Packages (`internal/http/packages.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/packages` |
+| `GET` | `/v1/packages/github-releases` |
+| `POST` | `/v1/packages/install` |
+| `GET` | `/v1/packages/runtimes` |
+| `POST` | `/v1/packages/uninstall` |
+| `POST` | `/v1/packages/update` |
+| `GET` | `/v1/packages/updates` |
+| `POST` | `/v1/packages/updates/apply-all` |
+| `POST` | `/v1/packages/updates/refresh` |
+| `GET` | `/v1/shell-deny-groups` |
+
+### Pending Messages (`internal/http/pending_messages.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/pending-messages` |
+| `GET` | `/v1/pending-messages` |
+| `POST` | `/v1/pending-messages/compact` |
+| `GET` | `/v1/pending-messages/messages` |
+
+### Providers (`internal/http/providers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/embedding/status` |
+| `GET` | `/v1/providers` |
+| `POST` | `/v1/providers` |
+| `DELETE` | `/v1/providers/{id}` |
+| `GET` | `/v1/providers/{id}` |
+| `PUT` | `/v1/providers/{id}` |
+| `GET` | `/v1/providers/{id}/codex-pool-activity` |
+| `GET` | `/v1/providers/{id}/models` |
+| `POST` | `/v1/providers/{id}/verify` |
+| `POST` | `/v1/providers/{id}/verify-embedding` |
+| `GET` | `/v1/providers/claude-cli/auth-status` |
+
+### Restore (`internal/http/restore_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/restore` |
+
+### Secure CLI (`internal/http/secure_cli.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/cli-credentials` |
+| `POST` | `/v1/cli-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}` |
+| `PUT` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants` |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants` |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` |
+| `POST` | `/v1/cli-credentials/{id}/test` |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
+| `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
+| `POST` | `/v1/cli-credentials/check-binary` |
+| `GET` | `/v1/cli-credentials/presets` |
+
+### Skills (`internal/http/skills.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/skills` |
+| `GET` | `/v1/skills` |
+| `DELETE` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}` |
+| `PUT` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}/files` |
+| `GET` | `/v1/skills/{id}/files/{path...}` |
+| `GET` | `/v1/skills/{id}/grants/agent` |
+| `POST` | `/v1/skills/{id}/grants/agent` |
+| `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
+| `POST` | `/v1/skills/{id}/grants/user` |
+| `DELETE` | `/v1/skills/{id}/grants/user/{userID}` |
+| `DELETE` | `/v1/skills/{id}/tenant-config` |
+| `PUT` | `/v1/skills/{id}/tenant-config` |
+| `POST` | `/v1/skills/{id}/toggle` |
+| `GET` | `/v1/skills/{id}/versions` |
+| `GET` | `/v1/skills/export` |
+| `GET` | `/v1/skills/export/preview` |
+| `POST` | `/v1/skills/import` |
+| `POST` | `/v1/skills/install-dep` |
+| `POST` | `/v1/skills/install-deps` |
+| `POST` | `/v1/skills/rescan-deps` |
+| `GET` | `/v1/skills/runtimes` |
+| `POST` | `/v1/skills/upload` |
+
+### Storage (`internal/http/storage.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/storage/files` |
+| `POST` | `/v1/storage/files` |
+| `DELETE` | `/v1/storage/files/{path...}` |
+| `GET` | `/v1/storage/files/{path...}` |
+| `PUT` | `/v1/storage/move` |
+| `GET` | `/v1/storage/size` |
+
+### System Config (`internal/http/system_configs.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/system-configs` |
+| `DELETE` | `/v1/system-configs/{key}` |
+| `GET` | `/v1/system-configs/{key}` |
+| `PUT` | `/v1/system-configs/{key}` |
+
+### Teams (`internal/http/team_attachments.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/teams/{id}/events` |
+| `GET` | `/v1/teams/{teamId}/attachments/{attachmentId}/download` |
+
+### Tenant Backup (`internal/http/tenant_backup_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/tenant/backup` |
+| `GET` | `/v1/tenant/backup/download/{token}` |
+| `GET` | `/v1/tenant/backup/preflight` |
+| `POST` | `/v1/tenant/restore` |
+
+### Tenants (`internal/http/tenants.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/tenants` |
+| `POST` | `/v1/tenants` |
+| `GET` | `/v1/tenants/{id}` |
+| `PATCH` | `/v1/tenants/{id}` |
+| `GET` | `/v1/tenants/{id}/users` |
+| `POST` | `/v1/tenants/{id}/users` |
+| `DELETE` | `/v1/tenants/{id}/users/{userId}` |
+
+### Traces (`internal/http/traces.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/costs/summary` |
+| `GET` | `/v1/traces` |
+| `GET` | `/v1/traces/{traceID}` |
+| `GET` | `/v1/traces/{traceID}/export` |
+
+### TTS (`internal/http/tts.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/tts/capabilities` |
+| `GET` | `/v1/tts/config` |
+| `POST` | `/v1/tts/config` |
+| `POST` | `/v1/tts/synthesize` |
+| `POST` | `/v1/tts/test-connection` |
+| `GET` | `/v1/voices` |
+| `POST` | `/v1/voices/refresh` |
+
+### Usage (`internal/http/usage.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/usage/breakdown` |
+| `GET` | `/v1/usage/summary` |
+| `GET` | `/v1/usage/timeseries` |
+
+### Vault (`internal/http/vault_graph_handler.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/kg/graph/compact` |
+| `GET` | `/v1/agents/{agentID}/vault/documents` |
+| `POST` | `/v1/agents/{agentID}/vault/documents` |
+| `DELETE` | `/v1/agents/{agentID}/vault/documents/{docID}` |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` |
+| `POST` | `/v1/agents/{agentID}/vault/links` |
+| `DELETE` | `/v1/agents/{agentID}/vault/links/{linkID}` |
+| `POST` | `/v1/agents/{agentID}/vault/search` |
+| `GET` | `/v1/vault/documents` |
+| `POST` | `/v1/vault/documents` |
+| `DELETE` | `/v1/vault/documents/{docID}` |
+| `GET` | `/v1/vault/documents/{docID}` |
+| `PUT` | `/v1/vault/documents/{docID}` |
+| `GET` | `/v1/vault/documents/{docID}/links` |
+| `GET` | `/v1/vault/enrichment/status` |
+| `POST` | `/v1/vault/enrichment/stop` |
+| `GET` | `/v1/vault/graph` |
+| `POST` | `/v1/vault/links` |
+| `DELETE` | `/v1/vault/links/{linkID}` |
+| `POST` | `/v1/vault/links/batch` |
+| `POST` | `/v1/vault/rescan` |
+| `POST` | `/v1/vault/search` |
+| `GET` | `/v1/vault/tree` |
+| `POST` | `/v1/vault/upload` |
+
+### Wake (`internal/http/wake.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/agents/{id}/wake` |
+
+### Webhooks (`internal/http/webhooks_admin.go`, `webhooks_llm.go`, `webhooks_message.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/webhooks` |
+| `POST` | `/v1/webhooks` |
+| `DELETE` | `/v1/webhooks/{id}` |
+| `GET` | `/v1/webhooks/{id}` |
+| `PATCH` | `/v1/webhooks/{id}` |
+| `POST` | `/v1/webhooks/{id}/rotate` |
+| `POST` | `/v1/webhooks/llm` |
+| `POST` | `/v1/webhooks/message` |
+
+### Workspace (`internal/http/workspace_upload.go`)
+
+| Method | Path |
+|---|---|
+| `PUT` | `/v1/teams/{teamId}/workspace/move` |
+| `POST` | `/v1/teams/{teamId}/workspace/upload` |
+
+### Workstations (`internal/http/workstations.go`)
+
+> Standard edition only — gateway returns `403` on Lite.
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/workstations` |
+| `POST` | `/v1/workstations` |
+| `DELETE` | `/v1/workstations/{id}` |
+| `GET` | `/v1/workstations/{id}` |
+| `PUT` | `/v1/workstations/{id}` |
+| `GET` | `/v1/workstations/{id}/activity` |
+| `GET` | `/v1/workstations/{id}/permissions` |
+| `POST` | `/v1/workstations/{id}/permissions` |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` |
+| `POST` | `/v1/workstations/{id}/test` |
 
 
 
@@ -25595,7 +27221,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **56**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **57**.
 
 ### v3 Store Unification
 
@@ -26423,7 +28049,7 @@ Per-agent heartbeat configuration for periodic proactive check-ins. (migration 0
 | `enabled` | BOOLEAN | NOT NULL DEFAULT false | Whether heartbeat is active |
 | `interval_sec` | INT | NOT NULL DEFAULT 1800 | Run interval in seconds |
 | `prompt` | TEXT | | Message sent to the agent each heartbeat |
-| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `provider_id` | UUID FK → llm_providers (nullable) | ON DELETE SET NULL (migration 057) | Override LLM provider; set to NULL if provider is deleted |
 | `model` | VARCHAR(200) | | Override model |
 | `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Run in a dedicated session |
 | `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject minimal context |
@@ -26570,6 +28196,7 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 54 | Adds `name VARCHAR(255)` column to `agent_hooks`; creates `agent_hook_agents` N:M junction table; migrates existing `agent_id` FK to junction; renames `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`; drops deprecated `agent_id` column from `hooks` |
 | 55 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents` enforcing scope/agent_id/team_id coherence: `personal` requires `agent_id NOT NULL`, `team` requires `team_id NOT NULL`, `shared` requires both NULL, `custom` is unconstrained |
 | 56 | `vault_chat_id` — adds `chat_id TEXT NULL` column to `vault_documents` and index `(tenant_id, chat_id, agent_id)` for chat-scoped vault isolation. Migration 056 follow-up (v3.11.2): drops scope-consistency check before backfill UPDATEs to prevent constraint errors on legacy data |
+| 57 | `heartbeat_provider_fk_set_null` (PG) — defensive orphan cleanup, drops existing FK by constraint-name lookup, re-adds as `agent_heartbeats_provider_id_fkey` with `ON DELETE SET NULL`. Brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during ALTER (sub-second on small tables). SQLite: schema v25 → v26, full table rebuild for `agent_heartbeats` with updated FK clause; 25-column `INSERT … SELECT` preserves existing rows; `idx_heartbeats_due` recreated. |
 
 ---
 
@@ -28563,6 +30190,24 @@ GoClaw v3 introduces a unified `SSEScanner` (`providers/sse_reader.go`) shared b
 
 Provider credentials added at runtime (dashboard) are stored in `llm_providers` with AES-256-GCM encryption and resolved at request time via the credential resolver. Per-agent overrides in agent config take precedence over global provider settings.
 
+## Provider Creation Prints "FAILED" but It Actually Succeeded
+
+**Affected versions:** < v3.11.3
+
+The onboard auto-verify path used the stale `{success, models}` response shape to check whether a newly created provider was valid. The provider was created correctly in the database, but the post-create verify step read the wrong fields and printed `FAILED` to the console even when the provider was healthy.
+
+**Fix in v3.11.3:** The verify path now uses the `{valid, error}` response shape and triggers ping mode when the request body is empty, so an empty-body verify returns `{valid:true}` on success. Upgrade to v3.11.3+ to resolve this.
+
+## `goclaw providers delete` Fails with Foreign Key Error on `agent_heartbeats`
+
+**Affected versions:** < v3.11.3
+
+Before v3.11.3, the foreign key from `agent_heartbeats` to `llm_providers` was defined as `RESTRICT`. Deleting a provider that was referenced by any heartbeat row would fail with a foreign key constraint error.
+
+**Fix in v3.11.3:** Migration `000057_heartbeat_provider_fk_set_null` changes the FK to `ON DELETE SET NULL`. The `DeleteProvider` function (PostgreSQL and SQLite) now wraps the delete in a transaction that first disables all affected heartbeat rows, so the next scheduler tick cannot fire with a stale provider config. A `slog.Warn("heartbeat.provider_cleared")` log line is emitted with the count of disabled heartbeats.
+
+Requires migration #057 to be applied (`./goclaw migrate up`). Check logs for `heartbeat.provider_cleared` after deletion to confirm how many heartbeats were cleared.
+
 ## What's Next
 
 - [Database issues](/troubleshoot-database)
@@ -28874,6 +30519,10 @@ To check whether your build uses SQLite:
 ./goclaw version
 # SQLite builds will show: storage=sqlite
 ```
+
+## Migration #057 — Heartbeat FK Lock Note
+
+Migration `000057_heartbeat_provider_fk_set_null` drops the existing `RESTRICT` foreign key on `agent_heartbeats.provider_id` and re-adds it with `ON DELETE SET NULL`. The `ALTER TABLE` takes a brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during this change. On typical tables the lock is sub-second, but heartbeat workers may pause momentarily while it is held. If you have a very large `agent_heartbeats` table, plan the upgrade window accordingly and monitor for lock-wait timeouts.
 
 ## What's Next
 

@@ -36,7 +36,7 @@ Sau khi kết nối, đặt agent dùng nó:
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex"
+      "model": "gpt-5.5"
     }
   }
 }
@@ -48,7 +48,8 @@ Codex provider hỗ trợ các model có trên Responses API:
 
 | Model | Ghi chú |
 |---|---|
-| `gpt-5.3-codex` | Mặc định; tối ưu cho tác vụ coding agentic |
+| `gpt-5.5` | **Mặc định**; model ChatGPT subscription mới nhất |
+| `gpt-5.3-codex` | Tuỳ chọn thay thế; tối ưu cho tác vụ coding agentic |
 | `o3` | Reasoning model mạnh |
 | `o4-mini` | Reasoning nhanh hơn, chi phí thấp hơn |
 | `gpt-4o` | Đa năng, multimodal |
@@ -94,7 +95,7 @@ Sự chuyển đổi này hoàn toàn trong suốt — bạn tương tác với 
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "max_tokens": 8192
     }
   }
@@ -202,11 +203,11 @@ Xem [REST API](/rest-api) để biết cấu trúc response.
 | OAuth callback thất bại | Port 1455 bị chặn | Đảm bảo không có gì khác đang lắng nghe port 1455 trong lúc xác thực |
 | `model not found` | Model không có trong subscription | Kiểm tra gói ChatGPT; một số model yêu cầu gói Pro |
 | Provider không khả dụng sau restart | Token không được persist | GoClaw tự load token từ DB khi khởi động; kiểm tra kết nối DB |
-| Field phase trong response | `gpt-5.3-codex` trả về phase `commentary` + `final_answer` | GoClaw xử lý tự động; cả hai phase đều được ghi lại |
+| Field phase trong response | `gpt-5.5` và `gpt-5.3-codex` trả về phase `commentary` + `final_answer` | GoClaw xử lý tự động; cả hai phase đều được ghi lại |
 
 ## Tiếp theo
 
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
 - [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

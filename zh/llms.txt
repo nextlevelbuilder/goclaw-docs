@@ -45,6 +45,7 @@
 - [Ollama Cloud](zh/providers/ollama-cloud.md): 通过云端托管使用 Ollama 兼容模型——享受托管推理的便利与 Ollama 开放模型生态系统。
 - [Perplexity](zh/providers/perplexity.md): 通过 OpenAI 兼容 API 将 GoClaw 连接到 Perplexity 的搜索增强 AI 模型。
 - [DashScope (Qwen)](zh/providers/dashscope.md): 通过 DashScope OpenAI 兼容 API 将 GoClaw 连接到阿里巴巴的 Qwen 模型。
+- [Vertex AI (Google Cloud)](zh/providers/vertex.md): 使用 Google Cloud Vertex AI 面向 Gemini 的 OpenAI-compatible endpoint,通过 OAuth2 service account 或 Application Default Credentials 认证。
 - [Bailian](zh/providers/bailian.md): 连接阿里云百炼模型。
 - [Suno](zh/providers/suno.md): 使用 Suno 的 AI 音乐生成平台创作音乐和音频。
 - [Zai](zh/providers/zai.md): 连接 Zai 和 Zai Coding provider（OpenAI 兼容）。
@@ -98,6 +99,8 @@
 - [Exec Approval](zh/advanced/exec-approval.md): 在 agent shell 命令运行前暂停等待人工审阅 — 从 Dashboard 批准、拒绝或永久允许。
 - [Context Pruning](zh/advanced/context-pruning.md): 自动修剪旧的工具结果，将 agent 上下文保持在 token 限制内。
 - [Channel Instances](zh/advanced/channel-instances.md): 每种 channel 类型运行多个账号 — 各自拥有独立的凭据、agent 绑定和写入权限。
+- [Webhooks](zh/advanced/webhooks.md): 通过 HMAC 鉴权的 HTTP 端点，从外部系统触发 agent 或推送频道消息。
+- [Workstations](zh/advanced/workstations.md): 通过 SSH 或 Docker 在远程机器上运行 agent 命令,每个 workstation 有独立的 allowlist 和完整审计日志。
 - [Usage & Quota](zh/advanced/usage-quota.md): 追踪每个 agent 和会话的 token 消耗，并在小时、天、周窗口内对每用户请求数量执行限制。
 - [Cost Tracking](zh/advanced/cost-tracking.md): 使用可配置的按模型定价监控每个 agent 和 provider 的 token 成本。
 - [Model Steering](zh/advanced/model-steering.md): GoClaw 如何通过 3 个控制层引导小型模型：Track（调度）、Hint（上下文提示）和 Guard（安全边界）。
@@ -126,6 +129,7 @@
 - [CLI Commands](zh/reference/cli-commands.md): `goclaw` 每个命令、子命令和标志的完整参考。
 - [WebSocket Protocol](zh/reference/websocket-protocol.md): GoClaw gateway WebSocket RPC 接口的协议 v3 规范。
 - [REST API](zh/reference/rest-api.md): agent 管理、provider、skill、traces 等所有 `/v1` HTTP 端点。
+- [API Endpoint Catalog](zh/reference/api-endpoints-catalog.md): 自动生成的全部 REST 端点完整索引。请求/响应详情、示例和认证说明，请参见 [REST API 参考](rest-api.md)。
 - [Configuration Reference](zh/reference/config-reference.md): 完整的 `config.json` schema——每个字段、类型和默认值。
 - [Environment Variables](zh/reference/environment-variables.md): GoClaw 识别的所有环境变量，按类别组织。
 - [Database Schema](zh/reference/database-schema.md): 所有迁移版本中的 PostgreSQL 表、列、类型和约束。

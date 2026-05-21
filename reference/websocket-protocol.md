@@ -176,7 +176,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `agents.list` | — | List all agents |
 | `agent.wait` | `{agentId}` | Wait for agent to finish current run |
 | `agents.create` | agent object | Create an agent |
-| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Update an agent |
+| `agents.update` | `{agentId, name?, provider?, model?, model_fallback?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Update an agent |
 | `agents.delete` | `{id}` | Delete an agent |
 | `agents.files.list` | `{agentId}` | List context files |
 | `agents.files.get` | `{agentId, fileName}` | Get a context file |
@@ -208,6 +208,7 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `config.schema` | Get JSON schema for config |
 | `config.defaults` | Get compiled-in defaults + agents.defaults overlay (read-only, master scope) |
 | `config.permissions.list` | `{agentId, configType?}` | List permissions for an agent |
+| `config.permissions.check` | `{agentId, scope, configType, userId}` | Evaluate the effective decision (`allow` / `deny`) without mutating |
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
 
@@ -407,6 +408,26 @@ Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality
 |--------|--------|-------------|
 | `voices.list` | — | List ElevenLabs voices for current tenant (cached) |
 | `voices.refresh` | — | Invalidate cache and refetch voices from provider |
+
+### Workstations
+
+> **Standard edition only.** Methods are not registered when the gateway runs in Lite edition; calls return `method_not_found`. Admin role required for every method.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `workstations.list` | — | List workstations for the current tenant |
+| `workstations.get` | `{id}` | Get a workstation |
+| `workstations.create` | `{workstationKey, name, backendType, metadata, defaultCwd?, defaultEnv?}` | Create a workstation (`backendType` is `ssh` or `docker`) |
+| `workstations.update` | `{id, ...fields}` | Update a workstation |
+| `workstations.delete` | `{id}` | Delete a workstation |
+| `workstations.testConnection` | `{id}` | Probe backend connectivity without executing commands |
+| `workstations.linkAgent` | `{workstationId, agentId, isDefault?}` | Link an agent to a workstation |
+| `workstations.unlinkAgent` | `{workstationId, agentId}` | Remove the link |
+| `workstations.permissions.list` | `{workstationId}` | List allowlist patterns |
+| `workstations.permissions.add` | `{workstationId, pattern, description?, enabled?}` | Append an allowlist pattern |
+| `workstations.permissions.remove` | `{workstationId, permissionId}` | Remove a pattern |
+| `workstations.permissions.toggle` | `{workstationId, permissionId, enabled}` | Enable/disable a pattern |
+| `workstations.activity.list` | `{workstationId, limit?, before?, action?}` | Paginated activity audit log; `action` filter accepts `exec` or `deny` |
 
 ### Tenants
 

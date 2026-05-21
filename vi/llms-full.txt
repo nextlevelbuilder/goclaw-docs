@@ -2695,7 +2695,7 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Vault** (`group:vault`) | vault_search, vault_read | Tìm kiếm và đọc vault document; áp dụng policy group `group:vault` |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Quản lý conversation session; spawn subagent |
 | **Teams** (`group:teams`) | team_tasks, team_message | Cộng tác với agent team qua task board và mailbox chung |
-| **Automation** (`group:automation`) | cron, datetime | Lên lịch job định kỳ; lấy ngày/giờ hiện tại |
+| **Automation** (`group:automation`) | cron, datetime, wait | Lên lịch job định kỳ; lấy ngày/giờ hiện tại; tạm dừng giữa các tool call (`wait` — xem phần dưới) |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Gửi tin nhắn; tạo topic forum Telegram |
 | **Tạo Media** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Tạo hình ảnh, audio, video, và text-to-speech; `image_generation` là native tool cho Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — xem [Media Generation](/vi/advanced/media-generation) |
 | **Browser** | browser | Điều hướng trang web, chụp ảnh màn hình, tương tác với element |
@@ -2751,6 +2751,19 @@ Dùng `memory_search` trước để khám phá ID episodic liên quan, sau đó
 > Các tool bổ sung như `mcp_tool_search` và tool đặc thù theo channel được đăng ký động. Tool group có thể dùng tiền tố `group:` trong allow/deny list (ví dụ: `group:fs`).
 
 > **Lưu ý về delegation**: Tool `delegate` đã bị xóa. Delegation hiện được thực hiện hoàn toàn qua agent team: lead tạo task trên board chung (`team_tasks`) và delegate cho member agent qua `spawn`. Xem [Agent Teams](#agent-teams) để biết thêm.
+
+### `wait` — Tạm dừng giữa các tool call
+
+Tool `wait` built-in tạm dừng chuỗi tool call của agent hiện tại trong một khoảng thời gian giới hạn. Hữu ích để giãn cách rate-limit, polling theo chu kỳ, hoặc đợi một async job bên ngoài hoàn tất trước khi gọi tool tiếp theo.
+
+| Field | Kiểu | Ghi chú |
+|------|------|-------|
+| `timeMs` | integer (bắt buộc) | Thời gian (mili-giây). Mặc định: `100` ≤ `timeMs` ≤ `300000` (5 phút). |
+| `reason` | string (tuỳ chọn) | Lý do dạng tự do, được log cùng kết quả wait; hữu ích cho trace và debug. |
+
+Cận trên và cận dưới có thể tinh chỉnh per-deployment qua runtime config của tool; mặc định là 100 ms và 300 000 ms.
+
+> **Không phải `spawn(action=wait)`:** `wait` là tool built-in cấp cao nhất, tạm dừng **agent đang gọi** trong `timeMs` mili-giây. Pattern `spawn(action=wait)` (còn gọi là **WaitAll**, xem bên dưới) là một delegation primitive — chặn parent **cho đến khi các subagent đã spawn trước đó kết thúc**. Dùng `wait` cho tạm dừng theo thời gian; dùng `spawn(action=wait)` cho delegation fan-out/fan-in.
 
 ## Luồng thực thi Tool
 
@@ -2947,7 +2960,7 @@ Tool `spawn` (thuộc `group:sessions`) tạo và chạy subagent. Các tính n�
 
 | Tính năng | Chi tiết |
 |-----------|---------|
-| **WaitAll** | `spawn(action=wait, timeout=N)` chặn parent cho đến khi tất cả các children đã spawn hoàn tất. Hữu ích cho pattern fan-out/fan-in. |
+| **WaitAll** | `spawn(action=wait, timeout=N)` chặn parent cho đến khi tất cả các children đã spawn hoàn tất. Hữu ích cho pattern fan-out/fan-in. Khác với tool `wait` built-in ở trên — `wait` tạm dừng theo thời gian cố định, không phụ thuộc trạng thái subagent. |
 | **Auto-retry** | `MaxRetries` có thể cấu hình (mặc định `2`) với linear backoff khi LLM gặp lỗi. Lỗi tạm thời được tự động retry. |
 | **Token tracking** | Mỗi subagent tích lũy số token input/output theo từng lần gọi. Tổng cộng được đưa vào announce message để parent có thể theo dõi chi phí. |
 | **SubagentDenyAlways** | Subagent không thể spawn subagent lồng nhau — tool `team_tasks` bị chặn trong ngữ cảnh subagent. Ngăn chuỗi delegation không giới hạn. |
@@ -5321,6 +5334,7 @@ Các provider hỗ trợ extended thinking cũng triển khai thêm `SupportsThi
 | **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
 | **acp** | JSON-RPC 2.0 subagent | `claude` |
 | **dashscope** | OpenAI-compat wrapper | `qwen3-max` |
+| **vertex** | OpenAI-compat (OAuth2) | `google/gemini-2.0-flash-001` |
 | **openai** (+ 15+ biến thể) | OpenAI-compatible | Tùy model |
 
 ### Provider tương thích OpenAI
@@ -5493,6 +5507,7 @@ Khi GoClaw kết nối MCP (Model Context Protocol) tools tới một provider, 
 - [OpenAI](./openai.md) — GPT-4o, o-series, GPT-5 reasoning model
 - [OpenRouter](./openrouter.md) — truy cập 100+ model qua một API key duy nhất
 - [Gemini](./gemini.md) — Google Gemini qua endpoint tương thích OpenAI
+- [Vertex AI](./vertex.md) — Vertex Gemini của Google Cloud với OAuth2 / ADC
 - [DeepSeek](./deepseek.md) — DeepSeek với hỗ trợ reasoning_content
 - [Groq](./groq.md) — inference cực nhanh
 - [DashScope](./dashscope.md) — Alibaba Qwen model với hỗ trợ thinking
@@ -6928,6 +6943,160 @@ GoClaw ánh xạ `thinking_level` sang `thinking_budget` của DashScope:
 
 ---
 
+ > Bản dịch từ [English version](/provider-vertex)
+
+# Vertex AI
+
+> Dùng endpoint OpenAI-compatible của Google Cloud Vertex AI cho Gemini, xác thực bằng OAuth2 service account hoặc Application Default Credentials.
+
+## Tổng quan
+
+GoClaw kết nối tới Google Cloud Vertex AI qua API OpenAI-compatible. Bên trong, provider là một `OpenAIProvider` được wire với Google OAuth2 token source — mỗi request được ký bằng access token ngắn hạn mà gateway tự refresh mỗi giờ.
+
+URL endpoint được tạo từ GCP project và region:
+
+```
+https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/endpoints/openapi
+```
+
+Ví dụ project `acme-prod` và region `us-central1` sẽ tới `https://us-central1-aiplatform.googleapis.com/v1/projects/acme-prod/locations/us-central1/endpoints/openapi`.
+
+## Yêu cầu
+
+- Một project Google Cloud đã bật **Vertex AI API**.
+- Một trong hai:
+  - Service-account JSON key có role `roles/aiplatform.user`, hoặc
+  - Application Default Credentials (`gcloud auth application-default login` cho local, hoặc metadata server trên GCE/GKE/Cloud Run).
+- OAuth scope `https://www.googleapis.com/auth/cloud-platform` được yêu cầu tự động — bạn không cần config.
+
+## Thứ tự credential
+
+Khi provider khởi động, nó duyệt các nguồn credential theo thứ tự sau và dừng ở nguồn đầu tiên có giá trị:
+
+1. **Inline JSON** — `credentials_json` (field Settings trong DB) hoặc `providers.vertex.api_key` (config.json). Dán toàn bộ JSON service-account.
+2. **File path** — `credentials_file` đường dẫn trên ổ đĩa. **Chỉ dành cho operator.** Path này được đọc trực tiếp bởi process gateway; tuyệt đối đừng expose qua admin UI nếu chưa có allowlist path nghiêm ngặt.
+3. **Application Default Credentials** — fallback về `GOOGLE_APPLICATION_CREDENTIALS`, creds user gcloud, hoặc metadata server của GCP. ADC discovery giới hạn ở 10 giây để metadata server thiếu không treo startup.
+
+## Cấu hình qua config.json
+
+```json
+{
+  "providers": {
+    "vertex": {
+      "api_key": "{\"type\":\"service_account\",\"project_id\":\"acme-prod\", ... }",
+      "credentials_file": "",
+      "project_id": "acme-prod",
+      "region": "us-central1",
+      "model": "google/gemini-2.0-flash-001"
+    }
+  }
+}
+```
+
+Provider chỉ được init khi **có cả** `project_id` và `region`. `api_key` nhận toàn bộ service-account JSON dưới dạng string. Để dùng ADC, để trống cả `api_key` và `credentials_file`.
+
+## Cấu hình qua Dashboard
+
+Tạo provider tại **Settings → Providers → Add provider** với `provider_type: "vertex"`. Các field riêng của Vertex nằm trong `settings`:
+
+```json
+{
+  "name": "vertex-prod",
+  "provider_type": "vertex",
+  "api_key": "{\"type\":\"service_account\", ... }",
+  "settings": {
+    "project_id": "acme-prod",
+    "region": "us-central1",
+    "model": "google/gemini-2.5-pro-001"
+  }
+}
+```
+
+API key và settings được mã hoá at-rest bằng AES-256-GCM. Provider chạy từ DB cũng tuân theo thứ tự credential ở trên — để trống `api_key` nếu host gateway dùng ADC.
+
+## Model được hỗ trợ
+
+Endpoint OpenAI-compatible của Vertex AI nhận mọi model Gemini Google publish dưới namespace `google/`, ví dụ:
+
+| Model ID | Ghi chú |
+|----------|---------|
+| `google/gemini-2.0-flash-001` | Mặc định |
+| `google/gemini-2.5-pro-001` | Context lớn nhất, hỗ trợ thinking |
+| `google/gemini-2.5-flash-001` | Nhanh, hỗ trợ thinking |
+| `google/gemini-1.5-pro-002` | Thế hệ trước, context 2M |
+
+Luôn giữ prefix `google/` — Vertex OpenAI shim bắt buộc có nó. Kiểm tra [Vertex model catalog](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) để biết model hiện có theo region.
+
+## Validate region và project
+
+Provider validate cả hai giá trị trước khi gọi network:
+
+- `project_id` — 6–30 ký tự lowercase/digit/hyphen, bắt đầu bằng chữ cái (format GCP project ID).
+- `region` — lowercase, các đoạn alphanumeric ngăn cách bằng hyphen (vd. `us-central1`, `asia-southeast1`).
+
+Giá trị sai format sẽ fail ngay khi startup. Nếu bạn truyền `api_base_override`, gateway còn từ chối URL có host không nằm dưới `*.googleapis.com` — bảo vệ không cho provider trỏ tới endpoint của attacker trong khi vẫn auth Google.
+
+## Ví dụ
+
+### Smoke test nhanh trong agent loop
+
+```json
+{
+  "model": "google/gemini-2.0-flash-001",
+  "options": {
+    "temperature": 0.2
+  }
+}
+```
+
+### Pin model theo từng request
+
+Vì Vertex dùng adapter `OpenAIProvider`, mọi request đều tôn trọng override `model` ở request level. Cả webhook inline-message lẫn agent loop chuẩn đều chấp nhận.
+
+### Inline credential trong config.json
+
+```json
+{
+  "providers": {
+    "vertex": {
+      "api_key": "{\n  \"type\": \"service_account\",\n  \"project_id\": \"acme-prod\",\n  \"private_key_id\": \"...\",\n  \"private_key\": \"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\n  \"client_email\": \"goclaw-vertex@acme-prod.iam.gserviceaccount.com\",\n  \"token_uri\": \"https://oauth2.googleapis.com/token\"\n}",
+      "project_id": "acme-prod",
+      "region": "us-central1"
+    }
+  }
+}
+```
+
+### ADC trên GKE / Cloud Run
+
+Để trống cả `api_key` và `credentials_file`, đồng thời gán role `roles/aiplatform.user` cho service account của workload. Provider lấy token từ metadata server tự động.
+
+## Streaming, tools, vision
+
+Provider Vertex nói OpenAI ChatCompletions cùng code path với adapter `openai` và `gemini`. Streaming, function/tool calling, và image input hoạt động giống như `openai` hay `gemini`. Extended thinking trên Gemini 2.5 được map từ `thinking_level` sang `reasoning_effort` tự động (xem [Gemini](/provider-gemini) để biết chi tiết thought_signature passback).
+
+## Troubleshooting
+
+| Lỗi | Nguyên nhân | Cách khắc phục |
+|-----|-------------|----------------|
+| `vertex: project_id is required` | Thiếu project hoặc region | Set cả `project_id` và `region` |
+| `vertex: invalid project_id` | ID có chữ hoa, gạch dưới, hoặc sai độ dài | Dùng project ID GCP chuẩn (6–30 lowercase) |
+| `vertex: application default credentials not found` | Không có nguồn ADC trên host | Set `GOOGLE_APPLICATION_CREDENTIALS`, truyền `credentials_file`, hoặc chạy trên GCP |
+| `vertex: parse inline credentials` | `api_key` không phải service-account JSON hợp lệ | Paste nguyên file JSON, không sửa |
+| `403 Permission denied` từ Vertex | Service account thiếu role | Gán `roles/aiplatform.user` |
+| `HTTP 429` | Vượt quota | Xin tăng quota trong GCP console; GoClaw tự retry |
+| Model không tìm thấy | Sai model ID hoặc sai region | Đảm bảo model có sẵn ở region đang config; giữ prefix `google/` |
+
+## What's Next
+
+- [Gemini](/provider-gemini) — Gemini qua endpoint OpenAI-compatible của Google AI Studio
+- [OpenAI](/provider-openai) — ghi chú chung về adapter OpenAI-compatible
+- [Providers Overview](/providers-overview) — kiến trúc adapter, retry, credential resolver
+
+
+
+---
+
 # Bailian
 
 > Kết nối với Alibaba Cloud Bailian (百炼).
@@ -7333,7 +7502,7 @@ Sau khi kết nối, đặt agent dùng nó:
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex"
+      "model": "gpt-5.5"
     }
   }
 }
@@ -7345,7 +7514,8 @@ Codex provider hỗ trợ các model có trên Responses API:
 
 | Model | Ghi chú |
 |---|---|
-| `gpt-5.3-codex` | Mặc định; tối ưu cho tác vụ coding agentic |
+| `gpt-5.5` | **Mặc định**; model ChatGPT subscription mới nhất |
+| `gpt-5.3-codex` | Tuỳ chọn thay thế; tối ưu cho tác vụ coding agentic |
 | `o3` | Reasoning model mạnh |
 | `o4-mini` | Reasoning nhanh hơn, chi phí thấp hơn |
 | `gpt-4o` | Đa năng, multimodal |
@@ -7391,7 +7561,7 @@ Sự chuyển đổi này hoàn toàn trong suốt — bạn tương tác với 
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "max_tokens": 8192
     }
   }
@@ -17443,6 +17613,674 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 
 ---
 
+ > Bản dịch từ [English version](/webhooks)
+
+# Webhooks
+
+> Kích hoạt agent hoặc gửi tin nhắn channel từ hệ thống bên ngoài qua endpoint HTTP xác thực bằng HMAC.
+
+## Tổng quan
+
+Webhooks của GoClaw cung cấp hai entry point HTTP cho phép hệ thống bên ngoài điều khiển gateway mà không cần dùng giao thức WebSocket RPC:
+
+| Kind | Endpoint | Mục đích | Edition |
+|------|----------|----------|---------|
+| `llm` | `POST /v1/webhooks/llm` | Gọi agent với một prompt (sync hoặc async) | Standard + Lite |
+| `message` | `POST /v1/webhooks/message` | Gửi tin nhắn tới người dùng qua channel đã kết nối | Standard |
+
+Mỗi webhook là một bản ghi registry trong phạm vi tenant. Admin tạo bản ghi qua CRUD API rồi nhận một bearer secret và một HMAC signing key dùng một lần; sau đó client xác thực inbound request bằng một trong hai credential này.
+
+> **Bắt buộc có encryption key.** Hệ webhook chỉ được mount khi `GOCLAW_ENCRYPTION_KEY` đã được set. Khi thiếu, mọi route `/v1/webhooks/*` trả về `404` và gateway log `webhook subsystem disabled`. Xem [Security Hardening](/deploy-security) và [Environment Variables](/env-vars).
+
+## Admin CRUD
+
+Mọi endpoint admin đều yêu cầu gateway token với quyền tenant-admin (`Authorization: Bearer <admin-token>`).
+
+| Method | Path | Mục đích |
+|--------|------|----------|
+| `POST` | `/v1/webhooks` | Tạo webhook; trả về raw secret và HMAC key (một lần) |
+| `GET` | `/v1/webhooks` | Liệt kê webhook của tenant. Hỗ trợ filter `?agent_id=<uuid>` |
+| `GET` | `/v1/webhooks/{id}` | Lấy chi tiết một webhook (không có secret) |
+| `PATCH` | `/v1/webhooks/{id}` | Update từng phần; `kind` không đổi được |
+| `POST` | `/v1/webhooks/{id}/rotate` | Sinh secret mới (secret cũ bị vô hiệu ngay lập tức) |
+| `DELETE` | `/v1/webhooks/{id}` | Revoke; mọi inbound call sau đó trả về `401` |
+
+Xem [REST API → Webhooks](/rest-api) và [Endpoint Catalog](/api-endpoints-catalog) để biết shape request/response đầy đủ.
+
+### Tạo webhook
+
+```bash
+curl -X POST https://gw.example.com/v1/webhooks \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "billing-sync",
+    "kind": "llm",
+    "agent_id": "9c5a...e4",
+    "require_hmac": true,
+    "rate_limit_per_min": 60,
+    "ip_allowlist": ["10.0.0.0/8"]
+  }'
+```
+
+Response (201 Created):
+
+```json
+{
+  "id": "f5a1...",
+  "name": "billing-sync",
+  "secret_prefix": "wh_ABCD",
+  "secret": "wh_ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGH",
+  "hmac_signing_key": "a3f4...hex64chars",
+  "kind": "llm",
+  "rate_limit_per_min": 60,
+  "require_hmac": true,
+  "localhost_only": false,
+  "ip_allowlist": ["10.0.0.0/8"],
+  "created_at": "2026-05-21T12:00:00Z"
+}
+```
+
+> `secret` và `hmac_signing_key` chỉ được trả về **một lần** — khi tạo và khi rotate. Hãy lưu ngay vào secret manager; không thể lấy lại được.
+
+### Các field khi tạo
+
+| Field | Loại | Bắt buộc | Ghi chú |
+|-------|------|----------|---------|
+| `name` | string | có | Tối đa 100 ký tự |
+| `kind` | string | có | `"llm"` hoặc `"message"` |
+| `agent_id` | UUID | với kind `llm` | Agent sẽ được gọi |
+| `channel_id` | UUID | tuỳ chọn | Cố định webhook `message` vào một channel cụ thể |
+| `require_hmac` | bool | không | Bắt buộc dùng HMAC (vô hiệu bearer) |
+| `localhost_only` | bool | không | Chỉ chấp nhận 127.0.0.1/::1. Trên Lite luôn bị ép thành `true` |
+| `rate_limit_per_min` | int | không | Giới hạn cho từng webhook (0 = dùng default của tenant) |
+| `ip_allowlist` | []string | không | IP hoặc CIDR. Rỗng = cho phép mọi nguồn |
+
+## Authentication
+
+Field `require_hmac` trên webhook quyết định mode nào được chấp nhận.
+
+### Bearer auth
+
+```
+Authorization: Bearer wh_ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGH
+```
+
+Gateway hash token bằng SHA-256, so sánh constant-time với `secret_hash`, rồi dùng `GOCLAW_ENCRYPTION_KEY` để giải mã material đã lưu. Bearer auth bị **từ chối** khi `require_hmac=true`.
+
+### HMAC auth (khuyến nghị)
+
+Gửi ba header:
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+Content-Type: application/json
+```
+
+Thuật toán ký:
+
+```
+signing_key = hex.Decode(hmac_signing_key)   // hex_64 → 32 raw bytes
+payload     = "{unix_ts}.{request_body_bytes}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+`hmac_signing_key` chính là `hex(SHA-256(raw_secret))`. Gateway không bao giờ lưu raw secret — chỉ lưu hash và một ciphertext AES-256-GCM dùng cho worker outbound khi cần ký lại.
+
+**Timestamp skew.** Request có `|now - t| > 300` giây bị từ chối. Hãy đồng bộ đồng hồ qua NTP.
+
+**Chống replay.** Sau khi signature hợp lệ, gateway ghi `sha256(tenant_id|signature_hex)` vào nonce cache in-memory (TTL 320s). Replay trả `401` kèm sự kiện audit `security.webhook.hmac_replay`. Cache này per-process — deployment nhiều node có thể vẫn chấp nhận replay ở node khác trên lý thuyết.
+
+**IP allowlist.** Khi `ip_allowlist` khác rỗng, mỗi entry được match với `RemoteAddr` của request sau khi auth thành công. Hỗ trợ CIDR và IP đơn lẻ. `X-Forwarded-For` **không** được tin cậy.
+
+## POST /v1/webhooks/llm
+
+Kích hoạt agent với một prompt. Có sẵn ở mọi edition (Standard + Lite).
+
+```bash
+curl -X POST https://gw.example.com/v1/webhooks/llm \
+  -H "Authorization: Bearer wh_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "Tóm tắt metric mới nhất",
+    "session_key": "user-123-session",
+    "mode": "sync"
+  }'
+```
+
+Các field request:
+
+| Field | Loại | Bắt buộc | Ghi chú |
+|-------|------|----------|---------|
+| `input` | string hoặc array | có | Chuỗi đơn giản, hoặc array `[{role, content}]` |
+| `session_key` | string | không | Khoá để liên tục hội thoại nhiều turn |
+| `user_id` | string | không | Định danh user bên ngoài để scope |
+| `model` | string | không | Override model cho request này |
+| `mode` | string | không | `"sync"` (mặc định) hoặc `"async"` |
+| `callback_url` | string | bắt buộc khi async | HTTPS URL; validate qua SSRF policy |
+| `metadata` | object | không | Echo lại vào callback async (tối đa 8 KB) |
+
+**Sync mode** timeout sau 30 giây và trả về toàn bộ output của agent:
+
+```json
+{
+  "call_id": "<uuid>",
+  "agent_id": "<uuid>",
+  "output": "Đây là metric: ...",
+  "usage": {"prompt_tokens": 150, "completion_tokens": 200, "total_tokens": 350},
+  "finish_reason": "stop"
+}
+```
+
+**Async mode** trả `202 Accepted` cùng `{"call_id": "...", "status": "queued"}`; kết quả được gửi tới `callback_url` qua outbound delivery (xem [Outbound callbacks](#outbound-callbacks)).
+
+Bảng lỗi:
+
+| Status | Code | Khi nào |
+|--------|------|---------|
+| 400 | `invalid_request` | Thiếu `input`, sai `mode`, thiếu `callback_url` cho async |
+| 401 | — | Bearer sai, HMAC mismatch, đã revoke, HMAC replay |
+| 403 | `unauthorized` | Vi phạm `localhost_only`, IP bị deny, sai kind, sai tenant |
+| 404 | `not_found` | Agent không tồn tại |
+| 429 | — | Vượt rate limit (`Retry-After: 60`) |
+| 503 | — | Lane xử lý webhook đã đầy |
+| 504 | — | LLM timeout (chỉ sync) |
+
+## POST /v1/webhooks/message
+
+Gửi tin nhắn tới user qua channel đã kết nối. **Chỉ Standard edition.**
+
+```json
+{
+  "channel_name": "telegram-prod",
+  "chat_id": "123456789",
+  "content": "Xin chào từ integration!",
+  "media_url": "https://example.com/image.jpg",
+  "media_caption": "Caption tuỳ chọn",
+  "fallback_to_text": false
+}
+```
+
+| Field | Loại | Bắt buộc | Ghi chú |
+|-------|------|----------|---------|
+| `channel_name` | string | có (trừ khi webhook có `channel_id` bound) | Tên channel instance |
+| `chat_id` | string | có | ID người nhận theo channel |
+| `content` | string | có (trừ khi gửi `media_url`) | Nội dung text; tối đa 16 KB |
+| `media_url` | string | không | HTTPS URL. SSRF-guarded + HEAD-probe trước khi tải |
+| `media_caption` | string | không | Caption cho media |
+| `fallback_to_text` | bool | không | True = chỉ gửi text khi channel không nhận media |
+
+Response:
+
+```json
+{
+  "call_id": "<uuid>",
+  "status": "sent",
+  "channel_name": "telegram-prod",
+  "chat_id": "123456789",
+  "warning": ""
+}
+```
+
+`warning` được set thành `"media_not_supported_fallback_text"` khi `fallback_to_text=true` và channel đã bỏ media. Các channel không hỗ trợ media (ví dụ `zalo_oa`) trả `501 Not Implemented` trừ khi `fallback_to_text=true`.
+
+## Idempotency
+
+Mọi endpoint webhook đều chấp nhận header `Idempotency-Key` (tối đa 255 ký tự).
+
+- Request đầu tiên với key đó: xử lý bình thường.
+- Cùng key + body giống hệt: trả về response đã cache với `200 OK`.
+- Cùng key + body khác: trả `409 Conflict` (`webhook.idempotency_conflict`).
+- Key hết hạn sau 24 giờ (TTL của bảng `webhook_calls`).
+
+Dùng UUID hoặc hash của payload. Khi retry hãy gửi **đúng body cũ**.
+
+## Outbound callbacks
+
+Async LLM call gửi kết quả về `callback_url` qua `HTTP POST`. Delivery là **at-least-once** — receiver phải idempotent.
+
+Mọi lần thử đều mang header:
+
+```
+X-Webhook-Delivery-Id: <uuid>          ; ổn định qua các retry — dedupe theo field này
+X-Webhook-Signature:   t=<unix>,v1=<hex>; cùng scheme HMAC như inbound
+Content-Type:          application/json
+User-Agent:            goclaw-webhook/1
+```
+
+Payload:
+
+```json
+{
+  "call_id": "<uuid>",
+  "delivery_id": "<uuid>",
+  "agent_id": "<uuid>",
+  "status": "done",
+  "output": "Phản hồi của agent...",
+  "usage": {"prompt_tokens": 150, "completion_tokens": 200, "total_tokens": 350},
+  "metadata": {},
+  "error": ""
+}
+```
+
+`status` là `"done"` khi thành công, `"failed"` khi agent lỗi (`error` sẽ có nội dung).
+
+Lịch retry (jitter ±10%):
+
+| Lần | Delay |
+|-----|-------|
+| 1 | 30 giây |
+| 2 | 2 phút |
+| 3 | 10 phút |
+| 4 | 1 giờ |
+| 5 | 6 giờ |
+
+Sau 5 lần thất bại, row chuyển sang `status=dead`. Header `429 Retry-After` từ receiver được tôn trọng (giới hạn ở 6 giờ). Mọi response `4xx` khác `429` đều coi là failure vĩnh viễn. Mọi `2xx` đánh dấu delivery hoàn tất.
+
+## Verify chữ ký
+
+### Go
+
+```go
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "fmt"
+    "strings"
+    "time"
+)
+
+func verify(body []byte, sigHeader, hmacSigningKey string) error {
+    var ts int64
+    var sigHex string
+    for _, part := range strings.Split(sigHeader, ",") {
+        switch {
+        case strings.HasPrefix(part, "t="):
+            fmt.Sscanf(part[2:], "%d", &ts)
+        case strings.HasPrefix(part, "v1="):
+            sigHex = part[3:]
+        }
+    }
+    if abs(time.Now().Unix()-ts) > 300 {
+        return fmt.Errorf("timestamp skew")
+    }
+    key, err := hex.DecodeString(hmacSigningKey)
+    if err != nil {
+        return err
+    }
+    mac := hmac.New(sha256.New, key)
+    fmt.Fprintf(mac, "%d.", ts)
+    mac.Write(body)
+    expected := mac.Sum(nil)
+    received, err := hex.DecodeString(sigHex)
+    if err != nil || !hmac.Equal(expected, received) {
+        return fmt.Errorf("signature mismatch")
+    }
+    return nil
+}
+```
+
+### Node.js
+
+```js
+const crypto = require('crypto');
+
+function signWebhookRequest(body, hmacSigningKeyHex) {
+  const ts = Math.floor(Date.now() / 1000);
+  const key = Buffer.from(hmacSigningKeyHex, 'hex');
+  const payload = Buffer.concat([Buffer.from(`${ts}.`), Buffer.from(body)]);
+  const sig = crypto.createHmac('sha256', key).update(payload).digest('hex');
+  return { ts, header: `t=${ts},v1=${sig}` };
+}
+
+const body = JSON.stringify({ input: 'hello', mode: 'sync' });
+const { header } = signWebhookRequest(body, process.env.WEBHOOK_HMAC_KEY);
+
+await fetch('https://gw.example.com/v1/webhooks/llm', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Webhook-Id': process.env.WEBHOOK_ID,
+    'X-GoClaw-Signature': header,
+  },
+  body,
+});
+```
+
+### Python
+
+```python
+import hashlib, hmac, json, os, time, requests
+
+def sign(body: bytes, hmac_signing_key_hex: str) -> str:
+    ts = int(time.time())
+    key = bytes.fromhex(hmac_signing_key_hex)
+    payload = f"{ts}.".encode() + body
+    sig = hmac.new(key, payload, hashlib.sha256).hexdigest()
+    return f"t={ts},v1={sig}"
+
+body = json.dumps({"input": "hello", "mode": "sync"}).encode()
+requests.post(
+    "https://gw.example.com/v1/webhooks/llm",
+    headers={
+        "Content-Type": "application/json",
+        "X-Webhook-Id": os.environ["WEBHOOK_ID"],
+        "X-GoClaw-Signature": sign(body, os.environ["WEBHOOK_HMAC_KEY"]),
+    },
+    data=body,
+)
+```
+
+## Rate limit
+
+Hai tầng phải cùng pass:
+
+| Tầng | Giới hạn | Ghi chú |
+|------|----------|---------|
+| Theo webhook | Field `rate_limit_per_min` (0 = tắt) | Set trên bản ghi webhook |
+| Theo tenant | Mặc định của platform | Áp dụng chung cho mọi webhook của tenant |
+
+Bị reject ở tầng nào cũng trả `429 Too Many Requests` kèm `Retry-After: 60`.
+
+## Khác biệt theo edition
+
+| Tính năng | Standard | Lite |
+|-----------|----------|------|
+| `/v1/webhooks/llm` | Có | Có (ép `localhost_only`) |
+| `/v1/webhooks/message` | Có | Không |
+| `localhost_only=false` | Có thể bật/tắt | Luôn `true`; không thay đổi được |
+| Tạo webhook `kind="message"` | Cho phép | Bị từ chối (`403`) |
+
+Trên Lite, mọi webhook đều tự động được tạo với `localhost_only=true`. Một `PATCH` cố gắng tắt cờ này sẽ nhận `403`.
+
+## Bảo mật
+
+- **Chặn SSRF.** `media_url` và `callback_url` được validate qua SSRF policy và HEAD-probe; callback URL còn được kiểm tra lại ở thời điểm delivery để chống DNS rebinding (`security.webhook.callback_ssrf_blocked`).
+- **Lưu secret.** Chỉ `SHA-256(secret)` và ciphertext AES-256-GCM được lưu; raw secret không bao giờ được log.
+- **Tenant isolation.** Agent và channel phải thuộc tenant của webhook (`security.webhook.tenant_mismatch`).
+- **Rotate.** `POST /v1/webhooks/{id}/rotate` vô hiệu secret cũ ngay lập tức — không có grace window. Phối hợp với caller trước khi rotate.
+- **Encryption key.** `GOCLAW_ENCRYPTION_KEY` (base64, 32 byte) phải giống nhau trên mọi replica gateway. Rotate key sẽ re-encrypt toàn bộ secret webhook qua migration chuẩn.
+
+## Audit payload
+
+Mỗi call ghi một row vào `webhook_calls` với field `request_payload`:
+
+```json
+{
+  "body_hash": "<sha256-hex-64-chars>",
+  "meta": { /* tuỳ handler */ }
+}
+```
+
+`body_hash` là SHA-256 của raw bytes — dùng cho idempotency checker khi phát hiện body khác với cùng `Idempotency-Key`. Với `llm`, `meta` mirror lại field đã decode (`input`, `session_key`, `user_id`, `model`, `mode`, `callback_url`, `metadata`). Với `message`, `meta` là `{channel_name, chat_id, has_media}`.
+
+## Các lỗi thường gặp
+
+| Triệu chứng | Nguyên nhân | Cách khắc phục |
+|-------------|-------------|----------------|
+| `404` ở mọi route `/v1/webhooks/*` | Chưa set `GOCLAW_ENCRYPTION_KEY` | Set env var và khởi động lại gateway |
+| `401 timestamp skew` | Đồng hồ lệch | Bật NTP ở phía caller |
+| `401 hmac_replay` khi retry | Gửi lại nguyên payload đã ký | Ký lại với timestamp mới ở mỗi retry |
+| `409 idempotency_conflict` | Cùng `Idempotency-Key` nhưng body khác | Gửi lại đúng body, hoặc dùng key mới |
+| `403 unauthorized` từ Lite gateway | Tạo webhook `message` hoặc tắt `localhost_only` | Dùng Standard hoặc sửa request |
+| Async callback không tới | `callback_url` fail SSRF hoặc trả `4xx` | Kiểm tra `webhook_calls.status` và log worker |
+
+## What's Next
+
+- [REST API → Webhooks](/rest-api)
+- [Environment Variables → `GOCLAW_ENCRYPTION_KEY`](/env-vars)
+- [Security Hardening](/deploy-security)
+- [Channels Overview](/channels-overview)
+
+
+
+---
+
+ > Bản dịch từ [English version](/workstations)
+
+# Workstations
+
+> Chạy command của agent trên máy từ xa qua SSH hoặc Docker, với allowlist riêng cho từng workstation và audit đầy đủ.
+
+## Tổng quan
+
+**Workstation** là một target thực thi từ xa được đăng ký trong GoClaw. Khi agent gọi tool có sẵn `workstation_exec`, gateway mở session tới workstation đã link, chạy command, stream stdout/stderr về dưới dạng event-bus chunks, và ghi một row vào log activity.
+
+Workstation tenant-scoped và chỉ có ở Standard edition. Hai backend được hỗ trợ:
+
+| Backend | `backendType` | Transport | Ghi chú |
+|---------|---------------|-----------|---------|
+| SSH | `ssh` | OpenSSH client + session pool | Inline PEM private key hoặc password. TOFU host-key fingerprint |
+| Docker | `docker` | Docker engine API | Image + tên container; phù hợp cho sandbox tạm thời |
+
+Connection pool dùng chung trong từng workstation, nên các lần gọi `workstation_exec` lặp lại sẽ tái sử dụng SSH client đang ấm thay vì handshake lại TCP+TLS mỗi lần.
+
+## Lifecycle
+
+1. **Tạo** workstation — POST `/v1/workstations` với `workstationKey`, `name`, `backendType`, và `metadata`.
+2. **Test** connection — `POST /v1/workstations/{id}/test`. SSH backend sẽ dial, chạy `echo ok`, và tear down trong vòng 5 giây.
+3. **Seed allowlist** — diễn ra tự động khi create. Xem [Permission model](#permission-model).
+4. **Link agent** — qua WebSocket: `workstations.linkAgent` với `{agentId, workstationId, isDefault}`.
+5. **Sử dụng** — agent gọi tool `workstation_exec`. Mỗi call đều đi qua permission checker và được ghi vào `workstation_activity`.
+
+`workstationKey` là slug ổn định dùng trong API call; regex là `^[a-z0-9][a-z0-9-]{0,99}$`.
+
+## Endpoints
+
+Mọi endpoint HTTP đều yêu cầu gateway token tenant-admin (`Authorization: Bearer <admin-token>`).
+
+| Method | Path | Mục đích |
+|--------|------|----------|
+| `GET` | `/v1/workstations` | Liệt kê workstation active |
+| `POST` | `/v1/workstations` | Tạo workstation |
+| `GET` | `/v1/workstations/{id}` | Lấy chi tiết (sanitized view) |
+| `PUT` | `/v1/workstations/{id}` | Update từng phần |
+| `DELETE` | `/v1/workstations/{id}` | Xoá hẳn (tenant-scoped) |
+| `POST` | `/v1/workstations/{id}/test` | Health-check backend |
+| `GET` | `/v1/workstations/{id}/permissions` | Liệt kê pattern allowlist |
+| `POST` | `/v1/workstations/{id}/permissions` | Thêm pattern (mặc định enabled) |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | Xoá pattern |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | Bật/tắt pattern |
+| `GET` | `/v1/workstations/{id}/activity` | Audit log có phân trang (`limit`, `cursor`) |
+
+Các thao tác tương đương cũng có ở dạng WebSocket RPC dưới namespace `workstations.*` (xem [WebSocket Protocol](/websocket-protocol)). `workstations.linkAgent` / `workstations.unlinkAgent` **chỉ** có qua WebSocket.
+
+### Tạo workstation
+
+```bash
+curl -X POST https://gw.example.com/v1/workstations \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workstationKey": "build-vm",
+    "name": "Build VM (us-west)",
+    "backendType": "ssh",
+    "metadata": {
+      "host": "10.0.4.21",
+      "port": 22,
+      "user": "deploy",
+      "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----\n",
+      "knownHostsFingerprint": "SHA256:abcdef..."
+    },
+    "defaultCwd": "/srv/builds",
+    "defaultEnv": {"PATH": "/usr/local/bin:/usr/bin"}
+  }'
+```
+
+Response (201 Created) trả về **sanitized view** — private key và password không bao giờ được echo lại. Chỉ có metadata summary (`host`, `port`, `user`, `hasKey`):
+
+```json
+{
+  "workstation": {
+    "id": "1c2d...",
+    "workstationKey": "build-vm",
+    "tenantId": "...",
+    "name": "Build VM (us-west)",
+    "backendType": "ssh",
+    "defaultCwd": "/srv/builds",
+    "active": true,
+    "createdAt": "2026-05-21T12:00:00Z",
+    "metadataSummary": {"host": "10.0.4.21", "port": 22, "user": "deploy", "hasKey": true}
+  }
+}
+```
+
+### SSH metadata
+
+| Field | Bắt buộc | Ghi chú |
+|-------|----------|---------|
+| `host` | có | DNS name hoặc IP |
+| `user` | có | User trên máy remote |
+| `port` | không | Mặc định `22`; trong khoảng 1–65535 |
+| `privateKey` | một trong `privateKey`/`password` | PEM; lưu AES-256-GCM encrypted |
+| `password` | một trong `privateKey`/`password` | Ưu tiên key auth |
+| `knownHostsFingerprint` | khuyến nghị | `SHA256:...` của host key. Rỗng → TOFU lần đầu |
+| `connectTimeoutSec` | không | Override timeout dial mặc định 10s |
+
+### Docker metadata
+
+| Field | Bắt buộc | Ghi chú |
+|-------|----------|---------|
+| `image` | có | Tham chiếu image container |
+| `host` | một trong `host`/`socketPath` | URL Docker daemon remote |
+| `socketPath` | một trong `host`/`socketPath` | UNIX socket local |
+| `network` | không | Docker network để attach |
+
+## Permission model
+
+Workstation chạy theo **default-deny** allowlist match với `argv[0]` — tên binary. Không hỗ trợ wildcard `*` đơn lẻ.
+
+Bảng `workstation_permissions` có table riêng (migration `000063`) và được seed tự động khi tạo workstation. Default seed là tập binary read-only hoặc rủi ro thấp:
+
+```
+echo, pwd, ls, cat, git, whoami, hostname, date, uname, claude
+```
+
+Các shell (`bash`, `sh`, `zsh`) bị cố tình loại — thêm shell sẽ phá huỷ toàn bộ mô hình vì cho phép truyền command tuỳ ý qua argument.
+
+Mỗi pattern hoặc là tên binary tuyệt đối (`git`) hoặc prefix-glob (`python*`). Mở rộng allowlist:
+
+```bash
+curl -X POST https://gw.example.com/v1/workstations/<id>/permissions \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"pattern": "make"}'
+```
+
+Tạm tắt pattern mà không xoá:
+
+```bash
+curl -X PUT https://gw.example.com/v1/workstations/<id>/permissions/<permId>/toggle \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"enabled": false}'
+```
+
+Pattern disabled vẫn nằm trong bảng nhưng bị runtime checker bỏ qua.
+
+## Link agent
+
+Dùng WebSocket RPC `workstations.linkAgent`:
+
+```json
+{
+  "id": "req-1",
+  "method": "workstations.linkAgent",
+  "params": {
+    "agentId": "<agent-uuid>",
+    "workstationId": "<ws-uuid>",
+    "isDefault": true
+  }
+}
+```
+
+Bảng `agent_workstation_links` chỉ cho phép một workstation default cho mỗi agent — set `isDefault=true` sẽ xoá default cũ. Để unlink, gọi `workstations.unlinkAgent` với cùng `agentId` và `workstationId`.
+
+Khi agent chạy tool `workstation_exec` mà không chỉ định workstation, gateway tra qua bảng link này để chọn.
+
+## Activity audit
+
+Mỗi lần gọi `workstation_exec` ghi một row vào `workstation_activity` (migration `000064`). Bảng append-only và được prune hằng đêm qua `Prune(before)` trên store interface.
+
+| Field | Ghi chú |
+|-------|---------|
+| `action` | `"exec"` hoặc `"deny"` |
+| `cmdHash` | SHA-256 của command đầy đủ (cho forensics) |
+| `cmdPreview` | 200 ký tự đầu, đã redact secret |
+| `exitCode`, `durationMs` | Có cho row `exec`; null cho row `deny` |
+| `denyReason` | Điền cho row `deny` (vd. `"binary 'curl' not allowed"`) |
+
+Đọc log theo trang từ mới nhất:
+
+```bash
+curl "https://gw.example.com/v1/workstations/<id>/activity?limit=50" \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+Response gồm `activity` (array) và `nextCursor` (truyền lại ở `?cursor=...` để page tiếp).
+
+## Dùng `workstation_exec`
+
+Khi đã link workstation và allowlist có binary cần dùng, agent có thể gọi tool trực tiếp. Tool stream stdout/stderr theo event-bus chunks (`execChunkSize` 64 KiB), áp giới hạn độ dài command (`4 KiB`), bytes argument (`1 KiB`), số env (`50`) và độ dài giá trị env (`256` bytes), và trả về exit code kèm 2 KiB cuối của mỗi stream.
+
+Mỗi call build lại env từ `defaultEnv` trên workstation cộng với override truyền từ tool. Các env key trong [`env_denylist`](/cli-credentials) (ví dụ `LD_PRELOAD`, AWS root creds) bị strip trước khi tạo SSH session.
+
+## Bảo mật
+
+- **Encrypted at rest.** `metadata` và `defaultEnv` được lưu AES-256-GCM. Cùng env var `GOCLAW_ENCRYPTION_KEY` mà webhook dùng cũng mã hoá credential workstation.
+- **Response đã sanitize.** Mọi response API dùng `SanitizedWorkstation` — private key, password, hay raw `defaultEnv` không bao giờ ra khỏi gateway.
+- **Tenant isolation.** Mọi query store đều tenant-scoped; handler còn re-check ownership qua `GetByID` trước khi thao tác permission và activity.
+- **Host-key TOFU.** Workstation có `knownHostsFingerprint` rỗng sẽ chấp nhận host key lần đầu và pin lại cho các lần sau. Hãy điền sẵn fingerprint cho target production.
+- **Env denylist.** Các env key cấm (loader hooks, credential ambient cloud) bị strip trước khi exec — xem [CLI Credentials](/cli-credentials) để biết danh sách đầy đủ.
+- **Default-deny allowlist.** Chỉ những binary đã seed mới chạy được cho tới khi admin mở rộng list. Không có shortcut `*`.
+
+## Workflow phổ biến
+
+**Gắn host build remote vào agent.**
+
+```bash
+# 1. Tạo workstation
+curl -X POST .../v1/workstations -d @ssh-build-host.json
+
+# 2. Mở rộng allowlist cho các binary build cần
+curl -X POST .../v1/workstations/<id>/permissions -d '{"pattern":"make"}'
+curl -X POST .../v1/workstations/<id>/permissions -d '{"pattern":"npm"}'
+
+# 3. Link agent (qua WebSocket) với isDefault=true
+# 4. Yêu cầu agent chạy `make build`; tool stream output về live.
+```
+
+**Audit xem agent đã chạy gì trong đêm.**
+
+```bash
+curl ".../v1/workstations/<id>/activity?limit=200" \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+## Troubleshooting
+
+| Triệu chứng | Nguyên nhân | Cách khắc phục |
+|-------------|-------------|----------------|
+| `501 not implemented` từ `/test` | Test connection còn là stub | Validate bằng một call `echo` exec nhỏ |
+| `invalid slug: workstationKey` | Key có chữ hoa, dấu gạch dưới, hoặc dài >100 | Dùng kebab-case ASCII, ví dụ `build-vm-west` |
+| `invalid metadata shape: ssh: privateKey or password is required` | Credential rỗng | Cung cấp inline PEM hoặc password |
+| Row `deny` với `binary 'curl' not allowed` | Allowlist chưa có binary | Thêm pattern qua `POST /v1/workstations/{id}/permissions` |
+| `404 workstation not found` khi gọi cross-tenant | Workstation thuộc tenant khác | Dùng token đúng tenant |
+| `ssh: health check dial` lỗi | Host không reach được, sai port, hoặc fingerprint sai | Kiểm tra network và `knownHostsFingerprint` |
+
+## What's Next
+
+- [Tools Overview](/tools-overview) — `workstation_exec` nằm ở đâu trong các tool built-in
+- [CLI Credentials](/cli-credentials) — env denylist, inject secret
+- [REST API → Workstations](/rest-api)
+- [WebSocket Protocol → workstations.*](/websocket-protocol)
+- [Database Schema](/database-schema) — `workstations`, `workstation_permissions`, `workstation_activity`
+
+
+
+---
+
 > Bản dịch từ [English version](/usage-quota)
 
 # Usage & Quota
@@ -20384,7 +21222,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **56**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **57**.
 
 ```mermaid
 graph LR
@@ -20584,6 +21422,19 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 ## Migration gần đây
 
 ### v3.11.x — Highlights và Breaking Changes
+
+#### v3.11.3
+
+- fix(migrations): `000057_heartbeat_provider_fk_set_null` — dọn sạch orphan phòng thủ; drop FK hiện có bằng cách tra tên constraint (xử lý tên tự sinh bị lệch), thêm lại với `ON DELETE SET NULL`. Khóa `ACCESS EXCLUSIVE` ngắn trên `agent_heartbeats` trong `ALTER TABLE` (dưới một giây với bảng nhỏ; heartbeat worker có thể tạm dừng ngắn).
+- SQLite: schema v25 → v26 — rebuild toàn bộ bảng `agent_heartbeats` với mệnh đề FK mới; `INSERT … SELECT` tường minh 25 cột giữ nguyên toàn bộ dữ liệu hiện có. `idx_heartbeats_due` được tạo lại.
+
+**Docker users:** BẮT BUỘC pull `ghcr.io/nextlevelbuilder/goclaw:v3.11.3` VÀ chạy `goclaw upgrade`. Image v3.11.2 cũ sẽ lỗi khi khởi động với:
+
+```
+schema version mismatch: required 57, current 56
+```
+
+**Bare-metal users:** rebuild binary và chạy `./goclaw upgrade`.
 
 #### v3.11.2
 
@@ -22230,6 +23081,8 @@ goclaw doctor
 
 Kiểm tra: phiên bản binary, config file, kết nối database, phiên bản schema, providers, channels, binary bên ngoài (docker, curl, git), thư mục workspace. In tóm tắt pass/fail cho mỗi mục kiểm tra.
 
+Provider có `display_name` rỗng nay hiển thị `name` chính thức thay vì dòng trống.
+
 ---
 
 ## `pairing`
@@ -22393,18 +23246,71 @@ Các cột output: `CHANNEL`, `ENABLED`, `CREDENTIALS` (ok/missing).
 
 ## `providers`
 
-Liệt kê LLM provider đã cấu hình và trạng thái.
+Quản lý LLM provider (yêu cầu gateway đang chạy).
+
+### `providers list`
+
+Liệt kê provider đã cấu hình.
 
 ```bash
 goclaw providers list
 goclaw providers list --json
+goclaw providers list --models
 ```
 
 | Flag | Mô tả |
 |------|-------|
 | `--json` | Output dạng JSON |
+| `--models` | Hiển thị thêm model khả dụng của mỗi provider |
 
-Hiển thị tên provider, loại, model mặc định, và trạng thái API key.
+Hiển thị tên provider, loại, trạng thái enabled, và trạng thái API key.
+
+### `providers add`
+
+Thêm provider mới (tương tác).
+
+```bash
+goclaw providers add
+```
+
+Nhập tương tác: loại provider, tên, API key, base URL. Hỏi xác minh kết nối sau khi tạo.
+
+### `providers update <id>`
+
+Cập nhật tên hoặc API key của provider.
+
+```bash
+goclaw providers update <id>
+```
+
+### `providers delete <id>`
+
+Xóa provider.
+
+```bash
+goclaw providers delete <id>
+goclaw providers delete <id> --force
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--force` | Bỏ qua xác nhận |
+
+### `providers verify <id>`
+
+Xác minh kết nối provider hoặc một model cụ thể.
+
+```bash
+goclaw providers verify <id>
+goclaw providers verify <id> --model anthropic/claude-sonnet-4
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--model <alias>` | Model alias cần xác minh (bỏ qua để ping kết nối) |
+
+Không có `--model`: ping provider (kiểm tra đã đăng ký và có thể kết nối) — không thực hiện LLM call.
+Có `--model`: gửi chat request nhỏ để xác minh model alias.
 
 ---
 
@@ -23095,6 +24001,8 @@ ws.onmessage = (e) => {
 
 ## Tổng quan
 
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~260 REST endpoint.
+
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
 Tài liệu tương tác: `/docs` (Swagger UI) · spec thô: `/v1/openapi.json`
@@ -23408,7 +24316,25 @@ Liệt kê model có sẵn từ provider (proxy đến upstream API).
 
 ### `POST /v1/providers/{id}/verify`
 
-Pre-flight check — xác minh API key và model có thể kết nối được.
+Xác minh kết nối provider hoặc một model cụ thể. Request body là tùy chọn (`requestBody.required: false`).
+
+**Ping mode** — bỏ qua body (hoặc gửi `{}`). Trả về `{"valid": true}` nếu provider đã được đăng ký và có thể kết nối. Tương đương kiểm tra `/healthz`; không thực hiện LLM call.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Chat-verify mode** — bao gồm `model` để thực hiện chat completion thực tế với một model alias cụ thể.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic/claude-sonnet-4"}'
+```
+
+**Response shape** — `{"valid": true}` khi thành công, `{"valid": false, "error": "<msg>"}` khi thất bại. Định dạng cũ `{success, models}` không còn được trả về.
 
 ### `POST /v1/providers/{id}/verify-embedding`
 
@@ -24608,6 +25534,470 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 ---
 
+# Danh mục Endpoint REST API
+
+> Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
+
+**Total endpoints:** 260 — generated from goclaw `364d2d34` on `2026-04-29`.
+
+## Cách sử dụng trang này
+
+- Đây là danh sách phẳng — mỗi hàng là một endpoint.
+- Endpoint được nhóm theo domain handler (file nguồn trong `goclaw/internal/http/`).
+- Để xem schema request/response đầy đủ của các endpoint tương thích OpenAI (`/v1/chat/completions`, `/v1/responses`), xem [REST API Reference](rest-api.md).
+- Xác thực: tất cả endpoint `/v1/*` yêu cầu `Authorization: Bearer <api-key>` trừ khi có ghi chú khác.
+
+## Endpoint theo Domain
+
+### Activity (`internal/http/activity.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/activity` |
+
+### Agents (`internal/http/agents.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents` |
+| `POST` | `/v1/agents` |
+| `DELETE` | `/v1/agents/{id}` |
+| `GET` | `/v1/agents/{id}` |
+| `PUT` | `/v1/agents/{id}` |
+| `POST` | `/v1/agents/{id}/cancel-summon` |
+| `GET` | `/v1/agents/{id}/codex-pool-activity` |
+| `GET` | `/v1/agents/{id}/export` |
+| `GET` | `/v1/agents/{id}/export/download/{token}` |
+| `GET` | `/v1/agents/{id}/export/preview` |
+| `POST` | `/v1/agents/{id}/import` |
+| `GET` | `/v1/agents/{id}/instances` |
+| `GET` | `/v1/agents/{id}/instances/{userID}/files` |
+| `PUT` | `/v1/agents/{id}/instances/{userID}/files/{fileName}` |
+| `PATCH` | `/v1/agents/{id}/instances/{userID}/metadata` |
+| `POST` | `/v1/agents/{id}/regenerate` |
+| `POST` | `/v1/agents/{id}/resummon` |
+| `GET` | `/v1/agents/{id}/shares` |
+| `POST` | `/v1/agents/{id}/shares` |
+| `DELETE` | `/v1/agents/{id}/shares/{userID}` |
+| `GET` | `/v1/agents/{id}/system-prompt-preview` |
+| `POST` | `/v1/agents/import` |
+| `POST` | `/v1/agents/import/preview` |
+| `POST` | `/v1/agents/sync-workspace` |
+| `GET` | `/v1/export/download/{token}` |
+| `GET` | `/v1/teams/{id}/export` |
+| `GET` | `/v1/teams/{id}/export/preview` |
+| `POST` | `/v1/teams/import` |
+
+### API Keys (`internal/http/api_keys.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/api-keys` |
+| `POST` | `/v1/api-keys` |
+| `POST` | `/v1/api-keys/{id}/revoke` |
+
+### Backup (`internal/http/backup_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/backup` |
+| `GET` | `/v1/system/backup/download/{token}` |
+| `GET` | `/v1/system/backup/preflight` |
+
+### Backup (S3) (`internal/http/backup_s3_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/backup/s3/backup` |
+| `GET` | `/v1/system/backup/s3/config` |
+| `PUT` | `/v1/system/backup/s3/config` |
+| `GET` | `/v1/system/backup/s3/list` |
+| `POST` | `/v1/system/backup/s3/upload` |
+
+### Builtin Tools (`internal/http/builtin_tools.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/tools/builtin` |
+| `GET` | `/v1/tools/builtin/{name}` |
+| `PUT` | `/v1/tools/builtin/{name}` |
+| `DELETE` | `/v1/tools/builtin/{name}/tenant-config` |
+| `GET` | `/v1/tools/builtin/{name}/tenant-config` |
+| `PUT` | `/v1/tools/builtin/{name}/tenant-config` |
+
+### Channels (`internal/http/channel_instances.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/channels/instances` |
+| `POST` | `/v1/channels/instances` |
+| `DELETE` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}` |
+| `PUT` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}/writers` |
+| `POST` | `/v1/channels/instances/{id}/writers` |
+| `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
+| `GET` | `/v1/channels/instances/{id}/writers/groups` |
+| `GET` | `/v1/contacts` |
+| `POST` | `/v1/contacts/merge` |
+| `GET` | `/v1/contacts/merged/{tenantUserId}` |
+| `GET` | `/v1/contacts/resolve` |
+| `POST` | `/v1/contacts/unmerge` |
+| `GET` | `/v1/tenant-users` |
+| `GET` | `/v1/users/search` |
+
+### Edition (`internal/http/edition.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/edition` |
+
+### Episodic Memory (`internal/http/episodic_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/episodic` |
+| `POST` | `/v1/agents/{agentID}/episodic/search` |
+
+### Evolution (`internal/http/evolution_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/evolution/metrics` |
+| `GET` | `/v1/agents/{agentID}/evolution/suggestions` |
+| `PATCH` | `/v1/agents/{agentID}/evolution/suggestions/{suggestionID}` |
+
+### Feature Flags (`internal/http/v3_flags_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/v3-flags` |
+| `PATCH` | `/v1/agents/{agentID}/v3-flags` |
+
+### Files (`internal/http/files.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/files/{path...}` |
+| `POST` | `/v1/files/sign` |
+
+### Knowledge Graph (`internal/http/knowledge_graph.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/kg/dedup` |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/dismiss` |
+| `POST` | `/v1/agents/{agentID}/kg/dedup/scan` |
+| `GET` | `/v1/agents/{agentID}/kg/entities` |
+| `POST` | `/v1/agents/{agentID}/kg/entities` |
+| `DELETE` | `/v1/agents/{agentID}/kg/entities/{entityID}` |
+| `GET` | `/v1/agents/{agentID}/kg/entities/{entityID}` |
+| `POST` | `/v1/agents/{agentID}/kg/extract` |
+| `GET` | `/v1/agents/{agentID}/kg/graph` |
+| `POST` | `/v1/agents/{agentID}/kg/merge` |
+| `GET` | `/v1/agents/{agentID}/kg/stats` |
+| `POST` | `/v1/agents/{agentID}/kg/traverse` |
+
+### MCP Servers (`internal/http/mcp.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/mcp/export` |
+| `GET` | `/v1/mcp/export/preview` |
+| `GET` | `/v1/mcp/grants/agent/{agentID}` |
+| `POST` | `/v1/mcp/import` |
+| `GET` | `/v1/mcp/requests` |
+| `POST` | `/v1/mcp/requests` |
+| `POST` | `/v1/mcp/requests/{id}/review` |
+| `GET` | `/v1/mcp/servers` |
+| `POST` | `/v1/mcp/servers` |
+| `DELETE` | `/v1/mcp/servers/{id}` |
+| `GET` | `/v1/mcp/servers/{id}` |
+| `PUT` | `/v1/mcp/servers/{id}` |
+| `GET` | `/v1/mcp/servers/{id}/grants` |
+| `POST` | `/v1/mcp/servers/{id}/grants/agent` |
+| `DELETE` | `/v1/mcp/servers/{id}/grants/agent/{agentID}` |
+| `POST` | `/v1/mcp/servers/{id}/grants/user` |
+| `DELETE` | `/v1/mcp/servers/{id}/grants/user/{userID}` |
+| `POST` | `/v1/mcp/servers/{id}/reconnect` |
+| `GET` | `/v1/mcp/servers/{id}/tools` |
+| `POST` | `/v1/mcp/servers/test` |
+
+### MCP User Credentials (`internal/http/mcp_user_credentials.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` |
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` |
+
+### Media (`internal/http/media_serve.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/media/{id}` |
+| `POST` | `/v1/media/upload` |
+
+### Memory (`internal/http/memory.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/memory/chunks` |
+| `GET` | `/v1/agents/{agentID}/memory/documents` |
+| `DELETE` | `/v1/agents/{agentID}/memory/documents/{path...}` |
+| `GET` | `/v1/agents/{agentID}/memory/documents/{path...}` |
+| `PUT` | `/v1/agents/{agentID}/memory/documents/{path...}` |
+| `POST` | `/v1/agents/{agentID}/memory/index` |
+| `POST` | `/v1/agents/{agentID}/memory/index-all` |
+| `POST` | `/v1/agents/{agentID}/memory/search` |
+| `GET` | `/v1/memory/documents` |
+
+### OAuth (`internal/http/oauth.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/auth/chatgpt/{provider}/callback` |
+| `POST` | `/v1/auth/chatgpt/{provider}/logout` |
+| `GET` | `/v1/auth/chatgpt/{provider}/quota` |
+| `POST` | `/v1/auth/chatgpt/{provider}/start` |
+| `GET` | `/v1/auth/chatgpt/{provider}/status` |
+| `POST` | `/v1/auth/openai/callback` |
+| `POST` | `/v1/auth/openai/logout` |
+| `GET` | `/v1/auth/openai/quota` |
+| `POST` | `/v1/auth/openai/start` |
+| `GET` | `/v1/auth/openai/status` |
+
+### OpenAPI (`internal/http/openapi.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/docs` |
+| `GET` | `/docs/` |
+| `GET` | `/v1/openapi.json` |
+
+### Orchestration (`internal/http/orchestration_handlers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/orchestration` |
+
+### Packages (`internal/http/packages.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/packages` |
+| `GET` | `/v1/packages/github-releases` |
+| `POST` | `/v1/packages/install` |
+| `GET` | `/v1/packages/runtimes` |
+| `POST` | `/v1/packages/uninstall` |
+| `GET` | `/v1/shell-deny-groups` |
+
+### Pending Messages (`internal/http/pending_messages.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/pending-messages` |
+| `GET` | `/v1/pending-messages` |
+| `POST` | `/v1/pending-messages/compact` |
+| `GET` | `/v1/pending-messages/messages` |
+
+### Providers (`internal/http/providers.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/embedding/status` |
+| `GET` | `/v1/providers` |
+| `POST` | `/v1/providers` |
+| `DELETE` | `/v1/providers/{id}` |
+| `GET` | `/v1/providers/{id}` |
+| `PUT` | `/v1/providers/{id}` |
+| `GET` | `/v1/providers/{id}/codex-pool-activity` |
+| `GET` | `/v1/providers/{id}/models` |
+| `POST` | `/v1/providers/{id}/verify` |
+| `POST` | `/v1/providers/{id}/verify-embedding` |
+| `GET` | `/v1/providers/claude-cli/auth-status` |
+
+### Restore (`internal/http/restore_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/restore` |
+
+### Secure CLI (`internal/http/secure_cli.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/cli-credentials` |
+| `POST` | `/v1/cli-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}` |
+| `PUT` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants` |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants` |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `POST` | `/v1/cli-credentials/{id}/test` |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
+| `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
+| `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
+| `POST` | `/v1/cli-credentials/check-binary` |
+| `GET` | `/v1/cli-credentials/presets` |
+
+### Skills (`internal/http/skills.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/skills` |
+| `GET` | `/v1/skills` |
+| `DELETE` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}` |
+| `PUT` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}/files` |
+| `GET` | `/v1/skills/{id}/files/{path...}` |
+| `POST` | `/v1/skills/{id}/grants/agent` |
+| `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
+| `POST` | `/v1/skills/{id}/grants/user` |
+| `DELETE` | `/v1/skills/{id}/grants/user/{userID}` |
+| `DELETE` | `/v1/skills/{id}/tenant-config` |
+| `PUT` | `/v1/skills/{id}/tenant-config` |
+| `POST` | `/v1/skills/{id}/toggle` |
+| `GET` | `/v1/skills/{id}/versions` |
+| `GET` | `/v1/skills/export` |
+| `GET` | `/v1/skills/export/preview` |
+| `POST` | `/v1/skills/import` |
+| `POST` | `/v1/skills/install-dep` |
+| `POST` | `/v1/skills/install-deps` |
+| `POST` | `/v1/skills/rescan-deps` |
+| `GET` | `/v1/skills/runtimes` |
+| `POST` | `/v1/skills/upload` |
+
+### Storage (`internal/http/storage.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/storage/files` |
+| `POST` | `/v1/storage/files` |
+| `DELETE` | `/v1/storage/files/{path...}` |
+| `GET` | `/v1/storage/files/{path...}` |
+| `PUT` | `/v1/storage/move` |
+| `GET` | `/v1/storage/size` |
+
+### System Config (`internal/http/system_configs.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/system-configs` |
+| `DELETE` | `/v1/system-configs/{key}` |
+| `GET` | `/v1/system-configs/{key}` |
+| `PUT` | `/v1/system-configs/{key}` |
+
+### Teams (`internal/http/team_attachments.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/teams/{id}/events` |
+| `GET` | `/v1/teams/{teamId}/attachments/{attachmentId}/download` |
+
+### Tenant Backup (`internal/http/tenant_backup_handler.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/tenant/backup` |
+| `GET` | `/v1/tenant/backup/download/{token}` |
+| `GET` | `/v1/tenant/backup/preflight` |
+| `POST` | `/v1/tenant/restore` |
+
+### Tenants (`internal/http/tenants.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/tenants` |
+| `POST` | `/v1/tenants` |
+| `GET` | `/v1/tenants/{id}` |
+| `PATCH` | `/v1/tenants/{id}` |
+| `GET` | `/v1/tenants/{id}/users` |
+| `POST` | `/v1/tenants/{id}/users` |
+| `DELETE` | `/v1/tenants/{id}/users/{userId}` |
+
+### Traces (`internal/http/traces.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/costs/summary` |
+| `GET` | `/v1/traces` |
+| `GET` | `/v1/traces/{traceID}` |
+| `GET` | `/v1/traces/{traceID}/export` |
+
+### TTS (`internal/http/tts.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/tts/capabilities` |
+| `GET` | `/v1/tts/config` |
+| `POST` | `/v1/tts/config` |
+| `POST` | `/v1/tts/synthesize` |
+| `POST` | `/v1/tts/test-connection` |
+| `GET` | `/v1/voices` |
+| `POST` | `/v1/voices/refresh` |
+
+### Usage (`internal/http/usage.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/usage/breakdown` |
+| `GET` | `/v1/usage/summary` |
+| `GET` | `/v1/usage/timeseries` |
+
+### Vault (`internal/http/vault_graph_handler.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/agents/{agentID}/kg/graph/compact` |
+| `GET` | `/v1/agents/{agentID}/vault/documents` |
+| `POST` | `/v1/agents/{agentID}/vault/documents` |
+| `DELETE` | `/v1/agents/{agentID}/vault/documents/{docID}` |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` |
+| `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` |
+| `POST` | `/v1/agents/{agentID}/vault/links` |
+| `DELETE` | `/v1/agents/{agentID}/vault/links/{linkID}` |
+| `POST` | `/v1/agents/{agentID}/vault/search` |
+| `GET` | `/v1/vault/documents` |
+| `POST` | `/v1/vault/documents` |
+| `DELETE` | `/v1/vault/documents/{docID}` |
+| `GET` | `/v1/vault/documents/{docID}` |
+| `PUT` | `/v1/vault/documents/{docID}` |
+| `GET` | `/v1/vault/documents/{docID}/links` |
+| `GET` | `/v1/vault/enrichment/status` |
+| `POST` | `/v1/vault/enrichment/stop` |
+| `GET` | `/v1/vault/graph` |
+| `POST` | `/v1/vault/links` |
+| `DELETE` | `/v1/vault/links/{linkID}` |
+| `POST` | `/v1/vault/links/batch` |
+| `POST` | `/v1/vault/rescan` |
+| `POST` | `/v1/vault/search` |
+| `GET` | `/v1/vault/tree` |
+| `POST` | `/v1/vault/upload` |
+
+### Wake (`internal/http/wake.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/agents/{id}/wake` |
+
+### Workspace (`internal/http/workspace_upload.go`)
+
+| Method | Path |
+|---|---|
+| `PUT` | `/v1/teams/{teamId}/workspace/move` |
+| `POST` | `/v1/teams/{teamId}/workspace/upload` |
+
+
+
+---
+
 > Bản dịch từ [English version](/config-reference)
 
 # Config Reference
@@ -25552,7 +26942,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **56**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **57**.
 
 ### Thống nhất Store v3
 
@@ -26376,7 +27766,7 @@ Cấu hình heartbeat per-agent cho các check-in chủ động định kỳ. (m
 | `enabled` | BOOLEAN | NOT NULL DEFAULT false | Heartbeat có đang hoạt động không |
 | `interval_sec` | INT | NOT NULL DEFAULT 1800 | Chu kỳ chạy (giây) |
 | `prompt` | TEXT | | Tin nhắn gửi đến agent mỗi heartbeat |
-| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `provider_id` | UUID FK → llm_providers (nullable) | ON DELETE SET NULL (migration 057) | Override LLM provider; đặt về NULL nếu provider bị xóa |
 | `model` | VARCHAR(200) | | Override model |
 | `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Chạy trong session riêng biệt |
 | `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject context tối thiểu |
@@ -26523,6 +27913,7 @@ Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback v�
 | 54 | Thêm cột `name VARCHAR(255)` vào `agent_hooks`; tạo bảng junction N:M `agent_hook_agents`; chuyển FK `agent_id` hiện có sang bảng junction; đổi tên `agent_hooks` → `hooks` và `agent_hook_agents` → `hook_agents`; xóa cột `agent_id` cũ khỏi `hooks` |
 | 55 | Thêm CHECK constraint `vault_documents_scope_consistency` (NOT VALID) trên `vault_documents` để đảm bảo tính nhất quán scope/agent_id/team_id: `personal` yêu cầu `agent_id NOT NULL`, `team` yêu cầu `team_id NOT NULL`, `shared` yêu cầu cả hai NULL, `custom` không ràng buộc |
 | 56 | `vault_chat_id` — thêm cột `chat_id TEXT NULL` vào `vault_documents` và index `(tenant_id, chat_id, agent_id)` cho chat-scoped vault isolation. Migration #56 follow-up (v3.11.2): drop scope-consistency check trước backfill UPDATEs để tránh lỗi constraint trên data cũ |
+| 57 | `heartbeat_provider_fk_set_null` (PG) — dọn sạch orphan phòng thủ, drop FK hiện có bằng tra tên constraint, thêm lại dưới tên `agent_heartbeats_provider_id_fkey` với `ON DELETE SET NULL`. Khóa `ACCESS EXCLUSIVE` ngắn trên `agent_heartbeats` trong ALTER (dưới một giây với bảng nhỏ). SQLite: schema v25 → v26, rebuild toàn bộ bảng `agent_heartbeats` với FK clause mới; `INSERT … SELECT` tường minh 25 cột giữ nguyên dữ liệu hiện có; `idx_heartbeats_due` được tạo lại. |
 
 ---
 
@@ -28468,6 +29859,24 @@ GoClaw v3 giới thiệu `SSEScanner` thống nhất (`providers/sse_reader.go`)
 
 Credential provider thêm lúc runtime (dashboard) được lưu trong `llm_providers` với mã hóa AES-256-GCM và được resolve tại thời điểm request. Override per-agent trong agent config được ưu tiên hơn cài đặt provider toàn cục.
 
+## Tạo Provider In Ra "FAILED" Nhưng Thực Ra Đã Thành Công
+
+**Phiên bản bị ảnh hưởng:** < v3.11.3
+
+Luồng auto-verify sau khi tạo provider dùng cấu trúc response cũ `{success, models}` để kiểm tra provider mới có hợp lệ không. Provider đã được tạo đúng trong database, nhưng bước verify sau khi tạo đọc sai field và in `FAILED` ra console dù provider hoàn toàn bình thường.
+
+**Đã sửa trong v3.11.3:** Luồng verify giờ dùng cấu trúc `{valid, error}` và kích hoạt ping mode khi body request rỗng, nên verify với body rỗng trả về `{valid:true}` khi thành công. Nâng cấp lên v3.11.3+ để khắc phục.
+
+## `goclaw providers delete` Lỗi Foreign Key trên `agent_heartbeats`
+
+**Phiên bản bị ảnh hưởng:** < v3.11.3
+
+Trước v3.11.3, foreign key từ `agent_heartbeats` đến `llm_providers` được định nghĩa là `RESTRICT`. Xóa provider đang được tham chiếu bởi bất kỳ heartbeat row nào sẽ thất bại với lỗi foreign key constraint.
+
+**Đã sửa trong v3.11.3:** Migration `000057_heartbeat_provider_fk_set_null` đổi FK thành `ON DELETE SET NULL`. Hàm `DeleteProvider` (PostgreSQL và SQLite) giờ thực hiện trong một transaction: trước tiên vô hiệu hóa tất cả heartbeat row bị ảnh hưởng, sau đó mới xóa provider, để scheduler tick tiếp theo không chạy với config provider cũ. Log `slog.Warn("heartbeat.provider_cleared")` được ghi kèm số lượng heartbeat đã bị vô hiệu hóa.
+
+Yêu cầu migration #057 đã được áp dụng (`./goclaw migrate up`). Kiểm tra log `heartbeat.provider_cleared` sau khi xóa để xác nhận số heartbeat bị xóa.
+
 ## Tiếp theo
 
 - [Vấn đề database](/troubleshoot-database)
@@ -28781,6 +30190,10 @@ Cảnh báo `vault enrich: vector ops disabled (SQLite)` trong log là bình th�
 ./goclaw version
 # Bản SQLite sẽ hiển thị: storage=sqlite
 ```
+
+## Migration #057 — Lưu Ý Về Khóa Heartbeat FK
+
+Migration `000057_heartbeat_provider_fk_set_null` xóa foreign key `RESTRICT` hiện có trên `agent_heartbeats.provider_id` và tạo lại với `ON DELETE SET NULL`. Lệnh `ALTER TABLE` giữ khóa `ACCESS EXCLUSIVE` trên bảng `agent_heartbeats` trong thời gian thực hiện. Trên bảng thông thường, khóa này chỉ kéo dài dưới một giây, nhưng các heartbeat worker có thể tạm dừng trong khoảnh khắc đó. Nếu bảng `agent_heartbeats` của bạn rất lớn, hãy lên kế hoạch thời điểm nâng cấp phù hợp và theo dõi lock-wait timeout.
 
 ## Tiếp theo
 
