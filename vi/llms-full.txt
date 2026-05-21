@@ -23611,7 +23611,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `agents.list` | — | Liệt kê tất cả agents |
 | `agent.wait` | `{agentId}` | Chờ agent hoàn thành run hiện tại |
 | `agents.create` | agent object | Tạo agent |
-| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Cập nhật agent |
+| `agents.update` | `{agentId, name?, provider?, model?, model_fallback?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Cập nhật agent |
 | `agents.delete` | `{id}` | Xóa agent |
 | `agents.files.list` | `{agentId}` | Liệt kê context file |
 | `agents.files.get` | `{agentId, fileName}` | Lấy context file |
@@ -23638,6 +23638,10 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `config.patch` | Patch các field config cụ thể |
 | `config.schema` | Lấy JSON schema cho config |
 | `config.defaults` | Lấy giá trị mặc định tích hợp + agents.defaults overlay (chỉ đọc, master scope) |
+| `config.permissions.list` | `{agentId, configType?}` | Liệt kê quyền cho một agent |
+| `config.permissions.check` | `{agentId, scope, configType, userId}` | Đánh giá quyết định hiệu lực (`allow` / `deny`) mà không thay đổi dữ liệu |
+| `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Cấp quyền |
+| `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Thu hồi quyền |
 
 ### Cron
 
@@ -23820,6 +23824,26 @@ Quản lý lifecycle hook lưu trong `agent_hooks`. Xem [Agent Hooks](/hooks-qua
 | `voices.list` | — | Liệt kê ElevenLabs voices của tenant hiện tại (có cache) |
 | `voices.refresh` | — | Xóa cache và refetch voices từ provider |
 
+### Workstations
+
+> **Chỉ bản Standard edition.** Method không được đăng ký khi gateway chạy ở Lite edition; lời gọi trả về `method_not_found`. Mọi method đều yêu cầu admin role.
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `workstations.list` | — | Liệt kê workstation cho tenant hiện tại |
+| `workstations.get` | `{id}` | Lấy thông tin workstation |
+| `workstations.create` | `{workstationKey, name, backendType, metadata, defaultCwd?, defaultEnv?}` | Tạo workstation (`backendType` là `ssh` hoặc `docker`) |
+| `workstations.update` | `{id, ...fields}` | Cập nhật workstation |
+| `workstations.delete` | `{id}` | Xóa workstation |
+| `workstations.testConnection` | `{id}` | Thăm dò kết nối backend mà không thực thi lệnh |
+| `workstations.linkAgent` | `{workstationId, agentId, isDefault?}` | Liên kết agent với workstation |
+| `workstations.unlinkAgent` | `{workstationId, agentId}` | Hủy liên kết |
+| `workstations.permissions.list` | `{workstationId}` | Liệt kê các mẫu allowlist |
+| `workstations.permissions.add` | `{workstationId, pattern, description?, enabled?}` | Thêm mẫu allowlist |
+| `workstations.permissions.remove` | `{workstationId, permissionId}` | Xóa một mẫu |
+| `workstations.permissions.toggle` | `{workstationId, permissionId, enabled}` | Bật/tắt một mẫu |
+| `workstations.activity.list` | `{workstationId, limit?, before?, action?}` | Audit log phân trang; filter `action` nhận `exec` hoặc `deny` |
+
 ### Tenants
 
 | Method | Params | Mô tả |
@@ -24001,7 +24025,7 @@ ws.onmessage = (e) => {
 
 ## Tổng quan
 
-> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~260 REST endpoint.
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~286 REST endpoint.
 
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
@@ -24187,7 +24211,7 @@ workspace/                                 — workspace directory files
 
 ---
 
-### `GET /v1/agents/{agentID}/codex-pool-activity`
+### `GET /v1/agents/{id}/codex-pool-activity`
 
 Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](/provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
 
@@ -24436,7 +24460,8 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `POST` | `/v1/skills/{id}/grants/agent` | Cấp skill cho agent |
+| `GET` | `/v1/skills/{id}/grants/agent` | Liệt kê agent grants cho skill (admin+) |
+| `POST` | `/v1/skills/{id}/grants/agent` | Cấp skill cho agent (body hỗ trợ flag `can_manage`, migration 66) |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` | Thu hồi agent grant |
 | `POST` | `/v1/skills/{id}/grants/user` | Cấp skill cho user |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` | Thu hồi user grant |
@@ -24854,7 +24879,7 @@ Xóa channel instance.
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/contacts` | Liệt kê contact (có phân trang) |
-| `GET` | `/v1/contacts/resolve?ids=...` | Resolve contact theo ID (tối đa 100) |
+| `GET` | `/v1/contacts/resolve` | Resolve contact theo ID (query string `ids=` lặp lại; tối đa 100) |
 | `POST` | `/v1/contacts/merge` | Gộp các contact trùng lặp |
 | `POST` | `/v1/contacts/unmerge` | Tách các contact đã gộp |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` | Liệt kê contact đã gộp của tenant user |
@@ -24990,19 +25015,23 @@ Per-agent binary grants — kiểm soát agent nào được phép dùng một C
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Lấy thông tin một grant cụ thể |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Cập nhật grant |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Xóa grant |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` | Tiết lộ env vars đã giải mã cho grant (rate-limited; không bao giờ cache — POST được chọn thay vì GET để tránh CSRF) |
 
 **Trường khi tạo/cập nhật grant:**
 
 | Field | Type | Mô tả |
 |-------|------|-------|
 | `agent_id` | UUID | Agent được cấp quyền truy cập (bắt buộc khi tạo) |
+| `env_vars` | object | Ghi đè env var per-grant (plaintext khi nhập; mã hóa lúc lưu qua `GOCLAW_ENCRYPTION_KEY`; chỉ trả về tên key trong list/get) |
 | `deny_args` | JSON | Giới hạn đối số (tùy chọn) |
 | `deny_verbose` | JSON | Giới hạn verbose output (tùy chọn) |
 | `timeout_seconds` | integer | Ghi đè timeout thực thi cho agent (tùy chọn) |
 | `tips` | string | Gợi ý sử dụng cho agent (tùy chọn) |
 | `enabled` | boolean | Bật/tắt grant (mặc định: `true`) |
 
-**Response khi tạo** (`201 Created`): đối tượng grant vừa tạo.
+**Response khi tạo** (`201 Created`): đối tượng grant vừa tạo (không có giá trị env plaintext — chỉ trả `env_keys` + `env_set`).
+
+> **`env:reveal`** trả về plaintext đã giải mã cho env vars của grant. Endpoint bị rate-limit theo credential (cấu hình RPM + burst) và được ghi log. Yêu cầu đặt `GOCLAW_ENCRYPTION_KEY`; nếu không có thì grant lưu env chưa mã hóa trên disk chỉ khi cấu hình tường minh.
 
 Thay đổi grant sẽ phát sự kiện `cache_invalidate` trên message bus để các agent đang kết nối cập nhật ngay lập tức.
 
@@ -25260,6 +25289,19 @@ Liệt kê GitHub release của một repository (dùng cho giao diện chọn p
 
 `matching_assets` chứa asset phù hợp OS/arch của server (rỗng nếu không có). Release draft bị loại trừ.
 
+### Cập nhật Package
+
+Theo dõi và áp dụng cập nhật package từ các registry system / pip / npm. Đọc yêu cầu viewer+; ghi yêu cầu admin.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/packages/updates` | Liệt kê các bản cập nhật đang chờ từ mỗi registry |
+| `POST` | `/v1/packages/updates/refresh` | Buộc làm mới cache registry cập nhật |
+| `POST` | `/v1/packages/update` | Áp dụng một bản cập nhật — body `{ "package": "pip:pandas" }` |
+| `POST` | `/v1/packages/updates/apply-all` | Áp dụng toàn bộ bản cập nhật đang chờ (chạy lâu; trả SSE progress khi `?stream=true`) |
+
+Cập nhật phát sự kiện `cache_invalidate` trên bus để client đang kết nối làm mới danh sách package.
+
 ### `GET /v1/shell-deny-groups`
 
 Liệt kê các nhóm lệnh shell bị từ chối (chính sách bảo mật).
@@ -25443,6 +25485,109 @@ Kho cấu hình key-value theo tenant. Đọc cho tất cả user đã xác th�
 
 ---
 
+## Workstations
+
+> **Chỉ bản Standard edition.** Gateway trả `403` trên Lite. Yêu cầu admin role.
+
+Workstation là các remote execution endpoint (SSH hoặc Docker) mà agent có thể dùng để thực thi lệnh trong môi trường sandbox. Mỗi workstation có danh sách cho phép (allowlist) các mẫu lệnh được phép và audit log tamper-evident.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/workstations` | Liệt kê workstation cho tenant hiện tại |
+| `POST` | `/v1/workstations` | Tạo workstation |
+| `GET` | `/v1/workstations/{id}` | Lấy thông tin workstation theo ID |
+| `PUT` | `/v1/workstations/{id}` | Cập nhật workstation |
+| `DELETE` | `/v1/workstations/{id}` | Xóa workstation |
+| `POST` | `/v1/workstations/{id}/test` | Kiểm tra kết nối (SSH probe hoặc `docker ps`) — không thực thi lệnh |
+| `GET` | `/v1/workstations/{id}/permissions` | Liệt kê các mẫu allowlist |
+| `POST` | `/v1/workstations/{id}/permissions` | Thêm mẫu allowlist |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | Xóa một mẫu |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | Bật/tắt mẫu mà không xóa |
+| `GET` | `/v1/workstations/{id}/activity` | Liệt kê các mục audit (có thể lọc, phân trang) |
+
+**Body khi tạo:**
+
+```json
+{
+  "workstation_key": "build-host",
+  "name": "Build host",
+  "backend_type": "ssh",
+  "metadata": {
+    "host": "build.internal",
+    "port": 22,
+    "user": "claw",
+    "private_key_ref": "kms://..."
+  },
+  "default_cwd": "/srv/builds",
+  "default_env": {"PATH": "/usr/local/bin:/usr/bin"}
+}
+```
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `workstation_key` | string | Key ổn định phía client — duy nhất theo tenant |
+| `name` | string | Tên hiển thị |
+| `backend_type` | enum | `ssh` hoặc `docker` (ràng buộc CHECK trong DB) |
+| `metadata` | object | Cấu hình kết nối theo backend — mã hóa lúc lưu |
+| `default_cwd` | string | Thư mục làm việc mặc định cho các lần gọi exec |
+| `default_env` | object | Env var được merge vào mọi exec — mã hóa lúc lưu |
+| `active` | boolean | Workstation có thể chọn để liên kết với agent |
+
+**Mục log hoạt động:**
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `action` | enum | `exec` (đã chạy) hoặc `deny` (bị allowlist từ chối) |
+| `cmd_hash` | string | SHA-256 của toàn bộ dòng lệnh |
+| `cmd_preview` | string | 200 byte đầu của lệnh (cắt bớt, không có secret) |
+| `exit_code` | integer | Exit code của tiến trình (null nếu `deny`) |
+| `duration_ms` | integer | Thời gian thực tế (null nếu `deny`) |
+| `agent_id` | UUID | Agent đã khởi tạo lệnh gọi |
+
+> Các backend workstation dùng chung rate limit theo tenant và tuân theo danh sách shell deny-groups toàn cục.
+
+---
+
+## Webhooks
+
+Hai bề mặt:
+
+1. **Inbound webhook endpoints** — nhận request có chữ ký HMAC từ hệ thống bên ngoài và định tuyến qua agent hoặc channel. Không cần bearer token; xác thực qua `X-GoClaw-Signature` (HMAC-SHA256) + IP allowlist + tùy chọn gate `localhost_only`.
+2. **Quản trị webhook** — CRUD trên registry webhook. Yêu cầu admin role và gateway token.
+
+> Inbound webhook yêu cầu đặt `GOCLAW_ENCRYPTION_KEY` để secret có thể lưu mã hóa lúc lưu. Xem [Biến môi trường](environment-variables.md#secrets).
+
+### Inbound Receivers
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/webhooks/llm` | Entrypoint webhook kiểu LLM (payload tương thích OpenAI được định tuyến đến agent đã cấu hình) |
+| `POST` | `/v1/webhooks/message` | Entrypoint webhook kiểu message (gửi đến channel/chat) |
+
+Cả hai receiver yêu cầu header:
+
+| Header | Mục đích |
+|--------|---------|
+| `X-GoClaw-Webhook-Id` | UUID của webhook |
+| `X-GoClaw-Signature` | `sha256=...` HMAC của raw body dùng signing key của webhook |
+| `X-GoClaw-Timestamp` | Timestamp RFC3339 (lệch tối đa 5 phút) |
+| `Idempotency-Key` | Tùy chọn — chống gửi trùng lặp (TTL lưu trong `webhook_calls`) |
+
+Mode được chọn qua query string `?mode=sync|async` (mặc định `sync` cho `llm`, `async` cho `message`).
+
+### Quản trị Webhook
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/webhooks` | Liệt kê webhook cho tenant hiện tại |
+| `POST` | `/v1/webhooks` | Tạo webhook — response có `secret` + `hmac_signing_key` dùng một lần |
+| `GET` | `/v1/webhooks/{id}` | Lấy thông tin webhook (`secret` không bao giờ trả lại sau khi tạo) |
+| `PATCH` | `/v1/webhooks/{id}` | Cập nhật các field có thể thay đổi (scopes, rate limits, allowlist, flags) |
+| `POST` | `/v1/webhooks/{id}/rotate` | Xoay vòng signing key — trả secret mới một lần |
+| `DELETE` | `/v1/webhooks/{id}` | Thu hồi webhook (soft-delete; đặt `revoked=true`) |
+
+---
+
 ## MCP Bridge
 
 Mở GoClaw tools cho Claude CLI qua streamable HTTP tại `/mcp/bridge`. Chỉ lắng nghe trên localhost. Được bảo vệ bằng gateway token với context header có chữ ký HMAC.
@@ -25510,7 +25655,8 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - **Sessions:** Liệt kê, xem trước, patch, xóa, reset (`sessions.*`)
 - **Cron jobs:** Liệt kê, tạo, cập nhật, xóa, toggle, status, run, runs (`cron.*`)
 - **Config management:** Lấy, áp dụng, patch, schema (`config.*`)
-- **Config permissions:** Liệt kê, cấp quyền, thu hồi (`config.permissions.*`)
+- **Config permissions:** Liệt kê, kiểm tra, cấp quyền, thu hồi (`config.permissions.*`)
+- **Workstations:** Liệt kê, lấy, tạo, cập nhật, xóa, test, link/unlink agent, CRUD permissions, activity (`workstations.*`)
 - **Gửi message:** Gửi đến channel (`send`)
 - **Chat:** Gửi, lịch sử, hủy, inject, trạng thái session (`chat.*`)
 - **Heartbeat:** Lấy, đặt, toggle, test, logs, checklist, targets (`heartbeat.*`)
@@ -25538,7 +25684,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 260 — generated from goclaw `364d2d34` on `2026-04-29`.
+**Total endpoints:** 286 — generated from goclaw `392f0fda` on `2026-05-21`.
 
 ## Cách sử dụng trang này
 
@@ -25681,6 +25827,13 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `GET` | `/v1/files/{path...}` |
 | `POST` | `/v1/files/sign` |
 
+### Gateway Upgrade (`internal/http/gateway_upgrade.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/gateway/upgrade` |
+| `GET` | `/v1/system/gateway/upgrade/status` |
+
 ### Knowledge Graph (`internal/http/knowledge_graph.go`)
 
 | Method | Path |
@@ -25790,6 +25943,10 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `POST` | `/v1/packages/install` |
 | `GET` | `/v1/packages/runtimes` |
 | `POST` | `/v1/packages/uninstall` |
+| `POST` | `/v1/packages/update` |
+| `GET` | `/v1/packages/updates` |
+| `POST` | `/v1/packages/updates/apply-all` |
+| `POST` | `/v1/packages/updates/refresh` |
 | `GET` | `/v1/shell-deny-groups` |
 
 ### Pending Messages (`internal/http/pending_messages.go`)
@@ -25837,6 +25994,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` |
 | `POST` | `/v1/cli-credentials/{id}/test` |
 | `GET` | `/v1/cli-credentials/{id}/user-credentials` |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
@@ -25856,6 +26014,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `PUT` | `/v1/skills/{id}` |
 | `GET` | `/v1/skills/{id}/files` |
 | `GET` | `/v1/skills/{id}/files/{path...}` |
+| `GET` | `/v1/skills/{id}/grants/agent` |
 | `POST` | `/v1/skills/{id}/grants/agent` |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
 | `POST` | `/v1/skills/{id}/grants/user` |
@@ -25987,12 +26146,43 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 |---|---|
 | `POST` | `/v1/agents/{id}/wake` |
 
+### Webhooks (`internal/http/webhooks_admin.go`, `webhooks_llm.go`, `webhooks_message.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/webhooks` |
+| `POST` | `/v1/webhooks` |
+| `DELETE` | `/v1/webhooks/{id}` |
+| `GET` | `/v1/webhooks/{id}` |
+| `PATCH` | `/v1/webhooks/{id}` |
+| `POST` | `/v1/webhooks/{id}/rotate` |
+| `POST` | `/v1/webhooks/llm` |
+| `POST` | `/v1/webhooks/message` |
+
 ### Workspace (`internal/http/workspace_upload.go`)
 
 | Method | Path |
 |---|---|
 | `PUT` | `/v1/teams/{teamId}/workspace/move` |
 | `POST` | `/v1/teams/{teamId}/workspace/upload` |
+
+### Workstations (`internal/http/workstations.go`)
+
+> Chỉ bản Standard edition — gateway trả `403` trên Lite.
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/workstations` |
+| `POST` | `/v1/workstations` |
+| `DELETE` | `/v1/workstations/{id}` |
+| `GET` | `/v1/workstations/{id}` |
+| `PUT` | `/v1/workstations/{id}` |
+| `GET` | `/v1/workstations/{id}/activity` |
+| `GET` | `/v1/workstations/{id}/permissions` |
+| `POST` | `/v1/workstations/{id}/permissions` |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` |
+| `POST` | `/v1/workstations/{id}/test` |
 
 
 
@@ -26898,7 +27088,7 @@ Cần build tag `tsnet` (`go build -tags tsnet`).
 ```bash
 # Bắt buộc
 GOCLAW_GATEWAY_TOKEN=your-gateway-token
-GOCLAW_ENCRYPTION_KEY=your-32-byte-hex-key
+GOCLAW_ENCRYPTION_KEY=your-base64-32-byte-key   # openssl rand -base64 32
 GOCLAW_POSTGRES_DSN=postgres://user:pass@localhost:5432/goclaw?sslmode=disable
 
 # LLM provider (chọn một trong số này)
@@ -26942,7 +27132,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **57**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **67**.
 
 ### Thống nhất Store v3
 
@@ -27005,6 +27195,7 @@ Bản ghi agent core. Mỗi agent có context, tools, và model configuration ri
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
 | `budget_monthly_cents` | INTEGER | | Ngưỡng chi tiêu hàng tháng tính bằng USD cents; NULL = không giới hạn (migration 015) |
+| `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Mảng thứ tự các model fallback được thử khi primary model thất bại (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `deleted_at` | TIMESTAMPTZ | | Soft delete timestamp |
@@ -27198,7 +27389,7 @@ Skill package được upload với BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants. `skill_agent_grants` còn có cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant.
 
 ---
 
@@ -27914,6 +28105,16 @@ Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback v�
 | 55 | Thêm CHECK constraint `vault_documents_scope_consistency` (NOT VALID) trên `vault_documents` để đảm bảo tính nhất quán scope/agent_id/team_id: `personal` yêu cầu `agent_id NOT NULL`, `team` yêu cầu `team_id NOT NULL`, `shared` yêu cầu cả hai NULL, `custom` không ràng buộc |
 | 56 | `vault_chat_id` — thêm cột `chat_id TEXT NULL` vào `vault_documents` và index `(tenant_id, chat_id, agent_id)` cho chat-scoped vault isolation. Migration #56 follow-up (v3.11.2): drop scope-consistency check trước backfill UPDATEs để tránh lỗi constraint trên data cũ |
 | 57 | `heartbeat_provider_fk_set_null` (PG) — dọn sạch orphan phòng thủ, drop FK hiện có bằng tra tên constraint, thêm lại dưới tên `agent_heartbeats_provider_id_fkey` với `ON DELETE SET NULL`. Khóa `ACCESS EXCLUSIVE` ngắn trên `agent_heartbeats` trong ALTER (dưới một giây với bảng nhỏ). SQLite: schema v25 → v26, rebuild toàn bộ bảng `agent_heartbeats` với FK clause mới; `INSERT … SELECT` tường minh 25 cột giữ nguyên dữ liệu hiện có; `idx_heartbeats_due` được tạo lại. |
+| 58 | `agent_grants_env_override` — thêm cột `encrypted_env BYTEA` vào `secure_cli_agent_grants`; NULL nghĩa là kế thừa env cấp binary. Theo pattern AES-256-GCM của `secure_cli_user_credentials.encrypted_env`. |
+| 59 | `webhooks` — tạo bảng `webhooks` (registry webhook HTTP outbound) và `webhook_calls` (log audit delivery với retry state). Scoped theo tenant. `webhooks.secret_hash` unique toàn cục khi chưa bị revoke. `webhook_calls.status` CHECK: `queued`, `running`, `done`, `failed`, `dead`. |
+| 60 | `webhook_calls_lease_token` — thêm cột `lease_token TEXT` vào `webhook_calls` cho CAS optimistic-concurrency khi worker claim/update; `ReclaimStale` đặt về NULL để CAS in-flight thất bại ở lần thử tiếp theo. |
+| 61 | `webhooks_encrypted_secret` — thêm cột `encrypted_secret TEXT NOT NULL DEFAULT ''` vào `webhooks`; lưu raw secret được mã hóa AES-256-GCM qua `GOCLAW_ENCRYPTION_KEY`. HMAC signing dùng secret đã giải mã, không phải `secret_hash`. Webhook hiện có nhận chuỗi rỗng và cần rotation. |
+| 62 | `workstations` — tạo bảng `workstations` (SSH/Docker remote exec target với `metadata` và `default_env` được mã hóa) và `agent_workstation_links` (junction N:M agent↔workstation có cờ `is_default`). |
+| 63 | `workstation_permissions` — tạo bảng allowlist `workstation_permissions`; mặc định từ chối theo argv[0] binary name; được seed trong transaction `WorkstationStore.Create`. Partial index trên entry đã bật. |
+| 64 | `workstation_activity` — tạo log audit `workstation_activity` cho exec event (`exec`/`deny`); lưu preview lệnh rút gọn + SHA-256 hash; append-only, được dọn hàng đêm qua `Prune(before)`. |
+| 65 | `agent_model_fallback` — thêm cột `model_fallback JSONB NOT NULL DEFAULT '{}'` vào `agents`; mảng thứ tự model fallback được thử khi primary model thất bại. |
+| 66 | `skill_agent_manage_grants` — thêm cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` vào `skill_agent_grants`; cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant. |
+| 67 | `skill_agent_grants_scope_cleanup` — migration chỉ thao tác data; xóa các row `skill_agent_grants` có `tenant_id` không khớp với tenant của agent hoặc skill, đảm bảo tenant-scope isolation trên skill grants. Không thay đổi schema. |
 
 ---
 
@@ -27975,6 +28176,7 @@ Grant truy cập per-agent cho secure CLI binary. Tách biệt "agent nào đư�
 | `timeout_seconds` | INTEGER | NULL = dùng mặc định của binary | Override timeout process cho agent này |
 | `tips` | TEXT | NULL = dùng mặc định của binary | Override gợi ý inject vào TOOLS.md cho agent này |
 | `enabled` | BOOLEAN | NOT NULL DEFAULT true | Grant có đang hoạt động không |
+| `encrypted_env` | BYTEA | | AES-256-GCM encrypted JSON env map override cho grant này; NULL = dùng env của binary (migration 058) |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Tenant sở hữu |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
@@ -28262,6 +28464,136 @@ Ngân sách token/chi phí prompt-handler theo tenant mỗi tháng. Mỗi tenant
 | `last_warned_at` | TIMESTAMPTZ | | Thời điểm cảnh báo ngưỡng gần nhất |
 | `metadata` | JSONB | NOT NULL DEFAULT `{}` | Ngưỡng cảnh báo, override flag, ghi chú |
 | `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+---
+
+---
+
+### `webhooks`
+
+Registry webhook HTTP outbound. Mỗi webhook định nghĩa một endpoint mà GoClaw gọi khi agent tạo ra LLM response hoặc channel message. Secret được mã hóa AES-256-GCM qua `GOCLAW_ENCRYPTION_KEY`. (migration 059, 061)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | Tenant sở hữu; mọi truy vấn đều lọc theo tenant |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Agent gắn kết; NULL = webhook cho toàn tenant |
+| `name` | TEXT | NOT NULL | Nhãn dễ đọc |
+| `kind` | TEXT | NOT NULL CHECK (`llm`, `message`) | Loại trigger |
+| `secret_prefix` | TEXT | | Vài ký tự đầu của raw secret để hiển thị |
+| `secret_hash` | TEXT | NOT NULL | SHA-256 hex của raw secret; dùng để tra cứu bearer token |
+| `encrypted_secret` | TEXT | NOT NULL DEFAULT `''` | Raw secret được mã hóa AES-256-GCM qua `GOCLAW_ENCRYPTION_KEY`; dùng cho HMAC signing (migration 061) |
+| `scopes` | TEXT[] | NOT NULL DEFAULT `{}` | Phạm vi thao tác được phép |
+| `channel_id` | UUID | | Channel instance gắn kết cho loại `message` |
+| `rate_limit_per_min` | INT | NOT NULL DEFAULT 60 | Giới hạn rate inbound mỗi webhook |
+| `ip_allowlist` | TEXT[] | NOT NULL DEFAULT `{}` | IP caller được phép; rỗng = cho phép tất cả |
+| `require_hmac` | BOOLEAN | NOT NULL DEFAULT false | Từ chối request không có HMAC hợp lệ |
+| `localhost_only` | BOOLEAN | NOT NULL DEFAULT false | Giới hạn caller từ loopback |
+| `revoked` | BOOLEAN | NOT NULL DEFAULT false | Vô hiệu hóa mềm không xóa |
+| `created_by` | TEXT | | User ID tạo webhook |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `last_used_at` | TIMESTAMPTZ | | Lần cuối được gọi thành công |
+
+**Index:** `idx_webhooks_tenant` trên `(tenant_id)`, `idx_webhooks_tenant_agent` trên `(tenant_id, agent_id)`, unique `uq_webhooks_secret` trên `(secret_hash) WHERE revoked = false`
+
+---
+
+### `webhook_calls`
+
+Log delivery cho các lần gọi webhook với retry state và optimistic-concurrency locking. Về cơ bản là append-only. (migration 059, 060)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | Tenant sở hữu |
+| `webhook_id` | UUID FK → webhooks | NOT NULL ON DELETE CASCADE | Webhook cha |
+| `agent_id` | UUID | | Agent xử lý lần gọi |
+| `idempotency_key` | TEXT | | Khóa dedup do caller cung cấp |
+| `mode` | TEXT | NOT NULL CHECK (`sync`, `async`) | Chế độ delivery |
+| `callback_url` | TEXT | | URL nhận kết quả async |
+| `status` | TEXT | NOT NULL DEFAULT `queued` CHECK (`queued`, `running`, `done`, `failed`, `dead`) | Trạng thái delivery |
+| `attempts` | INT | NOT NULL DEFAULT 0 | Số lần thử lại |
+| `delivery_id` | UUID | NOT NULL DEFAULT gen_random_uuid() | ID delivery duy nhất |
+| `lease_token` | TEXT | | CAS token optimistic-concurrency; set bởi ClaimNext, xóa khi reclaim stale (migration 060) |
+| `next_attempt_at` | TIMESTAMPTZ | | Thời điểm thử lại tiếp theo |
+| `started_at` | TIMESTAMPTZ | | Khi bắt đầu xử lý |
+| `request_payload` | JSONB | | Body request inbound |
+| `response` | JSONB | | Body response của agent |
+| `last_error` | TEXT | | Lỗi delivery gần nhất |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `completed_at` | TIMESTAMPTZ | | Khi delivery hoàn tất |
+
+**Index:** `idx_webhook_calls_tenant_created` trên `(tenant_id, created_at DESC)`, `idx_webhook_calls_status_attempt` trên `(status, next_attempt_at)`, unique `uq_webhook_calls_idempotency` trên `(webhook_id, idempotency_key) WHERE idempotency_key IS NOT NULL`
+
+---
+
+### `workstations`
+
+SSH hoặc Docker remote execution target. Mỗi workstation định nghĩa một kết nối backend; agent dùng qua tool `workstation_exec`. Credential được lưu mã hóa. (migration 062)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK | |
+| `workstation_key` | VARCHAR(100) | NOT NULL | Slug identifier |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `name` | VARCHAR(255) | NOT NULL | Tên hiển thị |
+| `backend_type` | VARCHAR(20) | NOT NULL CHECK (`ssh`, `docker`) | Loại backend |
+| `metadata` | BYTEA | NOT NULL | Metadata kết nối được mã hóa AES-256-GCM (host, port, credentials) |
+| `default_cwd` | VARCHAR(500) | NOT NULL DEFAULT `''` | Thư mục làm việc mặc định |
+| `default_env` | BYTEA | NOT NULL | Biến môi trường mặc định được mã hóa AES-256-GCM |
+| `active` | BOOLEAN | NOT NULL DEFAULT TRUE | Workstation có sẵn sàng không |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | User ID tạo workstation |
+
+**Unique:** `(tenant_id, workstation_key)`
+
+**Index:** `idx_workstations_tenant_active` trên `(tenant_id, active) WHERE active = TRUE`
+
+> Migration 062 cũng tạo bảng **`agent_workstation_links`** — junction N:M liên kết agent với workstation trong tenant. PK: `(agent_id, workstation_id)`. `is_default BOOLEAN` đánh dấu workstation ưu tiên của agent. Unique partial index: `(agent_id) WHERE is_default = TRUE`.
+
+---
+
+### `workstation_permissions`
+
+Allowlist binary name được phép theo từng workstation (argv[0]). Mặc định từ chối: nếu không có pattern enabled nào khớp, exec bị từ chối. Pattern hỗ trợ glob prefix (ví dụ `python*`). (migration 063)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK | |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | Workstation cha |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `pattern` | VARCHAR(500) | NOT NULL | Tên binary hoặc glob pattern khớp với argv[0] |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT TRUE | Entry allowlist có đang hoạt động không |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | User ID tạo entry |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(workstation_id, pattern)`
+
+**Index:** `idx_workstation_perms_ws` trên `(workstation_id) WHERE enabled = TRUE`, `idx_workstation_perms_tenant` trên `(tenant_id)`
+
+---
+
+### `workstation_activity`
+
+Log audit rolling cho exec event trên workstation (`exec` và `deny`). Append-only; được dọn hàng đêm. Lưu preview lệnh rút gọn (200 ký tự đầu) và SHA-256 hash để forensics. (migration 064)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | Workstation đích |
+| `agent_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | Agent kích hoạt exec |
+| `action` | VARCHAR(20) | NOT NULL | `exec` (cho phép) hoặc `deny` (bị chặn) |
+| `cmd_hash` | VARCHAR(64) | NOT NULL DEFAULT `''` | SHA-256 của lệnh đầy đủ để forensics |
+| `cmd_preview` | VARCHAR(200) | NOT NULL DEFAULT `''` | 200 ký tự đầu của lệnh (secret đã được redact) |
+| `exit_code` | INTEGER | | Exit code của tiến trình; NULL cho exec bị từ chối |
+| `duration_ms` | INTEGER | | Thời gian thực thi (millisecond) |
+| `deny_reason` | VARCHAR(200) | NOT NULL DEFAULT `''` | Lý do exec bị chặn (rỗng nếu được phép) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Index:** `idx_ws_activity_ws_time` trên `(workstation_id, created_at DESC)`, `idx_ws_activity_tenant_time` trên `(tenant_id, created_at DESC)`, `idx_ws_activity_retention` trên `(created_at)` (dùng bởi pruner hàng đêm)
 
 ---
 

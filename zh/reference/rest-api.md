@@ -6,7 +6,7 @@
 
 ## 概览
 
-> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~260 REST 端点列表。
+> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~286 REST 端点列表。
 
 GoClaw 的 HTTP API 与 WebSocket gateway 共用同一端口。所有端点需要在 `Authorization` 头中提供与 `GOCLAW_GATEWAY_TOKEN` 匹配的 `Bearer` token。
 
@@ -197,7 +197,7 @@ curl -X POST http://localhost:18790/v1/agents \
 
 ---
 
-### `GET /v1/agents/{agentID}/codex-pool-activity`
+### `GET /v1/agents/{id}/codex-pool-activity`
 
 返回使用 [Codex OAuth pool](/provider-codex) 的 agent 的路由活动和每账户健康状态。要求 agent 的 provider 为 `chatgpt_oauth` 类型并已配置 pool。
 
@@ -446,7 +446,8 @@ skills/{slug}/grants.jsonl    — agent grant（agent_key + pinned version）
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `POST` | `/v1/skills/{id}/grants/agent` | 向 agent 授权 skill |
+| `GET` | `/v1/skills/{id}/grants/agent` | 列出 skill 的 agent 授权（admin+）|
+| `POST` | `/v1/skills/{id}/grants/agent` | 向 agent 授权 skill（body 支持 `can_manage` 标志，migration 66）|
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` | 撤销 agent 授权 |
 | `POST` | `/v1/skills/{id}/grants/user` | 向用户授权 skill |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` | 撤销用户授权 |
@@ -864,7 +865,7 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/contacts` | 列出联系人（分页）|
-| `GET` | `/v1/contacts/resolve?ids=...` | 按 ID 解析联系人（最多 100 个）|
+| `GET` | `/v1/contacts/resolve` | 按 ID 解析联系人（重复 query string `ids=`；最多 100 个）|
 | `POST` | `/v1/contacts/merge` | 合并重复联系人记录 |
 | `POST` | `/v1/contacts/unmerge` | 取消已合并的联系人 |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` | 列出租户用户的已合并联系人 |
@@ -1000,19 +1001,23 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | 获取指定授权详情 |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | 更新授权 |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | 删除授权 |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` | 解密并返回授权的 env vars（有速率限制；永不缓存 — 选用 POST 而非 GET 以防 CSRF）|
 
 **创建/更新授权字段：**
 
 | 字段 | 类型 | 说明 |
 |-------|------|-------------|
 | `agent_id` | UUID | 被授权的 agent（创建时必填）|
+| `env_vars` | object | 按授权覆盖 env var（输入为 plaintext；通过 `GOCLAW_ENCRYPTION_KEY` 加密存储；list/get 响应仅返回 key 名称）|
 | `deny_args` | JSON | 参数限制（可选）|
 | `deny_verbose` | JSON | 详细输出限制（可选）|
 | `timeout_seconds` | integer | 覆盖该 agent 的执行超时（可选）|
 | `tips` | string | 给 agent 的使用提示（可选）|
 | `enabled` | boolean | 启用/禁用授权（默认：`true`）|
 
-**创建响应**（`201 Created`）：返回已创建的授权对象。
+**创建响应**（`201 Created`）：返回已创建的授权对象（不含 env plaintext 值 — 仅返回 `env_keys` + `env_set`）。
+
+> **`env:reveal`** 返回授权 env vars 的解密 plaintext。端点按凭证进行速率限制（可配置 RPM + burst）并记录审计日志。需要设置 `GOCLAW_ENCRYPTION_KEY`；否则仅在明确配置时才将 env 以未加密形式存储在磁盘上。
 
 授权变更会在消息总线上发出 `cache_invalidate` 事件，使已连接的 agent 立即感知更新。
 
@@ -1270,6 +1275,19 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 
 `matching_assets` 包含与服务器 OS/架构匹配的资产（无匹配则为空）。草稿 release 不包含在内。
 
+### 包更新
+
+监控并应用来自 system / pip / npm registry 的包更新。读取需要 viewer+；写入需要 admin。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/packages/updates` | 列出各 registry 发现的待更新包 |
+| `POST` | `/v1/packages/updates/refresh` | 强制刷新更新 registry 缓存 |
+| `POST` | `/v1/packages/update` | 应用单个更新 — body `{ "package": "pip:pandas" }` |
+| `POST` | `/v1/packages/updates/apply-all` | 应用所有待更新包（长时任务；`?stream=true` 时返回 SSE 进度）|
+
+更新会在总线上发出 `cache_invalidate` 事件，使已连接的客户端刷新包列表。
+
 ### `GET /v1/shell-deny-groups`
 
 列出 shell 命令拒绝组（安全策略）。
@@ -1453,6 +1471,109 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 
 ---
 
+## Workstations
+
+> **仅 Standard 版本。** Lite 版 gateway 返回 `403`。需要 admin 角色。
+
+Workstation 是 agent 可用于沙盒命令执行的远程执行端点（SSH 或 Docker）。每个 workstation 拥有允许的命令模式白名单和防篡改的活动审计日志。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/workstations` | 列出当前租户的 workstation |
+| `POST` | `/v1/workstations` | 创建 workstation |
+| `GET` | `/v1/workstations/{id}` | 按 ID 获取 workstation |
+| `PUT` | `/v1/workstations/{id}` | 更新 workstation |
+| `DELETE` | `/v1/workstations/{id}` | 删除 workstation |
+| `POST` | `/v1/workstations/{id}/test` | 测试连通性（SSH 探测或 `docker ps`）— 不执行命令 |
+| `GET` | `/v1/workstations/{id}/permissions` | 列出白名单模式 |
+| `POST` | `/v1/workstations/{id}/permissions` | 添加白名单模式 |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | 删除某个模式 |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | 启用/禁用模式而不删除 |
+| `GET` | `/v1/workstations/{id}/activity` | 列出活动审计条目（可过滤、分页）|
+
+**创建 body：**
+
+```json
+{
+  "workstation_key": "build-host",
+  "name": "Build host",
+  "backend_type": "ssh",
+  "metadata": {
+    "host": "build.internal",
+    "port": 22,
+    "user": "claw",
+    "private_key_ref": "kms://..."
+  },
+  "default_cwd": "/srv/builds",
+  "default_env": {"PATH": "/usr/local/bin:/usr/bin"}
+}
+```
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `workstation_key` | string | 面向客户端的稳定 key — 按租户唯一 |
+| `name` | string | 显示名称 |
+| `backend_type` | enum | `ssh` 或 `docker`（DB CHECK 约束）|
+| `metadata` | object | 按 backend 的连接配置 — 加密存储 |
+| `default_cwd` | string | exec 调用的默认工作目录 |
+| `default_env` | object | 合并到每次 exec 的 env var — 加密存储 |
+| `active` | boolean | workstation 可供 agent 链接选择 |
+
+**活动日志条目：**
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `action` | enum | `exec`（已执行）或 `deny`（被白名单拒绝）|
+| `cmd_hash` | string | 完整命令行的 SHA-256 |
+| `cmd_preview` | string | 命令的前 200 字节（截断，不含 secret）|
+| `exit_code` | integer | 进程退出码（`deny` 时为 null）|
+| `duration_ms` | integer | 实际耗时（`deny` 时为 null）|
+| `agent_id` | UUID | 发起调用的 agent |
+
+> Workstation backend 共享按租户的速率限制，并遵循全局 shell deny-groups 列表。
+
+---
+
+## Webhooks
+
+两种形式：
+
+1. **Inbound webhook 端点** — 接收来自外部系统的 HMAC 签名请求，并通过 agent 或 channel 路由。无需 bearer token；通过 `X-GoClaw-Signature`（HMAC-SHA256）+ IP 白名单 + 可选 `localhost_only` 门控进行认证。
+2. **Webhook 管理** — 对 webhook registry 进行 CRUD 操作。需要 admin 角色和 gateway token。
+
+> Inbound webhook 需要设置 `GOCLAW_ENCRYPTION_KEY` 以便加密存储 secret。见 [环境变量](environment-variables.md#secrets)。
+
+### Inbound Receivers
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `POST` | `/v1/webhooks/llm` | LLM 类 webhook 入口（OpenAI 兼容 payload，路由到已配置的 agent）|
+| `POST` | `/v1/webhooks/message` | Message 类 webhook 入口（投递到 channel/chat）|
+
+两个 receiver 均需以下请求头：
+
+| 请求头 | 用途 |
+|--------|---------|
+| `X-GoClaw-Webhook-Id` | Webhook UUID |
+| `X-GoClaw-Signature` | `sha256=...` 用 webhook signing key 对 raw body 的 HMAC |
+| `X-GoClaw-Timestamp` | RFC3339 时间戳（偏差 ≤ 5 分钟）|
+| `Idempotency-Key` | 可选 — 对重复投递去重（TTL 存储在 `webhook_calls`）|
+
+Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`message` 默认 `async`）。
+
+### Webhook 管理
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/webhooks` | 列出当前租户的 webhook |
+| `POST` | `/v1/webhooks` | 创建 webhook — 响应包含一次性 `secret` + `hmac_signing_key` |
+| `GET` | `/v1/webhooks/{id}` | 获取 webhook（创建后 `secret` 不再返回）|
+| `PATCH` | `/v1/webhooks/{id}` | 更新可变字段（scopes、rate limits、allowlist、flags）|
+| `POST` | `/v1/webhooks/{id}/rotate` | 轮换 signing key — 仅返回一次新 secret |
+| `DELETE` | `/v1/webhooks/{id}` | 撤销 webhook（软删除；设置 `revoked=true`）|
+
+---
+
 ## MCP Bridge
 
 通过 `/mcp/bridge` 的 streamable HTTP 将 GoClaw 工具暴露给 Claude CLI。仅监听 localhost，通过 gateway token 保护，并使用 HMAC 签名的 context 请求头。
@@ -1520,7 +1641,8 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - **会话：** 列出、预览、更新、删除、重置（`sessions.*`）
 - **Cron 任务：** 列出、创建、更新、删除、切换、状态、运行、运行记录（`cron.*`）
 - **配置管理：** 获取、应用、修改、schema（`config.*`）
-- **配置权限：** 列出、授权、撤销（`config.permissions.*`）
+- **配置权限：** 列出、检查、授权、撤销（`config.permissions.*`）
+- **Workstations：** 列出、获取、创建、更新、删除、测试、链接/解除 agent、permissions CRUD、activity（`workstations.*`）
 - **发送消息：** 向 channel 发送（`send`）
 - **聊天：** 发送、历史记录、中断、注入、会话状态（`chat.*`）
 - **心跳：** 获取、设置、切换、测试、日志、检查清单、目标（`heartbeat.*`）
@@ -1540,4 +1662,4 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

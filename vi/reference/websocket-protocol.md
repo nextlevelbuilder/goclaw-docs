@@ -177,7 +177,7 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `agents.list` | — | Liệt kê tất cả agents |
 | `agent.wait` | `{agentId}` | Chờ agent hoàn thành run hiện tại |
 | `agents.create` | agent object | Tạo agent |
-| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Cập nhật agent |
+| `agents.update` | `{agentId, name?, provider?, model?, model_fallback?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | Cập nhật agent |
 | `agents.delete` | `{id}` | Xóa agent |
 | `agents.files.list` | `{agentId}` | Liệt kê context file |
 | `agents.files.get` | `{agentId, fileName}` | Lấy context file |
@@ -204,6 +204,10 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `config.patch` | Patch các field config cụ thể |
 | `config.schema` | Lấy JSON schema cho config |
 | `config.defaults` | Lấy giá trị mặc định tích hợp + agents.defaults overlay (chỉ đọc, master scope) |
+| `config.permissions.list` | `{agentId, configType?}` | Liệt kê quyền cho một agent |
+| `config.permissions.check` | `{agentId, scope, configType, userId}` | Đánh giá quyết định hiệu lực (`allow` / `deny`) mà không thay đổi dữ liệu |
+| `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Cấp quyền |
+| `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Thu hồi quyền |
 
 ### Cron
 
@@ -386,6 +390,26 @@ Quản lý lifecycle hook lưu trong `agent_hooks`. Xem [Agent Hooks](/hooks-qua
 | `voices.list` | — | Liệt kê ElevenLabs voices của tenant hiện tại (có cache) |
 | `voices.refresh` | — | Xóa cache và refetch voices từ provider |
 
+### Workstations
+
+> **Chỉ bản Standard edition.** Method không được đăng ký khi gateway chạy ở Lite edition; lời gọi trả về `method_not_found`. Mọi method đều yêu cầu admin role.
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `workstations.list` | — | Liệt kê workstation cho tenant hiện tại |
+| `workstations.get` | `{id}` | Lấy thông tin workstation |
+| `workstations.create` | `{workstationKey, name, backendType, metadata, defaultCwd?, defaultEnv?}` | Tạo workstation (`backendType` là `ssh` hoặc `docker`) |
+| `workstations.update` | `{id, ...fields}` | Cập nhật workstation |
+| `workstations.delete` | `{id}` | Xóa workstation |
+| `workstations.testConnection` | `{id}` | Thăm dò kết nối backend mà không thực thi lệnh |
+| `workstations.linkAgent` | `{workstationId, agentId, isDefault?}` | Liên kết agent với workstation |
+| `workstations.unlinkAgent` | `{workstationId, agentId}` | Hủy liên kết |
+| `workstations.permissions.list` | `{workstationId}` | Liệt kê các mẫu allowlist |
+| `workstations.permissions.add` | `{workstationId, pattern, description?, enabled?}` | Thêm mẫu allowlist |
+| `workstations.permissions.remove` | `{workstationId, permissionId}` | Xóa một mẫu |
+| `workstations.permissions.toggle` | `{workstationId, permissionId, enabled}` | Bật/tắt một mẫu |
+| `workstations.activity.list` | `{workstationId, limit?, before?, action?}` | Audit log phân trang; filter `action` nhận `exec` hoặc `deny` |
+
 ### Tenants
 
 | Method | Params | Mô tả |
@@ -555,4 +579,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 1b862707 | cập nhật: 2026-04-20 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

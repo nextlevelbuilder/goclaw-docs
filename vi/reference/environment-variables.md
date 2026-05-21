@@ -23,7 +23,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | Biến | Bắt buộc | Mô tả |
 |------|----------|-------|
 | `GOCLAW_GATEWAY_TOKEN` | Có | Bearer token để xác thực WebSocket và HTTP API |
-| `GOCLAW_ENCRYPTION_KEY` | Có | AES-256-GCM key để mã hóa provider API key trong database. Tạo bằng `openssl rand -hex 32` |
+| `GOCLAW_ENCRYPTION_KEY` | Có | AES-256-GCM key (base64-encoded 32 bytes / 44 ký tự) để mã hóa secrets trong database — LLM provider API key, MCP API key, webhook secret, và workstation credential. Tạo bằng `openssl rand -base64 32`. **Bắt buộc cho `/v1/webhooks/*`** — nếu không đặt, webhook subsystem bị vô hiệu hóa khi khởi động (các subsystem khác vẫn hoạt động bình thường). Phải giống nhau trên tất cả gateway instance trong cluster. Không lưu trong `config.json`. |
 | `GOCLAW_CONFIG` | Không | Đường dẫn `config.json`. Mặc định: `./config.json` |
 | `GOCLAW_HOST` | Không | Gateway listen host. Mặc định: `0.0.0.0` |
 | `GOCLAW_PORT` | Không | Gateway listen port. Mặc định: `18790` |
@@ -216,7 +216,7 @@ Cần build tag `tsnet` (`go build -tags tsnet`).
 ```bash
 # Bắt buộc
 GOCLAW_GATEWAY_TOKEN=your-gateway-token
-GOCLAW_ENCRYPTION_KEY=your-32-byte-hex-key
+GOCLAW_ENCRYPTION_KEY=your-base64-32-byte-key   # openssl rand -base64 32
 GOCLAW_POSTGRES_DSN=postgres://user:pass@localhost:5432/goclaw?sslmode=disable
 
 # LLM provider (chọn một trong số này)
@@ -239,4 +239,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` tự tạo `.env.local`
 - [Database Schema](/database-schema) — secrets được lưu mã hóa trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
