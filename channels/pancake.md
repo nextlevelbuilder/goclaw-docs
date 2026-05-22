@@ -34,7 +34,7 @@ Pancake is a social commerce platform that provides a unified messaging proxy ac
    - **API Key**: Your Pancake user-level API key
    - **Page Access Token**: Page-level token for all page APIs
    - **Page ID**: The Pancake page identifier
-3. Optionally set a **Webhook Secret** for HMAC-SHA256 signature verification
+3. Set a **Webhook Secret** — required for webhook delivery; GoClaw rejects all webhook events when this is not configured
 4. Configure platform-specific features (inbox reply, comment reply)
 
 That's it — one channel serves all platforms connected to that Pancake page.
@@ -84,7 +84,7 @@ For config-file-based channels (instead of DB instances):
 |-----|------|---------|-------------|
 | `api_key` | string | -- | User-level Pancake API key (required) |
 | `page_access_token` | string | -- | Page-level token for all page APIs (required) |
-| `webhook_secret` | string | -- | Optional HMAC-SHA256 verification secret |
+| `webhook_secret` | string | -- | HMAC-SHA256 webhook secret — **required** for webhook delivery; events are rejected without it |
 | `page_id` | string | -- | Pancake page identifier (required) |
 | `webhook_page_id` | string | -- | Native platform page ID sent in webhooks (if different from `page_id`) |
 | `platform` | string | auto-detected | Platform override: facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
@@ -153,7 +153,15 @@ Pancake uses webhook push (not polling) for message delivery:
 - GoClaw registers a single route: `POST /channels/pancake/webhook`
 - All Pancake page webhooks route through one handler, dispatched by `page_id`
 - Always returns HTTP 200 — Pancake suspends webhooks if >80% errors in a 30-min window
-- HMAC-SHA256 signature verification via `X-Pancake-Signature` header (when `webhook_secret` is set)
+- Request body is capped at 1 MB to prevent abuse
+
+**HMAC signature verification (required):** GoClaw verifies every incoming webhook using HMAC-SHA256. The `webhook_secret` credential must be set — without it, all webhook deliveries are rejected (HTTP 200 returned but event is dropped). Configure the same secret in your Pancake dashboard webhook settings.
+
+Pancake sends the signature in the `X-Pancake-Signature` request header with format `sha256=<hex-digest>`. GoClaw recomputes `HMAC-SHA256(body, webhook_secret)` and compares using a constant-time comparison to prevent timing attacks.
+
+**Replay protection:** After signature verification passes, GoClaw computes `SHA-256(body)` and stores it in an in-memory dedup map with a 24-hour TTL. Duplicate deliveries (same raw body) are silently dropped before any message processing occurs.
+
+> **Security note:** Enabling `features.auto_react` without a `webhook_secret` configured causes GoClaw to log a warning at startup (`security.pancake_auto_react_without_hmac`). Any actor who can reach the webhook endpoint could then trigger comment-like calls without authentication.
 
 Webhook payload structure:
 
@@ -324,7 +332,7 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 | "page_id is required" | Add `page_id` to config. Find it in your Pancake dashboard URL. |
 | Token verification failed | The `page_access_token` may be expired or invalid. Regenerate from Pancake dashboard. |
 | No messages received | Check Pancake webhook URL is configured: `https://your-goclaw-host/channels/pancake/webhook`. |
-| Webhook signature mismatch | Verify `webhook_secret` matches the secret configured in Pancake dashboard. |
+| Webhook signature mismatch / events not processed | Verify `webhook_secret` is set and matches the secret configured in the Pancake dashboard. Events are silently dropped when `webhook_secret` is empty. |
 | "no channel instance for page_id" | The `page_id` in the webhook doesn't match any registered channel. Check config. |
 | Platform shows as unknown | `platform` is auto-detected. Ensure the page is connected in Pancake. Can override manually. |
 | Media upload fails | Media paths must be absolute. Check file exists and is readable. |
@@ -337,4 +345,4 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Multi-Channel Setup](/recipe-multi-channel) — Configure multiple channels
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

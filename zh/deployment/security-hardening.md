@@ -413,18 +413,74 @@ docker build -t goclaw-sandbox:bookworm-slim -f Dockerfile.sandbox .
 | MCP server API keys | `mcp_servers` | `api_key` |
 | 自定义工具环境变量 | `custom_tools` | `env` |
 | Channel 凭据 | `channel_instances` | `credentials` |
+| Webhook 密钥 | `webhooks` | `secret_hash`、`secret_enc` |
+| 工作站凭据 | `workstations` | `metadata` |
 
 首次运行前设置加密密钥：
 
 ```bash
-# 生成强密钥
-openssl rand -hex 32
+# 生成强密钥（base64，44 字符 = 32 原始字节）
+openssl rand -base64 32
 
 # 添加到 .env
-GOCLAW_ENCRYPTION_KEY=your-64-char-hex-key
+GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 ```
 
+密钥支持三种格式：base64（44 字符，`openssl rand -base64 32` 的输出）、十六进制（64 字符，`openssl rand -hex 32` 的输出）或原始 32 字节。三种格式均解析为相同的 32 字节 AES 密钥；使用 base64 作为规范形式，与环境变量参考文档一致。
+
 存储格式：`"aes-gcm:" + base64(12 字节 nonce + 密文 + GCM tag)`。无前缀的值以明文返回（迁移兼容性）。
+
+> **集群中必须保持一致。** 集群部署时，每个 gateway 实例必须使用相同的 `GOCLAW_ENCRYPTION_KEY`。轮换密钥需要在重启前重新加密所有已存储的密钥。
+
+---
+
+## Webhook 安全
+
+> 完整 API 参考见 [Webhooks](/advanced/webhooks)。
+
+### 必须设置加密密钥
+
+Webhook 子系统仅在设置 `GOCLAW_ENCRYPTION_KEY` 时才启动。未设置时，所有 `/v1/webhooks/*` 路由返回 `404`，gateway 记录：
+
+```
+webhook subsystem disabled: GOCLAW_ENCRYPTION_KEY not set
+```
+
+这是故意设计的：空密钥会将 webhook 密钥以明文存入数据库，破坏数据库泄露保护。设置密钥并重启以重新启用子系统。
+
+### HMAC 签名（推荐）
+
+每个 webhook 行都有 `hmac_signing_key`（在创建和轮换时各返回一次）。使用 HMAC-SHA256 签名请求，而非 bearer 密钥：
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+```
+
+签名算法：
+
+```
+signing_key = hex.Decode(hmac_signing_key)       // hex_64 → 32 原始字节
+payload     = "{unix_ts}.{raw_request_body}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+**时间戳偏差保护。** `|now - t| > 300` 秒的请求被拒绝。通过 NTP 同步调用方时钟。
+
+**重放保护。** 有效 HMAC 签名被接受后，gateway 将 `sha256(tenant_id|signature_hex)` 记录到 per-process nonce 缓存（TTL 320 秒）。重放请求返回 `401`，审计事件为 `security.webhook.hmac_replay`。
+
+**强制 HMAC-only 认证。** 在 webhook 行上设置 `require_hmac: true` 可完全禁用 bearer 密钥认证。这是生产集成的推荐配置。
+
+### 其他配置项
+
+| 字段 | 说明 |
+|------|------|
+| `localhost_only` | 将调用方限制为 `127.0.0.1` / `::1`。Lite 版自动启用。 |
+| `ip_allowlist` | IP 或 CIDR 范围。空 = 允许任意来源。不信任 `X-Forwarded-For`。 |
+| `rate_limit_per_min` | per-webhook 上限（0 = 使用租户默认值）。 |
+
+Go、Node.js 和 Python 的完整创建载荷参考和签名验证示例见 [Webhooks](/advanced/webhooks)。
 
 ---
 
@@ -492,7 +548,8 @@ GoClaw 通过 `safego` 包将所有后台 goroutine（工具执行、cron 任务
 在向互联网或共享用户暴露 GoClaw 前使用：
 
 - [ ] 将 `GOCLAW_GATEWAY_TOKEN` 设为强随机 token
-- [ ] 将 `GOCLAW_ENCRYPTION_KEY` 设为 32 字节（64 字符十六进制）随机密钥
+- [ ] 将 `GOCLAW_ENCRYPTION_KEY` 设为 base64 编码的 32 字节密钥（`openssl rand -base64 32`）——webhook、工作站凭据和 CLI grant 环境覆盖均需此项
+- [ ] 将 `GOCLAW_ENCRYPTION_KEY` 存入密钥管理器（Vault、AWS Secrets Manager 等）——不要提交到 `config.json` 或版本控制
 - [ ] 将 `gateway.allowed_origins` 设为仪表盘域名
 - [ ] 设置 `gateway.rate_limit_rpm`（如 `20`）限制每用户请求速率
 - [ ] 面向公众的部署将 `gateway.injection_action` 设为 `"block"`
@@ -507,6 +564,9 @@ GoClaw 通过 `safego` 包将所有后台 goroutine（工具执行、cron 任务
 - [ ] 审查 shell 拒绝分组——所有 15 个默认启用；仅为有需要的特定 agent 放开
 - [ ] 验证沙箱模式不回退到主机执行（失败关闭）
 - [ ] 确认已设置 `GOCLAW_GATEWAY_TOKEN`——空 token 启用开发模式（所有人均为管理员）
+- [ ] 对于 webhook：在 webhook 行上使用 `require_hmac: true`——禁用 bearer 认证，强制 HMAC-SHA256 签名
+- [ ] 对于 webhook：对非公开 webhook 设置 `localhost_only: true`（或使用 `ip_allowlist`）
+- [ ] 配置文件中不存储明文凭据——使用环境变量和密钥管理器
 
 ---
 
@@ -543,7 +603,7 @@ journalctl -u goclaw | grep 'security\.'
 | Agent 可读取工作区外的文件 | agent 上 `restrict_to_workspace: false` | 重新启用（默认为 `true`） |
 | 凭据出现在工具输出中 | `scrub_credentials: false` | 移除该覆盖——脱敏默认开启 |
 | 沙箱未隔离 | 沙箱模式为 `"off"` | 将 `sandbox.mode` 设为 `"non-main"` 或 `"all"` |
-| 未设置加密密钥 | `GOCLAW_ENCRYPTION_KEY` 为空 | 首次运行前设置；轮换需重新加密存储的密钥 |
+| 未设置加密密钥或 webhook 返回 404 | `GOCLAW_ENCRYPTION_KEY` 为空 | 首次运行前设置；未设置时 webhook 子系统被禁用 |
 | 所有用户均有管理员访问 | 未设置 `GOCLAW_GATEWAY_TOKEN` | 设置强 token；空值 = 开发模式 |
 
 ---
@@ -554,5 +614,7 @@ journalctl -u goclaw | grep 'security\.'
 - [沙箱](../advanced/sandbox.md) — Docker 沙箱配置详情
 - [Docker Compose](./docker-compose.md) — 通过 compose overlay 部署安全设置
 - [数据库设置](./database-setup.md) — PostgreSQL TLS 和加密密钥存储
+- [Webhooks](../advanced/webhooks.md) — HMAC 认证 HTTP 端点、签名验证和重放保护
+- [Workstations](../advanced/workstations.md) — 远程执行目标、权限模型和活动审计
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

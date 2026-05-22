@@ -74,7 +74,13 @@ curl -X POST http://localhost:8080/v1/agents \
     "model": "claude-sonnet-4-6",
     "context_window": 200000,
     "max_tool_iterations": 20,
-    "workspace": "~/.goclaw/research-workspace"
+    "workspace": "~/.goclaw/research-workspace",
+    "model_fallback": {
+      "enabled": true,
+      "candidates": [
+        { "provider": "openai", "model": "gpt-4o-mini" }
+      ]
+    }
   }'
 ```
 
@@ -111,6 +117,36 @@ curl -X POST http://localhost:8080/v1/agents \
 | `max_tool_iterations` | integer | 20 | Max tool calls per request |
 | `workspace` | string | `~/.goclaw/{key}-workspace` | Directory for context files |
 | `other_config` | JSON | `{}` | Custom fields (e.g., `description` for summoning) |
+| `model_fallback` | JSON | `{}` | Ordered fallback provider/model list. See [Model Fallback](../advanced/model-steering.md#model-fallback). |
+
+### `model_fallback` — Provider Fallback on Error
+
+The `model_fallback` field lets the agent automatically retry failed LLM calls against a prioritized list of backup providers and models. It only activates when `enabled` is `true` and at least one candidate is provided.
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+| Sub-field | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | boolean | `false` | Activate fallback. `false` or absent → feature disabled. |
+| `strategy` | string | `"priority_order"` | Only `"priority_order"` supported. |
+| `candidates` | array | `[]` | Ordered `{provider, model}` pairs to try after the primary fails. |
+| `max_attempts` | integer | `0` | Total attempt cap (primary + fallbacks). `0` = no cap. |
+| `cooldown_enabled` | boolean | `true` | Skip recently-failed providers during their cooldown window. |
+
+Fallback is triggered by retryable errors (rate-limit, overloaded, timeout) and permanent errors (billing, model not found). Context overflow errors are **not** retried. See [Model Fallback](../advanced/model-steering.md#model-fallback) for the full trigger table and cooldown durations.
 
 ### `other_config` — Workspace Sharing
 
@@ -220,4 +256,4 @@ These files are placed in the stable portion of the system prompt (above the cac
 - [Context Files](../agents/context-files.md) — learn about SOUL.md, IDENTITY.md, and other system files
 - [Summoning & Bootstrap](/summoning-bootstrap) — how LLM generates personality files on first use
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

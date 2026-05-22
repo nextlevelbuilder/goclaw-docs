@@ -171,6 +171,14 @@ goclaw device.pair.approve --code ABCD1234
 - **Session token**：审批后颁发；与设备和用户绑定
 - **防抖**：配对审批通知按发送者防抖（60 秒）
 
+## 各 Channel 的 Pairing 行为差异
+
+不同类型的 channel 触发 pairing 流程的方式有所不同。
+
+**Discord 群组：** 当 `group_policy: "pairing"` 生效且 `require_mention: true`（Discord 的默认值）时，只有在未配对用户明确 @mention 了 bot 或回复了 bot 的消息时，才会向该用户发送配对邀请。未向 bot 寻址的群组消息会被静默添加到缓冲区，不会产生 pairing 回复。这可防止在公开服务器中因大量用户可见 bot 消息而导致的配对邀请泛滥。
+
+对于 DM，只要未配对用户发送消息，配对邀请就会无条件触发（与其他 channel 相同）。
+
 ## JavaScript 示例
 
 ```javascript
@@ -245,4 +253,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Telegram 设置
 - [WebSocket 协议](/websocket-protocol) — 完整协议参考
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

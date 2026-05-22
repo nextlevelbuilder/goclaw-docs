@@ -440,10 +440,120 @@ flowchart TD
 
 ---
 
+## Model Fallback
+
+当 provider 调用因不可恢复的错误而失败时，GoClaw 可以自动将同一请求重试到不同的 provider 和 model。此功能通过 `model_fallback` 字段按 agent 进行配置。
+
+### 工作原理
+
+```mermaid
+flowchart TD
+    REQ([Agent 请求]) --> PRIMARY["尝试主 provider/model"]
+    PRIMARY -->|成功| RESP([响应])
+    PRIMARY -->|可重试错误\n(rate-limit, overloaded, timeout, auth)| COOLDOWN{冷却\n检查}
+    COOLDOWN -->|可用或探测| NEXT["尝试下一个 fallback candidate"]
+    COOLDOWN -->|冷却中| SKIP["跳过 candidate"]
+    SKIP --> NEXT
+    NEXT -->|成功| RESP
+    NEXT -->|永久错误\n(billing, model_not_found, auth_permanent, format)| NEXTMODEL["跳至下一个 candidate"]
+    NEXT -->|context_overflow| ABORT([返回错误 — 不 fallback])
+    NEXTMODEL --> NEXT
+    NEXT -->|所有 candidate 耗尽| ERR([FailoverSummaryError])
+```
+
+**触发条件（何时尝试下一个 candidate）：**
+
+| 错误类型 | HTTP status / pattern | 操作 |
+|---------|----------------------|------|
+| Rate-limited | 429 | 尝试下一个 candidate |
+| Overloaded | 529、`5xx overload` 模式 | 尝试下一个 candidate |
+| Timeout / 网络 | 连接重置、EOF | 尝试下一个 candidate |
+| Auth（临时） | 401 / 403 无 revoked/disabled | 尝试下一个 candidate |
+| Billing | 402 | 尝试下一个 candidate |
+| Auth（永久） | 401 / 403 含 revoked/deactivated | 尝试下一个 candidate |
+| Model 未找到 | 404 含 model 模式 | 尝试下一个 candidate |
+| 格式无效 | 400 `tool_call`/`invalid_request` | 尝试下一个 candidate |
+| Context overflow | context/token 限制模式 | **停止 — 不 fallback** |
+
+**流式安全：** 一旦流式响应开始输出内容，GoClaw 不会 fallback——已有的部分输出将原样返回，不会被丢弃。
+
+### 冷却跟踪
+
+当 `cooldown_enabled` 为 `true`（默认值）时，失败的 provider 进入冷却窗口。后续请求会跳过冷却中的 candidate。冷却到期后会发送探测请求以测试恢复情况。
+
+| 失败原因 | 冷却时长 |
+|---------|:-------:|
+| Rate-limit | 30 秒 |
+| Overloaded | 60 秒 |
+| Timeout | 15 秒 |
+| Auth（临时） | 10 分钟 |
+| Auth（永久） | 1 小时 |
+| Billing | 5 分钟 |
+| Model 未找到 | 1 小时 |
+| 格式错误 | 5 分钟 |
+| 未知 | 30 秒 |
+
+冷却状态**仅保存在内存中**，gateway 重启后不会保留。
+
+### 配置
+
+通过 HTTP API 或 PATCH 接口在 agent 上设置 `model_fallback`：
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o" },
+      { "provider": "openrouter", "model": "google/gemini-2.0-flash-001" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+**字段参考：**
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | `false` | 必须为 `true` 才能激活 fallback。`false` 或缺失时，功能不激活。 |
+| `strategy` | string | `"priority_order"` | Fallback 策略。仅支持 `"priority_order"`——按列表顺序依次尝试 candidate。 |
+| `candidates` | array | `[]` | 主 provider 失败后按顺序尝试的 `{provider, model}` 对列表。重复项会被去重。空数组 → 即使 `enabled: true` 也不激活。 |
+| `max_attempts` | integer | `0` | 最大尝试次数（主 + fallback）。`0` 表示不限制。 |
+| `cooldown_enabled` | boolean | `true` | 在内存中追踪失败的 provider，在冷却窗口内跳过它们。 |
+
+**语义说明：**
+- agent 配置的 `provider` + `model` 始终作为主选（第 0 位）。
+- `candidates` 只列出 fallback——主选不会被复制到列表中。
+- `provider` 或 `model` 为空的 candidate 在规范化时会被静默丢弃。
+- 设置 `enabled: false`（或省略 `enabled`）等同于没有 fallback 配置。
+
+### 示例：Anthropic 主 + 两个 Fallback
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "model_fallback": {
+    "enabled": true,
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ]
+  }
+}
+```
+
+使用此配置，请求首先发往 `anthropic/claude-sonnet-4-6`。若返回 429 或 529，GoClaw 立即重试 `openai/gpt-4o-mini`。若仍失败，尝试 `openrouter/gemini-flash-1.5`。若三者均失败，agent 返回 `FailoverSummaryError`，列出所有尝试及其错误原因。
+
+---
+
 ## 下一步
 
 - [Sandbox](sandbox.md) — 为 agent 隔离 shell 命令执行
 - [Agent 团队](../agent-teams/what-are-teams.md) — Track 和 Hint 最活跃的多 agent 协调
 - [定时任务与 Cron](scheduling-cron.md) — cron lane 请求如何通过 Track 路由
 
-<!-- goclaw-source: 1296cdbf | 更新: 2026-04-11 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

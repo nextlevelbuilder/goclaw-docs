@@ -76,6 +76,10 @@ flowchart TD
 
 Trong server (channel), bot mặc định yêu cầu được mention (`require_mention: true`). Tin nhắn chờ được lưu vào buffer lịch sử. Khi bot được mention, lịch sử được đưa vào làm context.
 
+**Phát hiện @mention trong nhóm:** Một tin nhắn được coi là @mention khi user ID của bot xuất hiện trong mảng `mentions` của Discord event, *hoặc* khi tin nhắn đó là reply trực tiếp vào một tin nhắn của chính bot. Cả hai điều kiện đều được kiểm tra trước khi chạy bất kỳ logic policy hay pairing nào.
+
+**Pairing reply trong nhóm:** Khi `group_policy: "pairing"` được đặt và `require_mention: true` (mặc định), bot chỉ gửi lời mời pairing cho người dùng chưa được pairing nếu họ @mention bot một cách rõ ràng (hoặc reply vào tin nhắn của bot). Các tin nhắn không gửi đến bot sẽ được thêm vào buffer lịch sử nhóm và không bao giờ kích hoạt pairing reply. Đặt `require_mention: false` để gửi lời mời pairing không điều kiện trong nhóm (không khuyến nghị cho server công khai).
+
 ### Typing Indicator
 
 Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 giây). Typing indicator dừng tự động sau khi tin nhắn được gửi thành công.
@@ -141,4 +145,4 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

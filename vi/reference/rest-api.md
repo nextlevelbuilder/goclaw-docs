@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~260 REST endpoint.
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~286 REST endpoint.
 
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
@@ -229,7 +229,7 @@ workspace/                                 — workspace directory files
 
 ---
 
-### `GET /v1/agents/{agentID}/codex-pool-activity`
+### `GET /v1/agents/{id}/codex-pool-activity`
 
 Trả về hoạt động routing và sức khỏe từng tài khoản cho agent đang dùng [Codex OAuth pool](/provider-codex). Yêu cầu provider của agent là kiểu `chatgpt_oauth` với pool đã được cấu hình.
 
@@ -478,7 +478,8 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `POST` | `/v1/skills/{id}/grants/agent` | Cấp skill cho agent |
+| `GET` | `/v1/skills/{id}/grants/agent` | Liệt kê agent grants cho skill (admin+) |
+| `POST` | `/v1/skills/{id}/grants/agent` | Cấp skill cho agent (body hỗ trợ flag `can_manage`, migration 66) |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` | Thu hồi agent grant |
 | `POST` | `/v1/skills/{id}/grants/user` | Cấp skill cho user |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` | Thu hồi user grant |
@@ -896,7 +897,7 @@ Xóa channel instance.
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/contacts` | Liệt kê contact (có phân trang) |
-| `GET` | `/v1/contacts/resolve?ids=...` | Resolve contact theo ID (tối đa 100) |
+| `GET` | `/v1/contacts/resolve` | Resolve contact theo ID (query string `ids=` lặp lại; tối đa 100) |
 | `POST` | `/v1/contacts/merge` | Gộp các contact trùng lặp |
 | `POST` | `/v1/contacts/unmerge` | Tách các contact đã gộp |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` | Liệt kê contact đã gộp của tenant user |
@@ -1032,19 +1033,23 @@ Per-agent binary grants — kiểm soát agent nào được phép dùng một C
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Lấy thông tin một grant cụ thể |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Cập nhật grant |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Xóa grant |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` | Tiết lộ env vars đã giải mã cho grant (rate-limited; không bao giờ cache — POST được chọn thay vì GET để tránh CSRF) |
 
 **Trường khi tạo/cập nhật grant:**
 
 | Field | Type | Mô tả |
 |-------|------|-------|
 | `agent_id` | UUID | Agent được cấp quyền truy cập (bắt buộc khi tạo) |
+| `env_vars` | object | Ghi đè env var per-grant (plaintext khi nhập; mã hóa lúc lưu qua `GOCLAW_ENCRYPTION_KEY`; chỉ trả về tên key trong list/get) |
 | `deny_args` | JSON | Giới hạn đối số (tùy chọn) |
 | `deny_verbose` | JSON | Giới hạn verbose output (tùy chọn) |
 | `timeout_seconds` | integer | Ghi đè timeout thực thi cho agent (tùy chọn) |
 | `tips` | string | Gợi ý sử dụng cho agent (tùy chọn) |
 | `enabled` | boolean | Bật/tắt grant (mặc định: `true`) |
 
-**Response khi tạo** (`201 Created`): đối tượng grant vừa tạo.
+**Response khi tạo** (`201 Created`): đối tượng grant vừa tạo (không có giá trị env plaintext — chỉ trả `env_keys` + `env_set`).
+
+> **`env:reveal`** trả về plaintext đã giải mã cho env vars của grant. Endpoint bị rate-limit theo credential (cấu hình RPM + burst) và được ghi log. Yêu cầu đặt `GOCLAW_ENCRYPTION_KEY`; nếu không có thì grant lưu env chưa mã hóa trên disk chỉ khi cấu hình tường minh.
 
 Thay đổi grant sẽ phát sự kiện `cache_invalidate` trên message bus để các agent đang kết nối cập nhật ngay lập tức.
 
@@ -1302,6 +1307,19 @@ Liệt kê GitHub release của một repository (dùng cho giao diện chọn p
 
 `matching_assets` chứa asset phù hợp OS/arch của server (rỗng nếu không có). Release draft bị loại trừ.
 
+### Cập nhật Package
+
+Theo dõi và áp dụng cập nhật package từ các registry system / pip / npm. Đọc yêu cầu viewer+; ghi yêu cầu admin.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/packages/updates` | Liệt kê các bản cập nhật đang chờ từ mỗi registry |
+| `POST` | `/v1/packages/updates/refresh` | Buộc làm mới cache registry cập nhật |
+| `POST` | `/v1/packages/update` | Áp dụng một bản cập nhật — body `{ "package": "pip:pandas" }` |
+| `POST` | `/v1/packages/updates/apply-all` | Áp dụng toàn bộ bản cập nhật đang chờ (chạy lâu; trả SSE progress khi `?stream=true`) |
+
+Cập nhật phát sự kiện `cache_invalidate` trên bus để client đang kết nối làm mới danh sách package.
+
 ### `GET /v1/shell-deny-groups`
 
 Liệt kê các nhóm lệnh shell bị từ chối (chính sách bảo mật).
@@ -1485,6 +1503,109 @@ Kho cấu hình key-value theo tenant. Đọc cho tất cả user đã xác th�
 
 ---
 
+## Workstations
+
+> **Chỉ bản Standard edition.** Gateway trả `403` trên Lite. Yêu cầu admin role.
+
+Workstation là các remote execution endpoint (SSH hoặc Docker) mà agent có thể dùng để thực thi lệnh trong môi trường sandbox. Mỗi workstation có danh sách cho phép (allowlist) các mẫu lệnh được phép và audit log tamper-evident.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/workstations` | Liệt kê workstation cho tenant hiện tại |
+| `POST` | `/v1/workstations` | Tạo workstation |
+| `GET` | `/v1/workstations/{id}` | Lấy thông tin workstation theo ID |
+| `PUT` | `/v1/workstations/{id}` | Cập nhật workstation |
+| `DELETE` | `/v1/workstations/{id}` | Xóa workstation |
+| `POST` | `/v1/workstations/{id}/test` | Kiểm tra kết nối (SSH probe hoặc `docker ps`) — không thực thi lệnh |
+| `GET` | `/v1/workstations/{id}/permissions` | Liệt kê các mẫu allowlist |
+| `POST` | `/v1/workstations/{id}/permissions` | Thêm mẫu allowlist |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | Xóa một mẫu |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | Bật/tắt mẫu mà không xóa |
+| `GET` | `/v1/workstations/{id}/activity` | Liệt kê các mục audit (có thể lọc, phân trang) |
+
+**Body khi tạo:**
+
+```json
+{
+  "workstation_key": "build-host",
+  "name": "Build host",
+  "backend_type": "ssh",
+  "metadata": {
+    "host": "build.internal",
+    "port": 22,
+    "user": "claw",
+    "private_key_ref": "kms://..."
+  },
+  "default_cwd": "/srv/builds",
+  "default_env": {"PATH": "/usr/local/bin:/usr/bin"}
+}
+```
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `workstation_key` | string | Key ổn định phía client — duy nhất theo tenant |
+| `name` | string | Tên hiển thị |
+| `backend_type` | enum | `ssh` hoặc `docker` (ràng buộc CHECK trong DB) |
+| `metadata` | object | Cấu hình kết nối theo backend — mã hóa lúc lưu |
+| `default_cwd` | string | Thư mục làm việc mặc định cho các lần gọi exec |
+| `default_env` | object | Env var được merge vào mọi exec — mã hóa lúc lưu |
+| `active` | boolean | Workstation có thể chọn để liên kết với agent |
+
+**Mục log hoạt động:**
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `action` | enum | `exec` (đã chạy) hoặc `deny` (bị allowlist từ chối) |
+| `cmd_hash` | string | SHA-256 của toàn bộ dòng lệnh |
+| `cmd_preview` | string | 200 byte đầu của lệnh (cắt bớt, không có secret) |
+| `exit_code` | integer | Exit code của tiến trình (null nếu `deny`) |
+| `duration_ms` | integer | Thời gian thực tế (null nếu `deny`) |
+| `agent_id` | UUID | Agent đã khởi tạo lệnh gọi |
+
+> Các backend workstation dùng chung rate limit theo tenant và tuân theo danh sách shell deny-groups toàn cục.
+
+---
+
+## Webhooks
+
+Hai bề mặt:
+
+1. **Inbound webhook endpoints** — nhận request có chữ ký HMAC từ hệ thống bên ngoài và định tuyến qua agent hoặc channel. Không cần bearer token; xác thực qua `X-GoClaw-Signature` (HMAC-SHA256) + IP allowlist + tùy chọn gate `localhost_only`.
+2. **Quản trị webhook** — CRUD trên registry webhook. Yêu cầu admin role và gateway token.
+
+> Inbound webhook yêu cầu đặt `GOCLAW_ENCRYPTION_KEY` để secret có thể lưu mã hóa lúc lưu. Xem [Biến môi trường](environment-variables.md#secrets).
+
+### Inbound Receivers
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/webhooks/llm` | Entrypoint webhook kiểu LLM (payload tương thích OpenAI được định tuyến đến agent đã cấu hình) |
+| `POST` | `/v1/webhooks/message` | Entrypoint webhook kiểu message (gửi đến channel/chat) |
+
+Cả hai receiver yêu cầu header:
+
+| Header | Mục đích |
+|--------|---------|
+| `X-GoClaw-Webhook-Id` | UUID của webhook |
+| `X-GoClaw-Signature` | `sha256=...` HMAC của raw body dùng signing key của webhook |
+| `X-GoClaw-Timestamp` | Timestamp RFC3339 (lệch tối đa 5 phút) |
+| `Idempotency-Key` | Tùy chọn — chống gửi trùng lặp (TTL lưu trong `webhook_calls`) |
+
+Mode được chọn qua query string `?mode=sync|async` (mặc định `sync` cho `llm`, `async` cho `message`).
+
+### Quản trị Webhook
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/webhooks` | Liệt kê webhook cho tenant hiện tại |
+| `POST` | `/v1/webhooks` | Tạo webhook — response có `secret` + `hmac_signing_key` dùng một lần |
+| `GET` | `/v1/webhooks/{id}` | Lấy thông tin webhook (`secret` không bao giờ trả lại sau khi tạo) |
+| `PATCH` | `/v1/webhooks/{id}` | Cập nhật các field có thể thay đổi (scopes, rate limits, allowlist, flags) |
+| `POST` | `/v1/webhooks/{id}/rotate` | Xoay vòng signing key — trả secret mới một lần |
+| `DELETE` | `/v1/webhooks/{id}` | Thu hồi webhook (soft-delete; đặt `revoked=true`) |
+
+---
+
 ## MCP Bridge
 
 Mở GoClaw tools cho Claude CLI qua streamable HTTP tại `/mcp/bridge`. Chỉ lắng nghe trên localhost. Được bảo vệ bằng gateway token với context header có chữ ký HMAC.
@@ -1552,7 +1673,8 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - **Sessions:** Liệt kê, xem trước, patch, xóa, reset (`sessions.*`)
 - **Cron jobs:** Liệt kê, tạo, cập nhật, xóa, toggle, status, run, runs (`cron.*`)
 - **Config management:** Lấy, áp dụng, patch, schema (`config.*`)
-- **Config permissions:** Liệt kê, cấp quyền, thu hồi (`config.permissions.*`)
+- **Config permissions:** Liệt kê, kiểm tra, cấp quyền, thu hồi (`config.permissions.*`)
+- **Workstations:** Liệt kê, lấy, tạo, cập nhật, xóa, test, link/unlink agent, CRUD permissions, activity (`workstations.*`)
 - **Gửi message:** Gửi đến channel (`send`)
 - **Chat:** Gửi, lịch sử, hủy, inject, trạng thái session (`chat.*`)
 - **Heartbeat:** Lấy, đặt, toggle, test, logs, checklist, targets (`heartbeat.*`)
@@ -1572,4 +1694,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

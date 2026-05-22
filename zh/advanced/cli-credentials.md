@@ -30,7 +30,8 @@ secure_cli_binaries（凭证 + 默认值）
                             ├── deny_verbose（NULL = 使用 binary 默认值）
                             ├── timeout_seconds（NULL = 使用 binary 默认值）
                             ├── tips（NULL = 使用 binary 默认值）
-                            └── enabled
+                            ├── enabled
+                            └── encrypted_env（BYTEA，AES-256-GCM — 可选的 per-grant 环境变量覆盖）
 ```
 
 ## Agent Grants
@@ -44,10 +45,12 @@ secure_cli_binaries（凭证 + 默认值）
 | `timeout_seconds` | 覆盖此 agent 的进程超时 |
 | `tips` | 覆盖注入此 agent TOOLS.md 的提示 |
 | `enabled` | 禁用 grant 而不删除它 |
+| `encrypted_env` | 可选的 per-grant 环境变量覆盖（静止时 AES-256-GCM 加密） |
 
 当 agent 运行 binary 时，GoClaw 按以下顺序应用设置：
 1. Binary 默认值
 2. Grant 覆盖（非 null 字段替换 binary 默认值）
+3. Per-grant `encrypted_env` 在执行时解密并合并到子进程环境中（仅对此 agent 覆盖 binary 级别的环境变量）
 
 ## REST API
 
@@ -69,6 +72,8 @@ GET /v1/cli-credentials/{id}/agent-grants
       "deny_args": null,
       "timeout_seconds": 60,
       "enabled": true,
+      "env_keys": [],
+      "env_set": false,
       "created_at": "2026-04-05T00:00:00Z",
       "updated_at": "2026-04-05T00:00:00Z"
     }
@@ -86,11 +91,14 @@ POST /v1/cli-credentials/{id}/agent-grants
 {
   "agent_id": "019...",
   "timeout_seconds": 120,
-  "tips": "所有命令使用 --output json"
+  "tips": "所有命令使用 --output json",
+  "env_vars": {
+    "MY_API_KEY": "secret-value"
+  }
 }
 ```
 
-省略的字段（`deny_args`、`deny_verbose`、`tips`、`enabled`）默认为 `null` / `true`。
+省略的字段（`deny_args`、`deny_verbose`、`tips`、`enabled`、`env_vars`）默认为 `null` / `true`。`env_vars` 的值在静止时加密存储；后续 list/get 调用仅返回 key 名称。
 
 ### 获取 grant 详情
 
@@ -104,7 +112,7 @@ GET /v1/cli-credentials/{id}/agent-grants/{grantId}
 PUT /v1/cli-credentials/{id}/agent-grants/{grantId}
 ```
 
-仅发送需要修改的字段。允许的字段：`deny_args`、`deny_verbose`、`timeout_seconds`、`tips`、`enabled`。
+仅发送需要修改的字段。允许的字段：`deny_args`、`deny_verbose`、`timeout_seconds`、`tips`、`enabled`、`env_vars`。
 
 ### 删除 grant
 
@@ -113,6 +121,126 @@ DELETE /v1/cli-credentials/{id}/agent-grants/{grantId}
 ```
 
 删除受限 binary（`is_global = false`）的 grant 会立即撤销该 agent 对此 binary 的访问权限。
+
+### 获取 grant 的明文环境变量
+
+```
+POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal
+```
+
+返回解密后的明文环境变量。每用户每分钟限制 10 次调用。详见 [获取解密环境变量](#获取解密环境变量)。
+
+## Per-Agent 环境变量覆盖
+
+自迁移 `000058` 起，每个 `secure_cli_agent_grants` 行可携带可选的 `encrypted_env` 列（BYTEA，AES-256-GCM）。这让你可以为同一 binary 给特定 agent 配置不同的环境变量集——例如不同的 AWS 账户、独立的 API key 或 staging 端点——而无需创建单独的 binary 定义。
+
+**工作原理：**
+
+- 创建/更新 grant 时，在请求体中发送 `env_vars`（明文 `string → string` 映射）。
+- GoClaw 对 key 进行 denylist 验证，然后加密并持久化到 `encrypted_env`。
+- 明文值永不存储或记录日志；store 层在写入前加密，读取时解密。
+- list 和 get 响应仅返回 `env_keys`（已排序的 key 名称列表）和 `env_set`（布尔值）。除通过 `env:reveal` 端点外，值永不返回。
+
+**创建带环境变量覆盖的 grant：**
+
+```bash
+curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "019...",
+    "env_vars": {
+      "AWS_PROFILE": "staging",
+      "AWS_DEFAULT_REGION": "us-west-2"
+    }
+  }'
+```
+
+响应（`201 Created`）包含 `env_keys` 但不含值：
+
+```json
+{
+  "id": "019...",
+  "binary_id": "019...",
+  "agent_id": "019...",
+  "env_keys": ["AWS_DEFAULT_REGION", "AWS_PROFILE"],
+  "env_set": true,
+  "enabled": true,
+  "created_at": "2026-05-21T00:00:00Z",
+  "updated_at": "2026-05-21T00:00:00Z"
+}
+```
+
+**更新现有 grant 的环境变量：**
+
+在 `PUT` 请求体中发送 `env_vars`。三态语义：
+- **缺失** — 现有 env 不变
+- **`null`** — 清除环境变量覆盖（移除 `encrypted_env`）
+- **`{...}`** — 替换整个 env 映射（空 `{}` 与 `null` 效果相同）
+
+## 获取解密环境变量
+
+`POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` 返回特定 grant 的解密明文环境变量。端点使用 POST（而非 GET）以防止 HTTP 缓存并满足 CSRF 安全要求。
+
+**安全控制：**
+- 需要具有正确租户范围的 `admin` 角色——master 范围的调用者被拒绝。
+- 每用户每分钟限制 **10 次**（burst 3）。超出时返回 `429`。
+- 响应头包含 `Cache-Control: no-store`，防止代理缓存。
+- 每次调用均被审计：调用者 ID、租户 ID、grant ID、binary ID 和时间戳以 INFO 级别记录日志。
+
+```bash
+curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+响应：
+
+```json
+{
+  "env_vars": {
+    "AWS_PROFILE": "staging",
+    "AWS_DEFAULT_REGION": "us-west-2"
+  }
+}
+```
+
+当 grant 未设置环境变量覆盖时返回 `{"env_vars": {}}`。
+
+## 环境变量 Denylist
+
+并非所有环境变量名称都被接受。GoClaw 拒绝可能导致权限提升、shell 注入、TLS 绕过或数据外泄的 key。
+
+**Key 格式要求：** key 必须匹配 `^[A-Z_][A-Z0-9_]*$`——仅大写字母、数字、下划线。小写字母、空格和特殊字符（包括 Shellshock 类函数定义）均被拒绝。
+
+**精确匹配拒绝：**
+
+| Key | 原因 |
+|-----|------|
+| `PATH`、`HOME`、`USER`、`SHELL`、`PWD` | 核心 shell/用户标识 |
+| `LD_PRELOAD`、`LD_LIBRARY_PATH`、`LD_AUDIT` | 动态链接器劫持 |
+| `NODE_OPTIONS`、`NODE_PATH` | Node.js 代码注入 |
+| `PYTHONPATH`、`PYTHONHOME`、`PYTHONSTARTUP` | Python 路径/启动注入 |
+| `GIT_SSH_COMMAND`、`GIT_SSH`、`GIT_EXEC_PATH`、`GIT_CONFIG_SYSTEM` | Git 命令注入 |
+| `SSH_AUTH_SOCK` | SSH 密钥转发 |
+| `BASH_ENV`、`ENV` | 非交互式 shell sourcing |
+| `PROMPT_COMMAND` | shell 提示符执行 |
+| `PERL5LIB`、`RUBYOPT` | Perl/Ruby 库注入 |
+| `HTTPS_PROXY`、`HTTP_PROXY`、`NO_PROXY` | 数据外泄通道/代理绕过 |
+| `SSL_CERT_FILE`、`SSL_CERT_DIR`、`CURL_CA_BUNDLE` | TLS CA 覆盖（中间人攻击） |
+| `IFS` | shell 内部字段分隔符注入 |
+
+**前缀匹配拒绝：** 以 `DYLD_`、`GOCLAW_`、`LD_` 或 `NPM_CONFIG_` 开头的任意 key 均被拒绝。
+
+**限制：** 每个 grant 最多 50 个 key；每个值最多 4 096 字节；值不得包含 NUL 字节或换行符。
+
+创建/更新时的 `400` 响应在 `rejected_keys` 中包含被拒绝的 key 名称：
+
+```json
+{
+  "error": "env keys denied: LD_PRELOAD, PATH",
+  "rejected_keys": "LD_PRELOAD,PATH"
+}
+```
 
 ## 常见模式
 
@@ -145,4 +273,4 @@ DELETE /v1/cli-credentials/{id}/agent-grants/{grantId}
 - [API Keys 与 RBAC](/api-keys-rbac)
 - [安全加固](/deploy-security)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

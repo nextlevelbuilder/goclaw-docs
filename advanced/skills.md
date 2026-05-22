@@ -306,6 +306,39 @@ curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
+To grant with manage rights (see [Agent-Manage Grants](#agent-manage-grants) below), add `"can_manage": true`:
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "AGENT_UUID", "version": 1, "can_manage": true}'
+```
+
+List all agent grants for a skill:
+
+```bash
+curl http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "grants": [
+    {
+      "agent_id": "019...",
+      "agent_key": "my-agent",
+      "display_name": "My Agent",
+      "pinned_version": 1,
+      "granted_by": "admin@example.com",
+      "can_manage": false
+    }
+  ]
+}
+```
+
 Revoke an agent grant:
 
 ```bash
@@ -328,6 +361,27 @@ Revoke a user grant:
 curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### Agent-Manage Grants
+
+By default, only the skill owner and tenant admins can edit or delete a skill. The `can_manage` flag on `skill_agent_grants` lets you delegate that capability to a specific agent without promoting it to admin.
+
+When `can_manage = true`, the grantee agent can:
+- Update the skill's name, description, tags, and visibility via `PUT /v1/skills/{id}`
+- Delete the skill via `DELETE /v1/skills/{id}`
+- Publish new versions using the `skill_manage` tool inside conversations
+
+**Tenant scope enforcement** — both the skill and the agent must belong to the same tenant. Grant writes that cross tenant boundaries are rejected at the store layer (`verifySkillGrantScope`). A cleanup migration (`000067`) removes any pre-existing cross-tenant rows from earlier versions.
+
+**Visibility auto-promotion** — granting a `private` skill to any agent automatically promotes it to `internal` so the grantee can access it. Revoking the last agent grant demotes it back to `private` atomically.
+
+### Tenant-Scoped Grant Isolation
+
+In multi-tenant deployments, skill grant operations are tenant-scoped:
+
+- `POST /v1/skills/{id}/grants/agent` verifies that the target agent belongs to the same tenant as the skill. Cross-tenant grant attempts return `404` ("agent not found") to avoid leaking tenant topology.
+- System skills (`is_system = true`) bypass tenant filtering — they are accessible to all tenants.
+- `GET /v1/skills/{id}/grants/agent` returns only grants within the requesting tenant's scope.
 
 ### Visibility Levels
 
@@ -421,4 +475,4 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: b9670555 | updated: 2026-04-19 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

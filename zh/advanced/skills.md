@@ -308,6 +308,39 @@ curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
+如需同时授予管理权限（参见下方 [Agent-Manage Grants](#agent-manage-grants)），添加 `"can_manage": true`：
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "AGENT_UUID", "version": 1, "can_manage": true}'
+```
+
+列出某个 skill 的所有 agent grant：
+
+```bash
+curl http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+响应：
+
+```json
+{
+  "grants": [
+    {
+      "agent_id": "019...",
+      "agent_key": "my-agent",
+      "display_name": "My Agent",
+      "pinned_version": 1,
+      "granted_by": "admin@example.com",
+      "can_manage": false
+    }
+  ]
+}
+```
+
 撤销 agent 授权：
 
 ```bash
@@ -330,6 +363,27 @@ curl -X POST http://localhost:8080/v1/skills/{id}/grants/user \
 curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### Agent-Manage Grants
+
+默认情况下，只有 skill 所有者和租户管理员可以编辑或删除 skill。`skill_agent_grants` 上的 `can_manage` 标志允许将该权限委托给特定 agent，而无需将其提升为管理员。
+
+当 `can_manage = true` 时，被授权的 agent 可以：
+- 通过 `PUT /v1/skills/{id}` 更新 skill 的名称、描述、标签和可见性
+- 通过 `DELETE /v1/skills/{id}` 删除 skill
+- 在对话中使用 `skill_manage` 工具发布新版本
+
+**租户范围强制执行** — skill 和 agent 必须属于同一租户。跨租户边界的 grant 写入在 store 层（`verifySkillGrantScope`）被拒绝。迁移 `000067` 删除旧版本中存在的跨租户行。
+
+**可见性自动提升** — 将 `private` skill 授权给任意 agent 会自动将其提升为 `internal`，使被授权方可以访问。撤销最后一个 agent grant 时，原子性地将其降级回 `private`。
+
+### 租户范围 Grant 隔离
+
+在多租户部署中，skill grant 操作受租户范围限制：
+
+- `POST /v1/skills/{id}/grants/agent` 验证目标 agent 与 skill 属于同一租户。跨租户 grant 尝试返回 `404`（"agent not found"），避免泄露租户拓扑。
+- 系统 skill（`is_system = true`）绕过租户过滤——所有租户均可访问。
+- `GET /v1/skills/{id}/grants/agent` 仅返回请求租户范围内的 grant。
 
 ### 可见性级别
 
@@ -423,4 +477,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: b9670555 | 更新: 2026-04-19 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

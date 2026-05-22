@@ -411,18 +411,74 @@ Secrets stored in PostgreSQL are encrypted with AES-256-GCM:
 | MCP server API keys | `mcp_servers` | `api_key` |
 | Custom tool env vars | `custom_tools` | `env` |
 | Channel credentials | `channel_instances` | `credentials` |
+| Webhook secrets | `webhooks` | `secret_hash`, `secret_enc` |
+| Workstation credentials | `workstations` | `metadata` |
 
 Set the encryption key before first run:
 
 ```bash
-# Generate a strong key
-openssl rand -hex 32
+# Generate a strong key (base64, 44 chars = 32 raw bytes)
+openssl rand -base64 32
 
 # Add to .env
-GOCLAW_ENCRYPTION_KEY=your-64-char-hex-key
+GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 ```
 
+The key is accepted in three formats: base64-encoded (44 chars, output of `openssl rand -base64 32`), hex-encoded (64 chars, output of `openssl rand -hex 32`), or raw 32 bytes. All three resolve to the same 32-byte AES key; use base64 as the canonical form to match the environment-variables reference.
+
 Format stored: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Values without the prefix are returned as plaintext for migration compatibility.
+
+> **Must match across replicas.** In a clustered deployment, every gateway instance must use the same `GOCLAW_ENCRYPTION_KEY`. Rotating the key requires re-encrypting all stored secrets before restarting.
+
+---
+
+## Webhook Security
+
+> See [Webhooks](/advanced/webhooks) for the full API reference.
+
+### Encryption key required
+
+The webhook subsystem only mounts when `GOCLAW_ENCRYPTION_KEY` is set. Without it, all `/v1/webhooks/*` routes return `404` and the gateway logs:
+
+```
+webhook subsystem disabled: GOCLAW_ENCRYPTION_KEY not set
+```
+
+This is intentional: an empty key would silently persist raw webhook secrets to the database, defeating the stated DB-leak protection. Set the key and restart to re-enable the subsystem.
+
+### HMAC signing (recommended)
+
+Each webhook row has an `hmac_signing_key` (returned once on create and on rotate). Use HMAC-SHA256 to sign requests instead of the bearer secret:
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+```
+
+Signing algorithm:
+
+```
+signing_key = hex.Decode(hmac_signing_key)       // hex_64 → 32 raw bytes
+payload     = "{unix_ts}.{raw_request_body}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+**Timestamp skew protection.** Requests where `|now - t| > 300` seconds are rejected. Keep caller clocks synchronized via NTP.
+
+**Replay protection.** After a valid HMAC signature is accepted, the gateway records `sha256(tenant_id|signature_hex)` in a per-process nonce cache (TTL 320 s). Replays return `401` with audit event `security.webhook.hmac_replay`.
+
+**Force HMAC-only auth.** Set `require_hmac: true` on the webhook row to disable bearer-secret authentication entirely. This is the recommended posture for production integrations.
+
+### Additional knobs
+
+| Field | Notes |
+|-------|-------|
+| `localhost_only` | Restrict callers to `127.0.0.1` / `::1`. Auto-set to `true` on Lite edition. |
+| `ip_allowlist` | IPs or CIDR ranges. Empty = any source. `X-Forwarded-For` not trusted. |
+| `rate_limit_per_min` | Per-webhook cap (0 = use tenant default). |
+
+See [Webhooks](/advanced/webhooks) for full create payload reference and signature verification examples in Go, Node.js, and Python.
 
 ---
 
@@ -490,7 +546,8 @@ GoClaw wraps all background goroutines (tool execution, cron jobs, summarization
 Use this before exposing GoClaw to the internet or shared users:
 
 - [ ] Set `GOCLAW_GATEWAY_TOKEN` to a strong random token
-- [ ] Set `GOCLAW_ENCRYPTION_KEY` to a 32-byte (64-char hex) random key
+- [ ] Set `GOCLAW_ENCRYPTION_KEY` to a base64-encoded 32-byte key (`openssl rand -base64 32`) — required for webhooks, workstation credentials, and CLI grant env overrides
+- [ ] Store `GOCLAW_ENCRYPTION_KEY` in a secret manager (Vault, AWS Secrets Manager, etc.) — never commit to `config.json` or version control
 - [ ] Set `gateway.allowed_origins` to your dashboard domain
 - [ ] Set `gateway.rate_limit_rpm` (e.g., `20`) to limit per-user request rate
 - [ ] Set `gateway.injection_action` to `"block"` for public-facing deployments
@@ -505,6 +562,9 @@ Use this before exposing GoClaw to the internet or shared users:
 - [ ] Review shell deny groups — all 15 are on by default; only relax for specific agents that need it
 - [ ] Verify sandbox mode does not fall back to host execution (fail-closed)
 - [ ] Confirm `GOCLAW_GATEWAY_TOKEN` is set — empty token enables dev mode (admin for all)
+- [ ] For webhooks: use `require_hmac: true` on webhook rows — disables bearer auth, forces HMAC-SHA256 signing
+- [ ] For webhooks: set `localhost_only: true` (or use `ip_allowlist`) on any webhook not meant to be public
+- [ ] No plaintext credentials anywhere in config files — use env vars and secret managers
 
 ---
 
@@ -552,5 +612,7 @@ journalctl -u goclaw | grep 'security\.'
 - [Sandbox](../advanced/sandbox.md) — Docker sandbox configuration details
 - [Docker Compose](./docker-compose.md) — deploying with security settings via compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS and encrypted secret storage
+- [Webhooks](../advanced/webhooks.md) — HMAC-authenticated HTTP endpoints, signature verification, and replay protection
+- [Workstations](../advanced/workstations.md) — remote execution targets, permission model, and activity audit
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
