@@ -36,7 +36,7 @@ Pancake là nền tảng thương mại xã hội cung cấp proxy nhắn tin th
    - **API Key**: API key cấp người dùng của Pancake
    - **Page Access Token**: Token cấp trang cho tất cả page API
    - **Page ID**: Định danh trang Pancake
-3. Tùy chọn đặt **Webhook Secret** để xác minh chữ ký HMAC-SHA256
+3. Đặt **Webhook Secret** — bắt buộc để nhận webhook; GoClaw từ chối tất cả webhook khi chưa cấu hình
 4. Cấu hình tính năng theo nền tảng (inbox reply, comment reply)
 
 Chỉ vậy thôi — một channel phục vụ tất cả nền tảng kết nối với trang Pancake đó.
@@ -86,7 +86,7 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 |-----|------|----------|-------|
 | `api_key` | string | -- | API key cấp người dùng của Pancake (bắt buộc) |
 | `page_access_token` | string | -- | Token cấp trang cho tất cả page API (bắt buộc) |
-| `webhook_secret` | string | -- | Secret xác minh HMAC-SHA256 tùy chọn |
+| `webhook_secret` | string | -- | HMAC-SHA256 webhook secret — **bắt buộc** để nhận webhook; sự kiện bị từ chối nếu không có |
 | `page_id` | string | -- | Định danh trang Pancake (bắt buộc) |
 | `webhook_page_id` | string | -- | Page ID nền tảng gốc trong webhook (nếu khác `page_id`) |
 | `platform` | string | tự phát hiện | Ghi đè nền tảng: facebook/zalo/instagram/tiktok/shopee/whatsapp/line |
@@ -155,7 +155,15 @@ Pancake dùng webhook push (không polling) để gửi tin nhắn:
 - GoClaw đăng ký một route duy nhất: `POST /channels/pancake/webhook`
 - Tất cả webhook trang Pancake định tuyến qua một handler, phân phối theo `page_id`
 - Luôn trả về HTTP 200 — Pancake tạm dừng webhook nếu >80% lỗi trong cửa sổ 30 phút
-- Xác minh chữ ký HMAC-SHA256 qua header `X-Pancake-Signature` (khi `webhook_secret` được đặt)
+- Request body được giới hạn tối đa 1 MB để tránh lạm dụng
+
+**Xác minh chữ ký HMAC (bắt buộc):** GoClaw xác minh mỗi webhook đến bằng HMAC-SHA256. `webhook_secret` phải được cấu hình — nếu không, tất cả webhook sẽ bị từ chối (trả về HTTP 200 nhưng sự kiện bị bỏ qua). Đặt cùng secret trong cài đặt webhook Pancake dashboard.
+
+Pancake gửi chữ ký trong header `X-Pancake-Signature` với định dạng `sha256=<hex-digest>`. GoClaw tính lại `HMAC-SHA256(body, webhook_secret)` và so sánh bằng constant-time comparison để tránh timing attack.
+
+**Bảo vệ chống replay:** Sau khi xác minh chữ ký thành công, GoClaw tính `SHA-256(body)` và lưu vào in-memory dedup map với TTL 24 giờ. Các delivery trùng lặp (cùng raw body) bị bỏ qua ngầm trước khi xử lý tin nhắn.
+
+> **Lưu ý bảo mật:** Bật `features.auto_react` mà không cấu hình `webhook_secret` sẽ khiến GoClaw log cảnh báo khi khởi động (`security.pancake_auto_react_without_hmac`). Bất kỳ ai tiếp cận được endpoint webhook đều có thể kích hoạt comment-like call mà không cần xác thực.
 
 Cấu trúc webhook payload:
 
@@ -326,7 +334,7 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 | "page_id is required" | Thêm `page_id` vào config. Tìm trong URL Pancake dashboard. |
 | Xác minh token thất bại | `page_access_token` có thể đã hết hạn hoặc không hợp lệ. Tạo lại từ Pancake dashboard. |
 | Không nhận được tin nhắn | Kiểm tra webhook URL đã được cấu hình: `https://your-goclaw-host/channels/pancake/webhook`. |
-| Webhook signature không khớp | Xác minh `webhook_secret` khớp với secret đã cấu hình trong Pancake dashboard. |
+| Webhook signature không khớp / sự kiện không được xử lý | Xác minh `webhook_secret` đã được đặt và khớp với secret trong Pancake dashboard. Sự kiện bị bỏ qua ngầm khi `webhook_secret` để trống. |
 | "no channel instance for page_id" | `page_id` trong webhook không khớp với channel nào đã đăng ký. Kiểm tra config. |
 | Nền tảng hiển thị là unknown | `platform` được tự phát hiện. Đảm bảo trang đã kết nối trong Pancake. Có thể ghi đè thủ công. |
 | Upload media thất bại | Đường dẫn media phải tuyệt đối. Kiểm tra file tồn tại và có thể đọc. |
@@ -339,4 +347,4 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Cài đặt đa kênh](/recipe-multi-channel) — Cấu hình nhiều kênh
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

@@ -60,11 +60,14 @@ Create, edit, and delete agents. Each agent card shows:
 
 Click an agent to open its detail page with these tabs:
 - **General** — Agent metadata and basic info
-- **Config** — Model, temperature, system prompt, tool permissions
+- **Config** — Model, temperature, system prompt, tool permissions; includes a **Model Fallback** section (drag-and-drop ordered list of fallback provider/model candidates triggered when the primary model is unavailable)
 - **Files** — Context files (IDENTITY.md, USER.md, etc.)
+- **Permissions** — Grant or deny specific users the ability to modify agent config types (`file_writer`, `heartbeat`, `cron`, `context_files`), scoped to DM, all groups, or a specific group. Includes a "Check Access" helper to test a user's effective permission before committing a rule. See [Config Permissions System](/deploy-security).
 - **Shares** — Share agents across tenants
 - **Links** — Configure which agents this agent can delegate to (permissions, concurrency limits, handoff rules)
 - **Skills** — Agent-specific skill assignments
+- **Evolution** — Agent evolution history
+- **Hooks** — Quality-gate hooks for this agent
 - **Instances** — Predefined agent instances (only for predefined agents)
 
 #### Agent Teams
@@ -116,6 +119,12 @@ Gateway node pairing and management. Pair browser sessions with gateway instance
 #### Skills
 
 Upload `SKILL.md` files that agents can discover and use. Skills are searchable with semantic matching — agents find the right skill based on what the user asks.
+
+The skills list supports **bulk operations** via a selection toolbar that appears when one or more skills are checked:
+- **Enable** — activate selected skills
+- **Disable** — deactivate selected skills
+- **Grant to All Agents** — apply selected custom skills to every agent in the tenant (custom skills only)
+- **Delete** — remove selected custom skills permanently
 
 #### Custom Tools
 
@@ -204,12 +213,13 @@ System logs for debugging and monitoring gateway operations.
 
 #### Packages
 
-Manage runtime packages installed in the Docker container. Three categories:
+Manage runtime packages installed in the Docker container. The page uses a **4-tab layout**:
 - **System** — apk packages (managed by the root-privileged `pkg-helper` binary via Unix socket)
 - **Python** — pip packages
 - **Node** — npm packages
+- **GitHub** — GitHub release binaries installed via the built-in GitHub installer
 
-Shows installed versions and allows install/uninstall without rebuilding the image.
+All tabs show installed versions and allow install/uninstall without rebuilding the image. An updates strip at the top of the page lists available upgrades across all sources (pip, npm, GitHub). The **CLI Credentials** tab is also embedded here for admins — see [CLI Credentials](#cli-credentials) below.
 
 #### Providers
 
@@ -227,11 +237,24 @@ Manage Exec Approval workflows — review and approve/reject tool executions tha
 
 #### CLI Credentials
 
-Manage CLI credentials for secure command-line access to GoClaw.
+Manage CLI credentials for secure command-line access to GoClaw. Each registered binary has a **Grants** dialog where you assign per-agent permissions:
+- Select the agent, set optional `deny_args` and `deny_verbose` regex patterns, and a per-agent timeout
+- **Env override** section — when "Override binary defaults" is on, add per-grant environment variable key/value pairs that the gateway injects when that agent runs the binary. Denied keys (e.g., `PATH`, `LD_PRELOAD`, `GOCLAW_*`) are blocked server-side and flagged inline in the UI
+- **Reveal** — if a grant already has env vars set, click the eye icon to retrieve the current plaintext values via `POST .../env:reveal` (rate-limited). Values are cleared from state on dialog close
+
+This dialog is also accessible directly from the **CLI Credentials** tab inside the Packages page (admin only).
 
 #### API Keys
 
 Manage API keys for programmatic access — create, revoke, and assign roles to keys. Keys use the `goclaw_` prefix format and support role-based scopes (admin, operator, viewer).
+
+#### Workstations
+
+Register and manage remote execution targets. Agents invoke the `workstation_exec` tool to run commands on a linked workstation. The create dialog accepts:
+- **Name** and **Key** (slug, e.g. `my-dev-server`)
+- **Backend type**: `ssh` (host, port, user, optional identity file) or `docker` (container name, optional Docker host)
+
+After creation, test the connection with the **Test** button. See [Workstations](/advanced/workstations) for the full permission model and activity audit trail.
 
 #### Tenants (Multi-Tenant Mode)
 
@@ -324,7 +347,7 @@ Footer actions:
 - [How GoClaw Works](/how-goclaw-works) — Understand the architecture
 - [Agents Explained](/agents-explained) — Learn about agent types
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
 <!-- TODO: Screenshots needed for v2.x UI — run a GoClaw instance and capture:
   1. Team kanban board with task cards in columns
   2. Cron detail page with markdown rendering

@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **56**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **67**.
 
 ### v3 Store Unification
 
@@ -122,6 +122,7 @@ Core agent records. Each agent has its own context, tools, and model configurati
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
 | `budget_monthly_cents` | INTEGER | | Monthly spend cap in USD cents; NULL = unlimited (migration 015) |
+| `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Ordered array of fallback model identifiers tried when primary model fails (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `deleted_at` | TIMESTAMPTZ | | Soft delete timestamp |
@@ -315,7 +316,7 @@ Uploaded skill packages with BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control for skills, same pattern as MCP grants.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control for skills, same pattern as MCP grants. `skill_agent_grants` also has `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — grants the agent permission to manage (publish, update, delete) the skill.
 
 ---
 
@@ -885,7 +886,7 @@ Per-agent heartbeat configuration for periodic proactive check-ins. (migration 0
 | `enabled` | BOOLEAN | NOT NULL DEFAULT false | Whether heartbeat is active |
 | `interval_sec` | INT | NOT NULL DEFAULT 1800 | Run interval in seconds |
 | `prompt` | TEXT | | Message sent to the agent each heartbeat |
-| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `provider_id` | UUID FK → llm_providers (nullable) | ON DELETE SET NULL (migration 057) | Override LLM provider; set to NULL if provider is deleted |
 | `model` | VARCHAR(200) | | Override model |
 | `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Run in a dedicated session |
 | `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject minimal context |
@@ -1032,6 +1033,17 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 54 | Adds `name VARCHAR(255)` column to `agent_hooks`; creates `agent_hook_agents` N:M junction table; migrates existing `agent_id` FK to junction; renames `agent_hooks` → `hooks` and `agent_hook_agents` → `hook_agents`; drops deprecated `agent_id` column from `hooks` |
 | 55 | Adds `vault_documents_scope_consistency` CHECK constraint (NOT VALID) on `vault_documents` enforcing scope/agent_id/team_id coherence: `personal` requires `agent_id NOT NULL`, `team` requires `team_id NOT NULL`, `shared` requires both NULL, `custom` is unconstrained |
 | 56 | `vault_chat_id` — adds `chat_id TEXT NULL` column to `vault_documents` and index `(tenant_id, chat_id, agent_id)` for chat-scoped vault isolation. Migration 056 follow-up (v3.11.2): drops scope-consistency check before backfill UPDATEs to prevent constraint errors on legacy data |
+| 57 | `heartbeat_provider_fk_set_null` (PG) — defensive orphan cleanup, drops existing FK by constraint-name lookup, re-adds as `agent_heartbeats_provider_id_fkey` with `ON DELETE SET NULL`. Brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during ALTER (sub-second on small tables). SQLite: schema v25 → v26, full table rebuild for `agent_heartbeats` with updated FK clause; 25-column `INSERT … SELECT` preserves existing rows; `idx_heartbeats_due` recreated. |
+| 58 | `agent_grants_env_override` — adds `encrypted_env BYTEA` to `secure_cli_agent_grants`; NULL means inherit binary-level env. Mirrors the `secure_cli_user_credentials.encrypted_env` AES-256-GCM pattern for per-grant env injection. |
+| 59 | `webhooks` — creates `webhooks` (outbound HTTP webhook registry) and `webhook_calls` (delivery audit log with retry state) tables. Tenant-scoped. `webhooks.secret_hash` globally unique when not revoked. `webhook_calls.status` CHECK: `queued`, `running`, `done`, `failed`, `dead`. |
+| 60 | `webhook_calls_lease_token` — adds `lease_token TEXT` to `webhook_calls` for optimistic-concurrency CAS during worker claim/update; `ReclaimStale` sets it to NULL so in-flight CAS operations fail on next attempt. |
+| 61 | `webhooks_encrypted_secret` — adds `encrypted_secret TEXT NOT NULL DEFAULT ''` to `webhooks`; stores AES-256-GCM encrypted raw secret via `GOCLAW_ENCRYPTION_KEY`. HMAC signing uses the decrypted secret, not `secret_hash`. Existing webhooks get empty string and require rotation. |
+| 62 | `workstations` — creates `workstations` (SSH/Docker remote exec targets with encrypted `metadata` and `default_env`) and `agent_workstation_links` (agent↔workstation N:M junction with `is_default` flag) tables. |
+| 63 | `workstation_permissions` — creates `workstation_permissions` allowlist table; default-deny on argv[0] binary name; seeded inside `WorkstationStore.Create` transaction. Partial index on enabled entries. |
+| 64 | `workstation_activity` — creates `workstation_activity` rolling audit log for exec events (`exec`/`deny`); stores truncated command preview + SHA-256 hash; append-only, pruned nightly via `Prune(before)`. |
+| 65 | `agent_model_fallback` — adds `model_fallback JSONB NOT NULL DEFAULT '{}'` to `agents`; ordered array of fallback model identifiers tried when the primary model fails. |
+| 66 | `skill_agent_manage_grants` — adds `can_manage BOOLEAN NOT NULL DEFAULT FALSE` to `skill_agent_grants`; grants the agent permission to manage (publish, update, delete) the skill at tenant scope. |
+| 67 | `skill_agent_grants_scope_cleanup` — data-only migration; deletes `skill_agent_grants` rows where `tenant_id` mismatches agent or skill tenant, enforcing tenant-scope isolation on skill grants. No schema changes. |
 
 ---
 
@@ -1093,6 +1105,7 @@ Per-agent access grants for secure CLI binaries. Separates "which agents can use
 | `timeout_seconds` | INTEGER | NULL = use binary default | Per-agent process timeout override |
 | `tips` | TEXT | NULL = use binary default | Per-agent hint injected into TOOLS.md context |
 | `enabled` | BOOLEAN | NOT NULL DEFAULT true | Whether this grant is active |
+| `encrypted_env` | BYTEA | | AES-256-GCM encrypted JSON env map override for this specific grant; NULL = use binary-level env (migration 058) |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
@@ -1391,10 +1404,140 @@ Per-tenant monthly prompt-handler token/cost budget. One row per tenant tracks m
 
 ---
 
+---
+
+### `webhooks`
+
+Outbound HTTP webhook registry. Each webhook defines an endpoint that GoClaw calls when an agent produces an LLM response or a channel message. Secrets are encrypted at rest with AES-256-GCM via `GOCLAW_ENCRYPTION_KEY`. (migrations 059, 061)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | Owning tenant; all queries filter by tenant |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Bound agent; NULL = tenant-wide webhook |
+| `name` | TEXT | NOT NULL | Human-readable label |
+| `kind` | TEXT | NOT NULL CHECK (`llm`, `message`) | Trigger kind |
+| `secret_prefix` | TEXT | | First chars of raw secret for display |
+| `secret_hash` | TEXT | NOT NULL | SHA-256 hex of raw secret; used for bearer-token lookup |
+| `encrypted_secret` | TEXT | NOT NULL DEFAULT `''` | AES-256-GCM encrypted raw secret via `GOCLAW_ENCRYPTION_KEY`; used for HMAC signing (migration 061) |
+| `scopes` | TEXT[] | NOT NULL DEFAULT `{}` | Permitted operation scopes |
+| `channel_id` | UUID | | Bound channel instance for `message` kind |
+| `rate_limit_per_min` | INT | NOT NULL DEFAULT 60 | Per-webhook inbound rate cap |
+| `ip_allowlist` | TEXT[] | NOT NULL DEFAULT `{}` | Allowed caller IPs; empty = allow all |
+| `require_hmac` | BOOLEAN | NOT NULL DEFAULT false | Reject requests without valid HMAC signature |
+| `localhost_only` | BOOLEAN | NOT NULL DEFAULT false | Restrict to loopback callers |
+| `revoked` | BOOLEAN | NOT NULL DEFAULT false | Soft-disable without delete |
+| `created_by` | TEXT | | Creator user ID |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `last_used_at` | TIMESTAMPTZ | | Last successful inbound call |
+
+**Indexes:** `idx_webhooks_tenant` on `(tenant_id)`, `idx_webhooks_tenant_agent` on `(tenant_id, agent_id)`, unique `uq_webhooks_secret` on `(secret_hash) WHERE revoked = false`
+
+---
+
+### `webhook_calls`
+
+Delivery log for webhook invocations with retry state and optimistic-concurrency locking. Append-only in practice. (migrations 059, 060)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | Owning tenant |
+| `webhook_id` | UUID FK → webhooks | NOT NULL ON DELETE CASCADE | Parent webhook |
+| `agent_id` | UUID | | Agent that handled the call |
+| `idempotency_key` | TEXT | | Caller-supplied dedup key |
+| `mode` | TEXT | NOT NULL CHECK (`sync`, `async`) | Delivery mode |
+| `callback_url` | TEXT | | Async result delivery URL |
+| `status` | TEXT | NOT NULL DEFAULT `queued` CHECK (`queued`, `running`, `done`, `failed`, `dead`) | Delivery status |
+| `attempts` | INT | NOT NULL DEFAULT 0 | Retry count |
+| `delivery_id` | UUID | NOT NULL DEFAULT gen_random_uuid() | Unique delivery identifier |
+| `lease_token` | TEXT | | Optimistic-concurrency CAS token; set by ClaimNext, cleared on stale reclaim (migration 060) |
+| `next_attempt_at` | TIMESTAMPTZ | | Scheduled retry time |
+| `started_at` | TIMESTAMPTZ | | When processing began |
+| `request_payload` | JSONB | | Inbound request body |
+| `response` | JSONB | | Agent response body |
+| `last_error` | TEXT | | Last delivery error |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `completed_at` | TIMESTAMPTZ | | When delivery finished |
+
+**Indexes:** `idx_webhook_calls_tenant_created` on `(tenant_id, created_at DESC)`, `idx_webhook_calls_status_attempt` on `(status, next_attempt_at)`, unique `uq_webhook_calls_idempotency` on `(webhook_id, idempotency_key) WHERE idempotency_key IS NOT NULL`
+
+---
+
+### `workstations`
+
+SSH or Docker remote execution targets. Each workstation defines a backend connection; agents use it via the `workstation_exec` tool. Credentials stored encrypted. (migration 062)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `workstation_key` | VARCHAR(100) | NOT NULL | Slug identifier |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `name` | VARCHAR(255) | NOT NULL | Display name |
+| `backend_type` | VARCHAR(20) | NOT NULL CHECK (`ssh`, `docker`) | Backend kind |
+| `metadata` | BYTEA | NOT NULL | AES-256-GCM encrypted connection metadata (host, port, credentials) |
+| `default_cwd` | VARCHAR(500) | NOT NULL DEFAULT `''` | Default working directory |
+| `default_env` | BYTEA | NOT NULL | AES-256-GCM encrypted default environment variables |
+| `active` | BOOLEAN | NOT NULL DEFAULT TRUE | Whether workstation is available |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | Creator user ID |
+
+**Unique:** `(tenant_id, workstation_key)`
+
+**Indexes:** `idx_workstations_tenant_active` on `(tenant_id, active) WHERE active = TRUE`
+
+> Migration 062 also creates **`agent_workstation_links`** — many-to-many junction linking agents to workstations within a tenant. PK: `(agent_id, workstation_id)`. `is_default BOOLEAN` marks the agent's preferred workstation. Unique partial index: `(agent_id) WHERE is_default = TRUE`.
+
+---
+
+### `workstation_permissions`
+
+Per-workstation allowlist of permitted binary names (argv[0]). Default-deny: if no enabled pattern matches, the exec is rejected. Patterns support glob-style prefix matching (e.g., `python*`). (migration 063)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | Parent workstation |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `pattern` | VARCHAR(500) | NOT NULL | Binary name or glob pattern matched against argv[0] |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT TRUE | Whether this allowlist entry is active |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | Creator user ID |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(workstation_id, pattern)`
+
+**Indexes:** `idx_workstation_perms_ws` on `(workstation_id) WHERE enabled = TRUE`, `idx_workstation_perms_tenant` on `(tenant_id)`
+
+---
+
+### `workstation_activity`
+
+Rolling audit log for workstation exec events (`exec` and `deny`). Append-only; pruned nightly. Stores a truncated command preview (first 200 chars) and SHA-256 hash for forensics. (migration 064)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | Target workstation |
+| `agent_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | Agent that triggered the exec |
+| `action` | VARCHAR(20) | NOT NULL | `exec` (allowed) or `deny` (blocked) |
+| `cmd_hash` | VARCHAR(64) | NOT NULL DEFAULT `''` | SHA-256 of full command for forensic correlation |
+| `cmd_preview` | VARCHAR(200) | NOT NULL DEFAULT `''` | First 200 chars of command (secrets redacted) |
+| `exit_code` | INTEGER | | Process exit code; NULL for denied execs |
+| `duration_ms` | INTEGER | | Execution duration in milliseconds |
+| `deny_reason` | VARCHAR(200) | NOT NULL DEFAULT `''` | Reason exec was blocked (empty for allowed execs) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** `idx_ws_activity_ws_time` on `(workstation_id, created_at DESC)`, `idx_ws_activity_tenant_time` on `(tenant_id, created_at DESC)`, `idx_ws_activity_retention` on `(created_at)` (used by nightly pruner)
+
+---
+
 ## What's Next
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

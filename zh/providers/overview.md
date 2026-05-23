@@ -47,9 +47,10 @@ Name()        — 返回 provider 标识符（如 "anthropic"、"openai"）
 |----------|------|---------|
 | **anthropic** | 原生 HTTP + SSE | `claude-sonnet-4-5-20250929` |
 | **claude_cli** | stdio 子进程 + MCP | `sonnet` |
-| **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
+| **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.5` |
 | **acp** | JSON-RPC 2.0 子 agent | `claude` |
 | **dashscope** | OpenAI 兼容封装 | `qwen3-max` |
+| **vertex** | OpenAI 兼容（OAuth2） | `google/gemini-2.0-flash-001` |
 | **openai**（+ 15+ 变体） | OpenAI 兼容 | 视模型而定 |
 
 ### OpenAI 兼容 Provider
@@ -222,9 +223,10 @@ Reasoning effort 控制参数（`reasoning_effort`、`thinking_budget` 等）在
 - [OpenAI](/provider-openai) — GPT-4o、o 系列、GPT-5 推理模型
 - [OpenRouter](/provider-openrouter) — 通过一个 API 访问 100+ 模型
 - [Gemini](/provider-gemini) — 通过 OpenAI 兼容端点使用 Google Gemini
+- [Vertex AI](/provider-vertex) — Google Cloud Vertex Gemini，OAuth2 / ADC
 - [DeepSeek](/provider-deepseek) — 支持 reasoning_content 的 DeepSeek
 - [Groq](/provider-groq) — 超快推理
 - [DashScope](/provider-dashscope) — 支持思考的阿里 Qwen 模型
 - [ACP](/provider-acp) — Claude Code、Codex CLI、Gemini CLI 子 agent 编排
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

@@ -141,10 +141,28 @@ GoClaw v3 introduces a unified `SSEScanner` (`providers/sse_reader.go`) shared b
 
 Provider credentials added at runtime (dashboard) are stored in `llm_providers` with AES-256-GCM encryption and resolved at request time via the credential resolver. Per-agent overrides in agent config take precedence over global provider settings.
 
+## Provider Creation Prints "FAILED" but It Actually Succeeded
+
+**Affected versions:** < v3.11.3
+
+The onboard auto-verify path used the stale `{success, models}` response shape to check whether a newly created provider was valid. The provider was created correctly in the database, but the post-create verify step read the wrong fields and printed `FAILED` to the console even when the provider was healthy.
+
+**Fix in v3.11.3:** The verify path now uses the `{valid, error}` response shape and triggers ping mode when the request body is empty, so an empty-body verify returns `{valid:true}` on success. Upgrade to v3.11.3+ to resolve this.
+
+## `goclaw providers delete` Fails with Foreign Key Error on `agent_heartbeats`
+
+**Affected versions:** < v3.11.3
+
+Before v3.11.3, the foreign key from `agent_heartbeats` to `llm_providers` was defined as `RESTRICT`. Deleting a provider that was referenced by any heartbeat row would fail with a foreign key constraint error.
+
+**Fix in v3.11.3:** Migration `000057_heartbeat_provider_fk_set_null` changes the FK to `ON DELETE SET NULL`. The `DeleteProvider` function (PostgreSQL and SQLite) now wraps the delete in a transaction that first disables all affected heartbeat rows, so the next scheduler tick cannot fire with a stale provider config. A `slog.Warn("heartbeat.provider_cleared")` log line is emitted with the count of disabled heartbeats.
+
+Requires migration #057 to be applied (`./goclaw migrate up`). Check logs for `heartbeat.provider_cleared` after deletion to confirm how many heartbeats were cleared.
+
 ## What's Next
 
 - [Database issues](/troubleshoot-database)
 - [Common Issues](/troubleshoot-common)
 - [Channel issues](/troubleshoot-channels)
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

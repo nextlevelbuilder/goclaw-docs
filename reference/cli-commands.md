@@ -286,6 +286,8 @@ goclaw doctor
 
 Checks: binary version, config file, database connectivity, schema version, providers, channels, external binaries (docker, curl, git), workspace directory. Prints a pass/fail summary for each check.
 
+Provider rows with an empty `display_name` now render the canonical `name` instead of a blank line.
+
 ---
 
 ## `pairing`
@@ -449,18 +451,71 @@ Output columns: `CHANNEL`, `ENABLED`, `CREDENTIALS` (ok/missing).
 
 ## `providers`
 
-List configured LLM providers and their status.
+Manage LLM providers (requires running gateway).
+
+### `providers list`
+
+List configured providers.
 
 ```bash
 goclaw providers list
 goclaw providers list --json
+goclaw providers list --models
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output as JSON |
+| `--models` | Also show available models per provider |
 
-Shows provider name, type, default model, and whether an API key is configured.
+Shows provider name, type, enabled status, and whether an API key is configured.
+
+### `providers add`
+
+Add a new provider (interactive).
+
+```bash
+goclaw providers add
+```
+
+Interactive prompts for provider type, name, API key, and base URL. Offers to verify connectivity after creation.
+
+### `providers update <id>`
+
+Update a provider's name or API key.
+
+```bash
+goclaw providers update <id>
+```
+
+### `providers delete <id>`
+
+Delete a provider.
+
+```bash
+goclaw providers delete <id>
+goclaw providers delete <id> --force
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompt |
+
+### `providers verify <id>`
+
+Verify provider connectivity or a specific model.
+
+```bash
+goclaw providers verify <id>
+goclaw providers verify <id> --model anthropic/claude-sonnet-4
+```
+
+| Flag | Description |
+|------|-------------|
+| `--model <alias>` | Model alias to verify (omit for connectivity ping) |
+
+Without `--model`: pings the provider (registered + reachable check) — no LLM call is made.
+With `--model`: sends a small chat request to validate the model alias.
 
 ---
 
@@ -597,4 +652,4 @@ goclaw tui setup     # TUI-based setup wizard
 - [REST API](/rest-api) — HTTP API endpoint listing
 - [Config Reference](/config-reference) — full `config.json` schema
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

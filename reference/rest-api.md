@@ -4,7 +4,7 @@
 
 ## Overview
 
-> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~260 REST endpoints.
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~286 REST endpoints.
 
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
@@ -227,7 +227,7 @@ workspace/                                 — workspace directory files
 
 ---
 
-### `GET /v1/agents/{agentID}/codex-pool-activity`
+### `GET /v1/agents/{id}/codex-pool-activity`
 
 Returns routing activity and per-account health for agents using a [Codex OAuth pool](/provider-codex). Requires the agent's provider to be `chatgpt_oauth` type with a pool configured.
 
@@ -356,7 +356,25 @@ List models available from the provider (proxied to the upstream API).
 
 ### `POST /v1/providers/{id}/verify`
 
-Pre-flight check — verify the API key and model are reachable.
+Verify provider connectivity or a specific model. Request body is optional (`requestBody.required: false`).
+
+**Ping mode** — omit body (or send `{}`). Returns `{"valid": true}` if the provider is registered and reachable. Equivalent to a `/healthz` check; no LLM call is made.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Chat-verify mode** — include `model` to perform an actual chat completion against a specific model alias.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/verify \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic/claude-sonnet-4"}'
+```
+
+**Response shape** — `{"valid": true}` on success, `{"valid": false, "error": "<msg>"}` on failure. The legacy `{success, models}` shape is no longer returned.
 
 ### `POST /v1/providers/{id}/verify-embedding`
 
@@ -458,7 +476,8 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/skills/{id}/grants/agent` | Grant skill to an agent |
+| `GET` | `/v1/skills/{id}/grants/agent` | List agent grants for a skill (admin+) |
+| `POST` | `/v1/skills/{id}/grants/agent` | Grant skill to an agent (body supports `can_manage` flag, migration 66) |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` | Revoke agent grant |
 | `POST` | `/v1/skills/{id}/grants/user` | Grant skill to a user |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` | Revoke user grant |
@@ -927,7 +946,7 @@ Delete a channel instance.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/contacts` | List contacts (paginated) |
-| `GET` | `/v1/contacts/resolve?ids=...` | Resolve contacts by IDs (max 100) |
+| `GET` | `/v1/contacts/resolve` | Resolve contacts by IDs (query string `ids=` repeated; max 100) |
 | `POST` | `/v1/contacts/merge` | Merge duplicate contact records |
 | `POST` | `/v1/contacts/unmerge` | Unmerge previously merged contacts |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` | List merged contacts for a tenant user |
@@ -1063,19 +1082,23 @@ Per-agent binary grants — control which agents can use a specific CLI credenti
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Get a specific grant |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Update a grant |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` | Delete a grant |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` | Reveal decrypted env vars for a grant (rate-limited; never cacheable — POST chosen over GET for CSRF safety) |
 
 **Create/update grant fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `agent_id` | UUID | Agent to grant access (required on create) |
+| `env_vars` | object | Per-grant env-var overrides (plaintext on input; encrypted at rest via `GOCLAW_ENCRYPTION_KEY`; only key names ever returned in list/get responses) |
 | `deny_args` | JSON | Argument restrictions (optional) |
 | `deny_verbose` | JSON | Verbose output restrictions (optional) |
 | `timeout_seconds` | integer | Per-agent execution timeout override (optional) |
 | `tips` | string | Usage hints for the agent (optional) |
 | `enabled` | boolean | Enable/disable the grant (default: `true`) |
 
-**Create response** (`201 Created`): the created grant object.
+**Create response** (`201 Created`): the created grant object (no plaintext env values — only `env_keys` + `env_set`).
+
+> **`env:reveal`** returns the decrypted plaintext for the grant's env vars. The endpoint is rate-limited per credential (configurable RPM + burst) and audited. Requires `GOCLAW_ENCRYPTION_KEY` to be set; otherwise grants store unencrypted env on disk only when explicitly configured to do so.
 
 Changes to grants emit a `cache_invalidate` event on the message bus so connected agents pick up the update immediately.
 
@@ -1337,6 +1360,19 @@ List GitHub releases for a repository (used by the package picker UI). Auth: vie
 
 List shell command deny groups (security policy).
 
+### Package Updates
+
+Watch and apply package updates across system / pip / npm registries. Read access requires viewer+; writes require admin.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/packages/updates` | List pending updates discovered from each registry |
+| `POST` | `/v1/packages/updates/refresh` | Force-refresh the update registry cache |
+| `POST` | `/v1/packages/update` | Apply a single update — body `{ "package": "pip:pandas" }` |
+| `POST` | `/v1/packages/updates/apply-all` | Apply every pending update (long-running; returns SSE progress when `?stream=true`) |
+
+Updates emit `cache_invalidate` events on the bus so connected clients refresh their package lists.
+
 ---
 
 ## Storage
@@ -1531,6 +1567,164 @@ Exposes GoClaw tools to Claude CLI via streamable HTTP at `/mcp/bridge`. Only li
 
 ---
 
+## Workstations
+
+> **Standard edition only.** Gateway routes return `403` on Lite. Requires admin role.
+
+Workstations are remote execution endpoints (SSH or Docker) that agents can target for sandboxed command execution. Each workstation has an allowlist of permitted command patterns and a tamper-evident activity audit log.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/workstations` | List workstations for the current tenant |
+| `POST` | `/v1/workstations` | Create a workstation |
+| `GET` | `/v1/workstations/{id}` | Get a workstation by ID |
+| `PUT` | `/v1/workstations/{id}` | Update a workstation |
+| `DELETE` | `/v1/workstations/{id}` | Delete a workstation |
+| `POST` | `/v1/workstations/{id}/test` | Test connectivity (SSH probe or `docker ps`) — does not execute commands |
+| `GET` | `/v1/workstations/{id}/permissions` | List allowlist patterns |
+| `POST` | `/v1/workstations/{id}/permissions` | Add an allowlist pattern |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` | Remove a pattern |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` | Enable/disable a pattern without deleting |
+| `GET` | `/v1/workstations/{id}/activity` | List activity audit entries (filterable, paginated) |
+
+**Create body:**
+
+```json
+{
+  "workstation_key": "build-host",
+  "name": "Build host",
+  "backend_type": "ssh",
+  "metadata": {
+    "host": "build.internal",
+    "port": 22,
+    "user": "claw",
+    "private_key_ref": "kms://..."
+  },
+  "default_cwd": "/srv/builds",
+  "default_env": {"PATH": "/usr/local/bin:/usr/bin"}
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workstation_key` | string | Stable client-facing key — unique per tenant |
+| `name` | string | Display name |
+| `backend_type` | enum | `ssh` or `docker` (DB CHECK constraint) |
+| `metadata` | object | Backend-specific connection config — encrypted at rest |
+| `default_cwd` | string | Default working directory for exec calls |
+| `default_env` | object | Env vars merged into every exec — encrypted at rest |
+| `active` | boolean | Workstation is selectable for agent linking |
+
+**Activity log entries:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `action` | enum | `exec` (ran) or `deny` (rejected by allowlist) |
+| `cmd_hash` | string | SHA-256 of the full command line |
+| `cmd_preview` | string | First 200 bytes of the command (truncated, no secrets) |
+| `exit_code` | integer | Process exit code (nullable for `deny`) |
+| `duration_ms` | integer | Wall time (nullable for `deny`) |
+| `agent_id` | UUID | Agent that initiated the call |
+
+> Workstation backends share a single per-tenant rate limit and obey the global shell deny-groups list.
+
+---
+
+## Webhooks
+
+Two surfaces:
+
+1. **Inbound webhook endpoints** — receive HMAC-signed requests from external systems and route them through agents or channels. No bearer token required; auth is performed via `X-GoClaw-Signature` (HMAC-SHA256) + IP allowlist + optional `localhost_only` gate.
+2. **Webhook administration** — CRUD over the webhook registry. Requires admin role and gateway token.
+
+> Inbound webhooks require `GOCLAW_ENCRYPTION_KEY` to be set so secrets can be stored encrypted at rest. See [Environment Variables](environment-variables.md#secrets).
+
+### Inbound Receivers
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/webhooks/llm` | LLM-kind webhook entrypoint (OpenAI-compatible payload routed to the configured agent) |
+| `POST` | `/v1/webhooks/message` | Message-kind webhook entrypoint (delivers to a channel/chat) |
+
+Both receivers require headers:
+
+| Header | Purpose |
+|--------|---------|
+| `X-GoClaw-Webhook-Id` | Webhook UUID |
+| `X-GoClaw-Signature` | `sha256=...` HMAC of the raw body using the webhook's signing key |
+| `X-GoClaw-Timestamp` | RFC3339 timestamp (≤ 5 min skew) |
+| `Idempotency-Key` | Optional — dedupes repeated deliveries (TTL stored in `webhook_calls`) |
+
+Mode is selected via the query string `?mode=sync|async` (default `sync` for `llm`, `async` for `message`).
+
+### Webhook Administration
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/webhooks` | List webhooks for the current tenant |
+| `POST` | `/v1/webhooks` | Create a webhook — response includes one-time `secret` + `hmac_signing_key` |
+| `GET` | `/v1/webhooks/{id}` | Get a webhook (`secret` is never returned again after creation) |
+| `PATCH` | `/v1/webhooks/{id}` | Update mutable fields (scopes, rate limits, allowlist, flags) |
+| `POST` | `/v1/webhooks/{id}/rotate` | Rotate signing key — returns the new secret once |
+| `DELETE` | `/v1/webhooks/{id}` | Revoke a webhook (soft-delete; sets `revoked=true`) |
+
+**Create body:**
+
+```json
+{
+  "name": "Datadog incidents",
+  "kind": "message",
+  "agent_id": "uuid (required for kind=llm)",
+  "channel_id": "uuid (required for kind=message)",
+  "scopes": ["chat.send"],
+  "rate_limit_per_min": 60,
+  "ip_allowlist": ["10.0.0.0/8", "203.0.113.42"],
+  "require_hmac": true,
+  "localhost_only": false
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | enum | `llm` or `message` (DB CHECK constraint) |
+| `agent_id` | UUID | Required for `llm`; ignored for `message` |
+| `channel_id` | UUID | Required for `message`; ignored for `llm` |
+| `scopes` | string[] | Permission scopes the inbound request can exercise (default minimal) |
+| `rate_limit_per_min` | integer | Per-webhook rate limit (default tenant-wide cap) |
+| `ip_allowlist` | string[] | CIDR or single-IP entries; empty = no IP restriction |
+| `require_hmac` | boolean | Enforce HMAC signature (default `true`) |
+| `localhost_only` | boolean | Reject non-loopback callers (Lite edition forces `true`) |
+
+**Create response** (`201 Created`):
+
+```json
+{
+  "id": "uuid",
+  "secret": "wh_...",
+  "hmac_signing_key": "raw 32-byte hex",
+  "secret_prefix": "wh_xxxx",
+  "kind": "message",
+  "...": "..."
+}
+```
+
+> `secret` and `hmac_signing_key` are returned **only on create and rotate**. Subsequent GETs expose `secret_prefix` (first 4 chars) and a one-way `secret_hash`. The `webhook_calls` table records every delivery with `attempts`, `status` (`queued|running|done|failed|dead`), `mode` (`sync|async`), `delivery_id`, and an optional `lease_token` for async lease-based dispatch.
+
+---
+
+## Gateway Self-Upgrade
+
+Admin-only self-upgrade flow that downloads a signed release archive and restarts the gateway process in-place.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/system/gateway/upgrade` | Trigger an upgrade — body `{ "target_version": "v3.12.0" }` or omitted for latest |
+| `GET` | `/v1/system/gateway/upgrade/status` | Poll upgrade progress (`idle | downloading | verifying | applying | restarting | done | failed`) |
+
+> Upgrade is a one-way operation; restore from backup if a release proves bad. The endpoint refuses to run when the gateway is launched without write access to its own binary.
+
+---
+
 ## System
 
 | Method | Path | Description |
@@ -1583,7 +1777,8 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - **Sessions:** List, preview, patch, delete, reset (`sessions.*`)
 - **Cron jobs:** List, create, update, delete, toggle, status, run, runs (`cron.*`)
 - **Config management:** Get, apply, patch, schema (`config.*`)
-- **Config permissions:** List, grant, revoke (`config.permissions.*`)
+- **Config permissions:** List, check, grant, revoke (`config.permissions.*`)
+- **Workstations:** List, get, create, update, delete, test, link/unlink agent, permissions CRUD, activity (`workstations.*`)
 - **Send messages:** Send to channels (`send`)
 - **Chat:** Send, history, abort, inject, session status (`chat.*`)
 - **Heartbeat:** Get, set, toggle, test, logs, checklist, targets (`heartbeat.*`)
@@ -1603,4 +1798,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

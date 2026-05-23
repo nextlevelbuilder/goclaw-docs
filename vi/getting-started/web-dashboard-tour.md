@@ -62,11 +62,14 @@ Tạo, sửa, và xóa agent. Mỗi agent card hiển thị:
 
 Nhấn vào agent để mở trang chi tiết với các tab:
 - **General** — Thông tin cơ bản của agent
-- **Config** — Model, temperature, system prompt, quyền tool
+- **Config** — Model, temperature, system prompt, quyền tool; có mục **Model Fallback** (danh sách provider/model dự phòng theo thứ tự kéo-thả, kích hoạt khi model chính không khả dụng)
 - **Files** — File ngữ cảnh (IDENTITY.md, USER.md, v.v.)
+- **Permissions** — Cấp hoặc từ chối quyền cho user cụ thể để chỉnh sửa loại config của agent (`file_writer`, `heartbeat`, `cron`, `context_files`), theo phạm vi DM, tất cả nhóm, hoặc nhóm cụ thể. Có nút "Check Access" để kiểm tra quyền hiệu lực của user trước khi lưu. Xem [Config Permissions System](/deploy-security).
 - **Shares** — Chia sẻ agent giữa các tenant
 - **Links** — Cấu hình agent nào có thể được phân công (quyền, giới hạn concurrency, quy tắc handoff)
 - **Skills** — Gán skill riêng cho agent
+- **Evolution** — Lịch sử tiến hóa của agent
+- **Hooks** — Quality-gate hook cho agent này
 - **Instances** — Các instance agent được định nghĩa trước (chỉ hiện với predefined agent)
 
 #### Agent Teams
@@ -118,6 +121,12 @@ Quản lý và ghép nối gateway node. Ghép nối phiên trình duyệt với
 #### Skills
 
 Upload file `SKILL.md` để agent có thể khám phá và sử dụng. Skills có thể tìm kiếm bằng semantic matching — agent tìm đúng skill dựa trên yêu cầu của người dùng.
+
+Danh sách skills hỗ trợ **thao tác hàng loạt** qua thanh công cụ selection xuất hiện khi chọn một hoặc nhiều skill:
+- **Enable** — kích hoạt các skill đã chọn
+- **Disable** — tắt các skill đã chọn
+- **Grant to All Agents** — áp dụng các custom skill đã chọn cho mọi agent trong tenant (chỉ với custom skill)
+- **Delete** — xóa vĩnh viễn các custom skill đã chọn
 
 #### Custom Tools
 
@@ -206,12 +215,13 @@ Log hệ thống để debug và giám sát hoạt động gateway.
 
 #### Packages
 
-Quản lý runtime package được cài trong Docker container. Ba danh mục:
+Quản lý runtime package được cài trong Docker container. Trang dùng **bố cục 4 tab**:
 - **System** — gói apk (quản lý bởi binary `pkg-helper` có quyền root qua Unix socket)
 - **Python** — gói pip
 - **Node** — gói npm
+- **GitHub** — binary từ GitHub release, cài qua bộ cài GitHub tích hợp
 
-Hiển thị phiên bản đã cài và cho phép cài/gỡ mà không cần build lại image.
+Tất cả tab hiển thị phiên bản đã cài và cho phép cài/gỡ mà không cần build lại image. Phần cập nhật ở đầu trang liệt kê các bản nâng cấp từ mọi nguồn (pip, npm, GitHub). Tab **CLI Credentials** cũng được nhúng vào đây dành cho admin — xem [CLI Credentials](#cli-credentials) bên dưới.
 
 #### Providers
 
@@ -229,11 +239,24 @@ Quản lý quy trình Exec Approval — xem xét và chấp thuận/từ chối 
 
 #### CLI Credentials
 
-Quản lý thông tin xác thực CLI cho truy cập dòng lệnh an toàn vào GoClaw.
+Quản lý thông tin xác thực CLI cho truy cập dòng lệnh an toàn vào GoClaw. Mỗi binary đã đăng ký có dialog **Grants** để gán quyền theo từng agent:
+- Chọn agent, đặt tùy chọn regex `deny_args` và `deny_verbose`, và timeout per-agent
+- Mục **Env override** — khi bật "Override binary defaults", thêm cặp key/value biến môi trường theo grant để gateway inject khi agent đó chạy binary. Các key bị từ chối (ví dụ: `PATH`, `LD_PRELOAD`, `GOCLAW_*`) bị chặn phía server và được đánh dấu trực tiếp trong giao diện
+- **Reveal** — nếu grant đã có env var được đặt, nhấn biểu tượng mắt để lấy giá trị plaintext hiện tại qua `POST .../env:reveal` (có giới hạn tốc độ). Giá trị bị xóa khỏi state khi đóng dialog
+
+Dialog này cũng có thể mở trực tiếp từ tab **CLI Credentials** trong trang Packages (chỉ dành cho admin).
 
 #### API Keys
 
 Quản lý API key cho truy cập lập trình — tạo, thu hồi và gán role cho key. Key dùng định dạng tiền tố `goclaw_` và hỗ trợ scope dựa trên role (admin, operator, viewer).
+
+#### Workstations
+
+Đăng ký và quản lý mục tiêu thực thi từ xa. Agent gọi tool `workstation_exec` để chạy lệnh trên workstation được liên kết. Dialog tạo mới nhận:
+- **Name** và **Key** (slug, ví dụ: `my-dev-server`)
+- **Loại backend**: `ssh` (host, port, user, tùy chọn identity file) hoặc `docker` (tên container, tùy chọn Docker host)
+
+Sau khi tạo, kiểm tra kết nối bằng nút **Test**. Xem [Workstations](/advanced/workstations) để biết mô hình phân quyền và nhật ký kiểm tra hoạt động đầy đủ.
 
 #### Tenants (Chế độ Multi-Tenant)
 
@@ -326,7 +349,7 @@ Hành động ở footer:
 - [GoClaw hoạt động như thế nào](/how-goclaw-works) — Hiểu về kiến trúc
 - [Agents Explained](/agents-explained) — Tìm hiểu về loại agent
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
 <!-- TODO: Screenshots cần cho v2.x UI — chạy instance GoClaw và chụp:
   1. Team kanban board với task card trong các cột
   2. Trang chi tiết cron với markdown rendering

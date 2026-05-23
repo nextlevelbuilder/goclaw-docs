@@ -18,7 +18,7 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Vault** (`group:vault`) | vault_search, vault_read | Search and read vault documents; governed by the `group:vault` policy group |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Manage conversation sessions; spawn subagents |
 | **Teams** (`group:teams`) | team_tasks, team_message | Collaborate with agent teams via shared task board and mailbox |
-| **Automation** (`group:automation`) | cron, datetime | Schedule recurring jobs; get current date/time |
+| **Automation** (`group:automation`) | cron, datetime, wait | Schedule recurring jobs; get current date/time; pause execution between tool calls (`wait` — see below) |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
 | **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Generate images, audio, video, and text-to-speech; `image_generation` is a native tool for Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — see [Media Generation](/advanced/media-generation) |
 | **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
@@ -74,6 +74,19 @@ Use `memory_search` first to discover relevant episodic IDs, then `memory_expand
 > Additional tools like `mcp_tool_search` and channel-specific tools are registered dynamically. Tool groups can be referenced with `group:` prefix in allow/deny lists (e.g., `group:fs`).
 
 > **Delegation note**: The `delegate` tool has been removed. Delegation is now handled exclusively via agent teams: leads create tasks on the shared board (`team_tasks`) and delegate to member agents via `spawn`. See [Agent Teams](#agent-teams) for the current model.
+
+### `wait` — Pause Between Tool Calls
+
+The built-in `wait` tool suspends the current agent's tool sequence for a bounded duration. It is useful for rate-limit spacing, polling intervals, or waiting for an external async job to finish before the next tool call.
+
+| Field | Type | Notes |
+|------|------|-------|
+| `timeMs` | integer (required) | Duration in milliseconds. Default bounds: `100` ≤ `timeMs` ≤ `300000` (5 minutes). |
+| `reason` | string (optional) | Free-form reason logged with the wait result; useful in traces and debugging. |
+
+The minimum and maximum bounds can be tuned per-deployment via the tool's runtime config; defaults are 100 ms and 300 000 ms.
+
+> **Not the same as `spawn(action=wait)`:** `wait` is a top-level built-in tool that pauses **the calling agent** for `timeMs` milliseconds. The `spawn(action=wait)` pattern (also called **WaitAll**, see below) is a delegation primitive that blocks the parent **until previously spawned subagents finish**. Use `wait` for time-based pauses; use `spawn(action=wait)` for fan-out/fan-in delegation.
 
 ## Tool Execution Flow
 
@@ -270,7 +283,7 @@ The `spawn` tool (part of `group:sessions`) creates and runs subagents. Key capa
 
 | Capability | Detail |
 |-----------|--------|
-| **WaitAll** | `spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. Useful for fan-out/fan-in patterns. |
+| **WaitAll** | `spawn(action=wait, timeout=N)` blocks the parent until all previously spawned children complete. Useful for fan-out/fan-in patterns. Distinct from the built-in `wait` tool above, which pauses for a fixed duration regardless of subagent state. |
 | **Auto-retry** | Configurable `MaxRetries` (default `2`) with linear backoff on LLM failures. Transient errors are retried automatically. |
 | **Token tracking** | Each subagent accumulates per-call input/output token counts. Totals are included in announce messages so the parent can account for cost. |
 | **SubagentDenyAlways** | Subagents cannot spawn nested subagents — the `team_tasks` tool is blocked in subagent context. Prevents unbounded delegation chains. |
@@ -333,4 +346,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

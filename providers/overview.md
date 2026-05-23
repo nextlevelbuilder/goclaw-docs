@@ -48,6 +48,7 @@ Providers that support extended thinking also implement `SupportsThinking() bool
 | **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
 | **acp** | JSON-RPC 2.0 subagents | `claude` |
 | **dashscope** | OpenAI-compat wrapper | `qwen3-max` |
+| **vertex** | OpenAI-compat (OAuth2) | `google/gemini-2.0-flash-001` |
 | **openai** (+ 15+ variants) | OpenAI-compatible | Model-specific |
 
 ### OpenAI-Compatible Providers
@@ -220,9 +221,10 @@ When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schem
 - [OpenAI](/provider-openai) — GPT-4o, o-series, GPT-5 reasoning models
 - [OpenRouter](/provider-openrouter) — access 100+ models through one API
 - [Gemini](/provider-gemini) — Google Gemini via OpenAI-compatible endpoint
+- [Vertex AI](/provider-vertex) — Google Cloud Vertex Gemini with OAuth2 / ADC
 - [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
 - [Groq](/provider-groq) — ultra-fast inference
 - [DashScope](/provider-dashscope) — Alibaba Qwen models with thinking support
 - [ACP](/provider-acp) — Claude Code, Codex CLI, Gemini CLI subagent orchestration
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

@@ -20,7 +20,7 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Vault** (`group:vault`) | vault_search, vault_read | Tìm kiếm và đọc vault document; áp dụng policy group `group:vault` |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | Quản lý conversation session; spawn subagent |
 | **Teams** (`group:teams`) | team_tasks, team_message | Cộng tác với agent team qua task board và mailbox chung |
-| **Automation** (`group:automation`) | cron, datetime | Lên lịch job định kỳ; lấy ngày/giờ hiện tại |
+| **Automation** (`group:automation`) | cron, datetime, wait | Lên lịch job định kỳ; lấy ngày/giờ hiện tại; tạm dừng giữa các tool call (`wait` — xem phần dưới) |
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Gửi tin nhắn; tạo topic forum Telegram |
 | **Tạo Media** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Tạo hình ảnh, audio, video, và text-to-speech; `image_generation` là native tool cho Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — xem [Media Generation](/vi/advanced/media-generation) |
 | **Browser** | browser | Điều hướng trang web, chụp ảnh màn hình, tương tác với element |
@@ -76,6 +76,19 @@ Dùng `memory_search` trước để khám phá ID episodic liên quan, sau đó
 > Các tool bổ sung như `mcp_tool_search` và tool đặc thù theo channel được đăng ký động. Tool group có thể dùng tiền tố `group:` trong allow/deny list (ví dụ: `group:fs`).
 
 > **Lưu ý về delegation**: Tool `delegate` đã bị xóa. Delegation hiện được thực hiện hoàn toàn qua agent team: lead tạo task trên board chung (`team_tasks`) và delegate cho member agent qua `spawn`. Xem [Agent Teams](#agent-teams) để biết thêm.
+
+### `wait` — Tạm dừng giữa các tool call
+
+Tool `wait` built-in tạm dừng chuỗi tool call của agent hiện tại trong một khoảng thời gian giới hạn. Hữu ích để giãn cách rate-limit, polling theo chu kỳ, hoặc đợi một async job bên ngoài hoàn tất trước khi gọi tool tiếp theo.
+
+| Field | Kiểu | Ghi chú |
+|------|------|-------|
+| `timeMs` | integer (bắt buộc) | Thời gian (mili-giây). Mặc định: `100` ≤ `timeMs` ≤ `300000` (5 phút). |
+| `reason` | string (tuỳ chọn) | Lý do dạng tự do, được log cùng kết quả wait; hữu ích cho trace và debug. |
+
+Cận trên và cận dưới có thể tinh chỉnh per-deployment qua runtime config của tool; mặc định là 100 ms và 300 000 ms.
+
+> **Không phải `spawn(action=wait)`:** `wait` là tool built-in cấp cao nhất, tạm dừng **agent đang gọi** trong `timeMs` mili-giây. Pattern `spawn(action=wait)` (còn gọi là **WaitAll**, xem bên dưới) là một delegation primitive — chặn parent **cho đến khi các subagent đã spawn trước đó kết thúc**. Dùng `wait` cho tạm dừng theo thời gian; dùng `spawn(action=wait)` cho delegation fan-out/fan-in.
 
 ## Luồng thực thi Tool
 
@@ -272,7 +285,7 @@ Tool `spawn` (thuộc `group:sessions`) tạo và chạy subagent. Các tính n�
 
 | Tính năng | Chi tiết |
 |-----------|---------|
-| **WaitAll** | `spawn(action=wait, timeout=N)` chặn parent cho đến khi tất cả các children đã spawn hoàn tất. Hữu ích cho pattern fan-out/fan-in. |
+| **WaitAll** | `spawn(action=wait, timeout=N)` chặn parent cho đến khi tất cả các children đã spawn hoàn tất. Hữu ích cho pattern fan-out/fan-in. Khác với tool `wait` built-in ở trên — `wait` tạm dừng theo thời gian cố định, không phụ thuộc trạng thái subagent. |
 | **Auto-retry** | `MaxRetries` có thể cấu hình (mặc định `2`) với linear backoff khi LLM gặp lỗi. Lỗi tạm thời được tự động retry. |
 | **Token tracking** | Mỗi subagent tích lũy số token input/output theo từng lần gọi. Tổng cộng được đưa vào announce message để parent có thể theo dõi chi phí. |
 | **SubagentDenyAlways** | Subagent không thể spawn subagent lồng nhau — tool `team_tasks` bị chặn trong ngữ cảnh subagent. Ngăn chuỗi delegation không giới hạn. |
@@ -335,4 +348,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

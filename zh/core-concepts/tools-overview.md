@@ -20,7 +20,7 @@
 | **Vault** (`group:vault`) | vault_search, vault_read | 搜索和读取 vault 文档；适用 `group:vault` 策略组 |
 | **Sessions** (`group:sessions`) | sessions_list, sessions_history, sessions_send, session_status, spawn | 管理对话 session；生成子 agent |
 | **团队** (`group:teams`) | team_tasks, team_message | 通过共享任务板和邮箱与 agent 团队协作 |
-| **自动化** (`group:automation`) | cron, datetime | 调度定期任务；获取当前日期/时间 |
+| **自动化** (`group:automation`) | cron, datetime, wait | 调度定期任务；获取当前日期/时间；在工具调用之间暂停执行（`wait` —— 详见下文） |
 | **消息传递** (`group:messaging`) | message, create_forum_topic | 发送消息；创建 Telegram 论坛话题 |
 | **媒体生成** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | 生成图片、音频、视频和文字转语音；`image_generation` 是 Codex/OpenAI-compat 的原生工具（三级开关：provider 能力 + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`）——参见[媒体生成](/zh/advanced/media-generation) |
 | **浏览器** | browser | 导航网页、截图、与元素交互 |
@@ -76,6 +76,19 @@ DuckDuckGo 不需要 API key，始终作为最终 fallback 可用——无法禁
 > 额外工具如 `mcp_tool_search` 和特定 channel 工具是动态注册的。工具组可在允许/拒绝列表中用 `group:` 前缀引用（如 `group:fs`）。
 
 > **委托说明**：`delegate` 工具已移除。委托现在完全通过 agent 团队处理：负责人通过共享任务板（`team_tasks`）创建任务，并通过 `spawn` 委托给成员 agent。
+
+### `wait` —— 在工具调用之间暂停
+
+内置 `wait` 工具会按给定时长暂停当前 agent 的工具序列。适用于 rate-limit 间隔、轮询节流，或在外部异步任务完成前等待下一次工具调用。
+
+| 字段 | 类型 | 说明 |
+|------|------|-------|
+| `timeMs` | integer（必填） | 暂停时长（毫秒）。默认范围：`100` ≤ `timeMs` ≤ `300000`（5 分钟）。 |
+| `reason` | string（可选） | 自由文本原因，连同 wait 结果一起记录；便于 trace 与调试。 |
+
+最小与最大上限可在部署级通过该工具的 runtime config 调整；默认为 100 ms 与 300 000 ms。
+
+> **与 `spawn(action=wait)` 不同：** `wait` 是顶级内置工具，按 `timeMs` 毫秒暂停**当前调用的 agent**。`spawn(action=wait)`（即下文的 **WaitAll**）是委托原语 —— 阻塞父 agent **直到先前 spawn 的子 agent 完成**。基于时间的暂停用 `wait`；fan-out/fan-in 委托用 `spawn(action=wait)`。
 
 ## 工具执行流程
 
@@ -272,7 +285,7 @@ GoClaw 注册别名，让 agent 可以用替代名称引用工具。这实现了
 
 | 能力 | 详情 |
 |------|------|
-| **WaitAll** | `spawn(action=wait, timeout=N)` 阻塞父 agent 直到所有已 spawn 的子 agent 完成。适用于 fan-out/fan-in 模式。 |
+| **WaitAll** | `spawn(action=wait, timeout=N)` 阻塞父 agent 直到所有已 spawn 的子 agent 完成。适用于 fan-out/fan-in 模式。与上文的内置 `wait` 工具不同 —— `wait` 按固定时长暂停，不依赖任何子 agent 状态。 |
 | **Auto-retry** | 可配置的 `MaxRetries`（默认 `2`），LLM 失败时采用线性退避自动重试。瞬时错误自动处理。 |
 | **Token 追踪** | 每个子 agent 累计每次调用的输入/输出 token 数。总量包含在 announce 消息中，方便父 agent 核算成本。 |
 | **SubagentDenyAlways** | 子 agent 不能再 spawn 嵌套子 agent——`team_tasks` 工具在子 agent 上下文中被屏蔽。防止无限委托链。 |

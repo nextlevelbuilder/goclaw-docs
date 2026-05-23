@@ -177,7 +177,7 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `agents.list` | — | 列出所有 agent |
 | `agent.wait` | `{agentId}` | 等待 agent 完成当前运行 |
 | `agents.create` | agent 对象 | 创建 agent |
-| `agents.update` | `{agentId, name?, provider?, model?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | 更新 agent |
+| `agents.update` | `{agentId, name?, provider?, model?, model_fallback?, avatar?, status?, workspace?, frontmatter?, context_window?, max_tool_iterations?, is_default?, budget_monthly_cents?, tools_config?, subagents_config?, sandbox_config?, memory_config?, compaction_config?, context_pruning?, other_config?, emoji?, agent_description?, thinking_level?, max_tokens?, self_evolve?, skill_evolve?, skill_nudge_interval?, reasoning_config?, workspace_sharing?, chatgpt_oauth_routing?, shell_deny_groups?, kg_dedup_config?}` | 更新 agent |
 | `agents.delete` | `{id}` | 删除 agent |
 | `agents.files.list` | `{agentId}` | 列出 context 文件 |
 | `agents.files.get` | `{agentId, fileName}` | 获取 context 文件 |
@@ -204,6 +204,10 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `config.patch` | 修改特定配置字段 |
 | `config.schema` | 获取配置的 JSON Schema |
 | `config.defaults` | 获取编译时内置默认值 + agents.defaults overlay（只读，master scope）|
+| `config.permissions.list` | `{agentId, configType?}` | 列出 agent 的权限 |
+| `config.permissions.check` | `{agentId, scope, configType, userId}` | 不修改数据地评估有效决策（`allow` / `deny`）|
+| `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | 授予权限 |
+| `config.permissions.revoke` | `{agentId, scope, configType, userId}` | 撤销权限 |
 
 ### Cron
 
@@ -386,6 +390,26 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `voices.list` | — | 列出当前租户的 ElevenLabs voices（带缓存）|
 | `voices.refresh` | — | 失效缓存并从 provider 重新拉取 voices |
 
+### Workstations
+
+> **仅 Standard 版本。** Lite 版 gateway 不注册这些方法；调用返回 `method_not_found`。每个方法均需 admin 角色。
+
+| 方法 | 参数 | 说明 |
+|--------|--------|-------------|
+| `workstations.list` | — | 列出当前租户的 workstation |
+| `workstations.get` | `{id}` | 获取 workstation 详情 |
+| `workstations.create` | `{workstationKey, name, backendType, metadata, defaultCwd?, defaultEnv?}` | 创建 workstation（`backendType` 为 `ssh` 或 `docker`）|
+| `workstations.update` | `{id, ...fields}` | 更新 workstation |
+| `workstations.delete` | `{id}` | 删除 workstation |
+| `workstations.testConnection` | `{id}` | 探测 backend 连通性，不执行命令 |
+| `workstations.linkAgent` | `{workstationId, agentId, isDefault?}` | 将 agent 链接到 workstation |
+| `workstations.unlinkAgent` | `{workstationId, agentId}` | 移除链接 |
+| `workstations.permissions.list` | `{workstationId}` | 列出白名单模式 |
+| `workstations.permissions.add` | `{workstationId, pattern, description?, enabled?}` | 追加白名单模式 |
+| `workstations.permissions.remove` | `{workstationId, permissionId}` | 删除某个模式 |
+| `workstations.permissions.toggle` | `{workstationId, permissionId, enabled}` | 启用/禁用某个模式 |
+| `workstations.activity.list` | `{workstationId, limit?, before?, action?}` | 分页活动审计日志；`action` 过滤接受 `exec` 或 `deny` |
+
 ### 租户（Tenants）
 
 | 方法 | 参数 | 说明 |
@@ -555,4 +579,4 @@ ws.onmessage = (e) => {
 - [CLI 命令](/cli-commands) — 从终端进行配对和会话管理
 - [词汇表](/glossary) — Session、Lane、Compaction 等核心术语
 
-<!-- goclaw-source: 1b862707 | 更新: 2026-04-20 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

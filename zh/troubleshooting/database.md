@@ -216,10 +216,14 @@ SQLite 构建不支持 `pgvector` 操作，存在以下限制：
 # SQLite 构建将显示：storage=sqlite
 ```
 
+## Migration #057 — Heartbeat FK 锁说明
+
+Migration `000057_heartbeat_provider_fk_set_null` 删除 `agent_heartbeats.provider_id` 上现有的 `RESTRICT` 外键，并以 `ON DELETE SET NULL` 重新添加。`ALTER TABLE` 在执行期间会在 `agent_heartbeats` 上持有短暂的 `ACCESS EXCLUSIVE` 锁。在典型大小的表上，锁持有时间不足一秒，但 heartbeat worker 在此期间可能短暂暂停。如果 `agent_heartbeats` 表非常大，请合理规划升级时间窗口，并监控锁等待超时。
+
 ## 下一步
 
 - [常见问题](/troubleshoot-common)
 - [Provider 问题](/troubleshoot-providers)
 - [Channel 问题](/troubleshoot-channels)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->

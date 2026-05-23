@@ -143,10 +143,28 @@ GoClaw v3 giới thiệu `SSEScanner` thống nhất (`providers/sse_reader.go`)
 
 Credential provider thêm lúc runtime (dashboard) được lưu trong `llm_providers` với mã hóa AES-256-GCM và được resolve tại thời điểm request. Override per-agent trong agent config được ưu tiên hơn cài đặt provider toàn cục.
 
+## Tạo Provider In Ra "FAILED" Nhưng Thực Ra Đã Thành Công
+
+**Phiên bản bị ảnh hưởng:** < v3.11.3
+
+Luồng auto-verify sau khi tạo provider dùng cấu trúc response cũ `{success, models}` để kiểm tra provider mới có hợp lệ không. Provider đã được tạo đúng trong database, nhưng bước verify sau khi tạo đọc sai field và in `FAILED` ra console dù provider hoàn toàn bình thường.
+
+**Đã sửa trong v3.11.3:** Luồng verify giờ dùng cấu trúc `{valid, error}` và kích hoạt ping mode khi body request rỗng, nên verify với body rỗng trả về `{valid:true}` khi thành công. Nâng cấp lên v3.11.3+ để khắc phục.
+
+## `goclaw providers delete` Lỗi Foreign Key trên `agent_heartbeats`
+
+**Phiên bản bị ảnh hưởng:** < v3.11.3
+
+Trước v3.11.3, foreign key từ `agent_heartbeats` đến `llm_providers` được định nghĩa là `RESTRICT`. Xóa provider đang được tham chiếu bởi bất kỳ heartbeat row nào sẽ thất bại với lỗi foreign key constraint.
+
+**Đã sửa trong v3.11.3:** Migration `000057_heartbeat_provider_fk_set_null` đổi FK thành `ON DELETE SET NULL`. Hàm `DeleteProvider` (PostgreSQL và SQLite) giờ thực hiện trong một transaction: trước tiên vô hiệu hóa tất cả heartbeat row bị ảnh hưởng, sau đó mới xóa provider, để scheduler tick tiếp theo không chạy với config provider cũ. Log `slog.Warn("heartbeat.provider_cleared")` được ghi kèm số lượng heartbeat đã bị vô hiệu hóa.
+
+Yêu cầu migration #057 đã được áp dụng (`./goclaw migrate up`). Kiểm tra log `heartbeat.provider_cleared` sau khi xóa để xác nhận số heartbeat bị xóa.
+
 ## Tiếp theo
 
 - [Vấn đề database](/troubleshoot-database)
 - [Các vấn đề thường gặp](/troubleshoot-common)
 - [Vấn đề channel](/troubleshoot-channels)
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->

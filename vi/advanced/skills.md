@@ -308,6 +308,39 @@ curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
   -d '{"agent_id": "AGENT_UUID", "version": 1}'
 ```
 
+Để cấp kèm quyền quản lý (xem [Agent-Manage Grants](#agent-manage-grants) bên dưới), thêm `"can_manage": true`:
+
+```bash
+curl -X POST http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "AGENT_UUID", "version": 1, "can_manage": true}'
+```
+
+Liệt kê tất cả agent grant cho một skill:
+
+```bash
+curl http://localhost:8080/v1/skills/{id}/grants/agent \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+
+```json
+{
+  "grants": [
+    {
+      "agent_id": "019...",
+      "agent_key": "my-agent",
+      "display_name": "My Agent",
+      "pinned_version": 1,
+      "granted_by": "admin@example.com",
+      "can_manage": false
+    }
+  ]
+}
+```
+
 Thu hồi quyền agent:
 
 ```bash
@@ -330,6 +363,27 @@ Thu hồi quyền user:
 curl -X DELETE http://localhost:8080/v1/skills/{id}/grants/user/{user_id} \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### Agent-Manage Grants
+
+Mặc định, chỉ chủ sở hữu skill và tenant admin mới có thể chỉnh sửa hoặc xóa skill. Cờ `can_manage` trên `skill_agent_grants` cho phép ủy quyền đó cho một agent cụ thể mà không cần nâng cấp lên admin.
+
+Khi `can_manage = true`, agent được cấp quyền có thể:
+- Cập nhật tên, mô tả, tags và visibility của skill qua `PUT /v1/skills/{id}`
+- Xóa skill qua `DELETE /v1/skills/{id}`
+- Publish phiên bản mới bằng tool `skill_manage` trong cuộc hội thoại
+
+**Tenant scope enforcement** — cả skill và agent đều phải thuộc cùng tenant. Các lần ghi grant vượt ranh giới tenant bị từ chối ở tầng store (`verifySkillGrantScope`). Migration `000067` xóa các hàng cross-tenant tồn tại từ phiên bản cũ hơn.
+
+**Tự động nâng visibility** — khi cấp grant cho skill `private`, hệ thống tự động nâng lên `internal` để agent được cấp quyền có thể truy cập. Khi thu hồi agent grant cuối cùng, hệ thống tự động hạ xuống `private` theo cách nguyên tử.
+
+### Tenant-Scoped Grant Isolation
+
+Trong các deployment multi-tenant, thao tác skill grant được giới hạn trong phạm vi tenant:
+
+- `POST /v1/skills/{id}/grants/agent` xác minh agent đích thuộc cùng tenant với skill. Các lần thử grant cross-tenant trả về `404` ("agent not found") để tránh rò rỉ topology tenant.
+- System skill (`is_system = true`) bỏ qua lọc tenant — chúng truy cập được từ tất cả tenant.
+- `GET /v1/skills/{id}/grants/agent` chỉ trả về grant trong phạm vi tenant của request.
 
 ### Các mức Visibility
 
@@ -423,4 +477,4 @@ Xem [Agent Evolution](agent-evolution.md) để biết chi tiết về tool `ski
 - [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: b9670555 | cập nhật: 2026-04-19 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

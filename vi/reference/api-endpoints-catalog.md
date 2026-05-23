@@ -2,7 +2,7 @@
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 260 — generated from goclaw `29457bb3` on `2026-04-25`.
+**Total endpoints:** 286 — generated from goclaw `392f0fda` on `2026-05-21`.
 
 ## Cách sử dụng trang này
 
@@ -145,6 +145,13 @@
 | `GET` | `/v1/files/{path...}` |
 | `POST` | `/v1/files/sign` |
 
+### Gateway Upgrade (`internal/http/gateway_upgrade.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/system/gateway/upgrade` |
+| `GET` | `/v1/system/gateway/upgrade/status` |
+
 ### Knowledge Graph (`internal/http/knowledge_graph.go`)
 
 | Method | Path |
@@ -254,6 +261,10 @@
 | `POST` | `/v1/packages/install` |
 | `GET` | `/v1/packages/runtimes` |
 | `POST` | `/v1/packages/uninstall` |
+| `POST` | `/v1/packages/update` |
+| `GET` | `/v1/packages/updates` |
+| `POST` | `/v1/packages/updates/apply-all` |
+| `POST` | `/v1/packages/updates/refresh` |
 | `GET` | `/v1/shell-deny-groups` |
 
 ### Pending Messages (`internal/http/pending_messages.go`)
@@ -301,6 +312,7 @@
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
 | `GET` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
 | `PUT` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
+| `POST` | `/v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal` |
 | `POST` | `/v1/cli-credentials/{id}/test` |
 | `GET` | `/v1/cli-credentials/{id}/user-credentials` |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
@@ -320,6 +332,7 @@
 | `PUT` | `/v1/skills/{id}` |
 | `GET` | `/v1/skills/{id}/files` |
 | `GET` | `/v1/skills/{id}/files/{path...}` |
+| `GET` | `/v1/skills/{id}/grants/agent` |
 | `POST` | `/v1/skills/{id}/grants/agent` |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
 | `POST` | `/v1/skills/{id}/grants/user` |
@@ -451,6 +464,19 @@
 |---|---|
 | `POST` | `/v1/agents/{id}/wake` |
 
+### Webhooks (`internal/http/webhooks_admin.go`, `webhooks_llm.go`, `webhooks_message.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/webhooks` |
+| `POST` | `/v1/webhooks` |
+| `DELETE` | `/v1/webhooks/{id}` |
+| `GET` | `/v1/webhooks/{id}` |
+| `PATCH` | `/v1/webhooks/{id}` |
+| `POST` | `/v1/webhooks/{id}/rotate` |
+| `POST` | `/v1/webhooks/llm` |
+| `POST` | `/v1/webhooks/message` |
+
 ### Workspace (`internal/http/workspace_upload.go`)
 
 | Method | Path |
@@ -458,8 +484,26 @@
 | `PUT` | `/v1/teams/{teamId}/workspace/move` |
 | `POST` | `/v1/teams/{teamId}/workspace/upload` |
 
+### Workstations (`internal/http/workstations.go`)
+
+> Chỉ bản Standard edition — gateway trả `403` trên Lite.
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/workstations` |
+| `POST` | `/v1/workstations` |
+| `DELETE` | `/v1/workstations/{id}` |
+| `GET` | `/v1/workstations/{id}` |
+| `PUT` | `/v1/workstations/{id}` |
+| `GET` | `/v1/workstations/{id}/activity` |
+| `GET` | `/v1/workstations/{id}/permissions` |
+| `POST` | `/v1/workstations/{id}/permissions` |
+| `DELETE` | `/v1/workstations/{id}/permissions/{permId}` |
+| `PUT` | `/v1/workstations/{id}/permissions/{permId}/toggle` |
+| `POST` | `/v1/workstations/{id}/test` |
+
 ---
 
-<!-- goclaw-source: 29457bb3 -->
-<!-- last-updated: 2026-04-25 -->
-<!-- total-endpoints: 260 -->
+<!-- goclaw-source: 392f0fda -->
+<!-- last-updated: 2026-05-21 -->
+<!-- total-endpoints: 286 -->

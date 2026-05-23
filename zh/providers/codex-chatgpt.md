@@ -36,7 +36,7 @@ Codex provider 让你无需单独购买 API key，即可将现有的 ChatGPT Plu
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex"
+      "model": "gpt-5.5"
     }
   }
 }
@@ -48,7 +48,8 @@ Codex provider 支持 Responses API 提供的模型：
 
 | 模型 | 备注 |
 |---|---|
-| `gpt-5.3-codex` | 默认；针对 agentic 编程任务优化 |
+| `gpt-5.5` | **默认**；最新的 ChatGPT 订阅模型 |
+| `gpt-5.3-codex` | 备选；针对 agentic 编程任务优化 |
 | `o3` | 强推理模型 |
 | `o4-mini` | 更快的推理，成本更低 |
 | `gpt-4o` | 通用多模态 |
@@ -94,7 +95,7 @@ Codex provider 使用 Responses API 格式，而非 chat completions：
   "agents": {
     "defaults": {
       "provider": "openai-codex",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "max_tokens": 8192
     }
   }
@@ -202,11 +203,11 @@ GET /v1/agents/{id}/codex-pool-activity
 | OAuth 回调失败 | 端口 1455 被占用 | 确保认证期间端口 1455 未被其他程序占用 |
 | `model not found` | 模型不在你的订阅中 | 检查 ChatGPT 计划；部分模型需要 Pro |
 | 重启后 provider 不可用 | Token 未持久化 | GoClaw 启动时自动从数据库加载 token；检查数据库连通性 |
-| 响应中出现 phase 字段 | `gpt-5.3-codex` 返回 `commentary` + `final_answer` 阶段 | GoClaw 自动处理；两个阶段均已捕获 |
+| 响应中出现 phase 字段 | `gpt-5.5` 和 `gpt-5.3-codex` 返回 `commentary` + `final_answer` 阶段 | GoClaw 自动处理；两个阶段均已捕获 |
 
 ## 下一步
 
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
 - [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

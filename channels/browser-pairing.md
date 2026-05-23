@@ -172,6 +172,14 @@ On reconnect, use stored token:
 - **Rate limiting**: Pairing code requests are rate-limited per sender to prevent brute-force enumeration
 - **Transient DB error handling**: `IsPaired` checks handle transient database errors gracefully — a DB error returns denied rather than accidentally allowing access
 
+## Channel-Specific Pairing Behaviour
+
+How channels trigger the pairing flow varies by channel type.
+
+**Discord groups:** When `group_policy: "pairing"` is active and `require_mention: true` (the Discord default), a pairing invite is only sent to an unpaired user if they explicitly @mentioned the bot or replied to one of the bot's messages. Messages sent to the group that do not address the bot are silently buffered and do not produce a pairing reply. This prevents pairing spam in public servers where many users can see the bot's messages.
+
+For DMs, the pairing invite fires unconditionally whenever an unpaired user sends a message (same as other channels).
+
 ## JavaScript Example
 
 ```javascript
@@ -246,4 +254,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Telegram setup
 - [WebSocket Protocol](/websocket-protocol) — Full protocol reference
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

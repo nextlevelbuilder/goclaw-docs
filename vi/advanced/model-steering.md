@@ -438,10 +438,120 @@ Với Anthropic provider, GoClaw chia system prompt tại một marker ẩn:
 
 ---
 
+## Model Fallback
+
+Khi một provider call thất bại với lỗi không thể phục hồi, GoClaw có thể tự động thử lại request đó với một provider và model khác. Tính năng này được cấu hình theo từng agent qua trường `model_fallback`.
+
+### Cách hoạt động
+
+```mermaid
+flowchart TD
+    REQ([Yêu cầu Agent]) --> PRIMARY["Thử provider/model chính"]
+    PRIMARY -->|Thành công| RESP([Phản hồi])
+    PRIMARY -->|Lỗi có thể retry\n(rate-limit, overloaded, timeout, auth)| COOLDOWN{Kiểm tra\ncooldown}
+    COOLDOWN -->|Khả dụng hoặc probe| NEXT["Thử fallback candidate tiếp theo"]
+    COOLDOWN -->|Đang cooldown| SKIP["Bỏ qua candidate"]
+    SKIP --> NEXT
+    NEXT -->|Thành công| RESP
+    NEXT -->|Lỗi vĩnh viễn\n(billing, model_not_found, auth_permanent, format)| NEXTMODEL["Chuyển sang candidate tiếp theo"]
+    NEXT -->|context_overflow| ABORT([Trả lỗi — không fallback])
+    NEXTMODEL --> NEXT
+    NEXT -->|Hết tất cả candidate| ERR([FailoverSummaryError])
+```
+
+**Điều kiện kích hoạt (khi nào thử candidate tiếp theo):**
+
+| Loại lỗi | HTTP status / pattern | Hành động |
+|----------|----------------------|-----------|
+| Rate-limited | 429 | Thử candidate tiếp theo |
+| Overloaded | 529, pattern `5xx overload` | Thử candidate tiếp theo |
+| Timeout / network | Connection reset, EOF | Thử candidate tiếp theo |
+| Auth (tạm thời) | 401 / 403 không có revoked/disabled | Thử candidate tiếp theo |
+| Billing | 402 | Thử candidate tiếp theo |
+| Auth (vĩnh viễn) | 401 / 403 có revoked/deactivated | Thử candidate tiếp theo |
+| Model không tìm thấy | 404 có pattern model | Thử candidate tiếp theo |
+| Format không hợp lệ | 400 `tool_call`/`invalid_request` | Thử candidate tiếp theo |
+| Context overflow | Pattern giới hạn context/token | **Dừng — không fallback** |
+
+**An toàn stream:** Khi response streaming đã bắt đầu phát nội dung, GoClaw không fallback — đầu ra từng phần được trả về nguyên vẹn thay vì bị loại bỏ.
+
+### Cooldown Tracking
+
+Khi `cooldown_enabled` là `true` (mặc định), các provider thất bại sẽ vào trạng thái cooldown. Các request tiếp theo bỏ qua candidate đang cooldown. Một probe attempt được gửi sau khi hết cooldown để kiểm tra phục hồi.
+
+| Lý do thất bại | Thời gian cooldown |
+|----------------|:-----------------:|
+| Rate-limit | 30 giây |
+| Overloaded | 60 giây |
+| Timeout | 15 giây |
+| Auth (tạm thời) | 10 phút |
+| Auth (vĩnh viễn) | 1 giờ |
+| Billing | 5 phút |
+| Model không tìm thấy | 1 giờ |
+| Format error | 5 phút |
+| Không xác định | 30 giây |
+
+Trạng thái cooldown **chỉ lưu trong bộ nhớ** và không tồn tại qua lần khởi động lại gateway.
+
+### Cấu hình
+
+Đặt `model_fallback` trên agent qua HTTP API hoặc PATCH endpoint:
+
+```json
+{
+  "model_fallback": {
+    "enabled": true,
+    "strategy": "priority_order",
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o" },
+      { "provider": "openrouter", "model": "google/gemini-2.0-flash-001" }
+    ],
+    "max_attempts": 0,
+    "cooldown_enabled": true
+  }
+}
+```
+
+**Tham chiếu trường:**
+
+| Trường | Kiểu | Mặc định | Mô tả |
+|--------|------|---------|-------|
+| `enabled` | boolean | `false` | Phải là `true` để kích hoạt fallback. Nếu `false` hoặc vắng mặt, tính năng không hoạt động. |
+| `strategy` | string | `"priority_order"` | Chiến lược fallback. Chỉ hỗ trợ `"priority_order"` — thử candidate theo thứ tự danh sách. |
+| `candidates` | array | `[]` | Danh sách các cặp `{provider, model}` theo thứ tự ưu tiên để thử sau khi primary thất bại. Trùng lặp sẽ bị loại bỏ. Mảng rỗng → tính năng không hoạt động dù `enabled: true`. |
+| `max_attempts` | integer | `0` | Tổng số candidate tối đa được thử (primary + fallback). `0` nghĩa là không giới hạn. |
+| `cooldown_enabled` | boolean | `true` | Theo dõi provider thất bại trong bộ nhớ và bỏ qua chúng trong thời gian cooldown. |
+
+**Ngữ nghĩa:**
+- `provider` + `model` được cấu hình trên agent luôn là primary (vị trí 0).
+- `candidates` chỉ liệt kê các fallback — primary không bao giờ được thêm vào danh sách.
+- Candidate có `provider` hoặc `model` rỗng sẽ bị loại trong quá trình normalize.
+- Đặt `enabled: false` (hoặc bỏ qua `enabled`) tương đương với không có cấu hình fallback.
+
+### Ví dụ: Anthropic Primary với hai Fallback
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "model_fallback": {
+    "enabled": true,
+    "candidates": [
+      { "provider": "openai", "model": "gpt-4o-mini" },
+      { "provider": "openrouter", "model": "google/gemini-flash-1.5" }
+    ]
+  }
+}
+```
+
+Với cấu hình này, request đầu tiên đến `anthropic/claude-sonnet-4-6`. Nếu trả về 429 hoặc 529, GoClaw lập tức thử `openai/gpt-4o-mini`. Nếu cả hai thất bại, thử `openrouter/gemini-flash-1.5`. Nếu tất cả ba đều thất bại, agent trả về `FailoverSummaryError` liệt kê tất cả các lần thử và lý do lỗi.
+
+---
+
 ## Xem thêm
 
 - [Sandbox](sandbox.md) — cô lập thực thi lệnh shell cho agent
 - [Agent Teams](../agent-teams/what-are-teams.md) — phối hợp đa agent, nơi Track và Hint hoạt động tích cực nhất
 - [Scheduling & Cron](scheduling-cron.md) — cách cron lane request được định tuyến qua Track
 
-<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

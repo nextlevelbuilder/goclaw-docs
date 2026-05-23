@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **56**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **67**.
 
 ### Thống nhất Store v3
 
@@ -122,6 +122,7 @@ Bản ghi agent core. Mỗi agent có context, tools, và model configuration ri
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
 | `budget_monthly_cents` | INTEGER | | Ngưỡng chi tiêu hàng tháng tính bằng USD cents; NULL = không giới hạn (migration 015) |
+| `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Mảng thứ tự các model fallback được thử khi primary model thất bại (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `deleted_at` | TIMESTAMPTZ | | Soft delete timestamp |
@@ -315,7 +316,7 @@ Skill package được upload với BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants. `skill_agent_grants` còn có cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant.
 
 ---
 
@@ -883,7 +884,7 @@ Cấu hình heartbeat per-agent cho các check-in chủ động định kỳ. (m
 | `enabled` | BOOLEAN | NOT NULL DEFAULT false | Heartbeat có đang hoạt động không |
 | `interval_sec` | INT | NOT NULL DEFAULT 1800 | Chu kỳ chạy (giây) |
 | `prompt` | TEXT | | Tin nhắn gửi đến agent mỗi heartbeat |
-| `provider_id` | UUID FK → llm_providers (nullable) | | Override LLM provider |
+| `provider_id` | UUID FK → llm_providers (nullable) | ON DELETE SET NULL (migration 057) | Override LLM provider; đặt về NULL nếu provider bị xóa |
 | `model` | VARCHAR(200) | | Override model |
 | `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | Chạy trong session riêng biệt |
 | `light_context` | BOOLEAN | NOT NULL DEFAULT false | Inject context tối thiểu |
@@ -1030,6 +1031,17 @@ Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback v�
 | 54 | Thêm cột `name VARCHAR(255)` vào `agent_hooks`; tạo bảng junction N:M `agent_hook_agents`; chuyển FK `agent_id` hiện có sang bảng junction; đổi tên `agent_hooks` → `hooks` và `agent_hook_agents` → `hook_agents`; xóa cột `agent_id` cũ khỏi `hooks` |
 | 55 | Thêm CHECK constraint `vault_documents_scope_consistency` (NOT VALID) trên `vault_documents` để đảm bảo tính nhất quán scope/agent_id/team_id: `personal` yêu cầu `agent_id NOT NULL`, `team` yêu cầu `team_id NOT NULL`, `shared` yêu cầu cả hai NULL, `custom` không ràng buộc |
 | 56 | `vault_chat_id` — thêm cột `chat_id TEXT NULL` vào `vault_documents` và index `(tenant_id, chat_id, agent_id)` cho chat-scoped vault isolation. Migration #56 follow-up (v3.11.2): drop scope-consistency check trước backfill UPDATEs để tránh lỗi constraint trên data cũ |
+| 57 | `heartbeat_provider_fk_set_null` (PG) — dọn sạch orphan phòng thủ, drop FK hiện có bằng tra tên constraint, thêm lại dưới tên `agent_heartbeats_provider_id_fkey` với `ON DELETE SET NULL`. Khóa `ACCESS EXCLUSIVE` ngắn trên `agent_heartbeats` trong ALTER (dưới một giây với bảng nhỏ). SQLite: schema v25 → v26, rebuild toàn bộ bảng `agent_heartbeats` với FK clause mới; `INSERT … SELECT` tường minh 25 cột giữ nguyên dữ liệu hiện có; `idx_heartbeats_due` được tạo lại. |
+| 58 | `agent_grants_env_override` — thêm cột `encrypted_env BYTEA` vào `secure_cli_agent_grants`; NULL nghĩa là kế thừa env cấp binary. Theo pattern AES-256-GCM của `secure_cli_user_credentials.encrypted_env`. |
+| 59 | `webhooks` — tạo bảng `webhooks` (registry webhook HTTP outbound) và `webhook_calls` (log audit delivery với retry state). Scoped theo tenant. `webhooks.secret_hash` unique toàn cục khi chưa bị revoke. `webhook_calls.status` CHECK: `queued`, `running`, `done`, `failed`, `dead`. |
+| 60 | `webhook_calls_lease_token` — thêm cột `lease_token TEXT` vào `webhook_calls` cho CAS optimistic-concurrency khi worker claim/update; `ReclaimStale` đặt về NULL để CAS in-flight thất bại ở lần thử tiếp theo. |
+| 61 | `webhooks_encrypted_secret` — thêm cột `encrypted_secret TEXT NOT NULL DEFAULT ''` vào `webhooks`; lưu raw secret được mã hóa AES-256-GCM qua `GOCLAW_ENCRYPTION_KEY`. HMAC signing dùng secret đã giải mã, không phải `secret_hash`. Webhook hiện có nhận chuỗi rỗng và cần rotation. |
+| 62 | `workstations` — tạo bảng `workstations` (SSH/Docker remote exec target với `metadata` và `default_env` được mã hóa) và `agent_workstation_links` (junction N:M agent↔workstation có cờ `is_default`). |
+| 63 | `workstation_permissions` — tạo bảng allowlist `workstation_permissions`; mặc định từ chối theo argv[0] binary name; được seed trong transaction `WorkstationStore.Create`. Partial index trên entry đã bật. |
+| 64 | `workstation_activity` — tạo log audit `workstation_activity` cho exec event (`exec`/`deny`); lưu preview lệnh rút gọn + SHA-256 hash; append-only, được dọn hàng đêm qua `Prune(before)`. |
+| 65 | `agent_model_fallback` — thêm cột `model_fallback JSONB NOT NULL DEFAULT '{}'` vào `agents`; mảng thứ tự model fallback được thử khi primary model thất bại. |
+| 66 | `skill_agent_manage_grants` — thêm cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` vào `skill_agent_grants`; cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant. |
+| 67 | `skill_agent_grants_scope_cleanup` — migration chỉ thao tác data; xóa các row `skill_agent_grants` có `tenant_id` không khớp với tenant của agent hoặc skill, đảm bảo tenant-scope isolation trên skill grants. Không thay đổi schema. |
 
 ---
 
@@ -1091,6 +1103,7 @@ Grant truy cập per-agent cho secure CLI binary. Tách biệt "agent nào đư�
 | `timeout_seconds` | INTEGER | NULL = dùng mặc định của binary | Override timeout process cho agent này |
 | `tips` | TEXT | NULL = dùng mặc định của binary | Override gợi ý inject vào TOOLS.md cho agent này |
 | `enabled` | BOOLEAN | NOT NULL DEFAULT true | Grant có đang hoạt động không |
+| `encrypted_env` | BYTEA | | AES-256-GCM encrypted JSON env map override cho grant này; NULL = dùng env của binary (migration 058) |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Tenant sở hữu |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
@@ -1381,10 +1394,140 @@ Ngân sách token/chi phí prompt-handler theo tenant mỗi tháng. Mỗi tenant
 
 ---
 
+---
+
+### `webhooks`
+
+Registry webhook HTTP outbound. Mỗi webhook định nghĩa một endpoint mà GoClaw gọi khi agent tạo ra LLM response hoặc channel message. Secret được mã hóa AES-256-GCM qua `GOCLAW_ENCRYPTION_KEY`. (migration 059, 061)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | Tenant sở hữu; mọi truy vấn đều lọc theo tenant |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Agent gắn kết; NULL = webhook cho toàn tenant |
+| `name` | TEXT | NOT NULL | Nhãn dễ đọc |
+| `kind` | TEXT | NOT NULL CHECK (`llm`, `message`) | Loại trigger |
+| `secret_prefix` | TEXT | | Vài ký tự đầu của raw secret để hiển thị |
+| `secret_hash` | TEXT | NOT NULL | SHA-256 hex của raw secret; dùng để tra cứu bearer token |
+| `encrypted_secret` | TEXT | NOT NULL DEFAULT `''` | Raw secret được mã hóa AES-256-GCM qua `GOCLAW_ENCRYPTION_KEY`; dùng cho HMAC signing (migration 061) |
+| `scopes` | TEXT[] | NOT NULL DEFAULT `{}` | Phạm vi thao tác được phép |
+| `channel_id` | UUID | | Channel instance gắn kết cho loại `message` |
+| `rate_limit_per_min` | INT | NOT NULL DEFAULT 60 | Giới hạn rate inbound mỗi webhook |
+| `ip_allowlist` | TEXT[] | NOT NULL DEFAULT `{}` | IP caller được phép; rỗng = cho phép tất cả |
+| `require_hmac` | BOOLEAN | NOT NULL DEFAULT false | Từ chối request không có HMAC hợp lệ |
+| `localhost_only` | BOOLEAN | NOT NULL DEFAULT false | Giới hạn caller từ loopback |
+| `revoked` | BOOLEAN | NOT NULL DEFAULT false | Vô hiệu hóa mềm không xóa |
+| `created_by` | TEXT | | User ID tạo webhook |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `last_used_at` | TIMESTAMPTZ | | Lần cuối được gọi thành công |
+
+**Index:** `idx_webhooks_tenant` trên `(tenant_id)`, `idx_webhooks_tenant_agent` trên `(tenant_id, agent_id)`, unique `uq_webhooks_secret` trên `(secret_hash) WHERE revoked = false`
+
+---
+
+### `webhook_calls`
+
+Log delivery cho các lần gọi webhook với retry state và optimistic-concurrency locking. Về cơ bản là append-only. (migration 059, 060)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | Tenant sở hữu |
+| `webhook_id` | UUID FK → webhooks | NOT NULL ON DELETE CASCADE | Webhook cha |
+| `agent_id` | UUID | | Agent xử lý lần gọi |
+| `idempotency_key` | TEXT | | Khóa dedup do caller cung cấp |
+| `mode` | TEXT | NOT NULL CHECK (`sync`, `async`) | Chế độ delivery |
+| `callback_url` | TEXT | | URL nhận kết quả async |
+| `status` | TEXT | NOT NULL DEFAULT `queued` CHECK (`queued`, `running`, `done`, `failed`, `dead`) | Trạng thái delivery |
+| `attempts` | INT | NOT NULL DEFAULT 0 | Số lần thử lại |
+| `delivery_id` | UUID | NOT NULL DEFAULT gen_random_uuid() | ID delivery duy nhất |
+| `lease_token` | TEXT | | CAS token optimistic-concurrency; set bởi ClaimNext, xóa khi reclaim stale (migration 060) |
+| `next_attempt_at` | TIMESTAMPTZ | | Thời điểm thử lại tiếp theo |
+| `started_at` | TIMESTAMPTZ | | Khi bắt đầu xử lý |
+| `request_payload` | JSONB | | Body request inbound |
+| `response` | JSONB | | Body response của agent |
+| `last_error` | TEXT | | Lỗi delivery gần nhất |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `completed_at` | TIMESTAMPTZ | | Khi delivery hoàn tất |
+
+**Index:** `idx_webhook_calls_tenant_created` trên `(tenant_id, created_at DESC)`, `idx_webhook_calls_status_attempt` trên `(status, next_attempt_at)`, unique `uq_webhook_calls_idempotency` trên `(webhook_id, idempotency_key) WHERE idempotency_key IS NOT NULL`
+
+---
+
+### `workstations`
+
+SSH hoặc Docker remote execution target. Mỗi workstation định nghĩa một kết nối backend; agent dùng qua tool `workstation_exec`. Credential được lưu mã hóa. (migration 062)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK | |
+| `workstation_key` | VARCHAR(100) | NOT NULL | Slug identifier |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `name` | VARCHAR(255) | NOT NULL | Tên hiển thị |
+| `backend_type` | VARCHAR(20) | NOT NULL CHECK (`ssh`, `docker`) | Loại backend |
+| `metadata` | BYTEA | NOT NULL | Metadata kết nối được mã hóa AES-256-GCM (host, port, credentials) |
+| `default_cwd` | VARCHAR(500) | NOT NULL DEFAULT `''` | Thư mục làm việc mặc định |
+| `default_env` | BYTEA | NOT NULL | Biến môi trường mặc định được mã hóa AES-256-GCM |
+| `active` | BOOLEAN | NOT NULL DEFAULT TRUE | Workstation có sẵn sàng không |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | User ID tạo workstation |
+
+**Unique:** `(tenant_id, workstation_key)`
+
+**Index:** `idx_workstations_tenant_active` trên `(tenant_id, active) WHERE active = TRUE`
+
+> Migration 062 cũng tạo bảng **`agent_workstation_links`** — junction N:M liên kết agent với workstation trong tenant. PK: `(agent_id, workstation_id)`. `is_default BOOLEAN` đánh dấu workstation ưu tiên của agent. Unique partial index: `(agent_id) WHERE is_default = TRUE`.
+
+---
+
+### `workstation_permissions`
+
+Allowlist binary name được phép theo từng workstation (argv[0]). Mặc định từ chối: nếu không có pattern enabled nào khớp, exec bị từ chối. Pattern hỗ trợ glob prefix (ví dụ `python*`). (migration 063)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK | |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | Workstation cha |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `pattern` | VARCHAR(500) | NOT NULL | Tên binary hoặc glob pattern khớp với argv[0] |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT TRUE | Entry allowlist có đang hoạt động không |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | User ID tạo entry |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Unique:** `(workstation_id, pattern)`
+
+**Index:** `idx_workstation_perms_ws` trên `(workstation_id) WHERE enabled = TRUE`, `idx_workstation_perms_tenant` trên `(tenant_id)`
+
+---
+
+### `workstation_activity`
+
+Log audit rolling cho exec event trên workstation (`exec` và `deny`). Append-only; được dọn hàng đêm. Lưu preview lệnh rút gọn (200 ký tự đầu) và SHA-256 hash để forensics. (migration 064)
+
+| Cột | Type | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | Workstation đích |
+| `agent_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | Agent kích hoạt exec |
+| `action` | VARCHAR(20) | NOT NULL | `exec` (cho phép) hoặc `deny` (bị chặn) |
+| `cmd_hash` | VARCHAR(64) | NOT NULL DEFAULT `''` | SHA-256 của lệnh đầy đủ để forensics |
+| `cmd_preview` | VARCHAR(200) | NOT NULL DEFAULT `''` | 200 ký tự đầu của lệnh (secret đã được redact) |
+| `exit_code` | INTEGER | | Exit code của tiến trình; NULL cho exec bị từ chối |
+| `duration_ms` | INTEGER | | Thời gian thực thi (millisecond) |
+| `deny_reason` | VARCHAR(200) | NOT NULL DEFAULT `''` | Lý do exec bị chặn (rỗng nếu được phép) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Index:** `idx_ws_activity_ws_time` trên `(workstation_id, created_at DESC)`, `idx_ws_activity_tenant_time` trên `(tenant_id, created_at DESC)`, `idx_ws_activity_retention` trên `(created_at)` (dùng bởi pruner hàng đêm)
+
+---
+
 ## Tiếp theo
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — cấu hình database map sang `config.json` như thế nào
 - [Glossary](/glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

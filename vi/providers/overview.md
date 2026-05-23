@@ -50,6 +50,7 @@ Các provider hỗ trợ extended thinking cũng triển khai thêm `SupportsThi
 | **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
 | **acp** | JSON-RPC 2.0 subagent | `claude` |
 | **dashscope** | OpenAI-compat wrapper | `qwen3-max` |
+| **vertex** | OpenAI-compat (OAuth2) | `google/gemini-2.0-flash-001` |
 | **openai** (+ 15+ biến thể) | OpenAI-compatible | Tùy model |
 
 ### Provider tương thích OpenAI
@@ -222,9 +223,10 @@ Khi GoClaw kết nối MCP (Model Context Protocol) tools tới một provider, 
 - [OpenAI](./openai.md) — GPT-4o, o-series, GPT-5 reasoning model
 - [OpenRouter](./openrouter.md) — truy cập 100+ model qua một API key duy nhất
 - [Gemini](./gemini.md) — Google Gemini qua endpoint tương thích OpenAI
+- [Vertex AI](./vertex.md) — Vertex Gemini của Google Cloud với OAuth2 / ADC
 - [DeepSeek](./deepseek.md) — DeepSeek với hỗ trợ reasoning_content
 - [Groq](./groq.md) — inference cực nhanh
 - [DashScope](./dashscope.md) — Alibaba Qwen model với hỗ trợ thinking
 - [ACP](./acp.md) — điều phối subagent Claude Code, Codex CLI, Gemini CLI
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

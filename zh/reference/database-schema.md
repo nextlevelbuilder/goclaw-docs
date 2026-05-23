@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector 用于 embedding
 
 自定义 `uuid_generate_v7()` 函数提供时序有序的 UUID。所有主键默认使用此函数。
 
-Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**56**。
+Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**67**。
 
 ### v3 Store 统一
 
@@ -122,6 +122,7 @@ Agent 核心记录。每个 agent 有自己的 context、工具和模型配置�
 | `tsv` | tsvector | GENERATED ALWAYS | 全文搜索向量（display_name + frontmatter）|
 | `embedding` | vector(1536) | | 语义搜索 embedding |
 | `budget_monthly_cents` | INTEGER | | 月度消费上限（美分）；NULL = 无限制（迁移 015）|
+| `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | 当主模型失败时按序尝试的 fallback 模型标识符数组（迁移 065）|
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `deleted_at` | TIMESTAMPTZ | | 软删除时间戳 |
@@ -315,7 +316,7 @@ BM25 + 向量混合记忆系统。
 
 **索引：** owner、visibility（部分 active）、slug、HNSW embedding、GIN tags、`is_system`（部分 true）、`enabled`（部分 false）
 
-**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。
+**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。`skill_agent_grants` 还增加了 `can_manage BOOLEAN NOT NULL DEFAULT FALSE`（迁移 066）——授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。
 
 ---
 
@@ -883,7 +884,7 @@ Exec 工具的凭证注入配置（Direct Exec Mode）。管理员将二进制�
 | `enabled` | BOOLEAN | NOT NULL DEFAULT false | 心跳是否激活 |
 | `interval_sec` | INT | NOT NULL DEFAULT 1800 | 运行间隔（秒）|
 | `prompt` | TEXT | | 每次心跳发送给 agent 的消息 |
-| `provider_id` | UUID FK → llm_providers（可空）| | 覆盖 LLM provider |
+| `provider_id` | UUID FK → llm_providers（可空）| ON DELETE SET NULL（迁移 057）| 覆盖 LLM provider；provider 被删除时置为 NULL |
 | `model` | VARCHAR(200) | | 覆盖模型 |
 | `isolated_session` | BOOLEAN | NOT NULL DEFAULT true | 在专用会话中运行 |
 | `light_context` | BOOLEAN | NOT NULL DEFAULT false | 注入最少 context |
@@ -1030,6 +1031,17 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 54 | 为 `agent_hooks` 添加 `name VARCHAR(255)` 列；创建 N:M 关联表 `agent_hook_agents`；将现有 `agent_id` FK 迁移到关联表；将 `agent_hooks` → `hooks`、`agent_hook_agents` → `hook_agents` 重命名；从 `hooks` 中删除已废弃的 `agent_id` 列 |
 | 55 | 在 `vault_documents` 上添加 `vault_documents_scope_consistency` CHECK 约束（NOT VALID），强制 scope/agent_id/team_id 一致性：`personal` 要求 `agent_id NOT NULL`，`team` 要求 `team_id NOT NULL`，`shared` 要求两者均为 NULL，`custom` 不受约束 |
 | 56 | `vault_chat_id` — 在 `vault_documents` 中新增 `chat_id TEXT NULL` 列和索引 `(tenant_id, chat_id, agent_id)`，实现 chat 范围的 vault 隔离。Migration #56 follow-up（v3.11.2）：在回填 UPDATE 前 drop scope-consistency check，以避免旧数据触发约束错误 |
+| 57 | `heartbeat_provider_fk_set_null`（PG）— 防御性孤儿清理；通过 constraint 名称查找 drop 现有 FK，以名称 `agent_heartbeats_provider_id_fkey` 和 `ON DELETE SET NULL` 重新添加。`ALTER TABLE` 期间对 `agent_heartbeats` 持短暂 `ACCESS EXCLUSIVE` 锁（小表下不足一秒）。SQLite：schema v25 → v26，对 `agent_heartbeats` 进行全表 rebuild，采用新 FK 子句；显式 25 列 `INSERT … SELECT` 保留所有现有数据行；`idx_heartbeats_due` 重新创建。|
+| 58 | `agent_grants_env_override` — 为 `secure_cli_agent_grants` 添加 `encrypted_env BYTEA` 列；NULL 表示继承 binary 级别的 env。沿用 `secure_cli_user_credentials.encrypted_env` 的 AES-256-GCM 模式。|
+| 59 | `webhooks` — 创建 `webhooks`（出站 HTTP webhook 注册表）和 `webhook_calls`（含重试状态的投递审计日志）两张表。按租户隔离。`webhooks.secret_hash` 在未撤销状态下全局唯一。`webhook_calls.status` CHECK：`queued`、`running`、`done`、`failed`、`dead`。|
+| 60 | `webhook_calls_lease_token` — 为 `webhook_calls` 添加 `lease_token TEXT` 列，用于 worker claim/update 的乐观并发 CAS；`ReclaimStale` 将其置为 NULL，使进行中的 CAS 操作在下次尝试时失败。|
+| 61 | `webhooks_encrypted_secret` — 为 `webhooks` 添加 `encrypted_secret TEXT NOT NULL DEFAULT ''` 列；通过 `GOCLAW_ENCRYPTION_KEY` 以 AES-256-GCM 加密存储 raw secret。HMAC 签名使用解密后的 secret，而非 `secret_hash`。现有 webhook 收到空字符串，需要 rotation。|
+| 62 | `workstations` — 创建 `workstations`（SSH/Docker 远程执行目标，`metadata` 和 `default_env` 加密存储）和 `agent_workstation_links`（agent↔workstation N:M 关联表，含 `is_default` 标志）两张表。|
+| 63 | `workstation_permissions` — 创建 `workstation_permissions` allowlist 表；按 argv[0] binary name 默认拒绝；在 `WorkstationStore.Create` 事务中 seed。已启用条目有部分索引。|
+| 64 | `workstation_activity` — 创建 `workstation_activity` 滚动审计日志，记录 exec 事件（`exec`/`deny`）；存储截断的命令预览和 SHA-256 哈希；append-only，通过 `Prune(before)` 每夜清理。|
+| 65 | `agent_model_fallback` — 为 `agents` 添加 `model_fallback JSONB NOT NULL DEFAULT '{}'` 列；有序数组，当主模型失败时按序尝试 fallback 模型。|
+| 66 | `skill_agent_manage_grants` — 为 `skill_agent_grants` 添加 `can_manage BOOLEAN NOT NULL DEFAULT FALSE` 列；授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。|
+| 67 | `skill_agent_grants_scope_cleanup` — 仅操作数据的迁移；删除 `skill_agent_grants` 中 `tenant_id` 与 agent 或 skill 租户不匹配的行，强制 skill grants 的租户范围隔离。无 schema 变更。|
 
 ---
 
@@ -1091,6 +1103,7 @@ secure CLI binary 的 per-agent 访问授权。将"哪些 agent 可以使用某�
 | `timeout_seconds` | INTEGER | NULL = 使用 binary 默认值 | 针对此 agent 的进程超时覆盖 |
 | `tips` | TEXT | NULL = 使用 binary 默认值 | 针对此 agent 注入 TOOLS.md 的提示覆盖 |
 | `enabled` | BOOLEAN | NOT NULL DEFAULT true | 此授权是否有效 |
+| `encrypted_env` | BYTEA | | 此授权专属的 AES-256-GCM 加密 JSON env map 覆盖；NULL = 使用 binary 级别的 env（迁移 058）|
 | `tenant_id` | UUID FK → tenants | NOT NULL | 所属租户 |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
@@ -1381,10 +1394,140 @@ Hook 执行的追加专用审计日志。父 hook 被删除时 `hook_id` 设为 
 
 ---
 
+---
+
+### `webhooks`
+
+出站 HTTP webhook 注册表。每个 webhook 定义一个端点，当 agent 产生 LLM 响应或 channel 消息时 GoClaw 调用该端点。密钥通过 `GOCLAW_ENCRYPTION_KEY` 以 AES-256-GCM 加密存储。（迁移 059、061）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | 所属租户；所有查询均按租户过滤 |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | 绑定的 agent；NULL = 租户级 webhook |
+| `name` | TEXT | NOT NULL | 可读标签 |
+| `kind` | TEXT | NOT NULL CHECK (`llm`, `message`) | 触发类型 |
+| `secret_prefix` | TEXT | | raw secret 前几个字符，用于显示 |
+| `secret_hash` | TEXT | NOT NULL | raw secret 的 SHA-256 十六进制；用于 bearer token 查找 |
+| `encrypted_secret` | TEXT | NOT NULL DEFAULT `''` | 通过 `GOCLAW_ENCRYPTION_KEY` AES-256-GCM 加密的 raw secret；用于 HMAC 签名（迁移 061）|
+| `scopes` | TEXT[] | NOT NULL DEFAULT `{}` | 允许的操作范围 |
+| `channel_id` | UUID | | `message` 类型绑定的 channel 实例 |
+| `rate_limit_per_min` | INT | NOT NULL DEFAULT 60 | 每个 webhook 的入站速率上限 |
+| `ip_allowlist` | TEXT[] | NOT NULL DEFAULT `{}` | 允许的调用方 IP；空 = 允许所有 |
+| `require_hmac` | BOOLEAN | NOT NULL DEFAULT false | 拒绝无有效 HMAC 签名的请求 |
+| `localhost_only` | BOOLEAN | NOT NULL DEFAULT false | 限制仅接受 loopback 调用 |
+| `revoked` | BOOLEAN | NOT NULL DEFAULT false | 软禁用，不删除 |
+| `created_by` | TEXT | | 创建者用户 ID |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `last_used_at` | TIMESTAMPTZ | | 最近一次成功调用时间 |
+
+**索引：** `idx_webhooks_tenant` 在 `(tenant_id)` 上，`idx_webhooks_tenant_agent` 在 `(tenant_id, agent_id)` 上，唯一 `uq_webhooks_secret` 在 `(secret_hash) WHERE revoked = false` 上
+
+---
+
+### `webhook_calls`
+
+webhook 调用的投递日志，含重试状态和乐观并发锁。实际上为 append-only。（迁移 059、060）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID | NOT NULL | 所属租户 |
+| `webhook_id` | UUID FK → webhooks | NOT NULL ON DELETE CASCADE | 父 webhook |
+| `agent_id` | UUID | | 处理本次调用的 agent |
+| `idempotency_key` | TEXT | | 调用方提供的去重键 |
+| `mode` | TEXT | NOT NULL CHECK (`sync`, `async`) | 投递模式 |
+| `callback_url` | TEXT | | 异步结果投递 URL |
+| `status` | TEXT | NOT NULL DEFAULT `queued` CHECK (`queued`, `running`, `done`, `failed`, `dead`) | 投递状态 |
+| `attempts` | INT | NOT NULL DEFAULT 0 | 重试次数 |
+| `delivery_id` | UUID | NOT NULL DEFAULT gen_random_uuid() | 唯一投递标识符 |
+| `lease_token` | TEXT | | 乐观并发 CAS token；由 ClaimNext 设置，stale reclaim 时清空（迁移 060）|
+| `next_attempt_at` | TIMESTAMPTZ | | 下次重试时间 |
+| `started_at` | TIMESTAMPTZ | | 开始处理时间 |
+| `request_payload` | JSONB | | 入站请求体 |
+| `response` | JSONB | | agent 响应体 |
+| `last_error` | TEXT | | 最近一次投递错误 |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `completed_at` | TIMESTAMPTZ | | 投递完成时间 |
+
+**索引：** `idx_webhook_calls_tenant_created` 在 `(tenant_id, created_at DESC)` 上，`idx_webhook_calls_status_attempt` 在 `(status, next_attempt_at)` 上，唯一 `uq_webhook_calls_idempotency` 在 `(webhook_id, idempotency_key) WHERE idempotency_key IS NOT NULL` 上
+
+---
+
+### `workstations`
+
+SSH 或 Docker 远程执行目标。每个 workstation 定义一个后端连接；agent 通过 `workstation_exec` 工具使用。凭证加密存储。（迁移 062）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK | |
+| `workstation_key` | VARCHAR(100) | NOT NULL | Slug 标识符 |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `name` | VARCHAR(255) | NOT NULL | 显示名称 |
+| `backend_type` | VARCHAR(20) | NOT NULL CHECK (`ssh`, `docker`) | 后端类型 |
+| `metadata` | BYTEA | NOT NULL | AES-256-GCM 加密的连接元数据（host、port、credentials）|
+| `default_cwd` | VARCHAR(500) | NOT NULL DEFAULT `''` | 默认工作目录 |
+| `default_env` | BYTEA | NOT NULL | AES-256-GCM 加密的默认环境变量 |
+| `active` | BOOLEAN | NOT NULL DEFAULT TRUE | workstation 是否可用 |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | 创建者用户 ID |
+
+**唯一约束：** `(tenant_id, workstation_key)`
+
+**索引：** `idx_workstations_tenant_active` 在 `(tenant_id, active) WHERE active = TRUE` 上
+
+> 迁移 062 还创建了 **`agent_workstation_links`** — 将 agent 与 workstation 关联的 N:M 关联表，在租户范围内有效。PK：`(agent_id, workstation_id)`。`is_default BOOLEAN` 标记 agent 的首选 workstation。部分唯一索引：`(agent_id) WHERE is_default = TRUE`。
+
+---
+
+### `workstation_permissions`
+
+每个 workstation 允许的 binary 名称（argv[0]）allowlist。默认拒绝：若无已启用的 pattern 匹配，exec 将被拒绝。Pattern 支持 glob 前缀匹配（如 `python*`）。（迁移 063）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK | |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | 父 workstation |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `pattern` | VARCHAR(500) | NOT NULL | 与 argv[0] 匹配的 binary 名称或 glob pattern |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT TRUE | 此 allowlist 条目是否有效 |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT `''` | 创建者用户 ID |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**唯一约束：** `(workstation_id, pattern)`
+
+**索引：** `idx_workstation_perms_ws` 在 `(workstation_id) WHERE enabled = TRUE` 上，`idx_workstation_perms_tenant` 在 `(tenant_id)` 上
+
+---
+
+### `workstation_activity`
+
+workstation exec 事件（`exec` 和 `deny`）的滚动审计日志。Append-only；每夜清理。存储截断的命令预览（前 200 字符）和 SHA-256 哈希，用于取证。（迁移 064）
+
+| 列 | 类型 | 约束 | 说明 |
+|----|------|------|------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `workstation_id` | UUID FK → workstations | NOT NULL ON DELETE CASCADE | 目标 workstation |
+| `agent_id` | VARCHAR(255) | NOT NULL DEFAULT `''` | 触发 exec 的 agent |
+| `action` | VARCHAR(20) | NOT NULL | `exec`（允许）或 `deny`（拒绝）|
+| `cmd_hash` | VARCHAR(64) | NOT NULL DEFAULT `''` | 完整命令的 SHA-256，用于取证关联 |
+| `cmd_preview` | VARCHAR(200) | NOT NULL DEFAULT `''` | 命令前 200 字符（密钥已脱敏）|
+| `exit_code` | INTEGER | | 进程退出码；被拒绝的 exec 为 NULL |
+| `duration_ms` | INTEGER | | 执行耗时（毫秒）|
+| `deny_reason` | VARCHAR(200) | NOT NULL DEFAULT `''` | exec 被拒绝的原因（允许时为空）|
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**索引：** `idx_ws_activity_ws_time` 在 `(workstation_id, created_at DESC)` 上，`idx_ws_activity_tenant_time` 在 `(tenant_id, created_at DESC)` 上，`idx_ws_activity_retention` 在 `(created_at)` 上（供每夜 pruner 使用）
+
+---
+
 ## 下一步
 
 - [环境变量](/env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

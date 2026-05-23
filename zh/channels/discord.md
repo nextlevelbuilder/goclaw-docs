@@ -76,6 +76,10 @@ flowchart TD
 
 在服务器（channel）中，bot 默认需要被提及才会响应（`require_mention: true`）。待处理消息存入历史缓冲区。当 bot 被提及时，历史记录作为上下文包含。
 
+**群组 @mention 检测：** 当 Discord 事件的 `mentions` 数组中包含 bot 的用户 ID 时，或者当消息是直接回复 bot 自己发送的消息时，该消息被视为 @mention。两个条件均在执行任何 policy 或 pairing 逻辑之前进行检查。
+
+**群组中的 pairing 回复：** 当设置了 `group_policy: "pairing"` 且 `require_mention: true`（默认值）时，bot 只在用户明确 @mention bot（或回复 bot 的消息）时，才向未配对用户发送配对邀请。未向 bot 寻址的消息会被静默添加到群组历史缓冲区，不会触发 pairing 回复。设置 `require_mention: false` 可在群组中无条件发送配对邀请（不建议用于公开服务器）。
+
 ### Typing 指示器
 
 Agent 处理期间显示 typing 指示器（9 秒保活）。消息成功投递后，typing 指示器自动停止。
@@ -141,4 +145,4 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 - [Larksuite](/channel-feishu) — Larksuite 流式卡片集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

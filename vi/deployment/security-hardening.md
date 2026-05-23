@@ -413,18 +413,74 @@ Secrets lưu trong PostgreSQL được mã hóa AES-256-GCM:
 | MCP server API keys | `mcp_servers` | `api_key` |
 | Custom tool env vars | `custom_tools` | `env` |
 | Channel credentials | `channel_instances` | `credentials` |
+| Webhook secrets | `webhooks` | `secret_hash`, `secret_enc` |
+| Workstation credentials | `workstations` | `metadata` |
 
 Đặt encryption key trước lần chạy đầu:
 
 ```bash
-# Tạo key mạnh
-openssl rand -hex 32
+# Tạo key mạnh (base64, 44 ký tự = 32 byte thô)
+openssl rand -base64 32
 
 # Thêm vào .env
-GOCLAW_ENCRYPTION_KEY=your-64-char-hex-key
+GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 ```
 
+Key được chấp nhận ở ba định dạng: base64 (44 ký tự, kết quả của `openssl rand -base64 32`), hex (64 ký tự, kết quả của `openssl rand -hex 32`), hoặc 32 byte thô. Cả ba đều giải ra cùng khóa AES 32 byte; dùng base64 là dạng chuẩn theo tài liệu environment variables.
+
 Format lưu: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Giá trị không có prefix được trả về plaintext để tương thích migration.
+
+> **Phải giống nhau trên tất cả replica.** Trong deployment cluster, mọi gateway instance phải dùng cùng `GOCLAW_ENCRYPTION_KEY`. Rotate key yêu cầu mã hóa lại toàn bộ secret đã lưu trước khi khởi động lại.
+
+---
+
+## Bảo mật Webhook
+
+> Xem [Webhooks](/advanced/webhooks) để biết tài liệu API đầy đủ.
+
+### Bắt buộc có encryption key
+
+Hệ thống webhook chỉ khởi động khi `GOCLAW_ENCRYPTION_KEY` được đặt. Nếu không có, tất cả route `/v1/webhooks/*` trả về `404` và gateway ghi log:
+
+```
+webhook subsystem disabled: GOCLAW_ENCRYPTION_KEY not set
+```
+
+Đây là thiết kế có chủ ý: key trống sẽ lưu webhook secret dưới dạng plaintext vào database, phá vỡ toàn bộ bảo vệ. Đặt key và khởi động lại để bật lại hệ thống.
+
+### Ký HMAC (khuyến nghị)
+
+Mỗi webhook row có `hmac_signing_key` (trả về một lần lúc tạo và lúc rotate). Dùng HMAC-SHA256 để ký request thay vì bearer secret:
+
+```
+X-Webhook-Id: <webhook-uuid>
+X-GoClaw-Signature: t=<unix_seconds>,v1=<hmac_hex>
+```
+
+Thuật toán ký:
+
+```
+signing_key = hex.Decode(hmac_signing_key)       // hex_64 → 32 byte thô
+payload     = "{unix_ts}.{raw_request_body}"
+signature   = HMAC_SHA256(signing_key, payload)
+header      = "t={unix_ts},v1={hex(signature)}"
+```
+
+**Bảo vệ lệch thời gian.** Request có `|now - t| > 300` giây bị từ chối. Đồng bộ đồng hồ caller qua NTP.
+
+**Bảo vệ replay.** Sau khi HMAC signature hợp lệ được chấp nhận, gateway ghi `sha256(tenant_id|signature_hex)` vào nonce cache per-process (TTL 320 giây). Replay trả về `401` với audit event `security.webhook.hmac_replay`.
+
+**Bắt buộc HMAC-only.** Đặt `require_hmac: true` trên webhook row để tắt xác thực bearer secret. Đây là cấu hình khuyến nghị cho integration production.
+
+### Các tùy chọn bổ sung
+
+| Trường | Ghi chú |
+|--------|---------|
+| `localhost_only` | Giới hạn caller chỉ `127.0.0.1` / `::1`. Tự động bật trên Lite edition. |
+| `ip_allowlist` | IP hoặc dải CIDR. Để trống = cho phép mọi nguồn. `X-Forwarded-For` không được tin. |
+| `rate_limit_per_min` | Giới hạn per-webhook (0 = dùng mặc định tenant). |
+
+Xem [Webhooks](/advanced/webhooks) để biết tham chiếu payload tạo đầy đủ và ví dụ xác minh signature bằng Go, Node.js và Python.
 
 ---
 
@@ -492,7 +548,8 @@ GoClaw bọc tất cả goroutine nền trong panic recovery handler qua package
 Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ:
 
 - [ ] Đặt `GOCLAW_GATEWAY_TOKEN` bằng token ngẫu nhiên mạnh
-- [ ] Đặt `GOCLAW_ENCRYPTION_KEY` bằng key ngẫu nhiên 32 byte (64 ký tự hex)
+- [ ] Đặt `GOCLAW_ENCRYPTION_KEY` bằng key base64 32 byte (`openssl rand -base64 32`) — bắt buộc để dùng webhook, workstation credentials, và CLI grant env overrides
+- [ ] Lưu `GOCLAW_ENCRYPTION_KEY` trong secret manager (Vault, AWS Secrets Manager, v.v.) — không commit vào `config.json` hay version control
 - [ ] Đặt `gateway.allowed_origins` theo domain dashboard
 - [ ] Đặt `gateway.rate_limit_rpm` (ví dụ `20`) để giới hạn request rate mỗi user
 - [ ] Đặt `gateway.injection_action` thành `"block"` cho các deployment public-facing
@@ -507,6 +564,9 @@ Dùng trước khi expose GoClaw ra internet hoặc cho người dùng chia sẻ
 - [ ] Review shell deny groups — cả 15 group đều bật theo mặc định; chỉ nới lỏng cho agent cụ thể cần thiết
 - [ ] Xác minh sandbox mode không fallback sang thực thi host (fail-closed)
 - [ ] Xác nhận `GOCLAW_GATEWAY_TOKEN` đã được đặt — token trống bật dev mode (admin cho tất cả)
+- [ ] Với webhook: dùng `require_hmac: true` trên webhook row — tắt bearer auth, bắt buộc ký HMAC-SHA256
+- [ ] Với webhook: đặt `localhost_only: true` (hoặc dùng `ip_allowlist`) cho webhook không dành cho public
+- [ ] Không có plaintext credentials trong file config — dùng env var và secret manager
 
 ---
 
@@ -543,7 +603,7 @@ journalctl -u goclaw | grep 'security\.'
 | Agent đọc được file ngoài workspace | `restrict_to_workspace: false` trên agent | Bật lại (mặc định là `true`) |
 | Credentials xuất hiện trong tool output | `scrub_credentials: false` | Xóa override đó — scrubbing bật mặc định |
 | Sandbox không cô lập được | Sandbox mode là `"off"` | Đặt `sandbox.mode` thành `"non-main"` hoặc `"all"` |
-| Encryption key chưa đặt | `GOCLAW_ENCRYPTION_KEY` trống | Đặt trước lần chạy đầu; rotate cần re-encrypt stored secrets |
+| Encryption key chưa đặt hoặc webhook trả 404 | `GOCLAW_ENCRYPTION_KEY` trống | Đặt trước lần chạy đầu; hệ thống webhook sẽ bị tắt nếu không có key |
 | Tất cả user có quyền admin | `GOCLAW_GATEWAY_TOKEN` chưa đặt | Đặt token mạnh; để trống = dev mode |
 
 ---
@@ -554,5 +614,7 @@ journalctl -u goclaw | grep 'security\.'
 - [Sandbox](../advanced/sandbox.md) — chi tiết cấu hình Docker sandbox
 - [Docker Compose](./docker-compose.md) — deploy với security settings qua compose overlays
 - [Database Setup](./database-setup.md) — PostgreSQL TLS và encrypted secret storage
+- [Webhooks](../advanced/webhooks.md) — HTTP endpoint xác thực HMAC, xác minh signature, và bảo vệ replay
+- [Workstations](../advanced/workstations.md) — mục tiêu thực thi từ xa, mô hình phân quyền, và nhật ký kiểm tra
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->

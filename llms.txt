@@ -45,6 +45,7 @@
 - [Ollama Cloud](providers/ollama-cloud.md): Use Ollama-compatible models via cloud hosting — the convenience of hosted inference with Ollama's open model ecosystem.
 - [Perplexity](providers/perplexity.md): Connect GoClaw to Perplexity's search-augmented AI models via their OpenAI-compatible API.
 - [DashScope (Qwen)](providers/dashscope.md): Connect GoClaw to Alibaba's Qwen models via the DashScope OpenAI-compatible API.
+- [Vertex AI (Google Cloud)](providers/vertex.md): Use Google Cloud Vertex AI's OpenAI-compatible Gemini endpoint with OAuth2 service-account or Application Default Credentials.
 - [Bailian](providers/bailian.md): Connect to Alibaba Cloud Bailian (百炼) models.
 - [Suno](providers/suno.md): Generate music and audio with Suno's AI music generation platform.
 - [Zai](providers/zai.md): Connect to Zai and Zai Coding providers (OpenAI-compatible).
@@ -61,7 +62,7 @@
 - [Discord](channels/discord.md): Discord bot integration via the Discord Gateway API. Supports DMs, servers, threads, and streaming responses via message editing.
 - [Feishu / Lark](channels/feishu.md): **Create Feishu App:**
 - [Larksuite](channels/larksuite.md): **Create Larksuite App:**
-- [Zalo Bot](channels/zalo-bot.md): Static-token Zalo Bot integration. Single-credential setup, polling/webhook, DM-only — simplest way to bring a Zalo bot online when OAuth is not required.
+- [Zalo Bot](channels/zalo-bot.md): Static-token Zalo Bot integration. Single-credential setup, polling by default, DM-only — the simplest way to bring a Zalo bot online when you don't need OAuth.
 - [Zalo OA](channels/zalo-oa.md): Zalo Official Account integration via OAuth v4. Production-ready, multi-OA, auto-refreshing tokens, with both polling (default) and webhook transports.
 - [Zalo Personal](channels/zalo-personal.md): Unofficial personal Zalo account integration using reverse-engineered protocol (zcago). Supports DMs and groups with restrictive access control.
 - [Slack](channels/slack.md): Slack integration via Socket Mode (WebSocket). Supports DMs, channel @mentions, threaded replies, streaming, reactions, media, and message debouncing.
@@ -99,6 +100,8 @@
 - [Exec Approval](advanced/exec-approval.md): Pause agent shell commands for human review before they run — approve, deny, or permanently allow from the dashboard.
 - [Context Pruning](advanced/context-pruning.md): Automatically trim old tool results to keep agent context within token limits.
 - [Channel Instances](advanced/channel-instances.md): Run multiple accounts per channel type — each with its own credentials, agent binding, and writer permissions.
+- [Webhooks](advanced/webhooks.md): Trigger agents or deliver channel messages from external systems via HMAC-authenticated HTTP endpoints.
+- [Workstations](advanced/workstations.md): Run agent commands on remote machines through SSH or Docker, with a per-workstation allowlist and a full audit trail.
 - [Usage & Quota](advanced/usage-quota.md): Track token consumption per agent and session, and enforce per-user request limits across hour, day, and week windows.
 - [Cost Tracking](advanced/cost-tracking.md): Monitor token costs per agent and provider using configurable per-model pricing.
 - [Model Steering](advanced/model-steering.md): How GoClaw guides small models through 3 control layers: Track (scheduling), Hint (contextual nudges), and Guard (safety boundaries).
@@ -127,6 +130,7 @@
 - [CLI Commands](reference/cli-commands.md): Complete reference for every `goclaw` command, subcommand, and flag.
 - [WebSocket Protocol](reference/websocket-protocol.md): Protocol v3 specification for the GoClaw gateway WebSocket RPC interface.
 - [REST API](reference/rest-api.md): All `/v1` HTTP endpoints for agent management, providers, skills, traces, and more.
+- [API Endpoint Catalog](reference/api-endpoints-catalog.md): Auto-generated complete index of all REST endpoints. For request/response details, examples, and authentication, see [REST API Reference](rest-api.md).
 - [Configuration Reference](reference/config-reference.md): Full `config.json` schema — every field, type, and default value.
 - [Environment Variables](reference/environment-variables.md): All environment variables recognized by GoClaw, organized by category.
 - [Database Schema](reference/database-schema.md): All PostgreSQL tables, columns, types, and constraints across all migrations.

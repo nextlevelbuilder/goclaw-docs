@@ -74,6 +74,10 @@ flowchart TD
 
 In servers (channels), the bot requires being mentioned by default (`require_mention: true`). Pending messages are stored in a history buffer. When the bot is mentioned, history is included as context.
 
+**Group @mention detection:** A message is counted as an @mention when the bot's user ID appears in the `mentions` array of the Discord event, *or* when the message is a direct reply to one of the bot's own messages. Both conditions are checked before any policy or pairing logic runs.
+
+**Pairing replies in groups:** When `group_policy: "pairing"` is set and `require_mention: true` (the default), the bot only sends a pairing invite to an unpaired user if that user explicitly @mentioned the bot (or replied to the bot). Messages that do not address the bot are silently added to the group history buffer and never trigger a pairing reply. Set `require_mention: false` to send pairing invites unconditionally in groups (not recommended for public servers).
+
 ### Typing Indicator
 
 While the agent processes, a typing indicator is shown (9-second keepalive). The typing indicator stops automatically after successful message delivery.
@@ -139,4 +143,4 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 - [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->

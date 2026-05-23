@@ -62,11 +62,14 @@ Dashboard 在侧边栏中将功能分组组织。
 
 点击 agent 打开其详情页，包含以下标签：
 - **General** — Agent 元数据和基本信息
-- **Config** — 模型、temperature、系统提示词、工具权限
+- **Config** — 模型、temperature、系统提示词、工具权限；包含 **Model Fallback** 区域（拖放排序的备用 provider/model 列表，在主模型不可用时触发）
 - **Files** — 上下文文件（IDENTITY.md、USER.md 等）
+- **Permissions** — 授予或拒绝特定用户修改 agent 配置类型（`file_writer`、`heartbeat`、`cron`、`context_files`）的权限，可按 DM、所有群组或指定群组设置范围。包含"Check Access"功能，在提交规则前测试用户的实际权限。参见 [Config Permissions System](/deploy-security)。
 - **Shares** — 跨租户共享 agent
 - **Links** — 配置该 agent 可委托的其他 agent（权限、并发限制、交接规则）
 - **Skills** — Agent 专属 skill 分配
+- **Evolution** — Agent 进化历史
+- **Hooks** — 该 agent 的质量门禁 hook
 - **Instances** — 预定义 agent 实例（仅限预定义 agent）
 
 #### Agent Teams（Agent 团队）
@@ -118,6 +121,12 @@ Gateway 节点配对和管理。使用 8 位配对码将浏览器 session 与 ga
 #### Skills
 
 上传 agent 可以发现和使用的 `SKILL.md` 文件。Skills 支持语义匹配搜索——agent 根据用户的提问找到合适的 skill。
+
+Skills 列表支持通过选择工具栏进行**批量操作**（选中一个或多个 skill 时出现）：
+- **Enable** — 启用选中的 skill
+- **Disable** — 停用选中的 skill
+- **Grant to All Agents** — 将选中的自定义 skill 应用到租户中的所有 agent（仅限自定义 skill）
+- **Delete** — 永久删除选中的自定义 skill
 
 #### Custom Tools（自定义工具）
 
@@ -206,12 +215,13 @@ Agent 生命周期历史——显示 agent 创建、更新或删除的时间，�
 
 #### Packages（包）
 
-管理安装在 Docker 容器中的运行时包。三种类别：
-- **系统** — apk 包（由 root 特权的 `pkg-helper` 二进制文件通过 Unix socket 管理）
+管理安装在 Docker 容器中的运行时包。页面采用 **4 标签布局**：
+- **System** — apk 包（由 root 特权的 `pkg-helper` 二进制文件通过 Unix socket 管理）
 - **Python** — pip 包
 - **Node** — npm 包
+- **GitHub** — 通过内置 GitHub 安装器安装的 GitHub Release 二进制文件
 
-显示已安装版本，支持无需重建镜像的安装/卸载。
+所有标签均显示已安装版本，支持无需重建镜像的安装/卸载。页面顶部的更新列表显示所有来源（pip、npm、GitHub）的可用升级。**CLI Credentials** 标签也嵌入在此页面供管理员使用——参见下方 [CLI Credentials](#cli-credentials)。
 
 #### Providers（Provider）
 
@@ -229,11 +239,24 @@ Agent 生命周期历史——显示 agent 创建、更新或删除的时间，�
 
 #### CLI Credentials（CLI 凭证）
 
-管理用于安全命令行访问 GoClaw 的 CLI 凭证。
+管理用于安全命令行访问 GoClaw 的 CLI 凭证。每个已注册的二进制文件都有一个 **Grants** 对话框，用于分配每个 agent 的权限：
+- 选择 agent，设置可选的 `deny_args` 和 `deny_verbose` 正则模式，以及 per-agent 超时时间
+- **Env override** 区域——开启"Override binary defaults"后，可添加 per-grant 环境变量键值对，gateway 在该 agent 运行该二进制文件时注入这些变量。被拒绝的键（如 `PATH`、`LD_PRELOAD`、`GOCLAW_*`）在服务端被阻止，并在界面内联标注
+- **Reveal** — 若 grant 已设置环境变量，点击眼睛图标可通过 `POST .../env:reveal`（有速率限制）获取当前明文值。关闭对话框时，值会从状态中清除
+
+此对话框也可直接从 Packages 页面的 **CLI Credentials** 标签访问（仅限管理员）。
 
 #### API Keys（API 密钥）
 
 管理编程访问的 API key——创建、撤销并为 key 分配角色。Key 使用 `goclaw_` 前缀格式，支持基于角色的权限范围（admin、operator、viewer）。
+
+#### Workstations（工作站）
+
+注册和管理远程执行目标。Agent 调用 `workstation_exec` 工具在链接的工作站上运行命令。创建对话框接受：
+- **Name**（名称）和 **Key**（标识符，如 `my-dev-server`）
+- **后端类型**：`ssh`（主机、端口、用户，可选 identity 文件）或 `docker`（容器名称，可选 Docker 主机）
+
+创建后，使用 **Test** 按钮测试连接。完整的权限模型和活动审计日志见 [Workstations](/advanced/workstations)。
 
 #### Tenants（租户，多租户模式）
 
@@ -326,4 +349,4 @@ Lite 版支持最多 5 个 agent。达到限制时，"New agent" 按钮禁用。
 - [GoClaw 工作原理](/how-goclaw-works) — 了解架构
 - [Agent 详解](/agents-explained) — 了解 agent 类型
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->

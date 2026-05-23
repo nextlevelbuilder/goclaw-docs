@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **56**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **57**.
 
 ```mermaid
 graph LR
@@ -210,6 +210,19 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ### v3.11.x — Highlights and Breaking Changes
 
+#### v3.11.3
+
+- fix(migrations): `000057_heartbeat_provider_fk_set_null` — defensive orphan cleanup; drops existing FK by constraint-name lookup (handles auto-generated name drift), re-adds with `ON DELETE SET NULL`. Brief `ACCESS EXCLUSIVE` lock on `agent_heartbeats` during `ALTER TABLE` (sub-second on small tables; heartbeat workers may pause briefly).
+- SQLite: schema v25 → v26 — full table rebuild for `agent_heartbeats` with updated FK clause; explicit 25-column `INSERT … SELECT` preserves all existing rows. `idx_heartbeats_due` recreated.
+
+**Docker users:** MUST pull `ghcr.io/nextlevelbuilder/goclaw:v3.11.3` AND run `goclaw upgrade`. A stale v3.11.2 image fails on boot with:
+
+```
+schema version mismatch: required 57, current 56
+```
+
+**Bare-metal users:** rebuild binary and run `./goclaw upgrade`.
+
 #### v3.11.2
 
 - fix(migrations): drop scope-consistency check before backfill UPDATEs — migration #56 follow-up; prevents constraint errors when backfilling over legacy data
@@ -359,4 +372,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->

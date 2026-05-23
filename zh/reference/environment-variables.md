@@ -23,7 +23,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | 变量 | 必填 | 说明 |
 |----------|----------|-------------|
 | `GOCLAW_GATEWAY_TOKEN` | 是 | WebSocket 和 HTTP API 认证的 Bearer token |
-| `GOCLAW_ENCRYPTION_KEY` | 是 | 用于加密数据库中 provider API key 的 AES-256-GCM 密钥。用 `openssl rand -hex 32` 生成 |
+| `GOCLAW_ENCRYPTION_KEY` | 是 | AES-256-GCM 密钥（base64 编码的 32 字节 / 44 字符），用于加密数据库中的 secrets——LLM provider API key、MCP API key、webhook secret 以及 workstation credential。用 `openssl rand -base64 32` 生成。**`/v1/webhooks/*` 端点必须设置**——若未设置，webhook 子系统在启动时被禁用（其他子系统仍正常运行）。集群中所有 gateway 实例必须使用相同密钥。不要存储在 `config.json` 中。 |
 | `GOCLAW_CONFIG` | 否 | `config.json` 路径。默认：`./config.json` |
 | `GOCLAW_HOST` | 否 | Gateway 监听主机。默认：`0.0.0.0` |
 | `GOCLAW_PORT` | 否 | Gateway 监听端口。默认：`18790` |
@@ -215,7 +215,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 ```bash
 # 必填
 GOCLAW_GATEWAY_TOKEN=your-gateway-token
-GOCLAW_ENCRYPTION_KEY=your-32-byte-hex-key
+GOCLAW_ENCRYPTION_KEY=your-base64-32-byte-key   # openssl rand -base64 32
 GOCLAW_POSTGRES_DSN=postgres://user:pass@localhost:5432/goclaw?sslmode=disable
 
 # LLM provider（选其一）
@@ -238,4 +238,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI 命令](/cli-commands) — `goclaw onboard` 自动生成 `.env.local`
 - [数据库 Schema](/database-schema) — 密钥如何加密存储在 PostgreSQL 中
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
