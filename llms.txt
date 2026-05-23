@@ -62,7 +62,8 @@
 - [Discord](channels/discord.md): Discord bot integration via the Discord Gateway API. Supports DMs, servers, threads, and streaming responses via message editing.
 - [Feishu / Lark](channels/feishu.md): **Create Feishu App:**
 - [Larksuite](channels/larksuite.md): **Create Larksuite App:**
-- [Zalo OA](channels/zalo-oa.md): Zalo Official Account (OA) integration. DM-only with pairing-based access control and image support.
+- [Zalo Bot](channels/zalo-bot.md): Static-token Zalo Bot integration. Single-credential setup, polling by default, DM-only — the simplest way to bring a Zalo bot online when you don't need OAuth.
+- [Zalo OA](channels/zalo-oa.md): Zalo Official Account integration via OAuth v4. Production-ready, multi-OA, auto-refreshing tokens, with both polling (default) and webhook transports.
 - [Zalo Personal](channels/zalo-personal.md): Unofficial personal Zalo account integration using reverse-engineered protocol (zcago). Supports DMs and groups with restrictive access control.
 - [Slack](channels/slack.md): Slack integration via Socket Mode (WebSocket). Supports DMs, channel @mentions, threaded replies, streaming, reactions, media, and message debouncing.
 - [WhatsApp](channels/whatsapp.md): Direct WhatsApp integration. GoClaw connects directly to WhatsApp's multi-device protocol — no external bridge or Node.js service required. Auth state is stored in the database (PostgreSQL or SQLite).

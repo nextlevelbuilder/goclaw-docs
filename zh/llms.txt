@@ -62,7 +62,8 @@
 - [Discord](zh/channels/discord.md): 通过 Discord Gateway API 集成 Discord bot。支持 DM、服务器、线程和通过消息编辑实现的流式响应。
 - [Feishu / Lark](zh/channels/feishu.md): **创建飞书应用：**
 - [Larksuite](zh/channels/larksuite.md): **创建 Larksuite 应用：**
-- [Zalo OA](zh/channels/zalo-oa.md): Zalo 官方账号（OA）集成。仅支持 DM，基于配对的访问控制，支持图片。
+- [Zalo Bot](zh/channels/zalo-bot.md): Static-token Zalo Bot integration. Single-credential setup, polling by default, DM-only — the simplest way to bring a Zalo bot online when you don't need OAuth.
+- [Zalo OA](zh/channels/zalo-oa.md): Zalo Official Account integration via OAuth v4. Production-ready, multi-OA, auto-refreshing tokens, with both polling (default) and webhook transports.
 - [Zalo Personal](zh/channels/zalo-personal.md): 使用逆向工程协议（zcago）的非官方个人 Zalo 账号集成。支持 DM 和群组，采用严格访问控制。
 - [Slack](zh/channels/slack.md): 通过 Socket Mode（WebSocket）集成 Slack。支持 DM、channel @提及、线程回复、流式输出、表情回应、媒体和消息防抖。
 - [WhatsApp](zh/channels/whatsapp.md): 直接集成 WhatsApp。GoClaw 直接连接 WhatsApp 多设备协议 —— 无需外部桥接或 Node.js 服务。认证状态存储在数据库中（PostgreSQL 或 SQLite）。

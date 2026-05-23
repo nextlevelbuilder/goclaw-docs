@@ -9,25 +9,26 @@ Tài liệu đầy đủ cho tất cả các tích hợp nền tảng nhắn tin
 3. **[Discord](./discord.md)** — Gateway API, placeholder editing, threads
 4. **[Slack](./slack.md)** — Socket Mode, threads, streaming, reactions, debounce
 5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
-6. **[Zalo OA](./zalo-oa.md)** — Official Account, chỉ DM, pairing, hình ảnh
-7. **[Zalo Cá nhân](./zalo-personal.md)** — Tài khoản cá nhân (không chính thức), DM + nhóm
-8. **[WhatsApp](./whatsapp.md)** — Kết nối trực tiếp, xác thực QR, media, typing indicators, pairing
-9. **[WebSocket](./websocket.md)** — RPC trực tiếp, custom client, streaming events
-10. **[Ghép nối trình duyệt](./browser-pairing.md)** — Xác thực mã 8 ký tự, session token
+6. **[Zalo Bot](./zalo-bot.md)** — Bot token tĩnh, chỉ DM, polling/webhook
+7. **[Zalo OA](./zalo-oa.md)** — Official Account (OAuth v4), polling/webhook, pairing, hình ảnh
+8. **[Zalo Cá nhân](./zalo-personal.md)** — Tài khoản cá nhân (không chính thức), DM + nhóm
+9. **[WhatsApp](./whatsapp.md)** — Kết nối trực tiếp, xác thực QR, media, typing indicators, pairing
+10. **[WebSocket](./websocket.md)** — RPC trực tiếp, custom client, streaming events
+11. **[Ghép nối trình duyệt](./browser-pairing.md)** — Xác thực mã 8 ký tự, session token
 
 ## Bảng so sánh kênh
 
-| Tính năng | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo CN | WhatsApp | WebSocket |
-|---------|----------|---------|-------|--------|---------|-----------|----------|-----------|
-| **Độ phức tạp** | Dễ | Dễ | Dễ | Trung bình | Trung bình | Khó | Trung bình | Rất dễ |
-| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling | Protocol | Kết nối trực tiếp | WebSocket |
-| **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có | Có | N/A |
-| **Hỗ trợ nhóm** | Có | Có | Có | Có | Không | Có | Có | N/A |
-| **Streaming** | Có | Có | Có | Có | Không | Không | Không | Có |
-| **Định dạng** | HTML | Markdown | mrkdwn | Cards | Plain | Plain | WA native | JSON |
-| **Media** | Ảnh, Voice, File | File, Embeds | File (20MB) | Ảnh, File | Ảnh | -- | Ảnh, Video, Audio, Docs | N/A |
-| **Xác thực** | Token | Token | 3 Token | App ID + Secret | API Key | Credentials | QR Code | Token + Pairing |
-| **Mức rủi ro** | Thấp | Thấp | Thấp | Thấp | Thấp | Cao | Trung bình | Thấp |
+| Tính năng | Telegram | Discord | Slack | Larksuite | Zalo Bot | Zalo OA | Zalo CN | WhatsApp | WebSocket |
+|---------|----------|---------|-------|--------|---------|---------|-----------|----------|-----------|
+| **Độ phức tạp** | Dễ | Dễ | Dễ | Trung bình | Dễ | Trung bình | Khó | Trung bình | Rất dễ |
+| **Transport** | Polling | Gateway | Socket Mode | WS/Webhook | Polling/Webhook | Polling/Webhook | Protocol | Kết nối trực tiếp | WebSocket |
+| **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có | Có | Có | N/A |
+| **Hỗ trợ nhóm** | Có | Có | Có | Có | Không | Không | Có | Có | N/A |
+| **Streaming** | Có | Có | Có | Có | Không | Không | Không | Không | Có |
+| **Định dạng** | HTML | Markdown | mrkdwn | Cards | Plain | Plain | Plain | WA native | JSON |
+| **Media** | Ảnh, Voice, File | File, Embeds | File (20MB) | Ảnh, File | Ảnh | Ảnh | -- | Ảnh, Video, Audio, Docs | N/A |
+| **Xác thực** | Token | Token | 3 Token | App ID + Secret | Bot Token | OAuth v4 | Credentials | QR Code | Token + Pairing |
+| **Mức rủi ro** | Thấp | Thấp | Thấp | Thấp | Thấp | Thấp | Cao | Trung bình | Thấp |
 
 ## File cấu hình
 
@@ -41,6 +42,7 @@ Tất cả cấu hình kênh nằm trong `config.json` gốc:
     "slack": { ... },
     "feishu": { ... },
     "zalo": { ... },
+    "zalo_oa": { ... },
     "zalo_personal": { ... },
     "whatsapp": { ... }
   }

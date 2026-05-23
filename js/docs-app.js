@@ -155,6 +155,7 @@ const DOC_MAP = {
   'channel-discord': docEntry('channels', 'discord', 'Discord', 'Channel Discord', 'Discord 频道'),
   'channel-feishu': docEntry('channels', 'feishu', 'Feishu / Lark', 'Channel Feishu', '飞书 / Lark'),
   'channel-larksuite': docEntry('channels', 'larksuite', 'Larksuite', 'Channel Larksuite', 'Larksuite 频道'),
+  'channel-zalo-bot': docEntry('channels', 'zalo-bot', 'Zalo Bot', 'Channel Zalo Bot', 'Zalo Bot 频道'),
   'channel-zalo-oa': docEntry('channels', 'zalo-oa', 'Zalo OA', 'Channel Zalo OA', 'Zalo OA 频道'),
   'channel-zalo-personal': docEntry('channels', 'zalo-personal', 'Zalo Personal', 'Channel Zalo Personal', 'Zalo Personal 频道'),
   'channel-slack': docEntry('channels', 'slack', 'Slack', 'Channel Slack', 'Slack 频道'),

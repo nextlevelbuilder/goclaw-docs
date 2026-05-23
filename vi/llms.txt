@@ -62,7 +62,8 @@
 - [Discord](vi/channels/discord.md): Tích hợp Discord bot qua Discord Gateway API. Hỗ trợ DM, server, thread, và phản hồi streaming qua chỉnh sửa tin nhắn.
 - [Feishu / Lark](vi/channels/feishu.md): Tích hợp nhắn tin [Feishu](https://www.feishu.cn/) (飞书) dành cho người dùng tại Trung Quốc — hỗ trợ DM, nhóm, streaming card và cập nhật thời gian thực qua WebSocket hoặc webhook.
 - [Larksuite](vi/channels/larksuite.md): Tích hợp nhắn tin [Larksuite](https://www.larksuite.com/) hỗ trợ DM, nhóm, streaming card, và cập nhật theo thời gian thực qua WebSocket hoặc webhook.
-- [Zalo OA](vi/channels/zalo-oa.md): Tích hợp Zalo Official Account (OA). Chỉ hỗ trợ DM với kiểm soát truy cập dựa trên pairing và hỗ trợ hình ảnh.
+- [Zalo Bot](vi/channels/zalo-bot.md): Static-token Zalo Bot integration. Single-credential setup, polling by default, DM-only — the simplest way to bring a Zalo bot online when you don't need OAuth.
+- [Zalo OA](vi/channels/zalo-oa.md): Zalo Official Account integration via OAuth v4. Production-ready, multi-OA, auto-refreshing tokens, with both polling (default) and webhook transports.
 - [Zalo Personal](vi/channels/zalo-personal.md): Tích hợp tài khoản Zalo cá nhân không chính thức sử dụng giao thức được dịch ngược (zcago). Hỗ trợ DM và nhóm với kiểm soát truy cập hạn chế.
 - [Slack](vi/channels/slack.md): Tích hợp Slack qua Socket Mode (WebSocket). Hỗ trợ DM, @mention trong channel, trả lời theo thread, streaming, reaction, media, và message debouncing.
 - [WhatsApp](vi/channels/whatsapp.md): Tích hợp WhatsApp trực tiếp. GoClaw kết nối trực tiếp đến giao thức multi-device của WhatsApp — không cần bridge hay dịch vụ Node.js bên ngoài. Trạng thái xác thực được lưu trong database (PostgreSQL hoặc SQLite).
