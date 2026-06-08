@@ -59,6 +59,7 @@
 ## Channels
 - [Channel Overview](vi/channels/overview.md): Channel kết nối các nền tảng nhắn tin (Telegram, Discord, Larksuite, v.v.) với agent runtime của GoClaw thông qua một message bus thống nhất. Mỗi channel dịch các sự kiện đặc thù của nền tảng thành object `InboundMessage` chuẩn hoá và chuyển đổi phản hồi của agent thành output phù hợp với nền tảng đó.
 - [Telegram](vi/channels/telegram.md): Tích hợp Telegram bot qua long polling (Bot API). Hỗ trợ DM, nhóm, forum topic, chuyển giọng nói thành văn bản, và phản hồi streaming.
+- [Bitrix24](vi/channels/bitrix24.md): Tích hợp Bitrix24 qua API **imbot** (chatbot). GoClaw đăng ký một bot trên portal Bitrix24, nhận sự kiện chat qua webhook, và trả lời với tư cách là bot đó. Một gateway GoClaw có thể phục vụ nhiều bot trên nhiều portal, và nhiều bot có thể dùng chung một portal (chúng chia sẻ OAuth token và vòng lặp refresh).
 - [Discord](vi/channels/discord.md): Tích hợp Discord bot qua Discord Gateway API. Hỗ trợ DM, server, thread, và phản hồi streaming qua chỉnh sửa tin nhắn.
 - [Feishu / Lark](vi/channels/feishu.md): Tích hợp nhắn tin [Feishu](https://www.feishu.cn/) (飞书) dành cho người dùng tại Trung Quốc — hỗ trợ DM, nhóm, streaming card và cập nhật thời gian thực qua WebSocket hoặc webhook.
 - [Larksuite](vi/channels/larksuite.md): Tích hợp nhắn tin [Larksuite](https://www.larksuite.com/) hỗ trợ DM, nhóm, streaming card, và cập nhật theo thời gian thực qua WebSocket hoặc webhook.

@@ -150,6 +150,8 @@ Sau khi bot trả lời trong thread, bot tự động trả lời các tin nh�
 
 Các tin nhắn nhanh từ cùng thread được gộp lại thành một lần gửi. Delay mặc định: 300ms (cấu hình qua `debounce_delay`). Các batch đang chờ được flush khi shutdown.
 
+Ngoài việc gộp ở tầng channel này, [Inbound Debounce](/channels-overview#inbound-debounce) toàn gateway cũng áp dụng — nó gộp các tin nhắn dồn dập (và việc upload nhiều file) từ cùng một người gửi trước khi agent chạy.
+
 ### Định dạng tin nhắn
 
 Markdown từ LLM được chuyển sang Slack mrkdwn:
@@ -238,4 +240,4 @@ Danh sách `allow_from` hỗ trợ cả user ID và Slack channel ID cho allowli
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

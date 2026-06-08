@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **57**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **73**。
 
 ```mermaid
 graph LR
@@ -210,7 +210,20 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 
 ## 近期迁移
 
-### v3.11.x — 功能亮点与重大变更
+### v3.12.x — 功能亮点与重大变更
+
+#### Schema 58 → 73
+
+迁移 `000058`–`000073` 在下次启动时自动应用（`./goclaw upgrade` 或 `GOCLAW_AUTO_UPGRADE=true`）——无需手动操作。亮点：
+
+- `000068_bitrix_portals` — 添加 `bitrix_portals`，按租户存储 Bitrix24 portal OAuth state（凭证 + token 以 AES-256-GCM 存储）。
+- `000069_browser_cookies` — 添加 `browser_cookies`，存储用户选定的、加密的服务端浏览器 cookie，按租户/用户/agent 隔离。
+- `000070_usage_caps_pricing` — 添加 `usage_pricing_catalog`（同步的按模型定价）和 `usage_pricing_overrides`（按租户的价格覆盖）。
+- `000071_usage_cap_policies` — 添加 usage-cap 执行表：`usage_cap_policies`、`usage_cap_counters`、`usage_cap_reservations`、`usage_cap_events`。
+- `000072_agent_budget_usage_cap_bridge` — 为 `usage_cap_policies` 添加 `source` 列，并为每个 `budget_monthly_cents` 非 NULL 的 agent **回填**一条 `month` 窗口 policy（1 美分 = 10,000 micros，`source = 'agent_budget_monthly_cents'`）。现有的 per-agent 月度预算现在通过 usage-cap 引擎执行。幂等（`ON CONFLICT DO NOTHING`）；无需操作。
+- `000073_secure_cli_credential_type` — 为 `secure_cli_user_credentials` 添加可空的 `credential_type` + `host_scope`，为 `secure_cli_binaries` 添加 `adapter_name`，用于带类型的 credential-adapter 框架。所有列默认 NULL 以保留旧版 passthrough 行为——无需操作。
+
+**gateway 触发的升级（host release-upgrade 流程）：** 当在 systemd 主机上通过 dashboard/API 触发升级时，`goclaw-upgrade-release` 现在会先将自身以临时 `systemd-run` 单元重新启动，因此 deploy 期间停止 `goclaw` 不再杀死升级任务。陈旧的 `running` 状态记录在 30 分钟后被取代，部署等待循环也能容忍 restart 期间的瞬时 `502`。无需更改配置。
 
 #### v3.11.3
 
@@ -373,4 +386,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

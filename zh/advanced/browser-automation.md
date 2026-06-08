@@ -201,6 +201,91 @@ snapshot 返回无障碍树。使用 `interactive: true` 仅显示可点击/可�
 
 ---
 
+## Selected Cookie Sync
+
+服务器端的浏览器会话启动时没有任何登录状态。**Selected cookie sync** 让用户从自己已登录的站点中挑选特定 cookie 并复制到 GoClaw，使 agent 的浏览器能够以该已登录会话的身份操作 — 无需共享密码。
+
+由一个小型 Chrome extension（`chrome-selected-cookie-sync`）负责挑选。**没有自动后台同步**：用户在当前活动标签页上打开 extension，勾选要分享的具体 cookie，然后点击 **Sync**。GoClaw 将这些值加密存储，并仅针对匹配的 domain 和 path 把它们重放（replay）到 agent 的浏览器中。
+
+```mermaid
+flowchart LR
+    USER["已登录站点的 User"] --> EXT["chrome-selected-cookie-sync\nextension"]
+    EXT -->|"POST /v1/browser/cookies/sync"| GW["GoClaw 网关"]
+    GW -->|"AES-256-GCM 加密"| DB[("browser_cookies\n表")]
+    DB -->|"解密 + domain/path 匹配"| AGENT["Agent 浏览器会话"]
+```
+
+### Endpoints
+
+这三个 endpoint 都要求 **operator** 认证（gateway token、API key 或 paired-browser 认证）。
+
+| Method | Path | 用途 |
+|--------|------|------|
+| `POST` | `/v1/browser/cookies/sync` | 为某个 agent upsert 所选 cookie |
+| `GET` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | 列出已同步的 cookie **元数据**（绝不返回值） |
+| `DELETE` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | 撤销已同步的 cookie |
+
+客户端只能选择 `agent_id`。**tenant 和 user 由认证上下文推导得出**，而非来自请求体 — 客户端无法伪造其他用户的 cookie。当认证上下文没有 user，或未提供 `agent_id` 时，sync 会被拒绝。
+
+**Sync 请求体：**
+
+```json
+{
+  "agent_id": "default",
+  "source": "chrome-selected-cookie-sync",
+  "cookies": [
+    {
+      "domain": "example.com",
+      "name": "session",
+      "path": "/",
+      "value": "REDACTED",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "expirationDate": 1789999999
+    }
+  ]
+}
+```
+
+**响应：** `{ "synced": 1 }`。限制：每个请求最多 200 个 cookie，每个 cookie 值最大 16 KB，请求体总大小 1 MB。
+
+`GET` 响应只返回元数据 — `domain`、`name`、`path`、`secure`、`httpOnly`、`sameSite`、`expiresAt`、`source`、`updatedAt`。cookie **值绝不会被返回**。
+
+### 作用域（scope）与唯一性
+
+每个存储的 cookie 以 `(tenant_id, user_id, agent_id, domain, path, name)` 作为键。重新同步同一个 cookie 会更新已有行（upsert）。正是这一作用域，防止一个用户的 cookie 泄漏到另一个用户或另一个 agent 的浏览器会话中。
+
+### 安全性
+
+- **静态加密**：cookie 值在写入 `browser_cookies` 表之前用 AES-256-GCM 加密。需要 `GOCLAW_ENCRYPTION_KEY` 环境变量 — **未设置时，sync 和 list 会安全失败（fail closed，HTTP 503）**，因此 cookie 绝不会以明文持久化。
+- **只写值**：list endpoint 和审计日志只返回元数据。cookie 值绝不会出现在 API 响应或日志中。
+- **按作用域重放**：仅当请求 URL 的 host 与 path 匹配已存 cookie 的 domain/path、cookie 未过期、且 tenant/user/agent 作用域匹配时，agent 浏览器才会收到该 cookie。
+- **显式选择**：extension 仅在用户为当前活动站点授予 host 权限后才读取 cookie，且只发送用户勾选的 cookie。
+- **撤销**：从 extension 中删除，或调用 `DELETE /v1/browser/cookies?agent_id=<agent>&domain=<domain>` 移除已同步的 cookie。省略 `domain` 会移除该 agent 的所有 cookie。
+
+### Agent 如何使用已同步的 cookie
+
+当 agent 的浏览器导航到 `http(s)` URL 时，GoClaw 的 cookie provider 会按当前浏览器作用域（`tenant_id` / `user_id` / `agent_id`）查找 cookie，将其解密，并仅注入那些 domain 和 path 与目标 URL 匹配（且未过期）的 cookie。非 HTTP scheme 不会获得任何 cookie。Agent 永远看不到原始值 — 它们通过 CDP 直接应用到 Chrome 会话。
+
+### 安装 extension
+
+extension 位于 GoClaw 仓库的 `extensions/chrome-selected-cookie-sync/`。
+
+1. 打开 `chrome://extensions`，启用 **Developer mode**，点击 **Load unpacked**，选择 `extensions/chrome-selected-cookie-sync/` 文件夹。
+2. 在你已登录的站点上打开一个标签页，然后点击 extension 图标。
+3. 填写 popup：
+   - **Gateway URL** — 例如 `http://localhost:18790`
+   - **Token** — 一个 operator token（以 `Authorization: Bearer <token>` 发送）
+   - **User ID** — 以 `X-GoClaw-User-Id` 请求头发送
+   - **Agent ID** — 例如 `default`
+4. 点击 **Grant access** 为当前站点授予 host 权限，然后点击 **Refresh** 列出该站点的 cookie。
+5. 勾选要分享的 cookie（或 **Select all**），然后点击 **Sync**。popup 会确认 `Synced N cookies.`
+
+设置保存在 `chrome.storage.local` 中。extension 在发送前请求 gateway-origin 权限，在读取 cookie 前请求 active-tab host 权限。
+
+---
+
 ## 安全注意事项
 
 - **SSRF 防护**：GoClaw 对工具输入应用 SSRF 过滤 — agent 不能轻易被引导到内网地址。
@@ -258,4 +343,4 @@ Agent 调用：
 - [Exec 审批](/exec-approval) — 运行命令前要求人工确认
 - [Hooks 与质量门控](/hooks-quality-gates) — 为 agent 操作添加前/后检查
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

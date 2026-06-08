@@ -84,21 +84,41 @@ GoClaw extracts media attachments from the message being replied to across all c
 
 The `media_max_bytes` config field enforces a per-channel limit on outbound media uploads sent by the agent. Files exceeding this limit are skipped with a log entry. Each channel sets its own default (e.g., 20 MB for Telegram, 30 MB for Feishu/Lark). Configure per channel if needed.
 
+## Inbound Debounce
+
+When a user fires several messages in quick succession (or uploads multiple files at once), GoClaw merges them into a **single** inbound message before running the agent — one reply instead of one per fragment.
+
+Set the silence window with `gateway.inbound_debounce_ms` (milliseconds):
+
+```json
+{
+  "gateway": {
+    "inbound_debounce_ms": 1500
+  }
+}
+```
+
+- Messages are buffered per `channel:chatID:senderID:agentID` key. The timer resets on every new message, so the merged message flushes only after the sender goes quiet for the configured window.
+- `0` **disables** text debouncing — each message dispatches immediately.
+- **Per-agent override:** an agent can set `inbound_debounce_ms` in its `agent_config` to use a different window than the gateway default.
+- **`/stop` and `/reset` bypass the debouncer** — control commands are handled immediately and never buffered.
+- **Media floor:** media-bearing messages no longer bypass debouncing. The effective window is `max(configured, media floor)`, so a multi-file upload always coalesces into one inbound even when text debouncing is set to `0`. (A non-zero agent override is honored verbatim — operators who set, say, `500` keep `500`, not the floor.) Messages synthesized internally by tools/subagents are exempt from the floor.
+
 ## Channel Comparison
 
-| Feature | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
-|---------|----------|---------|-------|--------|---------|-----------|----------|
-| **Transport** | Long polling | Gateway events | Socket Mode (WS) | WS/Webhook | Long polling | Internal proto | WS bridge |
-| **DM support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Group support** | Yes | Yes | Yes | Yes | No | Yes | Yes |
-| **Streaming** | Yes (typing) | Yes (edit) | Yes (edit) | Yes (card) | No | No | No |
-| **Media** | Photos, voice, files | Files, embeds | Files (20MB) | Images, files (30MB) | Images (5MB) | -- | JSON |
-| **Reply media** | Yes | Yes | -- | Yes | -- | -- | -- |
-| **Rich format** | HTML | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
-| **Thread support** | Yes | -- | -- | -- | -- | -- | -- |
-| **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- |
-| **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Message limit** | 4,096 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
+| Feature | Telegram | Bitrix24 | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
+|---------|----------|----------|---------|-------|--------|---------|-----------|----------|
+| **Transport** | Long polling | Webhook (OAuth) | Gateway events | Socket Mode (WS) | WS/Webhook | Long polling | Internal proto | WS bridge |
+| **DM support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| **Group support** | Yes | Yes | Yes | Yes | Yes | No | Yes | Yes |
+| **Streaming** | Yes (typing) | Yes | Yes (edit) | Yes (edit) | Yes (card) | No | No | No |
+| **Media** | Photos, voice, files | Files (20MB) | Files, embeds | Files (20MB) | Images, files (30MB) | Images (5MB) | -- | JSON |
+| **Reply media** | Yes | -- | Yes | -- | Yes | -- | -- | -- |
+| **Rich format** | HTML | Text | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
+| **Thread support** | Yes | -- | -- | -- | -- | -- | -- | -- |
+| **Reactions** | Yes | Yes | -- | Yes | Yes | -- | -- | -- |
+| **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| **Message limit** | 4,096 | 4,000 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
 
 ## Channel Health Diagnostics
 
@@ -189,10 +209,11 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 ## Next Steps
 
 - [Telegram](/channel-telegram) — Full guide for Telegram integration
+- [Bitrix24](/channel-bitrix24) — imbot OAuth portal integration
 - [Discord](/channel-discord) — Discord bot setup
 - [Slack](/channel-slack) — Slack Socket Mode integration
 - [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
 - [WebSocket](/channel-websocket) — Direct agent API via WS
 - [Browser Pairing](/channel-browser-pairing) — 8-char code pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

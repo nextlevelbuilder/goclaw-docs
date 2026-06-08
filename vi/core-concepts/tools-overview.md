@@ -205,6 +205,8 @@ Ghi vào `MEMORY.md`, `memory.md`, hoặc `memory/*` được định tuyến đ
 
 Tool `credentialed_exec` chạy CLI tool (gh, gcloud, aws, kubectl, terraform) với credentials được tự động inject trực tiếp vào process con dưới dạng biến môi trường — không qua shell, không lộ credentials. Các lớp bảo mật: xác minh đường dẫn (chặn giả mạo `./gh`), chặn toán tử shell (`;`, `|`, `&&`), pattern deny per-binary (ví dụ: chặn `auth\s+`), và output scrubbing.
 
+Một binary secure-CLI đã đăng ký vẫn bị chặn ngay cả khi được gọi qua tool `exec` thông thường: nếu agent chưa được cấp quyền (grant), `exec` sẽ từ chối với thông báo `Binary "<name>" requires a secure CLI grant. Ask admin to grant access to this agent.` thay vì chạy nó với môi trường của host. Lớp gate này còn bóc tách các lớp shell wrapper (`sh -c`, `bash -c`, `env …`) sâu tối đa 3 cấp và fail-closed nếu việc tra cứu grant không khả dụng.
+
 **Kế thừa biến môi trường trên Windows:** Trên Windows, credentialed exec kế thừa các biến môi trường hệ thống cần thiết cho CLI — `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA` và `PROGRAMFILES`. Đây là các biến runtime không chứa bí mật mà hầu hết chương trình Win32 cần để hoạt động. Giá trị credentials vẫn được inject riêng và bị scrub khỏi output.
 
 ### `exec` — Bảo mật Shell
@@ -228,6 +230,66 @@ Tool `exec` áp dụng 15 nhóm deny — tất cả đều bật theo mặc đ�
 | `persistence` | `crontab`, ghi vào `.bashrc`/`.profile`/`.zshrc` |
 | `process_control` | `kill -9`, `killall`, `pkill` |
 | `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Timeout thực thi
+
+Tool `exec` trên host sẽ hủy lệnh chạy quá lâu. Timeout là một setting per-tool của builtin tên `timeout_seconds`, lưu dưới settings của tool `exec`:
+
+```json
+{
+  "timeout_seconds": 120
+}
+```
+
+| Thuộc tính | Giá trị |
+|----------|---------|
+| Mặc định / fallback | 60 giây |
+| Tối thiểu | 1 giây |
+| Tối đa | 3600 giây (1 giờ) — giá trị lớn hơn sẽ bị giới hạn (clamp) về mức này |
+| Giá trị không hợp lệ / thiếu | Quay về 60 giây |
+
+Đặt giá trị này từ dashboard (**Config → Tools → Built-in Tools → exec**) hoặc qua API settings của builtin tool. Setting cấp tenant ghi đè setting toàn cục. Khi lệnh vượt quá timeout, process group bị kill (SIGTERM, sau đó SIGKILL sau 3 giây gia hạn) và tool trả về `command timed out after <duration>`.
+
+> Setting này chỉ điều khiển tool `exec` trên host. Nó **khác** với `timeout_seconds` của từng custom tool và với `sandbox_config.timeout_sec` của sandbox — xem [Custom Tools](/custom-tools).
+
+### Command Keyword Allowlist
+
+Khi agent chạy một credentialed CLI (qua `credentialed_exec` / secure-CLI gate), các pattern `deny_args` per-binary sẽ quét giá trị đối số để tìm từ vựng nguy hiểm. Điều này có thể tạo ra false positive: nội dung sản phẩm hoặc bảo mật hợp lệ truyền vào dưới dạng đối số (ví dụ một bài đăng hoặc tin nhắn có chứa từ bị gắn cờ) bị chặn dù đó chỉ là dữ liệu thuần túy, không phải lệnh.
+
+Command keyword allowlist giải quyết việc này mà không làm suy yếu `deny_args`. Cấu hình các rule có phạm vi qua `tools.commandKeywordAllowlist`:
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "social-post-content",
+        "command": "zernio",
+        "subcommands": ["posts:create"],
+        "args": ["--text"],
+        "keywords": ["install", "exec"],
+        "reason": "marketing copy may mention these words as content",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+| Trường | Kiểu | Mô tả |
+|-------|------|-------------|
+| `id` | string | Định danh của rule (dùng trong audit log) |
+| `command` | string | Binary mà rule áp dụng (được chuẩn hóa case và đường dẫn) |
+| `subcommands` | string[] | Subcommand tùy chọn phải khớp (ví dụ `"posts:create"`) |
+| `args` | string[] | Các flag đối số có giá trị được quét (ví dụ `"--text"`) |
+| `argPositions` | int[] | Đối số theo vị trí (0-based, sau subcommand đã khớp) tùy chọn |
+| `keywords` | string[] | Từ vựng được cho phép xuất hiện bên trong giá trị đối số đã khớp |
+| `reason` | string | Ghi chú tự do được lưu trong audit log |
+| `enabled` | bool | Mặc định là bật khi bỏ qua |
+
+Cơ chế: trước khi chạy kiểm tra `deny_args`, từ khóa được allowlist sẽ bị mask (thay bằng placeholder) **chỉ bên trong giá trị đối số đã khớp**. Quá trình quét deny không còn vướng vào từ đó nữa, nhưng các pattern deny theo command-path và việc chặn toán tử shell vẫn hoàn toàn hoạt động — allowlist không bao giờ tắt `deny_args`, nó chỉ miễn trừ từ vựng bị gắn cờ cụ thể bên trong các đối số nội dung cụ thể. Mỗi lần khớp được ghi vào audit log `security.command_keyword_allowlist` với binary, subcommand, đối số, từ khóa, rule ID, và context agent/tenant.
+
+Cấu hình này được **reload lúc runtime** qua bus `TopicConfigChanged` — không cần restart gateway.
 
 ### Cấu hình toàn cục shellDenyGroups (runtime-reloadable)
 
@@ -348,4 +410,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

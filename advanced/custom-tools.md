@@ -67,6 +67,8 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 | `agent_id` | UUID | null | Scope to one agent; omit for global |
 | `enabled` | bool | true | Disable without deleting |
 
+> **Three distinct timeouts — don't confuse them.** This per-custom-tool `timeout_seconds` (default 60) applies only to this one custom tool's command. It is separate from the host `exec` builtin tool's own `timeout_seconds` setting (also default 60, max 3600 — see [Tools Overview → Execution Timeout](/tools-overview)) and from the sandbox `sandbox_config.timeout_sec` (agent-level, default 300 — see [Sandbox](/sandbox)). A custom tool routed through the sandbox is still bounded by the sandbox timeout.
+
 ### Command templates
 
 Use `{{.paramName}}` placeholders. GoClaw replaces them with shell-escaped values using simple string replacement — not Go's `text/template` engine, so template functions and pipelines are not supported. Every substituted value is single-quoted with embedded single-quotes escaped, so even a malicious LLM cannot break out of the argument.
@@ -250,4 +252,4 @@ Returns all documents that link to the specified path. Respects team boundaries 
 - [Exec Approval](/exec-approval) — require human approval before commands run
 - [Sandbox](/sandbox) — run commands inside Docker for extra isolation
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

@@ -78,6 +78,47 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
   > ~/.goclaw/skills/my-new-skill/SKILL.md
 ```
 
+## 斜杠命令激活
+
+与其等待 agent 通过 `skill_search` 发现某个 skill，你可以在聊天消息开头使用斜杠命令显式激活它。该功能默认启用。
+
+```
+/code-reviewer review this PR
+/use sql-style format these queries
+/list-skills
+/help code-reviewer
+```
+
+**支持的形式：**
+
+| 命令 | 作用 |
+|---|---|
+| `/<skill-slug> <你的请求>` | 按 slug（或显示名称）激活 skill，并将消息的其余部分作为该 skill 的输入 |
+| `/use <skill> <请求>` | 同上，显式动词形式（`/activate` 同样可用） |
+| `/list-skills` | 让 agent 列出所有可用 skill |
+| `/help <skill>` | 让 agent 解释某个 skill 及其用法 |
+
+当某个 skill 被激活时，GoClaw 会将其 `SKILL.md` 加载到当前轮次，并将 agent 限定在该 skill 的范围内处理本次请求。
+
+**匹配规则：**
+
+- **精确匹配**优先 — 直接匹配 slug 或显示名称（不区分大小写）。`/code-reviewer` 匹配 `code-reviewer` skill。
+- **部分（前缀）匹配**为可选项（默认关闭）。启用后，若 `code-reviewer` 是唯一的前缀匹配，则 `/code` 可匹配它。
+- **歧义保护** — 若两个 skill 的匹配强度相同（匹配长度相同），该命令将被视为*未匹配*，而非随意猜测。
+
+**未匹配：** 若找不到请求的 skill，GoClaw 会运行模糊相似度搜索（编辑距离，最多 3 条建议），并让 agent 告知你该 skill 未找到，同时推荐最接近的可用 skill。该建议行为默认启用。若不存在相似的 skill，消息将按普通提示词处理。
+
+**配置**（均为可选）：
+
+| 配置键 | Env / system config | 默认值 | 作用 |
+|---|---|---|---|
+| `skills.slash_commands.enabled` | `skills.slash_commands.enabled` | `true` | 总开关 |
+| `skills.slash_commands.prefix` | `skills.slash_commands.prefix` | `/` | 单字符触发前缀 |
+| `skills.slash_commands.partial_matching` | `skills.slash_commands.partial_matching` | `false` | 允许前缀匹配 |
+| `skills.slash_commands.suggest_not_found` | `skills.slash_commands.suggest_not_found` | `true` | 未匹配时建议替代项 |
+
+> 看起来像文件路径的消息（首个 token 中包含 `/`、`\` 或 `.`，例如 `/etc/hosts`）**不会**被视为斜杠命令，将原样传递。
+
 ## 通过 Dashboard 上传
 
 进入 **Skills → Upload**，拖入 ZIP 文件。ZIP 可以包含**单个 skill** 或**多个 skill**：
@@ -113,6 +154,32 @@ skills-bundle.zip
 元数据（名称、描述、可见性、授权）存在 PostgreSQL 中；文件内容存在磁盘上。GoClaw 始终提供编号最高的版本。旧版本保留以备回滚。
 
 通过 Dashboard 上传的 skill 初始可见性为 **internal** — 可立即被你授权的任意 agent 或用户访问。
+
+### 上传大小限制
+
+Skill ZIP 上传（Dashboard 和 `POST /v1/skills/import`）受可配置的大小限制约束。默认值为 **20 MB**，且生效值始终被钳制在 **1–500 MB** 范围内。
+
+该限制按以下优先级顺序解析（最高优先）：
+
+1. **租户覆盖** — system config 键 `skills.max_upload_size_mb`（按租户设置）
+2. **SKILL.md frontmatter** — skill frontmatter 中的 `max_upload_size_mb` 字段
+3. **网关默认值** — 环境变量 `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` 或配置文件中的 `skills.max_upload_size_mb`（回退到 20 MB）
+
+```yaml
+# 通过 SKILL.md frontmatter 为单个 skill 提高限制
+---
+name: large-skill
+description: Ships large reference assets.
+max_upload_size_mb: 100
+---
+```
+
+```bash
+# 通过环境变量设置网关全局默认值
+export GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB=128
+```
+
+超过已解析限制的上传将被拒绝，错误类似 `skill ZIP size 42.0 MB exceeds 20 MB limit`。
 
 ## 通过 API 导入
 
@@ -197,13 +264,13 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 ### Agent 可以 / 不可以做什么
 
-Agent **可以**：运行 Python/Node 脚本，通过 `pip3 install` 或 `npm install -g` 安装包，访问 `/app/workspace/` 中的文件（包括 `.media/`）。
+Agent **可以**：运行 Python/Node 脚本，通过 `pip3 install` 或 `npm install -g` 安装包，访问 `/app/workspace/` 中的文件 — 包括用于当前用户上传的 `.uploads/` 以及用于旧版媒体引用的 `.media/`。
 
 Agent **不可以**：写入系统路径，从 `/tmp` 执行二进制文件，运行被拦截的 shell 模式（网络工具、反弹 shell）。
 
 ## 内置 Skill
 
-GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了五个核心 skill，优先级最低 — 用户上传的同名 slug skill 可覆盖它们。
+GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了六个核心 skill，优先级最低 — 用户上传的同名 slug skill 可覆盖它们。
 
 | Skill | 用途 |
 |---|---|
@@ -212,6 +279,7 @@ GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了五个核心 s
 | `docx` | 读取、创建、编辑 Word 文档 |
 | `pptx` | 读取、创建、编辑演示文稿 |
 | `skill-creator` | 创建新 skill |
+| `workspace-organizing` | 保持 agent 工作空间整洁、易于查找 — 强制执行基于用途的文件夹约定，并在写入文件前运行 memory/Vault/knowledge-graph 发现以避免重复 |
 
 内置 skill 在每次网关启动时种入 PostgreSQL（哈希跟踪，未变更则不重新导入）。它们被标记为 `is_system = true` 且 `visibility = 'public'`。
 
@@ -477,4 +545,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

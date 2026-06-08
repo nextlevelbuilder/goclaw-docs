@@ -8,14 +8,15 @@ GoClaw 所有消息平台集成的完整文档。
 
 1. **[概览](./overview.md)** — 概念、策略、消息流图
 2. **[Telegram](./telegram.md)** — 长轮询、论坛话题、STT、流式输出
-3. **[Discord](./discord.md)** — Gateway API、占位符编辑、线程
-4. **[Slack](./slack.md)** — Socket Mode、线程、流式输出、表情回应、防抖
-5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook、流式卡片、媒体
-6. **[Zalo OA](./zalo-oa.md)** — 官方账号、仅 DM、配对、图片
-7. **[Zalo 个人](./zalo-personal.md)** — 个人账号（非官方）、DM + 群组
-8. **[WhatsApp](./whatsapp.md)** — 直连、QR 认证、媒体、输入指示器、配对
-9. **[WebSocket](./websocket.md)** — 直接 RPC、自定义客户端、流式事件
-10. **[Browser Pairing](./browser-pairing.md)** — 8 位码认证、session token
+3. **[Bitrix24](./bitrix24.md)** — imbot OAuth portal 安装、按用户 MCP、去重
+4. **[Discord](./discord.md)** — Gateway API、占位符编辑、线程
+5. **[Slack](./slack.md)** — Socket Mode、线程、流式输出、表情回应、防抖
+6. **[Larksuite](./larksuite.md)** — WebSocket/Webhook、流式卡片、媒体
+7. **[Zalo OA](./zalo-oa.md)** — 官方账号、仅 DM、配对、图片
+8. **[Zalo 个人](./zalo-personal.md)** — 个人账号（非官方）、DM + 群组
+9. **[WhatsApp](./whatsapp.md)** — 直连、QR 认证、媒体、输入指示器、配对
+10. **[WebSocket](./websocket.md)** — 直接 RPC、自定义客户端、流式事件
+11. **[Browser Pairing](./browser-pairing.md)** — 8 位码认证、session token
 
 ## Channel 对比表
 

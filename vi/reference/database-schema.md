@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **67**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **73**.
 
 ### Thống nhất Store v3
 
@@ -121,7 +121,7 @@ Bản ghi agent core. Mỗi agent có context, tools, và model configuration ri
 | `frontmatter` | TEXT | | Tóm tắt chuyên môn ngắn cho delegation và UI |
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
-| `budget_monthly_cents` | INTEGER | | Ngưỡng chi tiêu hàng tháng tính bằng USD cents; NULL = không giới hạn (migration 015) |
+| `budget_monthly_cents` | INTEGER | | Ngưỡng chi tiêu hàng tháng tính bằng USD cents; NULL = không giới hạn (migration 015). Migration 072 bridge mọi giá trị non-NULL thành một row `usage_cap_policies` với window `month` và `source = 'agent_budget_monthly_cents'` (1 cent = 10.000 micros). |
 | `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Mảng thứ tự các model fallback được thử khi primary model thất bại (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
@@ -842,6 +842,7 @@ Cấu hình credential injection cho Exec tool (Direct Exec Mode). Admin map tê
 | `is_global` | BOOLEAN | NOT NULL DEFAULT true | Nếu true, tất cả agent đều dùng được; nếu false, chỉ agent có grant mới truy cập được |
 | `enabled` | BOOLEAN DEFAULT true | | |
 | `created_by` | TEXT DEFAULT `''` | | Admin user đã tạo entry này |
+| `adapter_name` | TEXT | NULL | Route binary tới một `CredentialAdapter` có kiểu tại thời điểm exec; NULL = passthrough legacy (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
 > **Lưu ý migration 036:** Cột `agent_id` đã bị xóa khỏi bảng này. Quyền truy cập per-agent giờ được quản lý qua bảng `secure_cli_agent_grants`. Binary có `is_global = true` thì tất cả agent đều dùng được; binary có `is_global = false` yêu cầu grant tường minh.
@@ -1079,6 +1080,8 @@ Credential CLI theo từng user, ghi đè credential mặc định của binary.
 | `encrypted_env` | BYTEA | NOT NULL | JSON env map mã hoá AES-256-GCM |
 | `metadata` | JSONB | NOT NULL DEFAULT `{}` | Metadata bổ sung |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Tenant sở hữu |
+| `credential_type` | TEXT | NULL | Kiểu credential — `env`, `pat`, `ssh_key`, …; NULL = passthrough legacy (migration 073) |
+| `host_scope` | TEXT | NULL | Ràng buộc credential với một hostname cụ thể (vd `github.com`); NULL = không scope (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **Unique:** `(binary_id, user_id, tenant_id)`
@@ -1524,10 +1527,177 @@ Log audit rolling cho exec event trên workstation (`exec` và `deny`). Append-o
 
 ---
 
+### `bitrix_portals`
+
+OAuth state của portal Bitrix24 theo tenant. Nhiều channel instance Bitrix24 (chatbot) có thể dùng chung một row portal qua tham chiếu portal trong config channel. (migration 068)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `name` | VARCHAR(100) | NOT NULL | Tên hiển thị portal (một tên mỗi tenant) |
+| `domain` | VARCHAR(255) | NOT NULL | Domain portal Bitrix24 |
+| `credentials` | BYTEA | | Ciphertext AES-256-GCM của `{client_id, client_secret}` |
+| `state` | BYTEA | | Ciphertext AES-256-GCM của state portal (access/refresh token, `member_id`, `app_token`, bot đã đăng ký, media folder) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Index:** unique `(tenant_id, name)`; unique `LOWER(TRIM(domain))` (callback install/event đến được resolve theo domain trước khi biết tenant scope)
+
+---
+
+### `browser_cookies`
+
+Cookie do user chọn cho browser context phía server. Giá trị là ciphertext AES-256-GCM; cookie được scope theo tenant, user và agent để tránh tái dùng cross-principal. (migration 069)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `user_id` | VARCHAR(255) | NOT NULL | User sở hữu |
+| `agent_id` | VARCHAR(255) | NOT NULL | Agent sở hữu |
+| `domain` | TEXT | NOT NULL (không rỗng) | Domain cookie |
+| `name` | TEXT | NOT NULL (không rỗng) | Tên cookie |
+| `path` | TEXT | NOT NULL DEFAULT `/` (không rỗng) | Path cookie |
+| `encrypted_value` | TEXT | NOT NULL | Giá trị cookie mã hóa AES-256-GCM |
+| `secure` | BOOLEAN | NOT NULL DEFAULT FALSE | Cờ `Secure` |
+| `http_only` | BOOLEAN | NOT NULL DEFAULT FALSE | Cờ `HttpOnly` |
+| `same_site` | VARCHAR(32) | NOT NULL DEFAULT `''` | Thuộc tính `SameSite` |
+| `expires_at` | TIMESTAMPTZ | | Thời điểm hết hạn cookie; NULL = session cookie |
+| `source` | VARCHAR(64) | NOT NULL DEFAULT `''` | Nơi cookie được thu thập |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Index:** unique `(tenant_id, user_id, agent_id, domain, path, name)`; `(tenant_id, user_id, agent_id, domain)`; `expires_at`
+
+---
+
+### `usage_pricing_catalog`
+
+Tham chiếu giá theo model được sync, dùng để tính chi phí token usage. Một row mỗi `model_id`. (migration 070)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `model_id` | TEXT | NOT NULL UNIQUE | Định danh model |
+| `canonical_model_id` | TEXT | | Alias model chuẩn |
+| `raw_pricing` / `raw_model` | JSONB | NOT NULL DEFAULT `{}` | Payload pricing/model thô từ upstream |
+| `input_price`, `output_price`, `cache_read_price`, `cache_write_price`, `reasoning_price`, `request_price`, `image_price`, `web_search_price` | NUMERIC(30,18) | `>= 0` hoặc NULL | Giá theo đơn vị |
+| `synced_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Thời điểm sync gần nhất |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `synced_at DESC`
+
+---
+
+### `usage_pricing_overrides`
+
+Override giá theo tenant, theo provider, áp lên trên catalog. (migration 070)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `provider_id` | UUID FK → llm_providers | NOT NULL ON DELETE CASCADE | Provider mục tiêu |
+| `provider_type` | TEXT | NOT NULL | Kiểu provider |
+| `model_id` | TEXT | NOT NULL | Model mục tiêu |
+| `input_price` … `web_search_price` | NUMERIC(30,18) | `>= 0` hoặc NULL | Giá override (cùng tập với catalog) |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, provider_id, model_id)`
+
+**Index:** `(tenant_id, provider_id, model_id)` (partial, `WHERE enabled`)
+
+---
+
+### `usage_cap_policies`
+
+Quy tắc cap token/chi phí được đánh giá theo tenant, tùy chọn scope theo agent, provider, kiểu provider hoặc model, trên một window thời gian cuộn. (migration 071; cột `source` thêm ở migration 072)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `agent_id` | UUID FK → agents | NULL ON DELETE CASCADE | Scope agent; NULL = mọi agent |
+| `provider_id` | UUID FK → llm_providers | NULL ON DELETE CASCADE | Scope provider |
+| `provider_type` | TEXT | | Scope kiểu provider |
+| `model_id` | TEXT | | Scope model |
+| `window_key` | TEXT | NOT NULL CHECK trong (`hour`, `day`, `week`, `month`) | Window cap |
+| `max_tokens` | BIGINT | `>= 0` hoặc NULL | Cap token |
+| `max_cost_micros` | BIGINT | `>= 0` hoặc NULL | Cap chi phí tính bằng micro-USD |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `priority` | INTEGER | NOT NULL DEFAULT 100 | Policy priority thấp hơn được đánh giá trước |
+| `source` | TEXT | NOT NULL DEFAULT `manual` | `manual` hoặc `agent_budget_monthly_cents` (migration 072) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Ràng buộc:** phải set ít nhất một trong `max_tokens` / `max_cost_micros`.
+
+**Index:** `(tenant_id, enabled, agent_id, provider_id, provider_type, model_id)`; unique `(tenant_id, agent_id)` partial `WHERE source = 'agent_budget_monthly_cents'` (một policy dẫn xuất từ budget mỗi agent, migration 072)
+
+---
+
+### `usage_cap_counters`
+
+Accumulator theo window (đã dùng + đã reserve) cho mỗi policy. (migration 071)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Policy cha |
+| `window_start` / `window_end` | TIMESTAMPTZ | NOT NULL | Biên window |
+| `used_tokens` / `reserved_tokens` | BIGINT | NOT NULL DEFAULT 0 | Token usage |
+| `used_cost_micros` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Chi phí tính bằng micro-USD |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**PK:** `(policy_id, window_start)`
+
+---
+
+### `usage_cap_reservations`
+
+Reservation in-flight giữ capacity trước khi request hoàn tất, sau đó reconcile về actual. (migration 071)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `reservation_key` | TEXT | NOT NULL | Key idempotency do caller cung cấp |
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Policy cha |
+| `window_start` | TIMESTAMPTZ | NOT NULL | Window reservation |
+| `reserved_tokens` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Lượng đã reserve |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Actual đã reconcile |
+| `status` | TEXT | NOT NULL DEFAULT `reserved` | Trạng thái reservation |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(reservation_key, policy_id)`
+
+**Index:** `reservation_key`
+
+---
+
+### `usage_cap_events`
+
+Audit log các quyết định cap (allow/deny) và lý do. (migration 071)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `policy_id` | UUID FK → usage_cap_policies | NULL ON DELETE SET NULL | Policy tạo ra quyết định |
+| `reservation_key` | TEXT | | Reservation liên quan, nếu có |
+| `decision` | TEXT | NOT NULL | Kết quả quyết định |
+| `reason` | TEXT | | Lý do dạng người đọc được |
+| `estimated_tokens` / `estimated_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Ước tính trước khi chạy |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Actual cuối cùng |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(tenant_id, created_at DESC)`
+
+---
+
 ## Tiếp theo
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — cấu hình database map sang `config.json` như thế nào
 - [Glossary](/glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

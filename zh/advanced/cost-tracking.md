@@ -234,6 +234,69 @@ monthly budget exceeded ($5.02 / $5.00)
 
 检查在每次请求时、所有 LLM 调用之前运行一次。子 agent 委托在其自己的 agent 记录下运行，有各自的预算。
 
+> agent 的 `budget_monthly_cents` 也会被镜像到 [AI 预算用量上限](/usage-quota) 系统中，作为一个受管理（managed）的 `month` 窗口成本上限策略，因此相同的限制在那里也会被执行。
+
+---
+
+## 模型定价（目录与覆盖）
+
+上面的静态 `telemetry.model_pricing` 映射是为模型定价的最简单方式。对于动态、数据库支持的定价 —— 由 [AI 预算用量上限](/usage-quota) 的成本上限使用 —— GoClaw 还在 PostgreSQL 中维护一个**定价目录**和每租户**覆盖**（迁移 `000070`）。
+
+### OpenRouter 目录同步
+
+GoClaw 可以从 [OpenRouter](https://openrouter.ai) 拉取完整的模型价格列表并存入 `usage_pricing_catalog` 表。每个条目记录 input、output、cache read/write、reasoning、request、image 和 web-search 单位的单价，以高精度 decimal 存储。
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/sync-openrouter"
+```
+
+此端点需要 **master scope**（它更新共享的全局目录）。目录按 `model_id` upsert，因此重新运行同步会就地刷新价格。
+
+### 每模型价格覆盖
+
+当你希望为特定的 租户 + provider + model 组合设置不同价格（例如协商价，或 OpenRouter 未列出的模型）时，在 `usage_pricing_overrides` 表中设置一个**覆盖**。覆盖的作用域为单个租户，优先级高于全局目录。
+
+```bash
+# 列出已同步的目录（可选按模型过滤）
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing?model=claude-sonnet-4-5"
+
+# 设置租户覆盖
+curl -X PUT -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/model-pricing/overrides" \
+  -d '{
+    "provider_id": "22222222-2222-2222-2222-222222222222",
+    "provider_type": "anthropic",
+    "model_id": "claude-sonnet-4-5",
+    "pricing": { "input": "0.000003", "output": "0.000015" }
+  }'
+
+# 列出 / 删除覆盖
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides"
+curl -X DELETE -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides/{id}"
+```
+
+| 方法与路径 | Scope | 描述 |
+|---------------|-------|-------|
+| `POST /v1/model-pricing/sync-openrouter` | master | 从 OpenRouter 刷新全局价格目录 |
+| `GET /v1/model-pricing` | admin | 列出已同步的目录（`?model=`、`?limit=`） |
+| `PUT /v1/model-pricing/overrides` | tenant-admin | 创建或更新每租户模型价格覆盖 |
+| `GET /v1/model-pricing/overrides` | admin | 列出覆盖（`?provider_id=`） |
+| `DELETE /v1/model-pricing/overrides/{id}` | tenant-admin | 删除一个覆盖 |
+
+### 定价如何解析
+
+当成本上限需要某模型的价格时，GoClaw 按以下顺序解析：
+
+1. **租户覆盖**，匹配的 provider + model（最高优先级）
+2. **全局 OpenRouter 目录** 按 `model_id` / 规范 id 的条目
+
+若两者均未找到，受成本上限约束的调用会被**阻止**，原因为 `pricing_unknown`。价格以 **每 token/单位** 的 decimal USD 存储，并在上限计算成本时转换为微美元（micro-dollar）。
+
 ---
 
 ## 常见问题
@@ -254,4 +317,4 @@ monthly budget exceeded ($5.02 / $5.00)
 - [可观测性](/deploy-observability) — 包含成本字段的 OpenTelemetry span 导出
 - [配置参考](/config-reference) — 完整的 `telemetry` 配置选项
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

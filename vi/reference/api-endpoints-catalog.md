@@ -2,7 +2,7 @@
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 286 — generated from goclaw `392f0fda` on `2026-05-21`.
+**Total endpoints:** 308 — generated from goclaw `d85bf171` on `2026-06-07`.
 
 ## Cách sử dụng trang này
 
@@ -18,6 +18,15 @@
 | Method | Path |
 |---|---|
 | `GET` | `/v1/activity` |
+| `GET` | `/v1/activity/aggregate` |
+
+### Browser Cookies (`internal/http/browser_cookies.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/browser/cookies` |
+| `DELETE` | `/v1/browser/cookies` |
+| `POST` | `/v1/browser/cookies/sync` |
 
 ### Agents (`internal/http/agents.go`)
 
@@ -100,6 +109,7 @@
 | `PUT` | `/v1/channels/instances/{id}` |
 | `GET` | `/v1/channels/instances/{id}/writers` |
 | `POST` | `/v1/channels/instances/{id}/writers` |
+| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
 | `GET` | `/v1/channels/instances/{id}/writers/groups` |
 | `GET` | `/v1/contacts` |
@@ -169,6 +179,12 @@
 | `GET` | `/v1/agents/{agentID}/kg/stats` |
 | `POST` | `/v1/agents/{agentID}/kg/traverse` |
 
+### Logs (`internal/http/logs.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/logs/runtime/aggregate` |
+
 ### MCP Servers (`internal/http/mcp.go`)
 
 | Method | Path |
@@ -222,6 +238,16 @@
 | `POST` | `/v1/agents/{agentID}/memory/index-all` |
 | `POST` | `/v1/agents/{agentID}/memory/search` |
 | `GET` | `/v1/memory/documents` |
+
+### Model Pricing (`internal/http/usage_caps.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/model-pricing` |
+| `GET` | `/v1/model-pricing/overrides` |
+| `PUT` | `/v1/model-pricing/overrides` |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` |
+| `POST` | `/v1/model-pricing/sync-openrouter` |
 
 ### OAuth (`internal/http/oauth.go`)
 
@@ -288,6 +314,7 @@
 | `PUT` | `/v1/providers/{id}` |
 | `GET` | `/v1/providers/{id}/codex-pool-activity` |
 | `GET` | `/v1/providers/{id}/models` |
+| `POST` | `/v1/providers/{id}/reconnect` |
 | `POST` | `/v1/providers/{id}/verify` |
 | `POST` | `/v1/providers/{id}/verify-embedding` |
 | `GET` | `/v1/providers/claude-cli/auth-status` |
@@ -320,6 +347,14 @@
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
 | `POST` | `/v1/cli-credentials/check-binary` |
 | `GET` | `/v1/cli-credentials/presets` |
+
+### Sessions (`internal/http/sessions.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/sessions` |
+| `POST` | `/v1/chat/sessions/{key}/branch` |
+| `GET` | `/v1/chat/sessions/{key}/history/follow` |
 
 ### Skills (`internal/http/skills.go`)
 
@@ -404,6 +439,7 @@
 |---|---|
 | `GET` | `/v1/costs/summary` |
 | `GET` | `/v1/traces` |
+| `GET` | `/v1/traces/follow` |
 | `GET` | `/v1/traces/{traceID}` |
 | `GET` | `/v1/traces/{traceID}/export` |
 
@@ -426,6 +462,17 @@
 | `GET` | `/v1/usage/breakdown` |
 | `GET` | `/v1/usage/summary` |
 | `GET` | `/v1/usage/timeseries` |
+
+### Usage Caps (`internal/http/usage_caps.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/usage-caps/policies` |
+| `POST` | `/v1/usage-caps/policies` |
+| `PATCH` | `/v1/usage-caps/policies/{id}` |
+| `DELETE` | `/v1/usage-caps/policies/{id}` |
+| `GET` | `/v1/usage-caps/utilization` |
+| `GET` | `/v1/usage-caps/events` |
 
 ### Vault (`internal/http/vault_graph_handler.go`)
 
@@ -504,6 +551,5 @@
 
 ---
 
-<!-- goclaw-source: 392f0fda -->
-<!-- last-updated: 2026-05-21 -->
-<!-- total-endpoints: 286 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- total-endpoints: 308 -->

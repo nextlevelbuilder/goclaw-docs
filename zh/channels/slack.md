@@ -150,6 +150,8 @@ Bot 在线程中回复后，会自动回复该线程中的后续消息，无需 
 
 来自同一线程的快速消息合并为单次分发。默认延迟：300ms（通过 `debounce_delay` 配置）。关闭时刷新待处理批次。
 
+在这个 channel 级别的批处理之上，gateway 级别的[入站防抖](/channels-overview#inbound-debounce)同样生效 — 它会在 agent 运行前合并来自同一发送者的密集消息（以及多文件上传）。
+
 ### 消息格式化
 
 LLM markdown 输出转换为 Slack mrkdwn：
@@ -238,4 +240,4 @@ Slack 支持群组级别的配对。当 `group_policy: "pairing"` 时：
 - [Discord](/channel-discord) — Discord bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

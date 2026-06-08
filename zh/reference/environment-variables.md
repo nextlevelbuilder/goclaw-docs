@@ -23,7 +23,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | 变量 | 必填 | 说明 |
 |----------|----------|-------------|
 | `GOCLAW_GATEWAY_TOKEN` | 是 | WebSocket 和 HTTP API 认证的 Bearer token |
-| `GOCLAW_ENCRYPTION_KEY` | 是 | AES-256-GCM 密钥（base64 编码的 32 字节 / 44 字符），用于加密数据库中的 secrets——LLM provider API key、MCP API key、webhook secret 以及 workstation credential。用 `openssl rand -base64 32` 生成。**`/v1/webhooks/*` 端点必须设置**——若未设置，webhook 子系统在启动时被禁用（其他子系统仍正常运行）。集群中所有 gateway 实例必须使用相同密钥。不要存储在 `config.json` 中。 |
+| `GOCLAW_ENCRYPTION_KEY` | 是 | AES-256-GCM 密钥（base64 编码的 32 字节 / 44 字符），用于加密数据库中的 secrets——LLM provider API key、MCP API key、webhook secret、workstation credential 以及已同步的 browser cookie。用 `openssl rand -base64 32` 生成。**`/v1/webhooks/*` 端点必须设置**——若未设置，webhook 子系统在启动时被禁用（其他子系统仍正常运行）。browser cookie 存储也需要此密钥；缺少它则无法进行 cookie 同步。集群中所有 gateway 实例必须使用相同密钥。不要存储在 `config.json` 中。 |
 | `GOCLAW_CONFIG` | 否 | `config.json` 路径。默认：`./config.json` |
 | `GOCLAW_HOST` | 否 | Gateway 监听主机。默认：`0.0.0.0` |
 | `GOCLAW_PORT` | 否 | Gateway 监听端口。默认：`18790` |
@@ -127,6 +127,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | `GOCLAW_SKILLS_DIR` | 全局 skill 目录。默认：`~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | 内置 skill 定义路径。默认：`./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | 捆绑 skill 包路径。默认：`./bundled-skills` |
+| `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` | 每个技能 ZIP 上传的大小上限（MB）。默认：`20`。限制在 1–500 范围内。覆盖 `config.json` 中的 `skills.max_upload_size_mb` |
 
 ---
 
@@ -238,4 +239,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI 命令](/cli-commands) — `goclaw onboard` 自动生成 `.env.local`
 - [数据库 Schema](/database-schema) — 密钥如何加密存储在 PostgreSQL 中
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

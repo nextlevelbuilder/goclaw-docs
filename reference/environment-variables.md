@@ -21,7 +21,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GOCLAW_GATEWAY_TOKEN` | Yes | Bearer token for WebSocket and HTTP API authentication |
-| `GOCLAW_ENCRYPTION_KEY` | Yes | AES-256-GCM key (base64-encoded 32 bytes / 44 chars) for encrypting secrets in the database — LLM provider API keys, MCP API keys, webhook secrets, and workstation credentials. Generate with `openssl rand -base64 32`. **Required for `/v1/webhooks/*` endpoints** — if unset, the webhook subsystem is disabled at startup (all other subsystems still work). Must be identical across all gateway instances in a cluster. Never store in `config.json`. |
+| `GOCLAW_ENCRYPTION_KEY` | Yes | AES-256-GCM key (base64-encoded 32 bytes / 44 chars) for encrypting secrets in the database — LLM provider API keys, MCP API keys, webhook secrets, workstation credentials, and synced browser cookies. Generate with `openssl rand -base64 32`. **Required for `/v1/webhooks/*` endpoints** — if unset, the webhook subsystem is disabled at startup (all other subsystems still work). The browser cookie store also requires this key; cookie sync is unavailable without it. Must be identical across all gateway instances in a cluster. Never store in `config.json`. |
 | `GOCLAW_CONFIG` | No | Path to `config.json`. Default: `./config.json` |
 | `GOCLAW_HOST` | No | Gateway listen host. Default: `0.0.0.0` |
 | `GOCLAW_PORT` | No | Gateway listen port. Default: `18790` |
@@ -128,6 +128,7 @@ Setting a token/credential via environment auto-enables that channel.
 | `GOCLAW_SKILLS_DIR` | Global skills directory. Default: `~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | Path to built-in skill definitions. Default: `./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | Path to bundled skill packages. Default: `./bundled-skills` |
+| `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` | Per-file skill ZIP upload limit in MB. Default: `20`. Clamped to the range 1–500. Overrides `skills.max_upload_size_mb` in `config.json` |
 
 ## Runtime Packages (Docker v3)
 
@@ -237,4 +238,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` generates `.env.local` automatically
 - [Database Schema](/database-schema) — how secrets are stored encrypted in PostgreSQL
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

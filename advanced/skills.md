@@ -76,6 +76,47 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
   > ~/.goclaw/skills/my-new-skill/SKILL.md
 ```
 
+## Slash Command Activation
+
+Instead of waiting for the agent to discover a skill via `skill_search`, you can activate one explicitly by starting your chat message with a slash command. This is enabled by default.
+
+```
+/code-reviewer review this PR
+/use sql-style format these queries
+/list-skills
+/help code-reviewer
+```
+
+**Supported forms:**
+
+| Command | What it does |
+|---|---|
+| `/<skill-slug> <your request>` | Activates the skill by slug (or display name) and treats the rest of the message as the skill's input |
+| `/use <skill> <request>` | Same as above, explicit verb form (`/activate` also works) |
+| `/list-skills` | Asks the agent to list all available skills |
+| `/help <skill>` | Asks the agent to explain a skill and how to use it |
+
+When a skill is activated, GoClaw loads its `SKILL.md` into the current turn and scopes the agent to that skill for the request.
+
+**Matching rules:**
+
+- **Exact match** wins first — the slug or display name (case-insensitive) is matched directly. `/code-reviewer` matches the `code-reviewer` skill.
+- **Partial (prefix) matching** is opt-in (off by default). When enabled, `/code` matches `code-reviewer` if it is the only prefix match.
+- **Ambiguity guard** — if two skills tie on match strength (same-length match), the command is treated as *not matched* rather than guessing.
+
+**No match:** if the requested skill is not found, GoClaw runs a fuzzy similarity search (edit-distance, up to 3 suggestions) and asks the agent to tell you the skill was not found and suggest the closest available skills. This suggestion behavior is on by default. If no similar skill exists, the message is treated as a normal prompt.
+
+**Configuration** (all optional):
+
+| Config key | Env / system config | Default | Effect |
+|---|---|---|---|
+| `skills.slash_commands.enabled` | `skills.slash_commands.enabled` | `true` | Master toggle |
+| `skills.slash_commands.prefix` | `skills.slash_commands.prefix` | `/` | Single-character trigger prefix |
+| `skills.slash_commands.partial_matching` | `skills.slash_commands.partial_matching` | `false` | Allow prefix matching |
+| `skills.slash_commands.suggest_not_found` | `skills.slash_commands.suggest_not_found` | `true` | Suggest alternatives on no match |
+
+> Messages that look like file paths (containing `/`, `\`, or `.` in the first token, e.g. `/etc/hosts`) are **not** treated as slash commands and pass through unchanged.
+
 ## Uploading via Dashboard
 
 Go to **Skills → Upload** and drop a ZIP file. The ZIP can contain a **single skill** or **multiple skills** in one archive:
@@ -111,6 +152,32 @@ Uploaded skills are stored in a versioned subdirectory structure under the manag
 Metadata (name, description, visibility, grants) lives in PostgreSQL; file content lives on disk. GoClaw always serves the highest-numbered version. Old versions are kept for rollback.
 
 Skills uploaded via the Dashboard start with **internal** visibility — immediately accessible to any agent or user you grant access to.
+
+### Upload Size Limit
+
+Skill ZIP uploads (Dashboard and `POST /v1/skills/import`) are capped by a configurable size limit. The default is **20 MB**, and the effective value is always clamped to the **1–500 MB** range.
+
+The limit is resolved in this precedence order (highest first):
+
+1. **Tenant override** — system config key `skills.max_upload_size_mb` (set per tenant)
+2. **SKILL.md frontmatter** — a `max_upload_size_mb` field in the skill's frontmatter
+3. **Gateway default** — `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` env var or `skills.max_upload_size_mb` in the config file (falls back to 20 MB)
+
+```yaml
+# Raise the limit for one skill via its SKILL.md frontmatter
+---
+name: large-skill
+description: Ships large reference assets.
+max_upload_size_mb: 100
+---
+```
+
+```bash
+# Set the gateway-wide default via environment variable
+export GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB=128
+```
+
+Uploads exceeding the resolved limit are rejected with an error like `skill ZIP size 42.0 MB exceeds 20 MB limit`.
 
 ## Importing via API
 
@@ -195,13 +262,13 @@ Packages installed at runtime persist across tool calls within the same containe
 
 ### What Agents Can/Cannot Do
 
-Agents **can**: run Python/Node scripts, install packages via `pip3 install` or `npm install -g`, access files in `/app/workspace/` including `.media/`.
+Agents **can**: run Python/Node scripts, install packages via `pip3 install` or `npm install -g`, access files in `/app/workspace/` — including `.uploads/` for current user uploads and `.media/` for legacy media refs.
 
 Agents **cannot**: write to system paths, execute binaries from `/tmp`, run blocked shell patterns (network tools, reverse shells).
 
 ## Bundled Skills
 
-GoClaw ships five core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
+GoClaw ships six core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
 
 | Skill | Purpose |
 |---|---|
@@ -210,6 +277,7 @@ GoClaw ships five core skills bundled inside the Docker image at `/app/bundled-s
 | `docx` | Read, create, edit Word documents |
 | `pptx` | Read, create, edit presentations |
 | `skill-creator` | Create new skills |
+| `workspace-organizing` | Keep agent workspaces tidy and discoverable — enforces a purpose-based folder convention and runs memory/Vault/knowledge-graph discovery before writing files to avoid duplicates |
 
 Bundled skills are seeded into PostgreSQL on every gateway startup (hash-tracked, no re-import if unchanged). They are tagged `is_system = true` and `visibility = 'public'`.
 
@@ -475,4 +543,4 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

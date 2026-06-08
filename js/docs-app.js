@@ -152,6 +152,7 @@ const DOC_MAP = {
   // Channels
   'channels-overview': docEntry('channels', 'overview', 'Channel Overview', 'Tổng quan về Channel', 'Channel 概览'),
   'channel-telegram': docEntry('channels', 'telegram', 'Telegram', 'Channel Telegram', 'Telegram 频道'),
+  'channel-bitrix24': docEntry('channels', 'bitrix24', 'Bitrix24', 'Channel Bitrix24', 'Bitrix24 频道'),
   'channel-discord': docEntry('channels', 'discord', 'Discord', 'Channel Discord', 'Discord 频道'),
   'channel-feishu': docEntry('channels', 'feishu', 'Feishu / Lark', 'Channel Feishu', '飞书 / Lark'),
   'channel-larksuite': docEntry('channels', 'larksuite', 'Larksuite', 'Channel Larksuite', 'Larksuite 频道'),

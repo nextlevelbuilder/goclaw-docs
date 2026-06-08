@@ -4,7 +4,7 @@
 
 ## Overview
 
-> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~286 REST endpoints.
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~308 REST endpoints.
 
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
@@ -78,6 +78,100 @@ Set `"stream": true` for SSE chunks terminated by `data: [DONE]`.
 ### `POST /v1/responses`
 
 Alternative response-based protocol (compatible with OpenAI Responses API). Accepts the same auth and returns structured response objects.
+
+---
+
+## Sessions
+
+Read-only session discovery and branching over HTTP, for automation that cannot hold a WebSocket connection. Non-admin callers only see their own sessions (matched by `X-GoClaw-User-Id`); admins and gateway-owner tokens see all sessions.
+
+> Full session lifecycle (preview, patch, delete, reset, compact) is available via [WebSocket RPC](/websocket-protocol#sessions). These HTTP routes cover discovery, branching, and incremental history reads.
+
+### `GET /v1/sessions`
+
+List sessions with pagination.
+
+```bash
+curl "http://localhost:18790/v1/sessions?agent_id=AGENT_UUID&limit=20&offset=0" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123"
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Filter by agent (alias: `agentId`) |
+| `channel` | string | Filter by channel |
+| `limit` | integer | Page size (default 20) |
+| `offset` | integer | Page offset (default 0) |
+
+**Response:** `{ "sessions": [...], "total": N, "limit": 20, "offset": 0 }`
+
+### `POST /v1/chat/sessions/{key}/branch`
+
+Branch a new session from an existing one, copying messages up to a given index. The `{key}` path segment is the **source** session key; the branch reuses the same agent key.
+
+```bash
+curl -X POST http://localhost:18790/v1/chat/sessions/{key}/branch \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "up_to_index": 8,
+    "new_session_key": "",
+    "label": "what-if branch",
+    "metadata": {}
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `up_to_index` | integer | Required. Copy messages `[0, up_to_index)` into the branch |
+| `new_session_key` | string | Optional. Must use the same agent key as the source. Auto-generated when omitted |
+| `label` | string | Optional human-readable branch label |
+| `metadata` | object | Optional string key-value metadata |
+
+**Response** (`201 Created`):
+
+```json
+{
+  "ok": true,
+  "source_key": "agent:researcher:direct:...",
+  "session_key": "agent:researcher:branch:direct:...",
+  "copied_messages": 8,
+  "total_messages": 20,
+  "label": "what-if branch"
+}
+```
+
+Returns `409` if the target key already exists, `400` if `up_to_index` is out of range.
+
+### `GET /v1/chat/sessions/{key}/history/follow`
+
+Cursor-based incremental history read — poll for new messages without re-fetching the whole transcript. File and media references in returned messages are signed.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `cursor` | integer | Index to start reading from (default 0) |
+| `limit` | integer | Max messages to return (default 50, max 200) |
+
+**Response:**
+
+```json
+{
+  "session_key": "agent:researcher:direct:...",
+  "cursor": 0,
+  "next_cursor": 50,
+  "total": 120,
+  "messages": [ ... ],
+  "reset": false,
+  "updated": "2026-06-07T08:00:00Z"
+}
+```
+
+Pass `next_cursor` as the next `cursor` to continue. `reset: true` (with an empty `messages` array) signals the cursor ran past the current history length — restart from `0`.
 
 ---
 
@@ -379,6 +473,30 @@ curl -X POST http://localhost:18790/v1/providers/{id}/verify \
 ### `POST /v1/providers/{id}/verify-embedding`
 
 Verify embedding model connectivity for a provider.
+
+### `POST /v1/providers/{id}/reconnect`
+
+Re-establish the in-memory connection for a provider — unregisters it from the runtime registry and re-registers from the stored config. Use after editing credentials or when a provider drops out of the live registry. Does **not** perform a verify; call `/verify` separately for that.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/reconnect \
+  -H "Authorization: Bearer TOKEN"
+```
+
+The request body is optional. Sending `{"verify": true}` is rejected with `400` — reconnect and verify are separate operations.
+
+**Response:**
+
+```json
+{
+  "status": "reconnected",
+  "provider": { "id": "uuid", "name": "my-openrouter", "...": "..." },
+  "registry_updated": true,
+  "cache_invalidated": true
+}
+```
+
+`status` is `reconnected` (re-registered in memory), `not_registered` (enabled but registration failed), or `disabled` (provider is disabled). A `cache_invalidate` event is emitted so connected agents pick up the change.
 
 ### `GET /v1/providers/{id}/codex-pool-activity`
 
@@ -722,6 +840,27 @@ curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### `GET /v1/traces/follow`
+
+Poll for trace updates scoped to a single session or agent — designed for live "tail" views. Requires `session_key` **or** `agent_id`. Non-admin callers are restricted to their own traces.
+
+```bash
+curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-07T08:00:00Z" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `session_key` | string | Session to follow (required if `agent_id` omitted) |
+| `agent_id` | string | Agent to follow (required if `session_key` omitted) |
+| `status` | string | Filter by status |
+| `channel` | string | Filter by channel |
+| `since` | RFC 3339 | Only return traces changed after this time |
+| `limit` | integer | Max traces (default 50, max 200) |
+| `include_spans` | boolean | Include span details (default `false`) |
+
 ### `GET /v1/traces/{traceID}`
 
 Get a single trace with all its spans.
@@ -747,6 +886,153 @@ Export trace tree as gzipped JSON.
 | `GET` | `/v1/usage/summary` | Summary with period comparison |
 
 **Query params:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+---
+
+## Usage Caps
+
+Spend-cap policies that limit token usage and cost per window, optionally scoped to a specific agent, provider, or model. All endpoints require **admin role**; write operations additionally require **tenant-admin**. Policies marked as *managed* (provisioned by the platform) cannot be edited or deleted (`409`).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/usage-caps/policies` | List spend-cap policies for the current tenant |
+| `POST` | `/v1/usage-caps/policies` | Create a policy |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | Partial update (all fields optional) |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | Delete a policy (`204`) |
+| `GET` | `/v1/usage-caps/utilization` | Current utilization per policy |
+| `GET` | `/v1/usage-caps/events` | Recent cap events (throttles, breaches) |
+
+### `POST /v1/usage-caps/policies`
+
+```bash
+curl -X POST http://localhost:18790/v1/usage-caps/policies \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "window": "day",
+    "max_tokens": 1000000,
+    "max_cost_usd": 25.0,
+    "agent_id": null,
+    "provider_id": null,
+    "priority": 100,
+    "enabled": true
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `window` | string | Reset window — e.g. `day` (default). Required |
+| `max_tokens` | integer | Token cap per window (optional) |
+| `max_cost_usd` | float | Cost cap in USD (optional; converted to micros) |
+| `max_cost_micros` | integer | Cost cap in micro-dollars — takes precedence over `max_cost_usd` (optional) |
+| `agent_id` | UUID | Scope to one agent (optional) |
+| `provider_id` | UUID | Scope to one provider (optional) |
+| `provider_type` | string | Scope to a provider type (optional) |
+| `model_id` | string | Scope to one model (optional) |
+| `priority` | integer | Evaluation priority, higher first (default 100) |
+| `enabled` | boolean | Default `true` |
+
+Returns `201` with the created policy. `PATCH` accepts the same fields, all optional — send `null` for `max_tokens` / `max_cost_*` to clear a cap.
+
+**`GET /v1/usage-caps/events`** accepts `?limit=` and returns `{ "events": [...] }`. Utilization returns `{ "rows": [...] }`.
+
+---
+
+## Model Pricing
+
+Per-model pricing catalog plus per-tenant overrides, used to compute usage cost. Read endpoints require **admin role**; override writes require **tenant-admin**; the OpenRouter sync requires **master scope**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/model-pricing` | List the pricing catalog |
+| `GET` | `/v1/model-pricing/overrides` | List tenant pricing overrides |
+| `PUT` | `/v1/model-pricing/overrides` | Upsert a pricing override |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | Remove an override |
+| `POST` | `/v1/model-pricing/sync-openrouter` | Refresh the catalog from OpenRouter (master scope) |
+
+**`GET /v1/model-pricing`** query params: `model` (filter by model ID), `limit` (default 100). Response `{ "models": [...] }`.
+
+**`GET /v1/model-pricing/overrides`** query param: `provider_id` (optional UUID filter). Response `{ "overrides": [...] }`.
+
+### `PUT /v1/model-pricing/overrides`
+
+```bash
+curl -X PUT http://localhost:18790/v1/model-pricing/overrides \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider_id": "PROVIDER_UUID",
+    "provider_type": "openai_compat",
+    "model_id": "gpt-4o",
+    "pricing": { "...": "..." },
+    "enabled": true
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider_id` | UUID | Required |
+| `provider_type` | string | Provider type |
+| `model_id` | string | Required |
+| `pricing` | object | Pricing fields (input/output rates, etc.) |
+| `enabled` | boolean | Default `true` |
+
+**`POST /v1/model-pricing/sync-openrouter`** fetches the OpenRouter catalog and upserts it. Response `{ "count": N }`. Returns `502` if the upstream fetch fails.
+
+---
+
+## Browser Cookie Sync
+
+Store selected browser cookies so server-side browser sessions (e.g. the browser tool) can reuse a signed-in state. All endpoints require **operator role**. Cookies are scoped to tenant + user (+ optional agent) and encrypted at rest — `GOCLAW_ENCRYPTION_KEY` must be set, otherwise sync returns `503`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert cookies for the current scope |
+| `GET` | `/v1/browser/cookies` | List stored cookie metadata (values never returned) |
+| `DELETE` | `/v1/browser/cookies` | Delete stored cookies in the current scope |
+
+### `POST /v1/browser/cookies/sync`
+
+```bash
+curl -X POST http://localhost:18790/v1/browser/cookies/sync \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "AGENT_UUID",
+    "source": "chrome-extension",
+    "cookies": [
+      {
+        "domain": "example.com",
+        "name": "session",
+        "path": "/",
+        "value": "abc123",
+        "secure": true,
+        "httpOnly": true,
+        "sameSite": "Lax",
+        "expiresAt": "2026-12-31T00:00:00Z"
+      }
+    ]
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Optional agent scope (alias: `agent`) |
+| `source` | string | Origin label (default `chrome-extension`) |
+| `cookies` | array | Cookie items. Required, non-empty, max 200 |
+
+**Cookie item fields:** `domain` (or `url` to derive it), `name`, `path`, `value` (≤ 16 KB), `secure`, `httpOnly` (alias `http_only`), `sameSite` (alias `same_site`), and one of `expiresAt` / `expires_at` / `expirationDate` / `expiration_date`. Total request body is capped at 1 MB.
+
+**Response:** `{ "synced": N }`.
+
+### `GET /v1/browser/cookies`
+
+Returns cookie **metadata** only — values are never exposed. Optional query filters: `agent_id`, `domain`, `name`, `path`. Response `{ "items": [ { "domain", "name", "path", "secure", "httpOnly", "sameSite", "expiresAt", "source", "updatedAt" } ] }`.
+
+### `DELETE /v1/browser/cookies`
+
+Delete cookies in the current scope. Same optional filters as the list endpoint. Response `{ "deleted": N }`.
 
 ---
 
@@ -936,8 +1222,25 @@ Delete a channel instance.
 |--------|------|-------------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | List groups with write permissions |
 | `GET` | `/v1/channels/instances/{id}/writers` | List authorized writers |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | Test whether a user would be allowed to write to a group (no mutation) |
 | `POST` | `/v1/channels/instances/{id}/writers` | Add a writer |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | Remove a writer |
+
+**`POST .../writers/test`** — dry-run a writer check before persisting one. Body `{ "group_id": "...", "user_id": "..." }` (both required). Always returns `200` with the evaluation:
+
+```json
+{
+  "allowed": true,
+  "reason": "writer",
+  "instance_id": "uuid",
+  "agent_id": "uuid",
+  "group_id": "telegram:-100123",
+  "user_id": "user123",
+  "writer_count": 3
+}
+```
+
+`reason` is one of `writer`, `not_writer`, `no_writers_configured`, or `invalid_group`.
 
 ---
 
@@ -1528,6 +1831,51 @@ Per-tenant backup and restore. Admin role required.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/activity` | List activity audit logs (filterable) |
+| `GET` | `/v1/activity/aggregate` | Aggregated activity counts grouped by a dimension |
+
+### `GET /v1/activity/aggregate`
+
+Return activity counts grouped by a dimension instead of raw rows. Non-admin callers are scoped to their own actor ID; grouping by `actor_id` requires admin role.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `group_by` | string | Grouping dimension — e.g. `action`, `entity_type`, `actor_type`, `actor_id` (admin only) |
+| `actor_type` | string | Filter by actor type |
+| `actor_id` | string | Filter by actor ID |
+| `action` | string | Filter by action |
+| `entity_type` | string | Filter by entity type |
+| `entity_id` | string | Filter by entity ID |
+| `from` | RFC 3339 | Start of time window |
+| `to` | RFC 3339 | End of time window (must be after `from`) |
+| `limit` | integer | Max groups returned |
+
+---
+
+## Runtime Logs
+
+Aggregated view of the in-memory runtime log buffer. Requires **admin role**.
+
+### `GET /v1/logs/runtime/aggregate`
+
+Return runtime log counts grouped by `level` or `source`.
+
+```bash
+curl "http://localhost:18790/v1/logs/runtime/aggregate?group_by=level" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `group_by` | string | `level` (default) or `source` |
+| `level` | string | Filter by log level |
+| `source` | string | Filter by log source |
+| `from` | RFC 3339 | Only count entries after this time |
+
+> Live tailing of server logs is available over WebSocket via `logs.tail` — see [WebSocket Protocol](/websocket-protocol#logs).
 
 ---
 
@@ -1798,4 +2146,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

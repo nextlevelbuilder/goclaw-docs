@@ -156,6 +156,8 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `connect` | `{token, user_id, sender_id?, locale?}` | Xác thực. Phải là request đầu tiên |
 | `health` | — | Ping / health check |
 | `status` | — | Trạng thái gateway |
+| `agent` | `{agentId?}` | Lấy trạng thái runtime của một agent (mặc định `"default"`) |
+| `send` | `{channel, to, message}` | Định tuyến tin nhắn outbound đến một channel bên ngoài |
 | `providers.models` | — | Liệt kê model khả dụng từ tất cả LLM provider đã cấu hình |
 
 ### Chat
@@ -433,6 +435,28 @@ Quản lý lifecycle hook lưu trong `agent_hooks`. Xem [Agent Hooks](/hooks-qua
 
 > **Trạng thái: Đã lên kế hoạch** — `whatsapp.qr.start`, `zalo.personal.qr.start` và `zalo.personal.contacts` đã có hằng số protocol nhưng handler chưa được triển khai trong gateway.
 
+### Bitrix Portals
+
+Quản lý self-service các kết nối portal Bitrix24. Mọi method đều giới hạn theo tenant (lấy từ kết nối, không bao giờ từ param của caller). `list` và `get_install_url` mở cho mọi thành viên tenant đã xác thực; `create` và `delete` yêu cầu **admin role**. Credential không bao giờ được trả về trong bất kỳ response nào.
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `bitrix.portals.list` | — | Liệt kê portal của tenant hiện tại (credential bị che) |
+| `bitrix.portals.create` | `{name, domain, client_id, client_secret}` | Tạo portal; trả về `{name, domain, install_url}` |
+| `bitrix.portals.get_install_url` | `{name}` | Tạo lại install URL cho portal có sẵn → `{install_url}` |
+| `bitrix.portals.delete` | `{name}` | Xóa portal → `{status: "deleted"}` |
+
+**Params của `bitrix.portals.create`:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `name` | string | Slug portal — chữ thường, số, gạch ngang, gạch dưới (2–64 ký tự) |
+| `domain` | string | Host portal — `*.bitrix24.{com,eu,ru,…}` hoặc `*.bitrix.info` |
+| `client_id` | string | Bitrix OAuth client ID |
+| `client_secret` | string | Bitrix OAuth client secret |
+
+> `create` thất bại với `FAILED_PRECONDITION` nếu gateway chưa quan sát được public URL của nó — hãy mở UI qua URL bên ngoài của gateway trước để install URL có thể được tạo. `delete` bị chặn (`FAILED_PRECONDITION`) khi còn channel instance tham chiếu portal.
+
 ---
 
 ## Server-Push Events
@@ -579,4 +603,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

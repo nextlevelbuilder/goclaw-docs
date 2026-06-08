@@ -4,6 +4,8 @@
 
 Luồng xác thực bảo mật cho client WebSocket tuỳ chỉnh sử dụng mã pairing 8 ký tự. Lý tưởng cho web app riêng tư và desktop client cần xác minh danh tính thiết bị.
 
+> **Browser pairing vs. cookie sync.** Browser **pairing** xác thực một *client* (trình duyệt hoặc desktop app) để nó có thể giao tiếp với gateway. **Selected cookie sync** sao chép *cookie đăng nhập của site* vào trình duyệt phía server của agent để agent có thể hoạt động như một phiên đã đăng nhập. Dùng pairing để cho một thiết bị kết nối; dùng cookie sync để cấp cho agent quyền truy cập một site bạn đã đăng nhập. Xem [Browser Automation → Selected Cookie Sync](/browser-automation#selected-cookie-sync).
+
 ## Luồng Pairing
 
 ```mermaid
@@ -256,4 +258,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Thiết lập Telegram
 - [WebSocket Protocol](/websocket-protocol) — Tài liệu giao thức đầy đủ
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

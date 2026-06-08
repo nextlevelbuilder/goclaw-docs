@@ -646,6 +646,80 @@ goclaw tui onboard   # TUI 版 onboard 向导
 goclaw tui setup     # TUI 版设置向导
 ```
 
+## `bitrix-portal`
+
+直接在数据库中管理 Bitrix24 portal 行（仅 PostgreSQL）。GoClaw 要求在 operator 运行 `/bitrix24/install` 的 OAuth 安装流程之前，`bitrix_portals` 行必须已存在；此命令无需原始 SQL 访问即可创建和维护该行。
+
+> Credential 使用 `GOCLAW_ENCRYPTION_KEY` 加密存储。若未设置该密钥，命令会发出警告并以未加密形式存储 credential。
+
+### `bitrix-portal create`
+
+创建带 OAuth credential 的 `bitrix_portals` 行。
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <uuid> \
+  --name <portal> \
+  --domain tamgiac.bitrix24.com \
+  --client-id <client_id> \
+  --client-secret <client_secret>
+```
+
+| Flag | 描述 |
+|------|------|
+| `--tenant-id` | 此 portal 所属的 tenant UUID（必填） |
+| `--name` | 简短的 portal 名称，被 `channel_instance.config.portal` 引用（必填） |
+| `--domain` | Bitrix24 portal 主机，如 `tamgiac.bitrix24.com`（必填） |
+| `--client-id` | Bitrix24 应用的 `client_id` / `application_id`（必填） |
+| `--client-secret` | Bitrix24 应用的 `client_secret` / application key（必填） |
+
+### `bitrix-portal list`
+
+列出 `bitrix_portals` 行，可选地限定到单个 tenant。
+
+```bash
+goclaw bitrix-portal list
+goclaw bitrix-portal list --tenant-id <uuid>
+```
+
+| Flag | 描述 |
+|------|------|
+| `--tenant-id` | 过滤到单个 tenant UUID（可选） |
+
+### `bitrix-portal update-credentials`
+
+替换现有 portal 行上的 `client_id`/`client_secret`。在轮换 client secret 或从本地应用迁移到 marketplace 应用时使用。OAuth state token 默认被清除，因为用旧 credential 生成的 state 无法在新 credential 下刷新。
+
+```bash
+goclaw bitrix-portal update-credentials \
+  --tenant-id <uuid> --name <portal> \
+  --client-id <client_id> --client-secret <client_secret>
+```
+
+| Flag | 描述 |
+|------|------|
+| `--tenant-id` | 此 portal 所属的 tenant UUID（必填） |
+| `--name` | 要更新的 portal 名称（必填） |
+| `--client-id` | Bitrix24 应用的新 `client_id`（必填） |
+| `--client-secret` | Bitrix24 应用的新 `client_secret`（必填） |
+| `--keep-state` | 保留现有 OAuth state token（仅在轮换同一应用的 secret 时安全） |
+
+### `bitrix-portal set-public-url`
+
+回填用于注册 Bitrix24 imbot event handler 的网关公共 URL。一次性操作，适用于在自动公共 URL 捕获机制出现之前安装的 portal。
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <uuid> --name <portal> \
+  --url https://goclaw.example.com
+```
+
+| Flag | 描述 |
+|------|------|
+| `--tenant-id` | 此 portal 所属的 tenant UUID（必填） |
+| `--name` | portal 名称（必填） |
+| `--url` | 网关公共 URL，如 `https://goclaw.example.com`（必填） |
+
 ---
 
 ## 下一步
@@ -654,4 +728,4 @@ goclaw tui setup     # TUI 版设置向导
 - [REST API](/rest-api) — HTTP API 端点列表
 - [配置参考](/config-reference) — 完整 `config.json` schema
 
-<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

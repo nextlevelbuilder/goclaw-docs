@@ -432,6 +432,62 @@ GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 
 > **集群中必须保持一致。** 集群部署时，每个 gateway 实例必须使用相同的 `GOCLAW_ENCRYPTION_KEY`。轮换密钥需要在重启前重新加密所有已存储的密钥。
 
+credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries`、`secure_cli_agent_grants` 和 `secure_cli_user_credentials` 都将 secret 存储在 `encrypted_env` 列中。每个条目携带一个可见性 `kind`——`sensitive` 条目在正常 API/UI response 中被屏蔽，仅通过已审计的 `env:reveal` 流程返回；`value` 条目（例如 region 或 profile 名）会返回给 admin 用于运营审查。
+
+---
+
+## 凭证适配器安全模型
+
+[类型化凭证适配器](/cli-credentials) 是向被 spawn 的 CLI 子进程（`git clone`、`git push` 等）注入认证材料的**系统可信**路径。这是第二个 trust boundary，与用户粘贴的 env denylist 不同——并非取代它。
+
+| 路径 | Trust boundary |
+|------|----------------|
+| 用户粘贴的 env var（`env` 凭证类型） | 第一道防线——`ValidateGrantEnvVars` 拒绝 `GIT_SSH_COMMAND`、`LD_PRELOAD`、`PATH` 及 denylist 的其余项 |
+| 系统注入的适配器 env（例如 `git` 适配器） | 第二道、带审计轨迹的防线——按设计绕过 denylist，并为每次注入发出一个审计事件 |
+
+适配器名称拼写错误会回退到 passthrough（旧版 denylist-only 行为）——**没有静默 bypass**。
+
+### 审计事件：`security.system_env_injection`
+
+每次适配器注入都发出**恰好一行**结构化 `slog.Warn`。明文 hostname **从不记录**——使审计日志在受监管租户内保持 PII 安全。
+
+| 字段 | 说明 |
+|------|------|
+| `msg` | 始终为 `security.system_env_injection` |
+| `adapter` | 例如 `git`、`passthrough` |
+| `binary` | binary 名称（`git`、…） |
+| `user_id` | 租户 user UUID（仅 global 上下文时为空） |
+| `env_keys` | 已排序的 env var **名称**——绝不含值 |
+| `argv_prefix_len` | 前置的 argv 元素数量，而非其内容 |
+| `host_scope_hash` | `SHA-256(规范化 host_scope)` 的前 8 个十六进制字符，或 `"none"` |
+
+v1 **无专用审计表**——该行通过 `slog` 路由到 stderr → systemd/journald 或 Docker logs。要 grep 针对特定 host 的活动，预先计算其 hash：
+
+```sh
+echo -n "github.com" | sha256sum | cut -c1-8
+```
+
+### credentialed exec 的输出 scrub
+
+credentialed 命令的输出经过与所有 tool 输出相同的正则 scrubber，此外该 binary 在 runtime 注册的凭证会在结果到达 LLM 前从 stdout/stderr 中 scrub。通过适配器注入的 secret 绝不会 round-trip 回到对话中。
+
+### SSH TOFU MITM 注意事项
+
+git 适配器的 SSH 路径设置 `StrictHostKeyChecking=accept-new`，在首次连接时接受未知 host key。位于 GoClaw 与 git host 之间的网络攻击者可以捕获那**首次** SSH 会话。在部署时预先填充 `known_hosts` 以关闭该窗口——此后 `accept-new` 强制 match-or-fail：
+
+```sh
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh-keyscan -p 22 gitea.internal >> ~/.ssh/known_hosts
+```
+
+### 临时凭证 tmpfile
+
+SSH 适配器将 PEM 密钥写入 `os.TempDir()` 中一个 `0600` 模式的 tmpfile（前缀 `goclaw-gitkey-*`），并在 exec 返回后通过 deferred cleanup 删除它。GoClaw 进程的 `SIGKILL` 会跳过该 cleanup，留下文件。`os.TempDir()` 在 POSIX 上是 per-user 的，因此暴露范围仅限于 GoClaw 的 uid。高安全部署应运行定期清扫：
+
+```sh
+find "$TMPDIR" -name 'goclaw-gitkey-*' -mmin +60 -delete
+```
+
 ---
 
 ## Webhook 安全
@@ -617,4 +673,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Webhooks](../advanced/webhooks.md) — HMAC 认证 HTTP 端点、签名验证和重放保护
 - [Workstations](../advanced/workstations.md) — 远程执行目标、权限模型和活动审计
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

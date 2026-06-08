@@ -335,6 +335,8 @@ All endpoints require `Authorization: Bearer <token>`.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{agentID}/vault/documents` | List documents (scope, doc_type, limit, offset) |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | Get single document |
+| `POST` | `/v1/agents/{agentID}/vault/documents` | Create document (optional `content` body — see below) |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` | Update document (optional `content` body — see below) |
 | `POST` | `/v1/agents/{agentID}/vault/search` | Unified search |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Outlinks + backlinks |
 
@@ -343,8 +345,35 @@ All endpoints require `Authorization: Bearer <token>`.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | List across all tenant agents (filter by `agent_id`) |
+| `POST` | `/v1/vault/documents` | Create document (optional `content` body — see below) |
+| `PUT` | `/v1/vault/documents/{docID}` | Update document (optional `content` body — see below) |
 | `GET` | `/v1/vault/tree` | Tree view of vault structure |
 | `GET` | `/v1/vault/graph` | Cross-tenant graph visualization (node limit: 2000, FA2 layout) |
+
+### Writing Content on Create/Update
+
+`POST`/`PUT` accept an optional `content` field. When supplied, the bytes are materialised at `<tenant-workspace>/<path>`, the SHA-256 hash is stored on the row, and an enrichment event is emitted so summaries, embeddings, and links are computed — the same code path the multipart `/v1/vault/upload` endpoint uses.
+
+| `content` value | Behaviour |
+|-----------------|-----------|
+| field omitted | Metadata-only stub; no file written, no enrichment event |
+| present and non-empty | Bytes written to disk; hash stored; enrichment fires |
+| present and empty (`""`) | A 0-byte file is written; enrichment still fires |
+
+The path must use an allowed extension (same whitelist as `/v1/vault/upload`). Writes are sandboxed inside the tenant workspace: lexical `../` checks, symlink-ancestor resolution, and an atomic `O_NOFOLLOW` open reject any attempt to follow a symlink out of the workspace.
+
+```bash
+POST /v1/vault/documents
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "path": "notes/auth.md",
+  "title": "Authentication Flow",
+  "doc_type": "note",
+  "content": "# Authentication Flow\n\nSee [[architecture/components]] for details."
+}
+```
 
 ### Enrichment Control Endpoints
 
@@ -454,4 +483,4 @@ No feature flag. Vault is active if the migration ran and VaultStore initialized
 - [Memory System](../core-concepts/memory-system.md) — Vector-based long-term memory
 - [Context Files](../agents/context-files.md) — Static documents injected into agent context
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

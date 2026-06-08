@@ -64,6 +64,7 @@
 
 - [Channel Overview](channels/overview.md)
 - [Telegram](channels/telegram.md)
+- [Bitrix24](channels/bitrix24.md)
 - [Discord](channels/discord.md)
 - [Feishu / Lark](channels/feishu.md)
 - [Larksuite](channels/larksuite.md)

@@ -2864,6 +2864,8 @@ Writes to `MEMORY.md`, `memory.md`, or `memory/*` are routed to the `memory_docu
 
 The `credentialed_exec` tool runs CLI tools (gh, gcloud, aws, kubectl, terraform) with credentials auto-injected as environment variables directly into the child process — no shell, no credential leakage. Security layers: path verification (blocks `./gh` spoofing), shell operator blocking (`;`, `|`, `&&`), per-binary deny patterns (e.g., block `auth\s+`), and output scrubbing.
 
+A registered secure-CLI binary is gated even when reached through the plain `exec` tool: if the agent has no grant for it, `exec` refuses with `Binary "<name>" requires a secure CLI grant. Ask admin to grant access to this agent.` rather than running it with the host environment. The gate also unwraps shell wrappers (`sh -c`, `bash -c`, `env …`) up to 3 levels deep and fails closed if the grant lookup is unavailable.
+
 **Windows environment inheritance:** On Windows, credentialed exec inherits system environment variables required by native CLIs — `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, and `PROGRAMFILES`. These are non-secret runtime variables that most Win32 programs need to function. Credential values are still injected separately and scrubbed from output.
 
 ### `exec` — Shell Safety
@@ -2887,6 +2889,66 @@ The `exec` tool enforces 15 deny groups — all enabled by default:
 | `persistence` | `crontab`, writes to `.bashrc`/`.profile`/`.zshrc` |
 | `process_control` | `kill -9`, `killall`, `pkill` |
 | `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Execution Timeout
+
+The host `exec` tool aborts a command that runs too long. The timeout is a per-tool builtin setting named `timeout_seconds`, stored under the `exec` tool's settings:
+
+```json
+{
+  "timeout_seconds": 120
+}
+```
+
+| Property | Value |
+|----------|-------|
+| Default / fallback | 60 seconds |
+| Minimum | 1 second |
+| Maximum | 3600 seconds (1 hour) — values above are clamped down |
+| Invalid / missing value | Falls back to 60 seconds |
+
+Set it from the dashboard (**Config → Tools → Built-in Tools → exec**) or via the builtin-tool settings API. A tenant-level setting overrides the global one. When the command exceeds the timeout, the process group is killed (SIGTERM, then SIGKILL after a 3-second grace period) and the tool returns `command timed out after <duration>`.
+
+> This setting governs only the host `exec` tool. It is **distinct** from the per-custom-tool `timeout_seconds` and the sandbox `sandbox_config.timeout_sec` — see [Custom Tools](/custom-tools).
+
+### Command Keyword Allowlist
+
+When an agent runs a credentialed CLI (via `credentialed_exec` / the secure-CLI gate), the per-binary `deny_args` patterns scan argument values for dangerous vocabulary. This can produce false positives: legitimate product or security content passed as an argument (for example, a post body or message that mentions a flagged word) gets blocked even though it is plain data, not a command.
+
+The command keyword allowlist solves this without weakening `deny_args`. Configure scoped rules via `tools.commandKeywordAllowlist`:
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "social-post-content",
+        "command": "zernio",
+        "subcommands": ["posts:create"],
+        "args": ["--text"],
+        "keywords": ["install", "exec"],
+        "reason": "marketing copy may mention these words as content",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Identifier for the rule (used in audit logs) |
+| `command` | string | Binary the rule applies to (case- and path-normalized) |
+| `subcommands` | string[] | Optional subcommands that must match (e.g. `"posts:create"`) |
+| `args` | string[] | Argument flags whose values are scanned (e.g. `"--text"`) |
+| `argPositions` | int[] | Optional 0-based positional args (after the matched subcommand) |
+| `keywords` | string[] | Vocabulary that is allowed inside the matched argument values |
+| `reason` | string | Free-form note recorded in the audit log |
+| `enabled` | bool | Defaults to enabled when omitted |
+
+How it works: before the `deny_args` check runs, the allowlisted keyword is masked (replaced with a placeholder) **only inside the matched argument value**. The deny scan no longer trips on that word, but command-path deny patterns and shell-operator blocking stay fully active — the allowlist never disables `deny_args`, it only exempts specific flagged vocabulary inside specific content arguments. Each match is recorded in a `security.command_keyword_allowlist` audit log with the binary, subcommand, argument, keyword, rule ID, and agent/tenant context.
+
+This config is **reloaded at runtime** via the `TopicConfigChanged` bus — no gateway restart required.
 
 ### Global shellDenyGroups (Runtime-Reloadable)
 
@@ -8123,21 +8185,41 @@ GoClaw extracts media attachments from the message being replied to across all c
 
 The `media_max_bytes` config field enforces a per-channel limit on outbound media uploads sent by the agent. Files exceeding this limit are skipped with a log entry. Each channel sets its own default (e.g., 20 MB for Telegram, 30 MB for Feishu/Lark). Configure per channel if needed.
 
+## Inbound Debounce
+
+When a user fires several messages in quick succession (or uploads multiple files at once), GoClaw merges them into a **single** inbound message before running the agent — one reply instead of one per fragment.
+
+Set the silence window with `gateway.inbound_debounce_ms` (milliseconds):
+
+```json
+{
+  "gateway": {
+    "inbound_debounce_ms": 1500
+  }
+}
+```
+
+- Messages are buffered per `channel:chatID:senderID:agentID` key. The timer resets on every new message, so the merged message flushes only after the sender goes quiet for the configured window.
+- `0` **disables** text debouncing — each message dispatches immediately.
+- **Per-agent override:** an agent can set `inbound_debounce_ms` in its `agent_config` to use a different window than the gateway default.
+- **`/stop` and `/reset` bypass the debouncer** — control commands are handled immediately and never buffered.
+- **Media floor:** media-bearing messages no longer bypass debouncing. The effective window is `max(configured, media floor)`, so a multi-file upload always coalesces into one inbound even when text debouncing is set to `0`. (A non-zero agent override is honored verbatim — operators who set, say, `500` keep `500`, not the floor.) Messages synthesized internally by tools/subagents are exempt from the floor.
+
 ## Channel Comparison
 
-| Feature | Telegram | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
-|---------|----------|---------|-------|--------|---------|-----------|----------|
-| **Transport** | Long polling | Gateway events | Socket Mode (WS) | WS/Webhook | Long polling | Internal proto | WS bridge |
-| **DM support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Group support** | Yes | Yes | Yes | Yes | No | Yes | Yes |
-| **Streaming** | Yes (typing) | Yes (edit) | Yes (edit) | Yes (card) | No | No | No |
-| **Media** | Photos, voice, files | Files, embeds | Files (20MB) | Images, files (30MB) | Images (5MB) | -- | JSON |
-| **Reply media** | Yes | Yes | -- | Yes | -- | -- | -- |
-| **Rich format** | HTML | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
-| **Thread support** | Yes | -- | -- | -- | -- | -- | -- |
-| **Reactions** | Yes | -- | Yes | Yes | -- | -- | -- |
-| **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Message limit** | 4,096 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
+| Feature | Telegram | Bitrix24 | Discord | Slack | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
+|---------|----------|----------|---------|-------|--------|---------|-----------|----------|
+| **Transport** | Long polling | Webhook (OAuth) | Gateway events | Socket Mode (WS) | WS/Webhook | Long polling | Internal proto | WS bridge |
+| **DM support** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| **Group support** | Yes | Yes | Yes | Yes | Yes | No | Yes | Yes |
+| **Streaming** | Yes (typing) | Yes | Yes (edit) | Yes (edit) | Yes (card) | No | No | No |
+| **Media** | Photos, voice, files | Files (20MB) | Files, embeds | Files (20MB) | Images, files (30MB) | Images (5MB) | -- | JSON |
+| **Reply media** | Yes | -- | Yes | -- | Yes | -- | -- | -- |
+| **Rich format** | HTML | Text | Markdown | mrkdwn | Cards | Plain text | Plain text | Plain |
+| **Thread support** | Yes | -- | -- | -- | -- | -- | -- | -- |
+| **Reactions** | Yes | Yes | -- | Yes | Yes | -- | -- | -- |
+| **Pairing** | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| **Message limit** | 4,096 | 4,000 | 2,000 | 4,000 | 4,000 | 2,000 | 2,000 | N/A |
 
 ## Channel Health Diagnostics
 
@@ -8416,6 +8498,14 @@ Enable live response updates:
 
 Disabled by default. When enabled with `reasoning_stream: true` (default), reasoning tokens appear as a separate message before the final answer.
 
+### Media Handling
+
+**Albums / multi-attachment coalescing.** When a user sends an album (several photos or files grouped on the client), Telegram delivers it as N separate updates that share one `MediaGroupID`. GoClaw buffers album members at the channel layer (500 ms silence window) and synthesizes them into **one** inbound message, so the agent replies once instead of once per attachment. The buffer key is `(chatID, MediaGroupID)`; the sender is pinned on the first member, and a member arriving with a mismatched sender is dropped as a defensive measure.
+
+**Outbound upload limit.** Outbound media is validated against the upload ceiling before sending — files over the limit are rejected with a clear "outbound media too large" error rather than failing mid-upload. The ceiling is 50 MB on the official Bot API and 200 MB when a local Bot API server (`api_server`) is configured (or higher if `media_max_bytes` is raised above that).
+
+**Archive path preservation.** Inbound files keep their original extension when persisted (e.g. a `codex.zip` upload stays `.zip` rather than being rewritten to a generic name), so skills and document tools can detect and extract archives correctly downstream.
+
 ### Reactions
 
 Show emoji status on user messages. Set `reaction_level`:
@@ -8510,10 +8600,231 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 
 ## What's Next
 
-- [Overview](/channels-overview) — Channel concepts and policies
+- [Overview](/channels-overview) — Channel concepts, policies, and [inbound debounce](/channels-overview#inbound-debounce)
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation history
+
+
+
+---
+
+# Bitrix24 Channel
+
+Bitrix24 integration via the **imbot** (chatbot) API. GoClaw registers a bot on a Bitrix24 portal, receives chat events through a webhook, and replies as the bot. One GoClaw gateway can serve many bots across many portals, and several bots can share a single portal (they share OAuth tokens and the refresh loop).
+
+Unlike token-based channels (Telegram, Slack), Bitrix24 uses an **OAuth portal install flow**: an admin authorizes the GoClaw app on their portal once, GoClaw stores and auto-refreshes the tokens, then registers bots on demand.
+
+## How It Works
+
+```mermaid
+flowchart LR
+    Admin["Portal admin"] -->|"visits /bitrix24/install"| Install["Install handler<br/>OAuth exchange"]
+    Install -->|"stores tokens"| Portal["bitrix_portals row<br/>(encrypted)"]
+    Channel["bitrix24 channel"] -->|"imbot.register"| BX["Bitrix24 portal"]
+    BX -->|"POST /bitrix24/events"| Webhook["Webhook router"]
+    Webhook -->|"dedup + dispatch"| Agent["Agent loop"]
+    Agent -->|"imbot.message.add"| BX
+```
+
+1. **Seed a portal row** with the app's `client_id` / `client_secret` (CLI or dashboard).
+2. **Admin authorizes** by visiting the install URL — GoClaw exchanges the code for tokens and persists them encrypted.
+3. **Configure a channel instance** that points at the portal and names the bot.
+4. On start, the channel calls `imbot.register` (idempotently) and wires the returned bot ID into the webhook router.
+5. Inbound chat events hit `/bitrix24/events`; GoClaw deduplicates, dispatches to the agent loop, and replies as the bot.
+
+## Setup
+
+### 1. Create a Bitrix24 application
+
+In your Bitrix24 portal, create either a **Local application** or a **Marketplace (OAuth2) application**. You need:
+
+- `client_id` (application ID)
+- `client_secret` (application key)
+- OAuth scopes including `imbot` (chatbot) and `user` (so GoClaw can resolve sender display names)
+
+Set the application handler / installer URL to your GoClaw public URL:
+
+- **Install / installer URL:** `https://<your-public-url>/bitrix24/install`
+- **Events:** registered automatically by GoClaw (`https://<your-public-url>/bitrix24/events`)
+
+> **Public URL required.** Bitrix24 needs absolute, publicly reachable URLs for the event handlers it calls. GoClaw captures the public URL automatically from the install callback. If your gateway sits behind a tunnel or rotating ingress, see [Public URL handling](#public-url-handling).
+
+### 2. Seed the portal row
+
+A `bitrix_portals` row must exist before the admin authorizes the app. Create it via CLI:
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <tenant-uuid> \
+  --name acme \
+  --domain acme.bitrix24.com \
+  --client-id <your-client-id> \
+  --client-secret <your-client-secret>
+```
+
+The `--name` (e.g. `acme`) is the portal key your channel config references. The `--domain` is the bare host — no scheme, no trailing slash.
+
+> Set `GOCLAW_ENCRYPTION_KEY` before running this. Credentials and tokens are stored AES-256-GCM encrypted; without the key they are stored in plaintext (with a warning).
+
+You can also create portals from the dashboard, which returns the install URL directly.
+
+### 3. Authorize the portal
+
+Direct the portal admin to the install URL printed by the create command:
+
+```
+https://<your-public-url>/bitrix24/install?state=<tenant-uuid>:acme
+```
+
+The admin authorizes the app inside Bitrix24. GoClaw exchanges the code for tokens, captures the public URL, and shows a small auto-closing success page. The portal is now **installed**.
+
+Both install flows are supported automatically:
+
+- **Marketplace (OAuth2):** `code` is exchanged for tokens.
+- **Local application:** Bitrix24 POSTs the tokens directly (`AUTH_ID` / `REFRESH_ID`); no exchange step.
+
+### 4. Configure the channel instance
+
+Create a `bitrix24` channel instance whose config points at the portal and names the bot:
+
+```json
+{
+  "portal": "acme",
+  "bot_code": "support-bot",
+  "bot_name": "GoClaw Assistant",
+  "bot_type": "B",
+  "dm_policy": "pairing",
+  "group_policy": "open"
+}
+```
+
+On start, the channel registers the bot (idempotently — restarts never spawn duplicate bots) and begins receiving events. If the portal is not yet installed, the channel reports a `failed` health state with the message "Portal not installed — visit /bitrix24/install".
+
+## Configuration
+
+Channel instance config fields:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `portal` | string | required | Portal name (matches `bitrix-portal create --name`) |
+| `bot_code` | string | required | Stable bot key passed to `imbot.register`. Restarts reuse the same code. |
+| `bot_name` | string | required | Bot display name on the portal |
+| `bot_avatar` | string | -- | Image URL; fetched and base64-encoded at start (http/https only, ≤256 KB) |
+| `bot_type` | string | `"B"` | `"B"` = standard internal chatbot; `"O"` = Open Channel (customer-facing) bot |
+| `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
+| `group_policy` | string | `"open"` | `open`, `allowlist`, `disabled` |
+| `allow_from` | list | -- | DM sender allowlist |
+| `group_allow_from` | list | -- | Group sender allowlist |
+| `require_mention` | bool | true | Require @mention in group chats |
+| `text_chunk_limit` | int | 4000 | Max characters per outbound chunk |
+| `media_max_mb` | int | 20 | Max media size in MB |
+| `streaming` | bool | true | Stream responses |
+| `reaction_level` | string | `"minimal"` | `off`, `minimal`, `full` |
+| `history_limit` | int | -- | Pending group messages held as context |
+| `block_reply` | bool | -- | Override gateway `block_reply` (nil = inherit) |
+| `public_url` | string | -- | Per-instance public URL override (legacy; prefer the auto-captured portal URL) |
+| `mcp_server_name` | string | -- | MCP server name for per-user credential provisioning (see [MCP integration](#mcp-integration)) |
+| `mcp_base_url` | string | -- | MCP server base URL; must be set together with `mcp_server_name` |
+
+### Bot types
+
+| Type | Audience | Notes |
+|------|----------|-------|
+| `B` | Internal staff | Sees DMs always; sees group messages only when @mentioned. Pairs with users and can receive per-user MCP credentials. Recommended: `dm_policy: pairing`, `group_policy: open`. |
+| `O` | External customers (Open Channel widget) | After registration, an admin must attach the bot to an Open Channel queue in the Bitrix24 UI. Recommended: `dm_policy: open`. Per-user MCP provisioning is skipped (customers are transient). |
+
+> GoClaw only accepts `B` or `O`. Unknown types are rejected at startup to avoid a bot that silently receives no events.
+
+## Public URL handling
+
+`imbot.register` requires absolute URLs for its event handlers. GoClaw resolves the public URL in this order:
+
+1. **Auto-captured portal URL** — recorded from the actual `/bitrix24/install` request Bitrix24 sent. This is the preferred source because it is proven reachable.
+2. **`public_url` in channel config** — a legacy fallback used only when (1) is empty (e.g. a portal installed on an older GoClaw release).
+
+If your public URL changes (tunnel rotated, redeployed to a new host), re-run the install flow to recapture it, or backfill it:
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <tenant-uuid> \
+  --name acme \
+  --url https://goclaw.example.com
+```
+
+To push a changed URL back into Bitrix24's event handlers without recreating the bot, restart the channel with:
+
+```bash
+BITRIX24_FORCE_REREGISTER=1 goclaw gateway
+```
+
+This bypasses the cached bot state and re-runs `imbot.register` with the current URL and config.
+
+## Features
+
+### Contact enrichment
+
+Bitrix24 webhook events do not carry sender display names. On first sight of a user, GoClaw calls `user.get` to resolve a friendly name (e.g. `Name Last_Name`, falling back to login or email) and caches it per channel (1 hour for hits, 5 minutes for failures). This requires the `user` OAuth scope — without it, names stay blank and a debug log explains why. Enrichment is best-effort: a failure never blocks message processing.
+
+### Inbound deduplication
+
+Bitrix24 retries event delivery on any non-2xx response (and may fire 3–5 retries in a burst). GoClaw deduplicates inbound events by `domain:event_type:message_id` using a bounded LRU cache, so a retried delivery returns `{"duplicate":true}` (HTTP 200) and never triggers a second agent run — important because Bitrix24 bills per bot and duplicate runs would double token usage.
+
+### Token refresh
+
+OAuth access tokens (1-hour TTL) are refreshed automatically in the background, slightly ahead of expiry, with exponential backoff on failure. Concurrent requests coalesce so only one refresh runs at a time. If the refresh token becomes invalid, the portal requires a reinstall.
+
+### Inbound debounce
+
+Like other channels, Bitrix24 honors the gateway-wide inbound debounce window that merges rapid messages from the same sender into one agent run. See [Inbound Debounce](/channels-overview#inbound-debounce) in the overview.
+
+## MCP integration
+
+The Bitrix24 channel can lazily provision **per-user MCP credentials** so each user's agent tools act on Bitrix24 as that user. This is optional and staged — install the channel first, layer MCP on later.
+
+Set both fields to enable it:
+
+```json
+{
+  "portal": "acme",
+  "bot_code": "support-bot",
+  "bot_name": "GoClaw Assistant",
+  "mcp_server_name": "bitrix-mcp",
+  "mcp_base_url": "https://mcp.example.com"
+}
+```
+
+How it works:
+
+1. On a user's first message, the channel checks for existing MCP credentials.
+2. If absent (or near expiry), it POSTs to `{mcp_base_url}/api/auto-onboard`, forwarding that user's Bitrix24 OAuth tokens.
+3. The MCP server authenticates the call by verifying the access token against Bitrix24 `profile` (no shared admin secret needed), then returns a per-user API key.
+4. GoClaw stores the key; downstream agent tool calls use it transparently.
+
+Notes:
+
+- Both `mcp_server_name` and `mcp_base_url` must be set together, or neither (half-config fails at startup). The named MCP server row must also exist.
+- Provisioning is **best-effort**: if any step fails, the user still gets a reply (without MCP tools), and a one-time notice is sent so they know to contact an admin.
+- Skipped entirely for Open Channel bots (`bot_type: "O"`) — transient customers have no user mapping.
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Channel `failed`: "Portal not installed" | Admin must visit `/bitrix24/install` to authorize the app first. |
+| `imbot.register` fails: public_url not set | The portal has no captured public URL. Re-run install, or `goclaw bitrix-portal set-public-url`. |
+| Bot registered but receives no chat events | Install was not finalized — Bitrix24 suppresses events until `BX24.installFinish()` runs. Reinstall via `/bitrix24/install` so the success page signals completion. |
+| Contact names stay blank | OAuth scope missing `user`. Add the scope and reinstall; names appear within 5 minutes. |
+| Open Channel bot silent to customers | `bot_type: "O"` needs `dm_policy: "open"`, and an admin must attach the bot to an Open Channel queue in the Bitrix24 UI. |
+| Event handler URL stale after redeploy | Set `BITRIX24_FORCE_REREGISTER=1` and restart to push the new URL into Bitrix24. |
+| Want to inspect raw events | Set `BITRIX24_LOG_RAW_EVENT=1` at process start (credentials are redacted). Leave off in production — it logs message text. |
+
+## What's Next
+
+- [Overview](/channels-overview) — Channel concepts, policies, and inbound debounce
+- [Telegram](/channel-telegram) — Telegram bot setup
+- [Slack](/channel-slack) — Slack Socket Mode integration
+- [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
 
 
@@ -9569,6 +9880,8 @@ After the bot replies in a thread, it auto-replies to subsequent messages in tha
 ### Message Debouncing
 
 Rapid messages from the same thread are batched into a single dispatch. Default delay: 300ms (configurable via `debounce_delay`). Pending batches are flushed on shutdown.
+
+On top of this channel-level batching, the gateway-wide [Inbound Debounce](/channels-overview#inbound-debounce) also applies — it merges rapid messages (and multi-file uploads) from the same sender before the agent runs.
 
 ### Message Formatting
 
@@ -10665,6 +10978,8 @@ Failed requests include error details:
 # Browser Pairing
 
 Secure authentication flow for custom WebSocket clients using 8-character pairing codes. Ideal for private web apps and desktop clients that need to verify device identity.
+
+> **Browser pairing vs. cookie sync.** Browser **pairing** authenticates a *client* (a browser or desktop app) so it can talk to the gateway. **Selected cookie sync** copies *site login cookies* into an agent's server-side browser so the agent can act as a signed-in session. Use pairing to let a device connect; use cookie sync to give an agent access to a site you are logged into. See [Browser Automation → Selected Cookie Sync](/browser-automation#selected-cookie-sync).
 
 ## Pairing Flow
 
@@ -12286,6 +12601,8 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 | `agent_id` | UUID | null | Scope to one agent; omit for global |
 | `enabled` | bool | true | Disable without deleting |
 
+> **Three distinct timeouts — don't confuse them.** This per-custom-tool `timeout_seconds` (default 60) applies only to this one custom tool's command. It is separate from the host `exec` builtin tool's own `timeout_seconds` setting (also default 60, max 3600 — see [Tools Overview → Execution Timeout](/tools-overview)) and from the sandbox `sandbox_config.timeout_sec` (agent-level, default 300 — see [Sandbox](/sandbox)). A custom tool routed through the sandbox is still bounded by the sandbox timeout.
+
 ### Command templates
 
 Use `{{.paramName}}` placeholders. GoClaw replaces them with shell-escaped values using simple string replacement — not Go's `text/template` engine, so template functions and pipelines are not supported. Every substituted value is single-quoted with embedded single-quotes escaped, so even a malicious LLM cannot break out of the argument.
@@ -12760,6 +13077,47 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
   > ~/.goclaw/skills/my-new-skill/SKILL.md
 ```
 
+## Slash Command Activation
+
+Instead of waiting for the agent to discover a skill via `skill_search`, you can activate one explicitly by starting your chat message with a slash command. This is enabled by default.
+
+```
+/code-reviewer review this PR
+/use sql-style format these queries
+/list-skills
+/help code-reviewer
+```
+
+**Supported forms:**
+
+| Command | What it does |
+|---|---|
+| `/<skill-slug> <your request>` | Activates the skill by slug (or display name) and treats the rest of the message as the skill's input |
+| `/use <skill> <request>` | Same as above, explicit verb form (`/activate` also works) |
+| `/list-skills` | Asks the agent to list all available skills |
+| `/help <skill>` | Asks the agent to explain a skill and how to use it |
+
+When a skill is activated, GoClaw loads its `SKILL.md` into the current turn and scopes the agent to that skill for the request.
+
+**Matching rules:**
+
+- **Exact match** wins first — the slug or display name (case-insensitive) is matched directly. `/code-reviewer` matches the `code-reviewer` skill.
+- **Partial (prefix) matching** is opt-in (off by default). When enabled, `/code` matches `code-reviewer` if it is the only prefix match.
+- **Ambiguity guard** — if two skills tie on match strength (same-length match), the command is treated as *not matched* rather than guessing.
+
+**No match:** if the requested skill is not found, GoClaw runs a fuzzy similarity search (edit-distance, up to 3 suggestions) and asks the agent to tell you the skill was not found and suggest the closest available skills. This suggestion behavior is on by default. If no similar skill exists, the message is treated as a normal prompt.
+
+**Configuration** (all optional):
+
+| Config key | Env / system config | Default | Effect |
+|---|---|---|---|
+| `skills.slash_commands.enabled` | `skills.slash_commands.enabled` | `true` | Master toggle |
+| `skills.slash_commands.prefix` | `skills.slash_commands.prefix` | `/` | Single-character trigger prefix |
+| `skills.slash_commands.partial_matching` | `skills.slash_commands.partial_matching` | `false` | Allow prefix matching |
+| `skills.slash_commands.suggest_not_found` | `skills.slash_commands.suggest_not_found` | `true` | Suggest alternatives on no match |
+
+> Messages that look like file paths (containing `/`, `\`, or `.` in the first token, e.g. `/etc/hosts`) are **not** treated as slash commands and pass through unchanged.
+
 ## Uploading via Dashboard
 
 Go to **Skills → Upload** and drop a ZIP file. The ZIP can contain a **single skill** or **multiple skills** in one archive:
@@ -12795,6 +13153,32 @@ Uploaded skills are stored in a versioned subdirectory structure under the manag
 Metadata (name, description, visibility, grants) lives in PostgreSQL; file content lives on disk. GoClaw always serves the highest-numbered version. Old versions are kept for rollback.
 
 Skills uploaded via the Dashboard start with **internal** visibility — immediately accessible to any agent or user you grant access to.
+
+### Upload Size Limit
+
+Skill ZIP uploads (Dashboard and `POST /v1/skills/import`) are capped by a configurable size limit. The default is **20 MB**, and the effective value is always clamped to the **1–500 MB** range.
+
+The limit is resolved in this precedence order (highest first):
+
+1. **Tenant override** — system config key `skills.max_upload_size_mb` (set per tenant)
+2. **SKILL.md frontmatter** — a `max_upload_size_mb` field in the skill's frontmatter
+3. **Gateway default** — `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` env var or `skills.max_upload_size_mb` in the config file (falls back to 20 MB)
+
+```yaml
+# Raise the limit for one skill via its SKILL.md frontmatter
+---
+name: large-skill
+description: Ships large reference assets.
+max_upload_size_mb: 100
+---
+```
+
+```bash
+# Set the gateway-wide default via environment variable
+export GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB=128
+```
+
+Uploads exceeding the resolved limit are rejected with an error like `skill ZIP size 42.0 MB exceeds 20 MB limit`.
 
 ## Importing via API
 
@@ -12879,13 +13263,13 @@ Packages installed at runtime persist across tool calls within the same containe
 
 ### What Agents Can/Cannot Do
 
-Agents **can**: run Python/Node scripts, install packages via `pip3 install` or `npm install -g`, access files in `/app/workspace/` including `.media/`.
+Agents **can**: run Python/Node scripts, install packages via `pip3 install` or `npm install -g`, access files in `/app/workspace/` — including `.uploads/` for current user uploads and `.media/` for legacy media refs.
 
 Agents **cannot**: write to system paths, execute binaries from `/tmp`, run blocked shell patterns (network tools, reverse shells).
 
 ## Bundled Skills
 
-GoClaw ships five core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
+GoClaw ships six core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
 
 | Skill | Purpose |
 |---|---|
@@ -12894,6 +13278,7 @@ GoClaw ships five core skills bundled inside the Docker image at `/app/bundled-s
 | `docx` | Read, create, edit Word documents |
 | `pptx` | Read, create, edit presentations |
 | `skill-creator` | Create new skills |
+| `workspace-organizing` | Keep agent workspaces tidy and discoverable — enforces a purpose-based folder convention and runs memory/Vault/knowledge-graph discovery before writing files to avoid duplicates |
 
 Bundled skills are seeded into PostgreSQL on every gateway startup (hash-tracked, no re-import if unchanged). They are tagged `is_system = true` and `visibility = 'public'`.
 
@@ -15399,6 +15784,8 @@ All endpoints require `Authorization: Bearer <token>`.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{agentID}/vault/documents` | List documents (scope, doc_type, limit, offset) |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | Get single document |
+| `POST` | `/v1/agents/{agentID}/vault/documents` | Create document (optional `content` body — see below) |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` | Update document (optional `content` body — see below) |
 | `POST` | `/v1/agents/{agentID}/vault/search` | Unified search |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Outlinks + backlinks |
 
@@ -15407,8 +15794,35 @@ All endpoints require `Authorization: Bearer <token>`.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | List across all tenant agents (filter by `agent_id`) |
+| `POST` | `/v1/vault/documents` | Create document (optional `content` body — see below) |
+| `PUT` | `/v1/vault/documents/{docID}` | Update document (optional `content` body — see below) |
 | `GET` | `/v1/vault/tree` | Tree view of vault structure |
 | `GET` | `/v1/vault/graph` | Cross-tenant graph visualization (node limit: 2000, FA2 layout) |
+
+### Writing Content on Create/Update
+
+`POST`/`PUT` accept an optional `content` field. When supplied, the bytes are materialised at `<tenant-workspace>/<path>`, the SHA-256 hash is stored on the row, and an enrichment event is emitted so summaries, embeddings, and links are computed — the same code path the multipart `/v1/vault/upload` endpoint uses.
+
+| `content` value | Behaviour |
+|-----------------|-----------|
+| field omitted | Metadata-only stub; no file written, no enrichment event |
+| present and non-empty | Bytes written to disk; hash stored; enrichment fires |
+| present and empty (`""`) | A 0-byte file is written; enrichment still fires |
+
+The path must use an allowed extension (same whitelist as `/v1/vault/upload`). Writes are sandboxed inside the tenant workspace: lexical `../` checks, symlink-ancestor resolution, and an atomic `O_NOFOLLOW` open reject any attempt to follow a symlink out of the workspace.
+
+```bash
+POST /v1/vault/documents
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "path": "notes/auth.md",
+  "title": "Authentication Flow",
+  "doc_type": "note",
+  "content": "# Authentication Flow\n\nSee [[architecture/components]] for details."
+}
+```
 
 ### Enrichment Control Endpoints
 
@@ -15770,6 +16184,91 @@ The snapshot returns an accessibility tree. Use `interactive: true` to see only 
 | `interactive` | boolean | false | Show only interactive elements |
 | `compact` | boolean | false | Remove empty structural nodes |
 | `depth` | number | unlimited | Max tree depth |
+
+---
+
+## Selected Cookie Sync
+
+Server-side browser sessions start with no login state. **Selected cookie sync** lets a user pick specific cookies from a site they are logged into and copy them into GoClaw, so an agent's browser can act as that signed-in session — without sharing a password.
+
+A small Chrome extension (`chrome-selected-cookie-sync`) does the picking. There is **no automatic background sync**: the user opens the extension on the active tab, checks the exact cookies to share, and clicks **Sync**. GoClaw stores the values encrypted and replays them into the agent's browser only for matching domains and paths.
+
+```mermaid
+flowchart LR
+    USER["User on logged-in site"] --> EXT["chrome-selected-cookie-sync\nextension"]
+    EXT -->|"POST /v1/browser/cookies/sync"| GW["GoClaw gateway"]
+    GW -->|"AES-256-GCM encrypt"| DB[("browser_cookies\ntable")]
+    DB -->|"decrypt + domain/path match"| AGENT["Agent browser session"]
+```
+
+### Endpoints
+
+All three endpoints require **operator** auth (gateway token, API key, or paired-browser auth).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert selected cookies for an agent |
+| `GET` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | List synced cookie **metadata** (never values) |
+| `DELETE` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | Revoke synced cookies |
+
+The client only ever chooses `agent_id`. **Tenant and user are derived from the auth context**, not from the request body — a client cannot spoof another user's cookies. Sync is rejected when the auth context has no user, or when no `agent_id` is supplied.
+
+**Sync request body:**
+
+```json
+{
+  "agent_id": "default",
+  "source": "chrome-selected-cookie-sync",
+  "cookies": [
+    {
+      "domain": "example.com",
+      "name": "session",
+      "path": "/",
+      "value": "REDACTED",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "expirationDate": 1789999999
+    }
+  ]
+}
+```
+
+**Response:** `{ "synced": 1 }`. Limits: max 200 cookies per request, 16 KB per cookie value, 1 MB total body.
+
+The `GET` response returns metadata only — `domain`, `name`, `path`, `secure`, `httpOnly`, `sameSite`, `expiresAt`, `source`, `updatedAt`. Cookie **values are never returned**.
+
+### Scope and uniqueness
+
+Each stored cookie is keyed by `(tenant_id, user_id, agent_id, domain, path, name)`. Re-syncing the same cookie updates the existing row (upsert). This scope is what keeps one user's cookies from leaking into another user's or another agent's browser session.
+
+### Security
+
+- **Encrypted at rest**: cookie values are encrypted with AES-256-GCM before being written to the `browser_cookies` table. Requires the `GOCLAW_ENCRYPTION_KEY` environment variable — **sync and list fail closed (HTTP 503) when it is unset**, so cookies are never persisted in plaintext.
+- **Write-only values**: the list endpoint and audit logs return metadata only. Cookie values never appear in API responses or logs.
+- **Scoped replay**: the agent browser receives a cookie only when the requested URL's host and path match the stored cookie's domain/path, the cookie has not expired, and the tenant/user/agent scope matches.
+- **Explicit selection**: the extension reads cookies only after the user grants host permission for the active site, and sends only the cookies the user checked.
+- **Revocation**: delete from the extension or call `DELETE /v1/browser/cookies?agent_id=<agent>&domain=<domain>` to remove synced cookies. Omitting `domain` removes all cookies for that agent.
+
+### How the agent consumes synced cookies
+
+When the agent's browser navigates to an `http(s)` URL, GoClaw's cookie provider looks up cookies for the current browser scope (`tenant_id` / `user_id` / `agent_id`), decrypts them, and injects only those whose domain and path match the target URL (and that have not expired). Non-HTTP schemes get no cookies. The agent never sees raw values — they are applied directly to the Chrome session via CDP.
+
+### Install the extension
+
+The extension lives in the GoClaw repo at `extensions/chrome-selected-cookie-sync/`.
+
+1. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the `extensions/chrome-selected-cookie-sync/` folder.
+2. Open a tab on the site you are logged into, then click the extension icon.
+3. Fill in the popup:
+   - **Gateway URL** — e.g. `http://localhost:18790`
+   - **Token** — an operator token (sent as `Authorization: Bearer <token>`)
+   - **User ID** — sent as the `X-GoClaw-User-Id` header
+   - **Agent ID** — e.g. `default`
+4. Click **Grant access** to give the extension host permission for the current site, then **Refresh** to list the site's cookies.
+5. Check the cookies you want to share (or **Select all**), then click **Sync**. The popup confirms `Synced N cookies.`
+
+Settings are saved in `chrome.storage.local`. The extension requests gateway-origin permission before sending, and asks for active-tab host permission before reading cookies.
 
 ---
 
@@ -16938,6 +17437,7 @@ A `400` response on create/update includes the rejected key names in `rejected_k
   "error": "env keys denied: LD_PRELOAD, PATH",
   "rejected_keys": "LD_PRELOAD,PATH"
 }
+```
 
 ## REST API
 
@@ -17016,6 +17516,126 @@ POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal
 ```
 
 Returns the decrypted plaintext env vars. Rate-limited to 10 calls/minute per user. See [Revealing Decrypted Env Vars](#revealing-decrypted-env-vars) for full details.
+
+## Typed Credential Adapters
+
+The sections above describe the **legacy env-paste model** — you paste arbitrary environment variables and GoClaw injects them verbatim into the child process. That works for tools that read auth from a single stable env var (`GH_TOKEN`, `AWS_ACCESS_KEY_ID`, …), but it fails for tools like `git` that read credentials from config files, credential helpers, or per-remote URLs — pasting a PAT into `GIT_TOKEN` does nothing.
+
+**Typed credential adapters** solve this. Instead of pasting raw env vars, you choose a credential *type*, and GoClaw routes the credential through a server-side adapter that knows how to inject it correctly and securely for that specific tool.
+
+### Credential types
+
+A user credential row carries a `credential_type` (migration `000073`):
+
+| `credential_type` | Meaning |
+|-------------------|---------|
+| `NULL` / `env` | Legacy env passthrough — env vars injected verbatim, exactly as before. No host scoping. |
+| `pat` | Personal Access Token, for HTTPS git remotes (GitHub/GitLab/Gitea). Requires a `host_scope`. |
+| `ssh_key` | SSH private key (PEM), for git over SSH. Requires a `host_scope`. |
+
+`NULL`/`env` rows are never migrated — existing legacy credentials keep working unchanged. Typed adapters are opt-in per credential.
+
+### User credentials vs binary/system credentials
+
+Typed adapters operate on **user credentials**, not the binary-level env defaults:
+
+- **Binary/system credentials** — the binary definition + its default env vars (and agent-grant overrides) described above. Shared across the binary's grants.
+- **User credentials** — per-user typed secrets stored in `secure_cli_user_credentials`, scoped to a single hostname.
+
+Manage user credentials in the dashboard under **Settings → CLI Credentials → User Credentials**. Click **Add**, select the user, choose the credential type (`Personal Access Token` or `SSH Private Key`), enter the **Host Scope**, and paste the secret. The stored secret is AES-256-GCM encrypted and can never be read back — editing the row shows a `••••••••` placeholder; leaving the secret field blank preserves the stored value, typing a new value replaces it.
+
+### The git adapter
+
+The `git` adapter is the first shipped typed adapter. It injects credentials **only** for network subcommands:
+
+```
+clone   fetch   pull   push   submodule
+```
+
+Any other subcommand (`status`, `log`, `diff`, `commit`, `branch`, …) is a local operation and runs **uncredentialed** — no injection, no audit-log line.
+
+**PAT flow.** The token is injected through environment variables, never on `argv`:
+
+```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
+GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+```
+
+Because the token lives in an env value (not a command-line flag), it never appears in `ps`, `/proc/<pid>/cmdline`, or shell history. The injected vars are scoped to the spawned `git` process only — GoClaw's own environment and sibling exec calls never see them.
+
+**SSH flow.** The PEM key is written to a `0600`-mode tmpfile in the system temp dir (prefix `goclaw-gitkey-*`), and `GIT_SSH_COMMAND` is set to:
+
+```
+ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
+```
+
+`StrictHostKeyChecking=accept-new` accepts unknown host keys on **first contact (TOFU)**. Pre-seed `~/.ssh/known_hosts` to close the window (see [Security Hardening](/deploy-security)). The tmpfile is removed after exec via a deferred cleanup. **Passphrase-protected SSH keys are rejected at save time** — re-export your key without a passphrase, or use a dedicated deploy key.
+
+### Host scope
+
+Both `pat` and `ssh_key` require a **`host_scope`** — the exact ASCII `host` or `host:port` the credential is valid for. It is normalized to lowercase ASCII (via `idna.ToASCII`) and matched **exactly**. v1 has **no wildcards**, and the port is part of the key:
+
+| Stored `host_scope` | `github.com` | `api.github.com` | `github.com:8443` |
+|---------------------|:---:|:---:|:---:|
+| `github.com` | ✓ | ✗ | ✗ |
+
+If you run a self-hosted server on the scheme's default port (443 HTTPS, 22 SSH), omit the port; if on a non-default port, include it (e.g. `gitea.internal:8443`). When no stored credential matches the resolved remote host, the adapter falls through to the uncredentialed path and the remote rejects the operation if it requires auth.
+
+### Env visibility: sensitive vs non-sensitive
+
+Stored env entries now carry a `kind`. When the dashboard or admin API reads a credential back, the response masks values according to kind:
+
+| `kind` | In API response |
+|--------|-----------------|
+| `sensitive` (default; legacy string maps decode here) | `value: null`, `masked: true` |
+| `value` (explicitly non-sensitive, e.g. a region or profile name) | plain value returned, `masked: false` |
+
+This lets operators see non-secret context (e.g. `AWS_DEFAULT_REGION=us-west-2`) in the UI while secrets stay masked. Secrets are still never returned except via the dedicated `env:reveal` endpoint.
+
+### Migrating from legacy env credentials
+
+There is no forced migration. A row with `credential_type IS NULL` or `= 'env'` keeps emitting its env vars exactly as before. To upgrade a git credential, open the user-credentials dialog, pick **Personal Access Token** or **SSH Private Key**, enter the host scope, paste the secret, and save — the legacy row is replaced atomically.
+
+### v1 limitations
+
+- **No wildcard hosts** — one credential per exact `host[:port]`; `*.github.com` is not supported.
+- **No passphrase-protected SSH keys** — rejected at validation time.
+- **No sandbox propagation** — the adapter mutates the forked child's environment, which is incompatible with the bind-mount Docker sandbox path. Credentialed exec runs on the host only in v1.
+- **No host-key pinning** — SSH uses TOFU (`accept-new`); pre-seed `known_hosts`.
+
+### Google Workspace CLI (gws)
+
+GoClaw ships a `gws` preset for the Google Workspace CLI (`@googleworkspace/cli`).
+
+**Availability.** The `gws` binary is preinstalled **only in the published `full` Docker image**. On `latest`/`base` images, install `@googleworkspace/cli` from the Packages page (requires a Node-enabled build, `ENABLE_NODE=true`; Node.js 18+).
+
+**Credentials.** Create a SecureCLI credential from the `gws` preset and provide at least one auth source:
+
+| Env var | Purpose |
+|---------|---------|
+| `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` | Path to exported `gws` credentials or an OAuth credentials JSON file |
+| `GOOGLE_WORKSPACE_CLI_TOKEN` | Pre-obtained Google OAuth access token (optional) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_ID` | OAuth client ID for manual auth flows (optional) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_SECRET` | OAuth client secret for manual auth flows (optional) |
+
+**Blocked commands.** The preset blocks interactive and credential-exporting auth flows:
+
+```
+gws auth setup    gws auth login    gws auth export    gws auth logout
+```
+
+Run those flows outside agent execution, then store the resulting token or credentials-file path in SecureCLI.
+
+**Usage.** Default usage is read-oriented. Use `--params` for query parameters, `--json` for request bodies, and `--page-all` for paginated reads:
+
+```sh
+gws drive files list --params '{"pageSize": 10}'
+gws gmail users messages list --params '{"userId": "me", "maxResults": 10}'
+gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
+```
+
+> **Write caution.** Write commands can modify Workspace data. Keep the default preset read-oriented and create a separate, reviewed SecureCLI config for any approved write workflow.
 
 ## Common Patterns
 
@@ -18614,6 +19234,133 @@ When quota is disabled (`"enabled": false`), the response still includes today's
 
 ---
 
+## AI Budget Usage Caps
+
+Separate from the channel-layer request quota above, GoClaw has a **token- and cost-based cap system** that enforces limits on the LLM provider spend itself. Where request quota counts messages, usage caps count *tokens and dollar cost*, and they apply not only to the main agent turn but to every billable LLM call GoClaw makes on a tenant's behalf.
+
+Caps are stored as **policies** in PostgreSQL (migrations `000070`–`000072`) and managed through a REST API. They are always active once at least one policy exists for a tenant — there is no global on/off config flag.
+
+### Policy model
+
+A cap policy answers: *for this scope, in this time window, how many tokens and/or how much cost is allowed?*
+
+**Scope dimensions** — every policy can leave any dimension unset (NULL) to mean "matches everything":
+
+| Dimension | Meaning |
+|-----------|---------|
+| `tenant_id` | Always set — every policy belongs to one tenant |
+| `agent_id` | Limit one agent (unset = all agents in the tenant) |
+| `provider_id` | Limit one configured LLM provider record |
+| `provider_type` | Limit a provider family, e.g. `anthropic`, `openai` |
+| `model_id` | Limit one model, e.g. `claude-sonnet-4-5` |
+
+**Window types** (`window`): `hour`, `day`, `week`, or `month`. Windows are aligned to UTC calendar boundaries — `day` starts at 00:00 UTC, `week` starts Monday, `month` starts on the 1st.
+
+**Limits** — a policy must set `max_tokens`, `max_cost_micros`, or both:
+
+| Field | Unit |
+|-------|------|
+| `max_tokens` | Total tokens (input + output + cache read + cache write) |
+| `max_cost_micros` | Cost in **micro-dollars** (1 USD = 1,000,000 micros). The API also accepts `max_cost_usd` as a convenience and converts it for you |
+
+**How multiple matching policies combine.** When a request comes in, GoClaw finds *every* enabled policy whose scope matches (NULL dimensions match anything, set dimensions must equal the request). A request must fit under **all** matched policies — the most restrictive one wins. The `priority` field (lower number = evaluated first, default `100`) controls evaluation order, which determines which policy is reported as the blocker when a cap is hit.
+
+### Reservation + counter enforcement
+
+Caps use a **reserve-then-settle** model so concurrent calls can't overspend a window:
+
+1. **Preflight (reserve)** — before the LLM call, GoClaw estimates token usage (and cost, if any matched policy has a cost cap), then atomically adds it to each policy's per-window counter. If the reservation would push `used + reserved + estimate` over a policy's `max_tokens` or `max_cost_micros`, the call is **blocked** before it runs.
+2. **Reconcile (settle)** — after the call returns, the reservation is replaced with the *actual* tokens and cost from the provider's usage response. The reserved amount is released and the used amount is recorded. Failed calls settle to zero (the reservation is freed) unless a partial response was received.
+
+Cost estimation needs a price for the model. If a cost-capped policy matches but no pricing is known for the model, the call is **blocked** with reason `pricing_unknown` — see [Cost Tracking → Model Pricing](/cost-tracking) for how to populate prices.
+
+### Caps apply to auxiliary LLM calls too
+
+Usage caps are enforced on **every billable LLM call**, not just the user-facing agent turn. This includes auxiliary calls GoClaw makes internally:
+
+- Conversation title generation
+- Intent classification
+- Mid-loop and history compaction
+- Memory flush
+- Knowledge-graph extraction
+- Memory consolidation (dreaming / episodic workers)
+- Vault enrichment
+- Provider verification and summoner regeneration
+
+Each of these reserves and reconciles against the same policies, so a tight `day` token cap will also throttle background work, not only chat replies.
+
+> **Subscription / OAuth providers are exempt.** Caps only apply to providers billed by API key. Providers that are flat-rate or subscription-based (Claude CLI, ChatGPT OAuth, Bailian, ACP, Ollama) are skipped, and so are providers configured without an API key.
+
+### Agent monthly budget bridge
+
+The legacy per-agent `budget_monthly_cents` field (see [Cost Tracking → Monthly Budget Enforcement](/cost-tracking)) is automatically mirrored into the cap system. Migration `000072` creates, for every agent with a positive `budget_monthly_cents`, a managed `month`-window cost-cap policy:
+
+- `max_cost_micros` = `budget_monthly_cents × 10,000` (cents → micro-dollars)
+- `source` = `agent_budget_monthly_cents`, `priority` = `90`
+
+These bridged policies are **managed** — the REST API refuses to edit or delete them (returns `409 Conflict`). Adjust the agent's `budget_monthly_cents` instead. Manually created policies have `source` = `manual`.
+
+### What happens when a cap is hit
+
+When a reservation is rejected, GoClaw returns a `usage cap exceeded` error from the LLM call. For the main agent turn this surfaces as a failed run — the agent does not produce a reply. A `block` decision is also written to the events log (see below) recording which policy and reason (`cap_exceeded` or `pricing_unknown`) triggered it.
+
+### Decision tracing
+
+Every cap decision is recorded in two places:
+
+- **`usage_cap_events`** — an append-only audit log of `allow` / `block` / `skip` decisions with the policy, reservation key, estimated/actual tokens and cost, and reason. Queryable via the events endpoint.
+- **Trace metadata** — each agent trace carries a `usage_caps` block listing the decision, matched policy IDs, reservation key, and estimated vs. actual tokens/cost per LLM attempt, so you can see cap behavior inline with the rest of the trace.
+
+### REST endpoints
+
+All usage-cap endpoints require an admin Bearer token. Write operations (create/update/delete policy, pricing overrides) additionally require tenant-admin scope; the OpenRouter sync endpoint requires master scope.
+
+| Method & path | Scope | Description |
+|---------------|-------|-------------|
+| `GET /v1/usage-caps/policies` | admin | List all cap policies for the tenant (includes disabled) |
+| `POST /v1/usage-caps/policies` | tenant-admin | Create a cap policy |
+| `PATCH /v1/usage-caps/policies/{id}` | tenant-admin | Update a policy (managed agent-budget policies are rejected) |
+| `DELETE /v1/usage-caps/policies/{id}` | tenant-admin | Delete a policy (managed policies are rejected) |
+| `GET /v1/usage-caps/utilization` | admin | Current per-policy usage vs. limit for the active window |
+| `GET /v1/usage-caps/events` | admin | Recent cap decisions (`?limit=`, default 50, max 200) |
+
+**Create a policy** — cap one agent to 1M tokens per day:
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "agent_id": "11111111-1111-1111-1111-111111111111",
+    "window": "day",
+    "max_tokens": 1000000
+  }'
+```
+
+**Create a cost cap** — limit Anthropic spend to $20/month tenant-wide (`max_cost_usd` is converted to micros):
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "provider_type": "anthropic",
+    "window": "month",
+    "max_cost_usd": 20.00
+  }'
+```
+
+**Check utilization:**
+
+```bash
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/usage-caps/utilization"
+```
+
+Model pricing (which feeds the cost calculation behind cost caps) is configured through a separate set of endpoints — see [Cost Tracking → Model Pricing](/cost-tracking).
+
+---
+
 ## Webhook Rate Limiting (Channel Layer)
 
 Separate from per-user quota, there is a webhook-level rate limiter that protects against incoming webhook floods. It uses a fixed 60-second window with a hard cap of **30 requests per key** per window. Up to **4096 unique keys** are tracked simultaneously; beyond that, oldest entries are evicted.
@@ -18848,6 +19595,69 @@ monthly budget exceeded ($5.02 / $5.00)
 ```
 
 The check runs once per request, before any LLM calls. Sub-agent delegations run under their own agent records with their own budgets.
+
+> The agent's `budget_monthly_cents` is also mirrored into the [AI Budget Usage Caps](/usage-quota) system as a managed `month`-window cost-cap policy, so the same limit is enforced there too.
+
+---
+
+## Model Pricing (Catalog & Overrides)
+
+The static `telemetry.model_pricing` map above is the simplest way to price models. For dynamic, database-backed pricing — used by the [AI Budget Usage Caps](/usage-quota) cost caps — GoClaw also keeps a **pricing catalog** and per-tenant **overrides** in PostgreSQL (migration `000070`).
+
+### OpenRouter catalog sync
+
+GoClaw can pull a full model price list from [OpenRouter](https://openrouter.ai) and store it in the `usage_pricing_catalog` table. Each entry captures per-unit prices for input, output, cache read/write, reasoning, request, image, and web-search units, stored as high-precision decimals.
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/sync-openrouter"
+```
+
+This endpoint requires **master scope** (it updates the shared global catalog). The catalog is upserted by `model_id`, so re-running the sync refreshes prices in place.
+
+### Per-model price overrides
+
+When you want different prices for a specific tenant + provider + model (e.g. a negotiated rate, or a model OpenRouter doesn't list), set an **override** in the `usage_pricing_overrides` table. Overrides are scoped to one tenant and take priority over the global catalog.
+
+```bash
+# List the synced catalog (optionally filter by model)
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing?model=claude-sonnet-4-5"
+
+# Set a tenant override
+curl -X PUT -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/model-pricing/overrides" \
+  -d '{
+    "provider_id": "22222222-2222-2222-2222-222222222222",
+    "provider_type": "anthropic",
+    "model_id": "claude-sonnet-4-5",
+    "pricing": { "input": "0.000003", "output": "0.000015" }
+  }'
+
+# List / delete overrides
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides"
+curl -X DELETE -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides/{id}"
+```
+
+| Method & path | Scope | Description |
+|---------------|-------|-------------|
+| `POST /v1/model-pricing/sync-openrouter` | master | Refresh the global price catalog from OpenRouter |
+| `GET /v1/model-pricing` | admin | List the synced catalog (`?model=`, `?limit=`) |
+| `PUT /v1/model-pricing/overrides` | tenant-admin | Create or update a per-tenant model price override |
+| `GET /v1/model-pricing/overrides` | admin | List overrides (`?provider_id=`) |
+| `DELETE /v1/model-pricing/overrides/{id}` | tenant-admin | Remove an override |
+
+### How pricing resolves
+
+When a cost cap needs a price for a model, GoClaw resolves in this order:
+
+1. **Tenant override** for the matching provider + model (highest priority)
+2. **Global OpenRouter catalog** entry by `model_id` / canonical id
+
+If neither is found, a cost-capped call is blocked with reason `pricing_unknown`. Prices are stored as decimal USD **per token/unit** and converted to micro-dollars when caps compute cost.
 
 ---
 
@@ -20158,7 +20968,9 @@ docker compose \
 
 > **Data hooks:** GoClaw tracks post-migration Go transforms in a separate `data_migrations` table. Run `./goclaw upgrade --status` to see both SQL migration version and pending data hooks.
 
-Run `./goclaw migrate status` after deployment to confirm the current schema is version **44**.
+> Migrations `000045`–`000073` continue the schema: model fallback config, REST endpoint catalog, Bitrix24 portal OAuth state (`bitrix_portals`), server-side browser cookie sync (`browser_cookies`), the usage-cap pricing and enforcement tables (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), the agent-budget bridge, and typed secure-CLI credentials — see [Database Schema → Migration History](/database-schema).
+
+Run `./goclaw migrate status` after deployment to confirm the current schema is version **73**.
 
 ---
 
@@ -20168,7 +20980,7 @@ GoClaw v3 supports two database backends:
 
 | Feature | PostgreSQL | SQLite (desktop) |
 |---------|-----------|-----------------|
-| Full schema (all 44 migrations) | Yes | Yes |
+| Full schema (all 73 migrations) | Yes | Yes |
 | Vector similarity search (HNSW) | Yes — pgvector | No |
 | Episodic summaries vector search | Yes | Keyword (FTS) only |
 | Knowledge Vault auto-linking | Yes — similarity threshold 0.7 | No (summarise only) |
@@ -20713,6 +21525,62 @@ The key is accepted in three formats: base64-encoded (44 chars, output of `opens
 Format stored: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Values without the prefix are returned as plaintext for migration compatibility.
 
 > **Must match across replicas.** In a clustered deployment, every gateway instance must use the same `GOCLAW_ENCRYPTION_KEY`. Rotating the key requires re-encrypting all stored secrets before restarting.
+
+Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`, `secure_cli_agent_grants`, and `secure_cli_user_credentials` all store secrets in an `encrypted_env` column. Each entry carries a visibility `kind` — `sensitive` entries are masked in normal API/UI responses and only returned via the audited `env:reveal` flow; `value` entries (e.g. region or profile names) are returned to admins for operational review.
+
+---
+
+## Credential Adapter Security Model
+
+[Typed credential adapters](/cli-credentials) are the **system-trusted** path for injecting auth material into spawned CLI subprocesses (`git clone`, `git push`, …). This is a second trust boundary, distinct from the user-paste env denylist — not a replacement for it.
+
+| Path | Trust boundary |
+|------|----------------|
+| User-pasted env vars (`env` credential type) | First line of defense — `ValidateGrantEnvVars` rejects `GIT_SSH_COMMAND`, `LD_PRELOAD`, `PATH`, and the rest of the denylist |
+| System-injected adapter env (e.g. `git` adapter) | Second, audit-trailed line — bypasses the denylist by design and emits one audit event per injection |
+
+A typo in the adapter name falls back to passthrough (the legacy denylist-only behavior) — there is **no silent bypass**.
+
+### Audit event: `security.system_env_injection`
+
+Every adapter injection emits **exactly one** structured `slog.Warn` line. The plaintext hostname is intentionally **never logged** — keeping audit logs PII-safe inside regulated tenants.
+
+| Field | Notes |
+|-------|-------|
+| `msg` | always `security.system_env_injection` |
+| `adapter` | e.g. `git`, `passthrough` |
+| `binary` | binary name (`git`, …) |
+| `user_id` | tenant user UUID (empty in global-only contexts) |
+| `env_keys` | sorted env-var **names** only — never values |
+| `argv_prefix_len` | number of argv elements prepended, not their content |
+| `host_scope_hash` | first 8 hex chars of `SHA-256(normalized host_scope)`, or `"none"` |
+
+There is **no dedicated audit table** in v1 — the line routes through `slog` to stderr → systemd/journald or Docker logs. To grep for activity against a specific host, pre-compute its hash:
+
+```sh
+echo -n "github.com" | sha256sum | cut -c1-8
+```
+
+### Output scrubbing for credentialed exec
+
+Output of credentialed commands passes through the same regex scrubber as all tool output, plus credentials registered at runtime for the binary are scrubbed from stdout/stderr before the result reaches the LLM. Secrets injected through an adapter never round-trip back into the conversation.
+
+### SSH TOFU MITM caveat
+
+The git adapter's SSH path sets `StrictHostKeyChecking=accept-new`, which accepts an unknown host key on first contact. A network attacker positioned between GoClaw and the git host can capture that **first** SSH session. Pre-seed `known_hosts` at deploy time to close the window — after that, `accept-new` enforces match-or-fail:
+
+```sh
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh-keyscan -p 22 gitea.internal >> ~/.ssh/known_hosts
+```
+
+### Ephemeral credential tmpfiles
+
+The SSH adapter writes the PEM key to a `0600`-mode tmpfile in `os.TempDir()` (prefix `goclaw-gitkey-*`) and removes it via a deferred cleanup after exec returns. A `SIGKILL` of the GoClaw process skips that cleanup, leaving the file behind. `os.TempDir()` is per-user on POSIX, so exposure is limited to the GoClaw uid. High-security deployments should run a periodic sweep:
+
+```sh
+find "$TMPDIR" -name 'goclaw-gitkey-*' -mmin +60 -delete
+```
 
 ---
 
@@ -21516,7 +22384,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **57**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **73**.
 
 ```mermaid
 graph LR
@@ -21715,7 +22583,20 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v3.11.x — Highlights and Breaking Changes
+### v3.12.x — Highlights and Breaking Changes
+
+#### Schema 58 → 73
+
+Migrations `000058`–`000073` are applied automatically on next startup (`./goclaw upgrade` or `GOCLAW_AUTO_UPGRADE=true`) — no manual steps required. Highlights:
+
+- `000068_bitrix_portals` — adds `bitrix_portals` for per-tenant Bitrix24 portal OAuth state (credentials + tokens stored AES-256-GCM).
+- `000069_browser_cookies` — adds `browser_cookies` for user-selected, encrypted server-side browser cookies, scoped by tenant/user/agent.
+- `000070_usage_caps_pricing` — adds `usage_pricing_catalog` (synced per-model pricing) and `usage_pricing_overrides` (per-tenant price overrides).
+- `000071_usage_cap_policies` — adds the usage-cap enforcement tables: `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`.
+- `000072_agent_budget_usage_cap_bridge` — adds a `source` column to `usage_cap_policies` and **backfills** one `month`-window policy per agent that has a non-NULL `budget_monthly_cents` (1 cent = 10,000 micros, `source = 'agent_budget_monthly_cents'`). Existing per-agent monthly budgets are now enforced through the usage-cap engine. Idempotent (`ON CONFLICT DO NOTHING`); no action required.
+- `000073_secure_cli_credential_type` — adds nullable `credential_type` + `host_scope` to `secure_cli_user_credentials` and `adapter_name` to `secure_cli_binaries` for the typed credential-adapter framework. All columns NULL-by-default to preserve legacy passthrough behavior — no action required.
+
+**Gateway-triggered upgrades (host release-upgrade flow):** When a dashboard/API-triggered upgrade is run on a systemd host, `goclaw-upgrade-release` now re-launches itself as a transient `systemd-run` unit so stopping `goclaw` during deploy no longer kills the upgrade job. Stale `running` status records are also superseded after 30 minutes, and the deploy wait loop tolerates transient `502`s during restart. No configuration change required.
 
 #### v3.11.3
 
@@ -23721,6 +24602,82 @@ goclaw tui setup     # TUI-based setup wizard
 
 ---
 
+## `bitrix-portal`
+
+Manage Bitrix24 portal rows directly in the database (PostgreSQL only). GoClaw expects a `bitrix_portals` row to exist before an operator runs the OAuth install flow at `/bitrix24/install`; this command seeds and maintains that row without requiring raw SQL access.
+
+> Credentials are encrypted at rest using `GOCLAW_ENCRYPTION_KEY`. If the key is unset, the command warns and stores credentials unencrypted.
+
+### `bitrix-portal create`
+
+Create a `bitrix_portals` row with OAuth credentials.
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <uuid> \
+  --name <portal> \
+  --domain tamgiac.bitrix24.com \
+  --client-id <client_id> \
+  --client-secret <client_secret>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Tenant UUID this portal belongs to (required) |
+| `--name` | Short portal name, referenced by `channel_instance.config.portal` (required) |
+| `--domain` | Bitrix24 portal host, e.g. `tamgiac.bitrix24.com` (required) |
+| `--client-id` | Bitrix24 application `client_id` / `application_id` (required) |
+| `--client-secret` | Bitrix24 application `client_secret` / application key (required) |
+
+### `bitrix-portal list`
+
+List `bitrix_portals` rows, optionally scoped to one tenant.
+
+```bash
+goclaw bitrix-portal list
+goclaw bitrix-portal list --tenant-id <uuid>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Filter to one tenant UUID (optional) |
+
+### `bitrix-portal update-credentials`
+
+Replace `client_id`/`client_secret` on an existing portal row. Use when rotating a client secret or migrating from a local app to a marketplace app. The OAuth state token is cleared by default, since state minted under the old credentials cannot refresh under the new ones.
+
+```bash
+goclaw bitrix-portal update-credentials \
+  --tenant-id <uuid> --name <portal> \
+  --client-id <client_id> --client-secret <client_secret>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Tenant UUID this portal belongs to (required) |
+| `--name` | Portal name to update (required) |
+| `--client-id` | New Bitrix24 application `client_id` (required) |
+| `--client-secret` | New Bitrix24 application `client_secret` (required) |
+| `--keep-state` | Keep the existing OAuth state token (only safe when rotating the secret of the SAME application) |
+
+### `bitrix-portal set-public-url`
+
+Backfill the gateway-public URL used to register Bitrix24 imbot event handlers. A one-shot operation for portals installed before automatic public-URL capture existed.
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <uuid> --name <portal> \
+  --url https://goclaw.example.com
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Tenant UUID this portal belongs to (required) |
+| `--name` | Portal name (required) |
+| `--url` | Gateway public URL, e.g. `https://goclaw.example.com` (required) |
+
+---
+
 ## What's Next
 
 - [WebSocket Protocol](/websocket-protocol) — wire protocol reference for the gateway
@@ -24166,6 +25123,28 @@ Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality
 
 > **Status: Planned** — `whatsapp.qr.start`, `zalo.personal.qr.start`, and `zalo.personal.contacts` have protocol constants defined but handlers are not yet implemented in the gateway.
 
+### Bitrix Portals
+
+Self-service management of Bitrix24 portal connections. All methods are tenant-scoped (resolved from the connection, never from caller params). `list` and `get_install_url` are open to any authenticated tenant member; `create` and `delete` require **admin role**. Credentials are never returned in any response.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `bitrix.portals.list` | — | List portals for the current tenant (credentials masked) |
+| `bitrix.portals.create` | `{name, domain, client_id, client_secret}` | Provision a portal; returns `{name, domain, install_url}` |
+| `bitrix.portals.get_install_url` | `{name}` | Re-build the install URL for an existing portal → `{install_url}` |
+| `bitrix.portals.delete` | `{name}` | Delete a portal → `{status: "deleted"}` |
+
+**`bitrix.portals.create` params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `name` | string | Portal slug — lowercase letters, digits, hyphen, underscore (2–64 chars) |
+| `domain` | string | Portal host — `*.bitrix24.{com,eu,ru,…}` or `*.bitrix.info` |
+| `client_id` | string | Bitrix OAuth client ID |
+| `client_secret` | string | Bitrix OAuth client secret |
+
+> `create` fails with `FAILED_PRECONDITION` if the gateway has not yet observed its public URL — open the UI through the gateway's external URL first so the install URL can be built. `delete` is blocked (`FAILED_PRECONDITION`) while any channel instance still references the portal.
+
 ---
 
 ## Server-Push Events
@@ -24324,7 +25303,7 @@ ws.onmessage = (e) => {
 
 ## Overview
 
-> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~286 REST endpoints.
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~308 REST endpoints.
 
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
@@ -24361,6 +25340,100 @@ X-GoClaw-User-Id: user123
 ### `POST /v1/responses`
 
 Alternative response-based protocol (compatible with OpenAI Responses API). Accepts the same auth and returns structured response objects.
+
+---
+
+## Sessions
+
+Read-only session discovery and branching over HTTP, for automation that cannot hold a WebSocket connection. Non-admin callers only see their own sessions (matched by `X-GoClaw-User-Id`); admins and gateway-owner tokens see all sessions.
+
+> Full session lifecycle (preview, patch, delete, reset, compact) is available via [WebSocket RPC](/websocket-protocol#sessions). These HTTP routes cover discovery, branching, and incremental history reads.
+
+### `GET /v1/sessions`
+
+List sessions with pagination.
+
+```bash
+curl "http://localhost:18790/v1/sessions?agent_id=AGENT_UUID&limit=20&offset=0" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123"
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Filter by agent (alias: `agentId`) |
+| `channel` | string | Filter by channel |
+| `limit` | integer | Page size (default 20) |
+| `offset` | integer | Page offset (default 0) |
+
+**Response:** `{ "sessions": [...], "total": N, "limit": 20, "offset": 0 }`
+
+### `POST /v1/chat/sessions/{key}/branch`
+
+Branch a new session from an existing one, copying messages up to a given index. The `{key}` path segment is the **source** session key; the branch reuses the same agent key.
+
+```bash
+curl -X POST http://localhost:18790/v1/chat/sessions/{key}/branch \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "up_to_index": 8,
+    "new_session_key": "",
+    "label": "what-if branch",
+    "metadata": {}
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `up_to_index` | integer | Required. Copy messages `[0, up_to_index)` into the branch |
+| `new_session_key` | string | Optional. Must use the same agent key as the source. Auto-generated when omitted |
+| `label` | string | Optional human-readable branch label |
+| `metadata` | object | Optional string key-value metadata |
+
+**Response** (`201 Created`):
+
+```json
+{
+  "ok": true,
+  "source_key": "agent:researcher:direct:...",
+  "session_key": "agent:researcher:branch:direct:...",
+  "copied_messages": 8,
+  "total_messages": 20,
+  "label": "what-if branch"
+}
+```
+
+Returns `409` if the target key already exists, `400` if `up_to_index` is out of range.
+
+### `GET /v1/chat/sessions/{key}/history/follow`
+
+Cursor-based incremental history read — poll for new messages without re-fetching the whole transcript. File and media references in returned messages are signed.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `cursor` | integer | Index to start reading from (default 0) |
+| `limit` | integer | Max messages to return (default 50, max 200) |
+
+**Response:**
+
+```json
+{
+  "session_key": "agent:researcher:direct:...",
+  "cursor": 0,
+  "next_cursor": 50,
+  "total": 120,
+  "messages": [ ... ],
+  "reset": false,
+  "updated": "2026-06-07T08:00:00Z"
+}
+```
+
+Pass `next_cursor` as the next `cursor` to continue. `reset: true` (with an empty `messages` array) signals the cursor ran past the current history length — restart from `0`.
 
 ---
 
@@ -24662,6 +25735,30 @@ curl -X POST http://localhost:18790/v1/providers/{id}/verify \
 ### `POST /v1/providers/{id}/verify-embedding`
 
 Verify embedding model connectivity for a provider.
+
+### `POST /v1/providers/{id}/reconnect`
+
+Re-establish the in-memory connection for a provider — unregisters it from the runtime registry and re-registers from the stored config. Use after editing credentials or when a provider drops out of the live registry. Does **not** perform a verify; call `/verify` separately for that.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/reconnect \
+  -H "Authorization: Bearer TOKEN"
+```
+
+The request body is optional. Sending `{"verify": true}` is rejected with `400` — reconnect and verify are separate operations.
+
+**Response:**
+
+```json
+{
+  "status": "reconnected",
+  "provider": { "id": "uuid", "name": "my-openrouter", "...": "..." },
+  "registry_updated": true,
+  "cache_invalidated": true
+}
+```
+
+`status` is `reconnected` (re-registered in memory), `not_registered` (enabled but registration failed), or `disabled` (provider is disabled). A `cache_invalidate` event is emitted so connected agents pick up the change.
 
 ### `GET /v1/providers/{id}/codex-pool-activity`
 
@@ -25005,6 +26102,27 @@ curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### `GET /v1/traces/follow`
+
+Poll for trace updates scoped to a single session or agent — designed for live "tail" views. Requires `session_key` **or** `agent_id`. Non-admin callers are restricted to their own traces.
+
+```bash
+curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-07T08:00:00Z" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `session_key` | string | Session to follow (required if `agent_id` omitted) |
+| `agent_id` | string | Agent to follow (required if `session_key` omitted) |
+| `status` | string | Filter by status |
+| `channel` | string | Filter by channel |
+| `since` | RFC 3339 | Only return traces changed after this time |
+| `limit` | integer | Max traces (default 50, max 200) |
+| `include_spans` | boolean | Include span details (default `false`) |
+
 ### `GET /v1/traces/{traceID}`
 
 Get a single trace with all its spans.
@@ -25030,6 +26148,153 @@ Export trace tree as gzipped JSON.
 | `GET` | `/v1/usage/summary` | Summary with period comparison |
 
 **Query params:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+---
+
+## Usage Caps
+
+Spend-cap policies that limit token usage and cost per window, optionally scoped to a specific agent, provider, or model. All endpoints require **admin role**; write operations additionally require **tenant-admin**. Policies marked as *managed* (provisioned by the platform) cannot be edited or deleted (`409`).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/usage-caps/policies` | List spend-cap policies for the current tenant |
+| `POST` | `/v1/usage-caps/policies` | Create a policy |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | Partial update (all fields optional) |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | Delete a policy (`204`) |
+| `GET` | `/v1/usage-caps/utilization` | Current utilization per policy |
+| `GET` | `/v1/usage-caps/events` | Recent cap events (throttles, breaches) |
+
+### `POST /v1/usage-caps/policies`
+
+```bash
+curl -X POST http://localhost:18790/v1/usage-caps/policies \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "window": "day",
+    "max_tokens": 1000000,
+    "max_cost_usd": 25.0,
+    "agent_id": null,
+    "provider_id": null,
+    "priority": 100,
+    "enabled": true
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `window` | string | Reset window — e.g. `day` (default). Required |
+| `max_tokens` | integer | Token cap per window (optional) |
+| `max_cost_usd` | float | Cost cap in USD (optional; converted to micros) |
+| `max_cost_micros` | integer | Cost cap in micro-dollars — takes precedence over `max_cost_usd` (optional) |
+| `agent_id` | UUID | Scope to one agent (optional) |
+| `provider_id` | UUID | Scope to one provider (optional) |
+| `provider_type` | string | Scope to a provider type (optional) |
+| `model_id` | string | Scope to one model (optional) |
+| `priority` | integer | Evaluation priority, higher first (default 100) |
+| `enabled` | boolean | Default `true` |
+
+Returns `201` with the created policy. `PATCH` accepts the same fields, all optional — send `null` for `max_tokens` / `max_cost_*` to clear a cap.
+
+**`GET /v1/usage-caps/events`** accepts `?limit=` and returns `{ "events": [...] }`. Utilization returns `{ "rows": [...] }`.
+
+---
+
+## Model Pricing
+
+Per-model pricing catalog plus per-tenant overrides, used to compute usage cost. Read endpoints require **admin role**; override writes require **tenant-admin**; the OpenRouter sync requires **master scope**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/model-pricing` | List the pricing catalog |
+| `GET` | `/v1/model-pricing/overrides` | List tenant pricing overrides |
+| `PUT` | `/v1/model-pricing/overrides` | Upsert a pricing override |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | Remove an override |
+| `POST` | `/v1/model-pricing/sync-openrouter` | Refresh the catalog from OpenRouter (master scope) |
+
+**`GET /v1/model-pricing`** query params: `model` (filter by model ID), `limit` (default 100). Response `{ "models": [...] }`.
+
+**`GET /v1/model-pricing/overrides`** query param: `provider_id` (optional UUID filter). Response `{ "overrides": [...] }`.
+
+### `PUT /v1/model-pricing/overrides`
+
+```bash
+curl -X PUT http://localhost:18790/v1/model-pricing/overrides \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider_id": "PROVIDER_UUID",
+    "provider_type": "openai_compat",
+    "model_id": "gpt-4o",
+    "pricing": { "...": "..." },
+    "enabled": true
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider_id` | UUID | Required |
+| `provider_type` | string | Provider type |
+| `model_id` | string | Required |
+| `pricing` | object | Pricing fields (input/output rates, etc.) |
+| `enabled` | boolean | Default `true` |
+
+**`POST /v1/model-pricing/sync-openrouter`** fetches the OpenRouter catalog and upserts it. Response `{ "count": N }`. Returns `502` if the upstream fetch fails.
+
+---
+
+## Browser Cookie Sync
+
+Store selected browser cookies so server-side browser sessions (e.g. the browser tool) can reuse a signed-in state. All endpoints require **operator role**. Cookies are scoped to tenant + user (+ optional agent) and encrypted at rest — `GOCLAW_ENCRYPTION_KEY` must be set, otherwise sync returns `503`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert cookies for the current scope |
+| `GET` | `/v1/browser/cookies` | List stored cookie metadata (values never returned) |
+| `DELETE` | `/v1/browser/cookies` | Delete stored cookies in the current scope |
+
+### `POST /v1/browser/cookies/sync`
+
+```bash
+curl -X POST http://localhost:18790/v1/browser/cookies/sync \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "AGENT_UUID",
+    "source": "chrome-extension",
+    "cookies": [
+      {
+        "domain": "example.com",
+        "name": "session",
+        "path": "/",
+        "value": "abc123",
+        "secure": true,
+        "httpOnly": true,
+        "sameSite": "Lax",
+        "expiresAt": "2026-12-31T00:00:00Z"
+      }
+    ]
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Optional agent scope (alias: `agent`) |
+| `source` | string | Origin label (default `chrome-extension`) |
+| `cookies` | array | Cookie items. Required, non-empty, max 200 |
+
+**Cookie item fields:** `domain` (or `url` to derive it), `name`, `path`, `value` (≤ 16 KB), `secure`, `httpOnly` (alias `http_only`), `sameSite` (alias `same_site`), and one of `expiresAt` / `expires_at` / `expirationDate` / `expiration_date`. Total request body is capped at 1 MB.
+
+**Response:** `{ "synced": N }`.
+
+### `GET /v1/browser/cookies`
+
+Returns cookie **metadata** only — values are never exposed. Optional query filters: `agent_id`, `domain`, `name`, `path`. Response `{ "items": [ { "domain", "name", "path", "secure", "httpOnly", "sameSite", "expiresAt", "source", "updatedAt" } ] }`.
+
+### `DELETE /v1/browser/cookies`
+
+Delete cookies in the current scope. Same optional filters as the list endpoint. Response `{ "deleted": N }`.
 
 ---
 
@@ -25219,8 +26484,25 @@ Delete a channel instance.
 |--------|------|-------------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | List groups with write permissions |
 | `GET` | `/v1/channels/instances/{id}/writers` | List authorized writers |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | Test whether a user would be allowed to write to a group (no mutation) |
 | `POST` | `/v1/channels/instances/{id}/writers` | Add a writer |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | Remove a writer |
+
+**`POST .../writers/test`** — dry-run a writer check before persisting one. Body `{ "group_id": "...", "user_id": "..." }` (both required). Always returns `200` with the evaluation:
+
+```json
+{
+  "allowed": true,
+  "reason": "writer",
+  "instance_id": "uuid",
+  "agent_id": "uuid",
+  "group_id": "telegram:-100123",
+  "user_id": "user123",
+  "writer_count": 3
+}
+```
+
+`reason` is one of `writer`, `not_writer`, `no_writers_configured`, or `invalid_group`.
 
 ---
 
@@ -25811,6 +27093,51 @@ Per-tenant backup and restore. Admin role required.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/activity` | List activity audit logs (filterable) |
+| `GET` | `/v1/activity/aggregate` | Aggregated activity counts grouped by a dimension |
+
+### `GET /v1/activity/aggregate`
+
+Return activity counts grouped by a dimension instead of raw rows. Non-admin callers are scoped to their own actor ID; grouping by `actor_id` requires admin role.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `group_by` | string | Grouping dimension — e.g. `action`, `entity_type`, `actor_type`, `actor_id` (admin only) |
+| `actor_type` | string | Filter by actor type |
+| `actor_id` | string | Filter by actor ID |
+| `action` | string | Filter by action |
+| `entity_type` | string | Filter by entity type |
+| `entity_id` | string | Filter by entity ID |
+| `from` | RFC 3339 | Start of time window |
+| `to` | RFC 3339 | End of time window (must be after `from`) |
+| `limit` | integer | Max groups returned |
+
+---
+
+## Runtime Logs
+
+Aggregated view of the in-memory runtime log buffer. Requires **admin role**.
+
+### `GET /v1/logs/runtime/aggregate`
+
+Return runtime log counts grouped by `level` or `source`.
+
+```bash
+curl "http://localhost:18790/v1/logs/runtime/aggregate?group_by=level" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `group_by` | string | `level` (default) or `source` |
+| `level` | string | Filter by log level |
+| `source` | string | Filter by log source |
+| `from` | RFC 3339 | Only count entries after this time |
+
+> Live tailing of server logs is available over WebSocket via `logs.tail` — see [WebSocket Protocol](/websocket-protocol#logs).
 
 ---
 
@@ -26089,7 +27416,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 
 > Auto-generated complete index of all REST endpoints. For request/response details, examples, and authentication, see [REST API Reference](rest-api.md).
 
-**Total endpoints:** 286 — generated from goclaw `392f0fda` on `2026-05-21`.
+**Total endpoints:** 308 — generated from goclaw `d85bf171` on `2026-06-07`.
 
 ## How to use this page
 
@@ -26105,6 +27432,15 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | Method | Path |
 |---|---|
 | `GET` | `/v1/activity` |
+| `GET` | `/v1/activity/aggregate` |
+
+### Browser Cookies (`internal/http/browser_cookies.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/browser/cookies` |
+| `DELETE` | `/v1/browser/cookies` |
+| `POST` | `/v1/browser/cookies/sync` |
 
 ### Agents (`internal/http/agents.go`)
 
@@ -26187,6 +27523,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `PUT` | `/v1/channels/instances/{id}` |
 | `GET` | `/v1/channels/instances/{id}/writers` |
 | `POST` | `/v1/channels/instances/{id}/writers` |
+| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
 | `GET` | `/v1/channels/instances/{id}/writers/groups` |
 | `GET` | `/v1/contacts` |
@@ -26256,6 +27593,12 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `GET` | `/v1/agents/{agentID}/kg/stats` |
 | `POST` | `/v1/agents/{agentID}/kg/traverse` |
 
+### Logs (`internal/http/logs.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/logs/runtime/aggregate` |
+
 ### MCP Servers (`internal/http/mcp.go`)
 
 | Method | Path |
@@ -26309,6 +27652,16 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `POST` | `/v1/agents/{agentID}/memory/index-all` |
 | `POST` | `/v1/agents/{agentID}/memory/search` |
 | `GET` | `/v1/memory/documents` |
+
+### Model Pricing (`internal/http/usage_caps.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/model-pricing` |
+| `GET` | `/v1/model-pricing/overrides` |
+| `PUT` | `/v1/model-pricing/overrides` |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` |
+| `POST` | `/v1/model-pricing/sync-openrouter` |
 
 ### OAuth (`internal/http/oauth.go`)
 
@@ -26375,6 +27728,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `PUT` | `/v1/providers/{id}` |
 | `GET` | `/v1/providers/{id}/codex-pool-activity` |
 | `GET` | `/v1/providers/{id}/models` |
+| `POST` | `/v1/providers/{id}/reconnect` |
 | `POST` | `/v1/providers/{id}/verify` |
 | `POST` | `/v1/providers/{id}/verify-embedding` |
 | `GET` | `/v1/providers/claude-cli/auth-status` |
@@ -26407,6 +27761,14 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
 | `POST` | `/v1/cli-credentials/check-binary` |
 | `GET` | `/v1/cli-credentials/presets` |
+
+### Sessions (`internal/http/sessions.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/sessions` |
+| `POST` | `/v1/chat/sessions/{key}/branch` |
+| `GET` | `/v1/chat/sessions/{key}/history/follow` |
 
 ### Skills (`internal/http/skills.go`)
 
@@ -26491,6 +27853,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 |---|---|
 | `GET` | `/v1/costs/summary` |
 | `GET` | `/v1/traces` |
+| `GET` | `/v1/traces/follow` |
 | `GET` | `/v1/traces/{traceID}` |
 | `GET` | `/v1/traces/{traceID}/export` |
 
@@ -26513,6 +27876,17 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `GET` | `/v1/usage/breakdown` |
 | `GET` | `/v1/usage/summary` |
 | `GET` | `/v1/usage/timeseries` |
+
+### Usage Caps (`internal/http/usage_caps.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/usage-caps/policies` |
+| `POST` | `/v1/usage-caps/policies` |
+| `PATCH` | `/v1/usage-caps/policies/{id}` |
+| `DELETE` | `/v1/usage-caps/policies/{id}` |
+| `GET` | `/v1/usage-caps/utilization` |
+| `GET` | `/v1/usage-caps/events` |
 
 ### Vault (`internal/http/vault_graph_handler.go`)
 
@@ -26911,7 +28285,7 @@ When a group accumulates more pending messages than `threshold`, older messages 
 | `owner_ids` | string[] | — | User IDs with admin/owner access |
 | `allowed_origins` | string[] | `[]` | Allowed WebSocket CORS origins (empty = allow all) |
 | `max_message_chars` | integer | `32000` | Max incoming message length |
-| `inbound_debounce_ms` | integer | `1000` | Merge rapid consecutive messages (ms) |
+| `inbound_debounce_ms` | integer | `0` | Silence-window in ms that merges rapid channel/Web Chat messages from the same sender/session. `0` disables debouncing for text, but media-bearing messages still honor a built-in media floor so multi-attachment bursts coalesce into one run. Agents may override via per-agent `agent_config.inbound_debounce_ms` |
 | `rate_limit_rpm` | integer | `20` | WebSocket rate limit (requests per minute) |
 | `injection_action` | string | `warn` | `"off"`, `"log"`, `"warn"`, `"block"` — prompt injection response |
 | `block_reply` | boolean | `false` | Deliver intermediate text to users during tool iterations |
@@ -26949,6 +28323,37 @@ Enable or disable individual shell deny-groups at the global level. This setting
 | `env_dump` | printenv, env, export -p, etc. |
 
 > See also: [Security Hardening](/deployment/security-hardening) for combining with per-agent shell policy.
+
+### `tools.commandKeywordAllowlist`
+
+A list of scoped rules that allow product/security vocabulary to appear in credentialed CLI content arguments without disabling the command-path deny patterns. Each rule narrows the bypass to a specific command (and optionally subcommands, argument positions, and keywords).
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "gh-issue-secret",
+        "command": "gh",
+        "subcommands": ["issue", "create"],
+        "keywords": ["password", "token"],
+        "reason": "security issue titles legitimately mention credentials"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | — | Optional rule identifier |
+| `command` | string | — | Command the rule applies to (e.g. `"gh"`) |
+| `subcommands` | string[] | — | Subcommands the rule scopes to |
+| `args` | string[] | — | Specific argument values the rule matches |
+| `argPositions` | integer[] | — | 0-based argument positions (after matched subcommand) |
+| `keywords` | string[] | — | Vocabulary allowed within the matched args |
+| `reason` | string | — | Human note explaining why the bypass exists |
+| `enabled` | boolean | `true` | Disable the rule by setting `false` (omit = enabled) |
 
 ---
 
@@ -27020,6 +28425,28 @@ Array of MCP server configs. Each entry:
 | `tool_prefix` | string | Optional prefix for tool names |
 | `timeout_sec` | integer | Request timeout (default 60) |
 | `enabled` | boolean | Enable/disable the server |
+
+---
+
+## `skills`
+
+Skills storage system configuration.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `storage_dir` | string | `{dataDir}/skills-store/` | Directory for skill content |
+| `max_upload_size_mb` | integer | `20` | Per-file skill ZIP upload limit in MB. Clamped to the range 1–500; values outside the range snap to the nearest bound. Also settable via `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` or the `skills.max_upload_size_mb` system config key |
+
+### `skills.slash_commands`
+
+Controls explicit slash-command skill activation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | — | Enable slash-command skill activation |
+| `suggest_not_found` | boolean | — | Suggest similar skills when a slash command has no match |
+| `partial_matching` | boolean | `false` | Match skills on partial command names |
+| `prefix` | string | `/` | Slash-command prefix |
 
 ---
 
@@ -27403,6 +28830,7 @@ Setting a token/credential via environment auto-enables that channel.
 | `GOCLAW_SKILLS_DIR` | Global skills directory. Default: `~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | Path to built-in skill definitions. Default: `./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | Path to bundled skill packages. Default: `./bundled-skills` |
+| `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` | Per-file skill ZIP upload limit in MB. Default: `20`. Clamped to the range 1–500. Overrides `skills.max_upload_size_mb` in `config.json` |
 
 ## Runtime Packages (Docker v3)
 
@@ -27531,7 +28959,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **67**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **73**.
 
 ### v3 Store Unification
 
@@ -27595,7 +29023,7 @@ Core agent records. Each agent has its own context, tools, and model configurati
 | `frontmatter` | TEXT | | Short expertise summary for delegation and UI |
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
-| `budget_monthly_cents` | INTEGER | | Monthly spend cap in USD cents; NULL = unlimited (migration 015) |
+| `budget_monthly_cents` | INTEGER | | Monthly spend cap in USD cents; NULL = unlimited (migration 015). Migration 072 bridges any non-NULL value into a `month`-window `usage_cap_policies` row with `source = 'agent_budget_monthly_cents'` (1 cent = 10,000 micros). |
 | `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Ordered array of fallback model identifiers tried when primary model fails (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
@@ -28318,6 +29746,7 @@ Credential injection configuration for the Exec tool (Direct Exec Mode). Admins 
 | `is_global` | BOOLEAN | NOT NULL DEFAULT true | If true, available to all agents; if false, only agents with an explicit grant |
 | `enabled` | BOOLEAN DEFAULT true | | |
 | `created_by` | TEXT DEFAULT `''` | | Admin user who created this entry |
+| `adapter_name` | TEXT | NULL | Routes the binary to a typed `CredentialAdapter` at exec time; NULL = legacy passthrough (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
 > **Migration 036 note:** The `agent_id` column was removed from this table. Per-agent access is now controlled via the `secure_cli_agent_grants` table. Binaries with `is_global = true` are accessible to all agents; binaries with `is_global = false` require an explicit grant.
@@ -28555,6 +29984,8 @@ Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_cre
 | `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM encrypted JSON env map |
 | `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extra metadata |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `credential_type` | TEXT | NULL | Credential shape — `env`, `pat`, `ssh_key`, …; NULL = legacy passthrough (migration 073) |
+| `host_scope` | TEXT | NULL | Binds the credential to a specific hostname (e.g. `github.com`); NULL = unscoped (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **Unique:** `(binary_id, user_id, tenant_id)`
@@ -29005,6 +30436,173 @@ Rolling audit log for workstation exec events (`exec` and `deny`). Append-only; 
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **Indexes:** `idx_ws_activity_ws_time` on `(workstation_id, created_at DESC)`, `idx_ws_activity_tenant_time` on `(tenant_id, created_at DESC)`, `idx_ws_activity_retention` on `(created_at)` (used by nightly pruner)
+
+---
+
+### `bitrix_portals`
+
+Per-tenant Bitrix24 portal OAuth state. Multiple Bitrix24 channel instances (chatbots) can share one portal row via a portal reference in their channel config. (migration 068)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `name` | VARCHAR(100) | NOT NULL | Portal display name (one per tenant) |
+| `domain` | VARCHAR(255) | NOT NULL | Bitrix24 portal domain |
+| `credentials` | BYTEA | | AES-256-GCM ciphertext of `{client_id, client_secret}` |
+| `state` | BYTEA | | AES-256-GCM ciphertext of portal state (access/refresh tokens, `member_id`, `app_token`, registered bots, media folders) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** unique `(tenant_id, name)`; unique `LOWER(TRIM(domain))` (incoming install/event callbacks resolve by domain before tenant scope is known)
+
+---
+
+### `browser_cookies`
+
+User-selected cookies for server-side browser contexts. Values are AES-256-GCM ciphertext; cookies are scoped by tenant, user, and agent to prevent cross-principal reuse. (migration 069)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `user_id` | VARCHAR(255) | NOT NULL | Owning user |
+| `agent_id` | VARCHAR(255) | NOT NULL | Owning agent |
+| `domain` | TEXT | NOT NULL (non-empty) | Cookie domain |
+| `name` | TEXT | NOT NULL (non-empty) | Cookie name |
+| `path` | TEXT | NOT NULL DEFAULT `/` (non-empty) | Cookie path |
+| `encrypted_value` | TEXT | NOT NULL | AES-256-GCM encrypted cookie value |
+| `secure` | BOOLEAN | NOT NULL DEFAULT FALSE | `Secure` flag |
+| `http_only` | BOOLEAN | NOT NULL DEFAULT FALSE | `HttpOnly` flag |
+| `same_site` | VARCHAR(32) | NOT NULL DEFAULT `''` | `SameSite` attribute |
+| `expires_at` | TIMESTAMPTZ | | Cookie expiry; NULL = session cookie |
+| `source` | VARCHAR(64) | NOT NULL DEFAULT `''` | Where the cookie was captured from |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** unique `(tenant_id, user_id, agent_id, domain, path, name)`; `(tenant_id, user_id, agent_id, domain)`; `expires_at`
+
+---
+
+### `usage_pricing_catalog`
+
+Synced per-model pricing reference used to cost token usage. One row per `model_id`. (migration 070)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `model_id` | TEXT | NOT NULL UNIQUE | Model identifier |
+| `canonical_model_id` | TEXT | | Canonical model alias |
+| `raw_pricing` / `raw_model` | JSONB | NOT NULL DEFAULT `{}` | Raw upstream pricing/model payload |
+| `input_price`, `output_price`, `cache_read_price`, `cache_write_price`, `reasoning_price`, `request_price`, `image_price`, `web_search_price` | NUMERIC(30,18) | `>= 0` or NULL | Per-unit prices |
+| `synced_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Last sync time |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `synced_at DESC`
+
+---
+
+### `usage_pricing_overrides`
+
+Per-tenant, per-provider price overrides applied on top of the catalog. (migration 070)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `provider_id` | UUID FK → llm_providers | NOT NULL ON DELETE CASCADE | Target provider |
+| `provider_type` | TEXT | NOT NULL | Provider type |
+| `model_id` | TEXT | NOT NULL | Target model |
+| `input_price` … `web_search_price` | NUMERIC(30,18) | `>= 0` or NULL | Override prices (same set as catalog) |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, provider_id, model_id)`
+
+**Index:** `(tenant_id, provider_id, model_id)` (partial, `WHERE enabled`)
+
+---
+
+### `usage_cap_policies`
+
+Token/cost cap rules evaluated per tenant, optionally scoped to an agent, provider, provider type, or model, over a rolling time window. (migration 071; `source` column added migration 072)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `agent_id` | UUID FK → agents | NULL ON DELETE CASCADE | Agent scope; NULL = all agents |
+| `provider_id` | UUID FK → llm_providers | NULL ON DELETE CASCADE | Provider scope |
+| `provider_type` | TEXT | | Provider type scope |
+| `model_id` | TEXT | | Model scope |
+| `window_key` | TEXT | NOT NULL CHECK in (`hour`, `day`, `week`, `month`) | Cap window |
+| `max_tokens` | BIGINT | `>= 0` or NULL | Token cap |
+| `max_cost_micros` | BIGINT | `>= 0` or NULL | Cost cap in micro-USD |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `priority` | INTEGER | NOT NULL DEFAULT 100 | Lower-priority policies evaluated first |
+| `source` | TEXT | NOT NULL DEFAULT `manual` | `manual` or `agent_budget_monthly_cents` (migration 072) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Constraint:** at least one of `max_tokens` / `max_cost_micros` must be set.
+
+**Indexes:** `(tenant_id, enabled, agent_id, provider_id, provider_type, model_id)`; unique `(tenant_id, agent_id)` partial `WHERE source = 'agent_budget_monthly_cents'` (one budget-derived policy per agent, migration 072)
+
+---
+
+### `usage_cap_counters`
+
+Per-window accumulators (used + reserved) for each policy. (migration 071)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Parent policy |
+| `window_start` / `window_end` | TIMESTAMPTZ | NOT NULL | Window bounds |
+| `used_tokens` / `reserved_tokens` | BIGINT | NOT NULL DEFAULT 0 | Token usage |
+| `used_cost_micros` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Cost usage in micro-USD |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**PK:** `(policy_id, window_start)`
+
+---
+
+### `usage_cap_reservations`
+
+In-flight reservations that hold capacity before a request completes, later reconciled to actuals. (migration 071)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `reservation_key` | TEXT | NOT NULL | Caller-supplied idempotency key |
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Parent policy |
+| `window_start` | TIMESTAMPTZ | NOT NULL | Reservation window |
+| `reserved_tokens` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Reserved amounts |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Reconciled actuals |
+| `status` | TEXT | NOT NULL DEFAULT `reserved` | Reservation state |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(reservation_key, policy_id)`
+
+**Index:** `reservation_key`
+
+---
+
+### `usage_cap_events`
+
+Audit log of cap decisions (allow/deny) and their reasons. (migration 071)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `policy_id` | UUID FK → usage_cap_policies | NULL ON DELETE SET NULL | Policy that produced the decision |
+| `reservation_key` | TEXT | | Related reservation, if any |
+| `decision` | TEXT | NOT NULL | Decision outcome |
+| `reason` | TEXT | | Human-readable reason |
+| `estimated_tokens` / `estimated_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Pre-flight estimates |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Final actuals |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(tenant_id, created_at DESC)`
 
 ---
 

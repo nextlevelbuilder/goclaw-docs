@@ -4,6 +4,8 @@
 
 使用 8 位配对码为自定义 WebSocket 客户端提供安全认证流程。适用于需要验证设备身份的私有 Web 应用和桌面客户端。
 
+> **Browser pairing 与 cookie sync 的区别。** Browser **pairing** 认证的是一个 *client*（浏览器或桌面应用），使其能与网关通信。**Selected cookie sync** 则把 *站点登录 cookie* 复制到 agent 的服务器端浏览器中，使 agent 能以已登录会话的身份操作。用 pairing 让设备建立连接；用 cookie sync 让 agent 访问你已登录的站点。参见 [Browser Automation → Selected Cookie Sync](/browser-automation#selected-cookie-sync)。
+
 ## 配对流程
 
 ```mermaid
@@ -253,4 +255,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Telegram 设置
 - [WebSocket 协议](/websocket-protocol) — 完整协议参考
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

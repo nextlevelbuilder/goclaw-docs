@@ -242,6 +242,126 @@ curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId
 }
 ```
 
+## 类型化凭证适配器（Typed Credential Adapters）
+
+上面各节描述的是**旧版 env 粘贴模型**——你粘贴任意环境变量，GoClaw 将它们原样注入子进程。这对从单个稳定 env var 读取认证信息的工具（`GH_TOKEN`、`AWS_ACCESS_KEY_ID` 等）有效，但对 `git` 这类从配置文件、凭证 helper 或 per-remote URL 读取凭证的工具则失效——把 PAT 粘贴进 `GIT_TOKEN` 毫无作用。
+
+**类型化凭证适配器**解决了这个问题。你不再粘贴原始 env var，而是选择一个凭证*类型*，GoClaw 会通过一个服务端适配器路由该凭证，适配器知道如何为特定工具正确且安全地注入它。
+
+### 凭证类型
+
+每行 user credential 携带一个 `credential_type`（migration `000073`）：
+
+| `credential_type` | 含义 |
+|-------------------|------|
+| `NULL` / `env` | 旧版 env 透传——env var 原样注入，与之前完全相同。无 host scoping。 |
+| `pat` | Personal Access Token，用于 HTTPS git remote（GitHub/GitLab/Gitea）。需要 `host_scope`。 |
+| `ssh_key` | SSH 私钥（PEM），用于 SSH 上的 git。需要 `host_scope`。 |
+
+`NULL`/`env` 行永不被迁移——现有旧版凭证保持原样工作。类型化适配器按凭证逐个 opt-in。
+
+### User credential 与 binary/system credential
+
+类型化适配器作用于 **user credential**，而非 binary 级别的 env 默认值：
+
+- **Binary/system credential**——binary 定义 + 其默认 env var（以及 agent-grant 覆盖），如上所述。在该 binary 的各 grant 之间共享。
+- **User credential**——存储在 `secure_cli_user_credentials` 中的 per-user 类型化 secret，scope 到单个 hostname。
+
+在 dashboard 的 **Settings → CLI Credentials → User Credentials** 管理 user credential。点击 **Add**，选择 user，选择凭证类型（`Personal Access Token` 或 `SSH Private Key`），输入 **Host Scope**，并粘贴 secret。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑该行会显示 `••••••••` 占位符；secret 字段留空将保留已存值，输入新值则替换它。
+
+### git 适配器
+
+`git` 适配器是首个发布的类型化适配器。它**仅**为网络子命令注入凭证：
+
+```
+clone   fetch   pull   push   submodule
+```
+
+任何其他子命令（`status`、`log`、`diff`、`commit`、`branch` 等）都是本地操作，**无凭证**运行——不注入、无 audit-log 行。
+
+**PAT 流程。** token 通过环境变量注入，绝不出现在 `argv` 上：
+
+```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
+GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+```
+
+由于 token 位于 env value 中（而非命令行 flag），它绝不会出现在 `ps`、`/proc/<pid>/cmdline` 或 shell 历史中。注入的 env var 仅作用于被 spawn 的 `git` 进程——GoClaw 自身的环境和其他 exec 调用永远看不到它们。
+
+**SSH 流程。** PEM 密钥被写入系统临时目录中一个 `0600` 模式的 tmpfile（前缀 `goclaw-gitkey-*`），并将 `GIT_SSH_COMMAND` 设为：
+
+```
+ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
+```
+
+`StrictHostKeyChecking=accept-new` 在**首次连接（TOFU）**时接受未知 host key。预先填充 `~/.ssh/known_hosts` 以关闭该窗口（见 [安全加固](/deploy-security)）。tmpfile 在 exec 后通过 deferred cleanup 删除。**带 passphrase 的 SSH 密钥在保存时被拒绝**——请重新导出无 passphrase 的密钥，或使用专用 deploy key。
+
+### Host scope
+
+`pat` 和 `ssh_key` 都需要 **`host_scope`**——凭证有效的精确 ASCII `host` 或 `host:port`。它被规范化为小写 ASCII（通过 `idna.ToASCII`）并**精确匹配**。v1 **无通配符**，且 port 是 key 的一部分：
+
+| 存储的 `host_scope` | `github.com` | `api.github.com` | `github.com:8443` |
+|---------------------|:---:|:---:|:---:|
+| `github.com` | ✓ | ✗ | ✗ |
+
+如果你在 scheme 的默认端口（443 HTTPS、22 SSH）上运行自托管服务器，省略 port；若在非默认端口上，则包含 port（例如 `gitea.internal:8443`）。当没有存储凭证匹配解析出的 remote host 时，适配器回退到无凭证路径，若该操作需要认证，remote 将拒绝它。
+
+### Env 可见性：敏感与非敏感
+
+存储的 env 条目现在携带一个 `kind`。当 dashboard 或 admin API 读回某个凭证时，response 按 kind 屏蔽值：
+
+| `kind` | 在 API response 中 |
+|--------|--------------------|
+| `sensitive`（默认；旧版 string map 解码到此） | `value: null`、`masked: true` |
+| `value`（明确非敏感，例如 region 或 profile 名） | 返回明文值、`masked: false` |
+
+这让 operator 能在 UI 中看到非密上下文（例如 `AWS_DEFAULT_REGION=us-west-2`），同时 secret 保持屏蔽。secret 仍只能通过专用的 `env:reveal` 端点返回。
+
+### 从旧版 env 凭证迁移
+
+没有强制迁移。`credential_type IS NULL` 或 `= 'env'` 的行仍像以前一样发出其 env var。要升级某个 git 凭证，打开 user-credential 对话框，选择 **Personal Access Token** 或 **SSH Private Key**，输入 host scope，粘贴 secret 并保存——旧行将被原子替换。
+
+### v1 限制
+
+- **无通配符 host**——每个精确 `host[:port]` 对应一个凭证；不支持 `*.github.com`。
+- **无带 passphrase 的 SSH 密钥**——在验证时被拒绝。
+- **无 sandbox 传播**——适配器会修改已 fork 子进程的环境，与基于 bind-mount 的 Docker sandbox 路径不兼容。v1 中 credentialed exec 仅在 host 上运行。
+- **无 host-key 固定**——SSH 使用 TOFU（`accept-new`）；预先填充 `known_hosts`。
+
+### Google Workspace CLI (gws)
+
+GoClaw 为 Google Workspace CLI（`@googleworkspace/cli`）提供了一个 `gws` 预设。
+
+**可用性。** `gws` binary **仅在已发布的 `full` Docker 镜像中**预装。在 `latest`/`base` 镜像上，从 Packages 页面安装 `@googleworkspace/cli`（需要启用 Node 的构建，`ENABLE_NODE=true`；Node.js 18+）。
+
+**凭证。** 从 `gws` 预设创建一个 SecureCLI 凭证，并提供至少一个认证来源：
+
+| Env var | 用途 |
+|---------|------|
+| `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` | 导出的 `gws` 凭证或 OAuth credentials JSON 文件的路径 |
+| `GOOGLE_WORKSPACE_CLI_TOKEN` | 预先获取的 Google OAuth access token（可选） |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_ID` | 手动认证流程的 OAuth client ID（可选） |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_SECRET` | 手动认证流程的 OAuth client secret（可选） |
+
+**被阻止的命令。** 该预设阻止交互式和导出凭证的认证流程：
+
+```
+gws auth setup    gws auth login    gws auth export    gws auth logout
+```
+
+在 agent execution 之外运行这些流程，然后将产生的 token 或 credentials-file 路径存入 SecureCLI。
+
+**用法。** 默认偏向读取。使用 `--params` 传递查询参数，`--json` 传递 request body，`--page-all` 进行分页读取：
+
+```sh
+gws drive files list --params '{"pageSize": 10}'
+gws gmail users messages list --params '{"userId": "me", "maxResults": 10}'
+gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
+```
+
+> **写入警告。** 写入命令可能修改 Workspace 数据。保持默认预设偏向读取，并为任何已批准的写入工作流创建单独的、经过审查的 SecureCLI 配置。
+
 ## 常见模式
 
 ### 仅允许一个 agent 使用敏感 CLI 工具
@@ -273,4 +393,4 @@ curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId
 - [API Keys 与 RBAC](/api-keys-rbac)
 - [安全加固](/deploy-security)
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

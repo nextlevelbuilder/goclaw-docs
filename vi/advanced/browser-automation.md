@@ -201,6 +201,91 @@ Snapshot trả về accessibility tree. Dùng `interactive: true` để chỉ th
 
 ---
 
+## Selected Cookie Sync
+
+Phiên trình duyệt phía server khởi động mà không có trạng thái đăng nhập nào. **Selected cookie sync** cho phép người dùng chọn các cookie cụ thể từ một site mà họ đã đăng nhập và sao chép chúng vào GoClaw, để trình duyệt của agent có thể hoạt động như phiên đã đăng nhập đó — mà không cần chia sẻ mật khẩu.
+
+Một extension Chrome nhỏ (`chrome-selected-cookie-sync`) thực hiện việc chọn. **Không có sync nền tự động**: người dùng mở extension trên tab đang hoạt động, tick chính xác các cookie muốn chia sẻ, rồi bấm **Sync**. GoClaw lưu giá trị đã mã hoá và chỉ replay chúng vào trình duyệt của agent cho các domain và path khớp.
+
+```mermaid
+flowchart LR
+    USER["User trên site đã đăng nhập"] --> EXT["chrome-selected-cookie-sync\nextension"]
+    EXT -->|"POST /v1/browser/cookies/sync"| GW["GoClaw gateway"]
+    GW -->|"mã hoá AES-256-GCM"| DB[("bảng\nbrowser_cookies")]
+    DB -->|"giải mã + khớp domain/path"| AGENT["Phiên trình duyệt agent"]
+```
+
+### Endpoints
+
+Cả ba endpoint đều yêu cầu auth **operator** (gateway token, API key, hoặc paired-browser auth).
+
+| Method | Path | Mục đích |
+|--------|------|----------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert các cookie đã chọn cho một agent |
+| `GET` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | Liệt kê **metadata** cookie đã sync (không bao giờ trả về giá trị) |
+| `DELETE` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | Thu hồi cookie đã sync |
+
+Client chỉ chọn được `agent_id`. **Tenant và user được lấy từ auth context**, không phải từ request body — một client không thể giả mạo cookie của user khác. Sync bị từ chối khi auth context không có user, hoặc khi không có `agent_id`.
+
+**Request body cho sync:**
+
+```json
+{
+  "agent_id": "default",
+  "source": "chrome-selected-cookie-sync",
+  "cookies": [
+    {
+      "domain": "example.com",
+      "name": "session",
+      "path": "/",
+      "value": "REDACTED",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "expirationDate": 1789999999
+    }
+  ]
+}
+```
+
+**Response:** `{ "synced": 1 }`. Giới hạn: tối đa 200 cookie mỗi request, 16 KB cho mỗi giá trị cookie, 1 MB tổng body.
+
+Response `GET` chỉ trả về metadata — `domain`, `name`, `path`, `secure`, `httpOnly`, `sameSite`, `expiresAt`, `source`, `updatedAt`. Giá trị cookie **không bao giờ được trả về**.
+
+### Phạm vi (scope) và tính duy nhất
+
+Mỗi cookie được lưu được định danh bằng `(tenant_id, user_id, agent_id, domain, path, name)`. Sync lại cùng một cookie sẽ cập nhật row hiện có (upsert). Scope này là thứ ngăn cookie của một user lọt sang phiên trình duyệt của user khác hoặc agent khác.
+
+### Bảo mật
+
+- **Mã hoá khi lưu**: giá trị cookie được mã hoá bằng AES-256-GCM trước khi ghi vào bảng `browser_cookies`. Yêu cầu biến môi trường `GOCLAW_ENCRYPTION_KEY` — **sync và list fail closed (HTTP 503) khi biến này chưa được đặt**, nên cookie không bao giờ được lưu dạng plaintext.
+- **Giá trị chỉ ghi**: endpoint list và audit log chỉ trả về metadata. Giá trị cookie không bao giờ xuất hiện trong response API hay log.
+- **Replay theo scope**: trình duyệt agent chỉ nhận một cookie khi host và path của URL được yêu cầu khớp với domain/path của cookie đã lưu, cookie chưa hết hạn, và scope tenant/user/agent khớp.
+- **Chọn tường minh**: extension chỉ đọc cookie sau khi người dùng cấp host permission cho site đang hoạt động, và chỉ gửi các cookie mà người dùng đã tick.
+- **Thu hồi**: xoá từ extension hoặc gọi `DELETE /v1/browser/cookies?agent_id=<agent>&domain=<domain>` để xoá cookie đã sync. Bỏ qua `domain` sẽ xoá tất cả cookie của agent đó.
+
+### Agent dùng cookie đã sync như thế nào
+
+Khi trình duyệt của agent điều hướng đến một URL `http(s)`, cookie provider của GoClaw tra cứu cookie cho scope trình duyệt hiện tại (`tenant_id` / `user_id` / `agent_id`), giải mã chúng, và chỉ inject những cookie có domain và path khớp với URL đích (và chưa hết hạn). Các scheme không phải HTTP không nhận cookie. Agent không bao giờ thấy giá trị thô — chúng được áp dụng trực tiếp vào phiên Chrome qua CDP.
+
+### Cài đặt extension
+
+Extension nằm trong repo GoClaw tại `extensions/chrome-selected-cookie-sync/`.
+
+1. Mở `chrome://extensions`, bật **Developer mode**, bấm **Load unpacked**, và chọn thư mục `extensions/chrome-selected-cookie-sync/`.
+2. Mở một tab trên site bạn đã đăng nhập, rồi bấm icon extension.
+3. Điền vào popup:
+   - **Gateway URL** — ví dụ `http://localhost:18790`
+   - **Token** — một operator token (gửi dưới dạng `Authorization: Bearer <token>`)
+   - **User ID** — gửi dưới dạng header `X-GoClaw-User-Id`
+   - **Agent ID** — ví dụ `default`
+4. Bấm **Grant access** để cấp host permission cho site hiện tại, rồi **Refresh** để liệt kê cookie của site.
+5. Tick các cookie muốn chia sẻ (hoặc **Select all**), rồi bấm **Sync**. Popup xác nhận `Synced N cookies.`
+
+Cài đặt được lưu trong `chrome.storage.local`. Extension yêu cầu gateway-origin permission trước khi gửi, và xin active-tab host permission trước khi đọc cookie.
+
+---
+
 ## Lưu ý bảo mật
 
 - **Bảo vệ SSRF**: GoClaw áp dụng lọc SSRF cho đầu vào tool — agent không thể dễ dàng bị hướng đến các địa chỉ mạng nội bộ.
@@ -258,4 +343,4 @@ Trả về:
 - [Exec Approval](/exec-approval) — yêu cầu người dùng ký duyệt trước khi chạy lệnh
 - [Hooks & Quality Gates](/hooks-quality-gates) — thêm kiểm tra trước/sau cho hành động agent
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

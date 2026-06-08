@@ -646,10 +646,86 @@ goclaw tui setup     # TUI-based setup wizard
 
 ---
 
+## `bitrix-portal`
+
+Manage Bitrix24 portal rows directly in the database (PostgreSQL only). GoClaw expects a `bitrix_portals` row to exist before an operator runs the OAuth install flow at `/bitrix24/install`; this command seeds and maintains that row without requiring raw SQL access.
+
+> Credentials are encrypted at rest using `GOCLAW_ENCRYPTION_KEY`. If the key is unset, the command warns and stores credentials unencrypted.
+
+### `bitrix-portal create`
+
+Create a `bitrix_portals` row with OAuth credentials.
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <uuid> \
+  --name <portal> \
+  --domain tamgiac.bitrix24.com \
+  --client-id <client_id> \
+  --client-secret <client_secret>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Tenant UUID this portal belongs to (required) |
+| `--name` | Short portal name, referenced by `channel_instance.config.portal` (required) |
+| `--domain` | Bitrix24 portal host, e.g. `tamgiac.bitrix24.com` (required) |
+| `--client-id` | Bitrix24 application `client_id` / `application_id` (required) |
+| `--client-secret` | Bitrix24 application `client_secret` / application key (required) |
+
+### `bitrix-portal list`
+
+List `bitrix_portals` rows, optionally scoped to one tenant.
+
+```bash
+goclaw bitrix-portal list
+goclaw bitrix-portal list --tenant-id <uuid>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Filter to one tenant UUID (optional) |
+
+### `bitrix-portal update-credentials`
+
+Replace `client_id`/`client_secret` on an existing portal row. Use when rotating a client secret or migrating from a local app to a marketplace app. The OAuth state token is cleared by default, since state minted under the old credentials cannot refresh under the new ones.
+
+```bash
+goclaw bitrix-portal update-credentials \
+  --tenant-id <uuid> --name <portal> \
+  --client-id <client_id> --client-secret <client_secret>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Tenant UUID this portal belongs to (required) |
+| `--name` | Portal name to update (required) |
+| `--client-id` | New Bitrix24 application `client_id` (required) |
+| `--client-secret` | New Bitrix24 application `client_secret` (required) |
+| `--keep-state` | Keep the existing OAuth state token (only safe when rotating the secret of the SAME application) |
+
+### `bitrix-portal set-public-url`
+
+Backfill the gateway-public URL used to register Bitrix24 imbot event handlers. A one-shot operation for portals installed before automatic public-URL capture existed.
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <uuid> --name <portal> \
+  --url https://goclaw.example.com
+```
+
+| Flag | Description |
+|------|-------------|
+| `--tenant-id` | Tenant UUID this portal belongs to (required) |
+| `--name` | Portal name (required) |
+| `--url` | Gateway public URL, e.g. `https://goclaw.example.com` (required) |
+
+---
+
 ## What's Next
 
 - [WebSocket Protocol](/websocket-protocol) — wire protocol reference for the gateway
 - [REST API](/rest-api) — HTTP API endpoint listing
 - [Config Reference](/config-reference) — full `config.json` schema
 
-<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

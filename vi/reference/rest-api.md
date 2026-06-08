@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~286 REST endpoint.
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~308 REST endpoint.
 
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
@@ -80,6 +80,100 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 ### `POST /v1/responses`
 
 Protocol dựa trên response thay thế (tương thích OpenAI Responses API). Nhận cùng auth và trả về response object có cấu trúc.
+
+---
+
+## Sessions
+
+Khám phá và branch session ở chế độ read-only qua HTTP, dành cho automation không thể giữ kết nối WebSocket. Caller không phải admin chỉ thấy session của chính mình (khớp `X-GoClaw-User-Id`); admin và token gateway-owner thấy mọi session.
+
+> Vòng đời session đầy đủ (preview, patch, delete, reset, compact) có sẵn qua [WebSocket RPC](/websocket-protocol#sessions). Các route HTTP này phục vụ việc khám phá, branch và đọc history theo từng phần.
+
+### `GET /v1/sessions`
+
+Liệt kê session có phân trang.
+
+```bash
+curl "http://localhost:18790/v1/sessions?agent_id=AGENT_UUID&limit=20&offset=0" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123"
+```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `agent_id` | string | Lọc theo agent (alias: `agentId`) |
+| `channel` | string | Lọc theo channel |
+| `limit` | integer | Kích thước trang (mặc định 20) |
+| `offset` | integer | Offset trang (mặc định 0) |
+
+**Response:** `{ "sessions": [...], "total": N, "limit": 20, "offset": 0 }`
+
+### `POST /v1/chat/sessions/{key}/branch`
+
+Branch một session mới từ session có sẵn, copy message tới một index cho trước. Đoạn path `{key}` là session key **nguồn**; branch dùng lại cùng agent key.
+
+```bash
+curl -X POST http://localhost:18790/v1/chat/sessions/{key}/branch \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "up_to_index": 8,
+    "new_session_key": "",
+    "label": "what-if branch",
+    "metadata": {}
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `up_to_index` | integer | Bắt buộc. Copy message `[0, up_to_index)` vào branch |
+| `new_session_key` | string | Tùy chọn. Phải dùng cùng agent key với nguồn. Tự sinh nếu bỏ trống |
+| `label` | string | Nhãn branch tùy chọn cho người đọc |
+| `metadata` | object | Metadata key-value dạng string tùy chọn |
+
+**Response** (`201 Created`):
+
+```json
+{
+  "ok": true,
+  "source_key": "agent:researcher:direct:...",
+  "session_key": "agent:researcher:branch:direct:...",
+  "copied_messages": 8,
+  "total_messages": 20,
+  "label": "what-if branch"
+}
+```
+
+Trả về `409` nếu key đích đã tồn tại, `400` nếu `up_to_index` ngoài phạm vi.
+
+### `GET /v1/chat/sessions/{key}/history/follow`
+
+Đọc history theo từng phần dựa trên cursor — poll message mới mà không cần fetch lại toàn bộ transcript. Các tham chiếu file và media trong message trả về đều được ký (signed).
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `cursor` | integer | Index bắt đầu đọc (mặc định 0) |
+| `limit` | integer | Số message tối đa trả về (mặc định 50, tối đa 200) |
+
+**Response:**
+
+```json
+{
+  "session_key": "agent:researcher:direct:...",
+  "cursor": 0,
+  "next_cursor": 50,
+  "total": 120,
+  "messages": [ ... ],
+  "reset": false,
+  "updated": "2026-06-07T08:00:00Z"
+}
+```
+
+Truyền `next_cursor` làm `cursor` kế tiếp để đọc tiếp. `reset: true` (kèm `messages` rỗng) báo hiệu cursor đã vượt quá độ dài history hiện tại — bắt đầu lại từ `0`.
 
 ---
 
@@ -382,6 +476,30 @@ curl -X POST http://localhost:18790/v1/providers/{id}/verify \
 
 Xác minh kết nối embedding model cho một provider.
 
+### `POST /v1/providers/{id}/reconnect`
+
+Thiết lập lại kết nối in-memory cho một provider — hủy đăng ký khỏi runtime registry rồi đăng ký lại từ config đã lưu. Dùng sau khi sửa credential hoặc khi provider biến mất khỏi live registry. **Không** thực hiện verify; gọi `/verify` riêng nếu cần.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/reconnect \
+  -H "Authorization: Bearer TOKEN"
+```
+
+Request body là tùy chọn. Gửi `{"verify": true}` sẽ bị từ chối với `400` — reconnect và verify là hai thao tác riêng biệt.
+
+**Response:**
+
+```json
+{
+  "status": "reconnected",
+  "provider": { "id": "uuid", "name": "my-openrouter", "...": "..." },
+  "registry_updated": true,
+  "cache_invalidated": true
+}
+```
+
+`status` là `reconnected` (đã đăng ký lại in-memory), `not_registered` (đang bật nhưng đăng ký thất bại), hoặc `disabled` (provider bị tắt). Một event `cache_invalidate` được phát ra để các agent đang kết nối cập nhật thay đổi.
+
 ### `GET /v1/providers/{id}/codex-pool-activity`
 
 Trả về hoạt động routing của Codex OAuth pool ở cấp provider (xem thêm endpoint cấp agent ở trên).
@@ -673,6 +791,27 @@ curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### `GET /v1/traces/follow`
+
+Poll cập nhật trace giới hạn theo một session hoặc agent — thiết kế cho view "tail" trực tiếp. Yêu cầu `session_key` **hoặc** `agent_id`. Caller không phải admin chỉ được xem trace của chính mình.
+
+```bash
+curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-07T08:00:00Z" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `session_key` | string | Session cần follow (bắt buộc nếu bỏ `agent_id`) |
+| `agent_id` | string | Agent cần follow (bắt buộc nếu bỏ `session_key`) |
+| `status` | string | Lọc theo trạng thái |
+| `channel` | string | Lọc theo channel |
+| `since` | RFC 3339 | Chỉ trả về trace thay đổi sau thời điểm này |
+| `limit` | integer | Số trace tối đa (mặc định 50, tối đa 200) |
+| `include_spans` | boolean | Bao gồm chi tiết span (mặc định `false`) |
+
 ### `GET /v1/traces/{traceID}`
 
 Lấy một trace cùng tất cả spans của nó.
@@ -698,6 +837,153 @@ Xuất cây trace dưới dạng gzipped JSON.
 | `GET` | `/v1/usage/summary` | Tóm tắt với so sánh kỳ trước |
 
 **Query param:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+---
+
+## Usage Caps
+
+Policy giới hạn chi tiêu (spend-cap) khống chế lượng token và chi phí theo từng cửa sổ, tùy chọn giới hạn theo một agent, provider hoặc model cụ thể. Mọi endpoint yêu cầu **admin role**; thao tác ghi cần thêm **tenant-admin**. Policy được đánh dấu *managed* (do nền tảng cấp) không thể sửa hoặc xóa (`409`).
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/usage-caps/policies` | Liệt kê policy spend-cap của tenant hiện tại |
+| `POST` | `/v1/usage-caps/policies` | Tạo policy |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | Cập nhật một phần (mọi field tùy chọn) |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | Xóa policy (`204`) |
+| `GET` | `/v1/usage-caps/utilization` | Mức sử dụng hiện tại theo từng policy |
+| `GET` | `/v1/usage-caps/events` | Cap event gần đây (throttle, vượt ngưỡng) |
+
+### `POST /v1/usage-caps/policies`
+
+```bash
+curl -X POST http://localhost:18790/v1/usage-caps/policies \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "window": "day",
+    "max_tokens": 1000000,
+    "max_cost_usd": 25.0,
+    "agent_id": null,
+    "provider_id": null,
+    "priority": 100,
+    "enabled": true
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `window` | string | Cửa sổ reset — ví dụ `day` (mặc định). Bắt buộc |
+| `max_tokens` | integer | Giới hạn token mỗi cửa sổ (tùy chọn) |
+| `max_cost_usd` | float | Giới hạn chi phí theo USD (tùy chọn; chuyển sang micros) |
+| `max_cost_micros` | integer | Giới hạn chi phí theo micro-dollar — ưu tiên hơn `max_cost_usd` (tùy chọn) |
+| `agent_id` | UUID | Giới hạn cho một agent (tùy chọn) |
+| `provider_id` | UUID | Giới hạn cho một provider (tùy chọn) |
+| `provider_type` | string | Giới hạn cho một provider type (tùy chọn) |
+| `model_id` | string | Giới hạn cho một model (tùy chọn) |
+| `priority` | integer | Độ ưu tiên đánh giá, cao chạy trước (mặc định 100) |
+| `enabled` | boolean | Mặc định `true` |
+
+Trả về `201` kèm policy đã tạo. `PATCH` nhận cùng field, đều tùy chọn — gửi `null` cho `max_tokens` / `max_cost_*` để bỏ giới hạn.
+
+**`GET /v1/usage-caps/events`** nhận `?limit=` và trả về `{ "events": [...] }`. Utilization trả về `{ "rows": [...] }`.
+
+---
+
+## Model Pricing
+
+Catalog pricing theo từng model cùng các override theo tenant, dùng để tính chi phí usage. Endpoint đọc yêu cầu **admin role**; ghi override cần **tenant-admin**; sync OpenRouter cần **master scope**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/model-pricing` | Liệt kê catalog pricing |
+| `GET` | `/v1/model-pricing/overrides` | Liệt kê override pricing của tenant |
+| `PUT` | `/v1/model-pricing/overrides` | Upsert một override pricing |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | Xóa một override |
+| `POST` | `/v1/model-pricing/sync-openrouter` | Làm mới catalog từ OpenRouter (master scope) |
+
+**`GET /v1/model-pricing`** query param: `model` (lọc theo model ID), `limit` (mặc định 100). Response `{ "models": [...] }`.
+
+**`GET /v1/model-pricing/overrides`** query param: `provider_id` (UUID lọc tùy chọn). Response `{ "overrides": [...] }`.
+
+### `PUT /v1/model-pricing/overrides`
+
+```bash
+curl -X PUT http://localhost:18790/v1/model-pricing/overrides \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider_id": "PROVIDER_UUID",
+    "provider_type": "openai_compat",
+    "model_id": "gpt-4o",
+    "pricing": { "...": "..." },
+    "enabled": true
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `provider_id` | UUID | Bắt buộc |
+| `provider_type` | string | Provider type |
+| `model_id` | string | Bắt buộc |
+| `pricing` | object | Các field pricing (giá input/output, v.v.) |
+| `enabled` | boolean | Mặc định `true` |
+
+**`POST /v1/model-pricing/sync-openrouter`** fetch catalog OpenRouter rồi upsert. Response `{ "count": N }`. Trả về `502` nếu fetch upstream thất bại.
+
+---
+
+## Browser Cookie Sync
+
+Lưu các cookie trình duyệt được chọn để session browser phía server (ví dụ browser tool) tái sử dụng trạng thái đã đăng nhập. Mọi endpoint yêu cầu **operator role**. Cookie được giới hạn theo tenant + user (+ agent tùy chọn) và mã hóa khi lưu — phải đặt `GOCLAW_ENCRYPTION_KEY`, nếu không sync trả về `503`.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert cookie cho scope hiện tại |
+| `GET` | `/v1/browser/cookies` | Liệt kê metadata cookie (không bao giờ trả về giá trị) |
+| `DELETE` | `/v1/browser/cookies` | Xóa cookie đã lưu trong scope hiện tại |
+
+### `POST /v1/browser/cookies/sync`
+
+```bash
+curl -X POST http://localhost:18790/v1/browser/cookies/sync \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "AGENT_UUID",
+    "source": "chrome-extension",
+    "cookies": [
+      {
+        "domain": "example.com",
+        "name": "session",
+        "path": "/",
+        "value": "abc123",
+        "secure": true,
+        "httpOnly": true,
+        "sameSite": "Lax",
+        "expiresAt": "2026-12-31T00:00:00Z"
+      }
+    ]
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `agent_id` | string | Scope agent tùy chọn (alias: `agent`) |
+| `source` | string | Nhãn nguồn (mặc định `chrome-extension`) |
+| `cookies` | array | Danh sách cookie. Bắt buộc, không rỗng, tối đa 200 |
+
+**Field của mỗi cookie:** `domain` (hoặc `url` để suy ra), `name`, `path`, `value` (≤ 16 KB), `secure`, `httpOnly` (alias `http_only`), `sameSite` (alias `same_site`), và một trong `expiresAt` / `expires_at` / `expirationDate` / `expiration_date`. Tổng request body giới hạn 1 MB.
+
+**Response:** `{ "synced": N }`.
+
+### `GET /v1/browser/cookies`
+
+Chỉ trả về **metadata** cookie — giá trị không bao giờ được phơi bày. Query filter tùy chọn: `agent_id`, `domain`, `name`, `path`. Response `{ "items": [ { "domain", "name", "path", "secure", "httpOnly", "sameSite", "expiresAt", "source", "updatedAt" } ] }`.
+
+### `DELETE /v1/browser/cookies`
+
+Xóa cookie trong scope hiện tại. Cùng các filter tùy chọn như endpoint list. Response `{ "deleted": N }`.
 
 ---
 
@@ -887,8 +1173,25 @@ Xóa channel instance.
 |--------|------|-------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | Liệt kê group có quyền ghi |
 | `GET` | `/v1/channels/instances/{id}/writers` | Liệt kê writer được phép |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | Kiểm tra thử một user có được phép ghi vào group không (không thay đổi dữ liệu) |
 | `POST` | `/v1/channels/instances/{id}/writers` | Thêm writer |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | Xóa writer |
+
+**`POST .../writers/test`** — kiểm tra thử quyền writer trước khi lưu. Body `{ "group_id": "...", "user_id": "..." }` (cả hai bắt buộc). Luôn trả về `200` kèm kết quả đánh giá:
+
+```json
+{
+  "allowed": true,
+  "reason": "writer",
+  "instance_id": "uuid",
+  "agent_id": "uuid",
+  "group_id": "telegram:-100123",
+  "user_id": "user123",
+  "writer_count": 3
+}
+```
+
+`reason` là một trong `writer`, `not_writer`, `no_writers_configured`, hoặc `invalid_group`.
 
 ---
 
@@ -1479,6 +1782,51 @@ Backup và khôi phục theo tenant. Yêu cầu quyền admin.
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/activity` | Liệt kê activity audit log (có thể filter) |
+| `GET` | `/v1/activity/aggregate` | Đếm activity tổng hợp, nhóm theo một chiều (dimension) |
+
+### `GET /v1/activity/aggregate`
+
+Trả về số đếm activity nhóm theo một chiều thay vì các dòng thô. Caller không phải admin bị giới hạn theo actor ID của chính mình; nhóm theo `actor_id` yêu cầu admin role.
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `group_by` | string | Chiều nhóm — ví dụ `action`, `entity_type`, `actor_type`, `actor_id` (chỉ admin) |
+| `actor_type` | string | Lọc theo actor type |
+| `actor_id` | string | Lọc theo actor ID |
+| `action` | string | Lọc theo action |
+| `entity_type` | string | Lọc theo entity type |
+| `entity_id` | string | Lọc theo entity ID |
+| `from` | RFC 3339 | Đầu cửa sổ thời gian |
+| `to` | RFC 3339 | Cuối cửa sổ thời gian (phải sau `from`) |
+| `limit` | integer | Số nhóm tối đa trả về |
+
+---
+
+## Runtime Logs
+
+View tổng hợp của buffer runtime log trong bộ nhớ. Yêu cầu **admin role**.
+
+### `GET /v1/logs/runtime/aggregate`
+
+Trả về số đếm runtime log nhóm theo `level` hoặc `source`.
+
+```bash
+curl "http://localhost:18790/v1/logs/runtime/aggregate?group_by=level" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `group_by` | string | `level` (mặc định) hoặc `source` |
+| `level` | string | Lọc theo log level |
+| `source` | string | Lọc theo log source |
+| `from` | RFC 3339 | Chỉ đếm entry sau thời điểm này |
+
+> Tail log server trực tiếp có sẵn qua WebSocket bằng `logs.tail` — xem [WebSocket Protocol](/websocket-protocol#logs).
 
 ---
 
@@ -1694,4 +2042,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

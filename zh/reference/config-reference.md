@@ -25,6 +25,7 @@ GoClaw 使用 JSON5 配置文件（支持注释和尾随逗号）。文件路径
   "providers": { ... },
   "gateway":   { ... },
   "tools":     { ... },
+  "skills":    { ... },
   "sessions":  { ... },
   "database":  { ... },
   "tts":       { ... },
@@ -340,7 +341,7 @@ Agent evolution 设置存储在 agent 的 `other_config` JSONB 字段中（通�
 | `owner_ids` | string[] | — | 具有管理员/所有者权限的用户 ID |
 | `allowed_origins` | string[] | `[]` | 允许的 WebSocket CORS 来源（空 = 允许所有）|
 | `max_message_chars` | integer | `32000` | 最大传入消息长度 |
-| `inbound_debounce_ms` | integer | `1000` | 合并快速连续消息（毫秒）|
+| `inbound_debounce_ms` | integer | `0` | 静默窗口（毫秒），合并来自同一发送者/会话的快速到达的 channel/Web Chat 消息。`0` 对文本禁用防抖，但带媒体的消息仍遵循内置的媒体下限，使多附件突发合并为一次运行。Agent 可通过每个 agent 的 `agent_config.inbound_debounce_ms` 覆盖 |
 | `rate_limit_rpm` | integer | `20` | WebSocket 速率限制（每分钟请求数）|
 | `injection_action` | string | `warn` | `"off"`、`"log"`、`"warn"`、`"block"` — 提示注入响应方式 |
 | `block_reply` | boolean | `false` | 工具迭代期间向用户传送中间文本 |
@@ -378,6 +379,37 @@ Agent evolution 设置存储在 agent 的 `other_config` JSONB 字段中（通�
 | `env_dump` | printenv、env、export -p 等 |
 
 > 另见：[安全加固](/deployment/security-hardening)，了解如何与 per-agent shell policy 组合使用。
+
+### `tools.commandKeywordAllowlist`
+
+一组有作用域的规则，允许产品/安全词汇出现在带 credential 的 CLI 内容参数中，而不禁用按命令路径的 deny pattern。每条规则将 bypass 收窄到特定命令（可选地包括 subcommand、参数位置和关键词）。
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "gh-issue-secret",
+        "command": "gh",
+        "subcommands": ["issue", "create"],
+        "keywords": ["password", "token"],
+        "reason": "安全 issue 标题中合理出现 credential 词汇"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | 默认值 | 描述 |
+|-------|------|--------|------|
+| `id` | string | — | 可选的规则标识符 |
+| `command` | string | — | 规则适用的命令（如 `"gh"`） |
+| `subcommands` | string[] | — | 规则作用的 subcommand |
+| `args` | string[] | — | 规则匹配的具体参数值 |
+| `argPositions` | integer[] | — | 从 0 开始的参数位置（在匹配的 subcommand 之后） |
+| `keywords` | string[] | — | 匹配参数中允许的词汇 |
+| `reason` | string | — | 说明此 bypass 存在原因的备注 |
+| `enabled` | boolean | `true` | 设为 `false` 以禁用规则（省略 = 启用） |
 
 ---
 
@@ -449,6 +481,28 @@ MCP server 配置数组。每个条目：
 | `tool_prefix` | string | 可选的工具名称前缀 |
 | `timeout_sec` | integer | 请求超时（默认 60）|
 | `enabled` | boolean | 启用/禁用 server |
+
+---
+
+## `skills`
+
+技能存储系统配置。
+
+| Field | Type | 默认值 | 描述 |
+|-------|------|--------|------|
+| `storage_dir` | string | `{dataDir}/skills-store/` | 技能内容目录 |
+| `max_upload_size_mb` | integer | `20` | 每个技能 ZIP 上传的大小上限（MB）。限制在 1–500 范围内；超出范围的值会贴到最近的边界。也可通过 `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` 或 system config 键 `skills.max_upload_size_mb` 设置 |
+
+### `skills.slash_commands`
+
+控制通过显式 slash-command 激活技能。
+
+| Field | Type | 默认值 | 描述 |
+|-------|------|--------|------|
+| `enabled` | boolean | — | 启用 slash-command 技能激活 |
+| `suggest_not_found` | boolean | — | 当 slash command 无匹配时建议相似技能 |
+| `partial_matching` | boolean | `false` | 按命令名部分匹配技能 |
+| `prefix` | string | `/` | slash-command 前缀 |
 
 ---
 
@@ -717,4 +771,4 @@ Edition 控制每 tenant 的子 agent 限制。通过 `editions` 表设置，不
 - [CLI 命令](/cli-commands) — `goclaw onboard` 交互式生成此文件
 - [数据库 Schema](/database-schema) — agent 和 provider 在 PostgreSQL 中的存储方式
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

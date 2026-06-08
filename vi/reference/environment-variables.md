@@ -23,7 +23,7 @@ GOCLAW_POSTGRES_DSN="postgres://..." GOCLAW_GATEWAY_TOKEN="..." ./goclaw
 | Biến | Bắt buộc | Mô tả |
 |------|----------|-------|
 | `GOCLAW_GATEWAY_TOKEN` | Có | Bearer token để xác thực WebSocket và HTTP API |
-| `GOCLAW_ENCRYPTION_KEY` | Có | AES-256-GCM key (base64-encoded 32 bytes / 44 ký tự) để mã hóa secrets trong database — LLM provider API key, MCP API key, webhook secret, và workstation credential. Tạo bằng `openssl rand -base64 32`. **Bắt buộc cho `/v1/webhooks/*`** — nếu không đặt, webhook subsystem bị vô hiệu hóa khi khởi động (các subsystem khác vẫn hoạt động bình thường). Phải giống nhau trên tất cả gateway instance trong cluster. Không lưu trong `config.json`. |
+| `GOCLAW_ENCRYPTION_KEY` | Có | AES-256-GCM key (base64-encoded 32 bytes / 44 ký tự) để mã hóa secrets trong database — LLM provider API key, MCP API key, webhook secret, workstation credential, và browser cookie đã đồng bộ. Tạo bằng `openssl rand -base64 32`. **Bắt buộc cho `/v1/webhooks/*`** — nếu không đặt, webhook subsystem bị vô hiệu hóa khi khởi động (các subsystem khác vẫn hoạt động bình thường). Browser cookie store cũng cần key này; không có key thì không thể đồng bộ cookie. Phải giống nhau trên tất cả gateway instance trong cluster. Không lưu trong `config.json`. |
 | `GOCLAW_CONFIG` | Không | Đường dẫn `config.json`. Mặc định: `./config.json` |
 | `GOCLAW_HOST` | Không | Gateway listen host. Mặc định: `0.0.0.0` |
 | `GOCLAW_PORT` | Không | Gateway listen port. Mặc định: `18790` |
@@ -130,6 +130,7 @@ API key từ environment ghi đè mọi giá trị trong `config.json`. Đặt k
 | `GOCLAW_SKILLS_DIR` | Thư mục skills global. Mặc định: `~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | Đường dẫn đến định nghĩa built-in skill. Mặc định: `./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | Đường dẫn đến gói bundled skill. Mặc định: `./bundled-skills` |
+| `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` | Giới hạn upload ZIP mỗi skill theo MB. Mặc định: `20`. Bị kẹp trong khoảng 1–500. Ghi đè `skills.max_upload_size_mb` trong `config.json` |
 
 ## Runtime Packages (Docker v3)
 
@@ -239,4 +240,4 @@ GOCLAW_OPENROUTER_API_KEY=sk-or-...
 - [CLI Commands](/cli-commands) — `goclaw onboard` tự tạo `.env.local`
 - [Database Schema](/database-schema) — secrets được lưu mã hóa trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
