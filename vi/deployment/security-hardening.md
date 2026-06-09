@@ -432,6 +432,62 @@ Format lưu: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Giá t
 
 > **Phải giống nhau trên tất cả replica.** Trong deployment cluster, mọi gateway instance phải dùng cùng `GOCLAW_ENCRYPTION_KEY`. Rotate key yêu cầu mã hóa lại toàn bộ secret đã lưu trước khi khởi động lại.
 
+Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_binaries`, `secure_cli_agent_grants`, và `secure_cli_user_credentials` đều lưu secret trong cột `encrypted_env`. Mỗi entry mang một `kind` hiển thị — entry `sensitive` bị che trong các response API/UI thông thường và chỉ trả về qua luồng `env:reveal` đã audit; entry `value` (vd tên region hoặc profile) được trả về cho admin để review vận hành.
+
+---
+
+## Mô hình bảo mật Credential Adapter
+
+[Typed credential adapter](/cli-credentials) là đường **được hệ thống tin cậy** để inject auth material vào tiến trình con CLI được spawn (`git clone`, `git push`, …). Đây là một trust boundary thứ hai, khác với denylist env do user paste — không phải để thay thế nó.
+
+| Đường | Trust boundary |
+|-------|----------------|
+| Env var do user paste (loại credential `env`) | Tuyến phòng thủ đầu tiên — `ValidateGrantEnvVars` từ chối `GIT_SSH_COMMAND`, `LD_PRELOAD`, `PATH`, và phần còn lại của denylist |
+| Env adapter do hệ thống inject (vd adapter `git`) | Tuyến thứ hai, có audit-trail — bỏ qua denylist theo thiết kế và phát một sự kiện audit cho mỗi lần inject |
+
+Gõ sai tên adapter sẽ rơi xuống passthrough (hành vi denylist-only cũ) — **không có bypass ngầm**.
+
+### Sự kiện audit: `security.system_env_injection`
+
+Mỗi lần adapter inject phát ra **đúng một** dòng `slog.Warn` có cấu trúc. Hostname dạng plaintext cố tình **không bao giờ được log** — giữ audit log an toàn PII bên trong các tenant bị quản lý.
+
+| Trường | Ghi chú |
+|--------|---------|
+| `msg` | luôn là `security.system_env_injection` |
+| `adapter` | vd `git`, `passthrough` |
+| `binary` | tên binary (`git`, …) |
+| `user_id` | tenant user UUID (rỗng trong ngữ cảnh chỉ global) |
+| `env_keys` | chỉ **tên** env var đã sort — không bao giờ là giá trị |
+| `argv_prefix_len` | số phần tử argv được prepend, không phải nội dung |
+| `host_scope_hash` | 8 ký tự hex đầu của `SHA-256(host_scope đã chuẩn hóa)`, hoặc `"none"` |
+
+v1 **không có bảng audit chuyên dụng** — dòng này route qua `slog` ra stderr → systemd/journald hoặc Docker logs. Để grep hoạt động với một host cụ thể, tính trước hash của nó:
+
+```sh
+echo -n "github.com" | sha256sum | cut -c1-8
+```
+
+### Scrub output cho credentialed exec
+
+Output của lệnh credentialed đi qua cùng regex scrubber như mọi output tool, cộng thêm credential đăng ký lúc runtime cho binary đó được scrub khỏi stdout/stderr trước khi kết quả tới LLM. Secret được inject qua adapter không bao giờ round-trip ngược lại hội thoại.
+
+### Cảnh báo MITM SSH TOFU
+
+Đường SSH của adapter git đặt `StrictHostKeyChecking=accept-new`, chấp nhận host key chưa biết ở lần kết nối đầu. Một attacker mạng nằm giữa GoClaw và git host có thể capture phiên SSH **đầu tiên** đó. Pre-seed `known_hosts` lúc deploy để đóng cửa sổ này — sau đó `accept-new` enforce match-or-fail:
+
+```sh
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh-keyscan -p 22 gitea.internal >> ~/.ssh/known_hosts
+```
+
+### Tmpfile credential tạm thời
+
+Adapter SSH ghi key PEM vào một tmpfile mode `0600` trong `os.TempDir()` (prefix `goclaw-gitkey-*`) và xóa nó qua deferred cleanup sau khi exec trả về. Một `SIGKILL` của tiến trình GoClaw bỏ qua cleanup đó, để lại file. `os.TempDir()` là per-user trên POSIX, nên phơi nhiễm chỉ giới hạn ở uid của GoClaw. Deployment bảo mật cao nên chạy quét định kỳ:
+
+```sh
+find "$TMPDIR" -name 'goclaw-gitkey-*' -mmin +60 -delete
+```
+
 ---
 
 ## Bảo mật Webhook
@@ -617,4 +673,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Webhooks](../advanced/webhooks.md) — HTTP endpoint xác thực HMAC, xác minh signature, và bảo vệ replay
 - [Workstations](../advanced/workstations.md) — mục tiêu thực thi từ xa, mô hình phân quyền, và nhật ký kiểm tra
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

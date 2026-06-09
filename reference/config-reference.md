@@ -23,6 +23,7 @@ GoClaw uses a JSON5 config file (supports comments, trailing commas). The file p
   "providers": { ... },
   "gateway":   { ... },
   "tools":     { ... },
+  "skills":    { ... },
   "sessions":  { ... },
   "database":  { ... },
   "tts":       { ... },
@@ -338,7 +339,7 @@ When a group accumulates more pending messages than `threshold`, older messages 
 | `owner_ids` | string[] | — | User IDs with admin/owner access |
 | `allowed_origins` | string[] | `[]` | Allowed WebSocket CORS origins (empty = allow all) |
 | `max_message_chars` | integer | `32000` | Max incoming message length |
-| `inbound_debounce_ms` | integer | `1000` | Merge rapid consecutive messages (ms) |
+| `inbound_debounce_ms` | integer | `0` | Silence-window in ms that merges rapid channel/Web Chat messages from the same sender/session. `0` disables debouncing for text, but media-bearing messages still honor a built-in media floor so multi-attachment bursts coalesce into one run. Agents may override via per-agent `agent_config.inbound_debounce_ms` |
 | `rate_limit_rpm` | integer | `20` | WebSocket rate limit (requests per minute) |
 | `injection_action` | string | `warn` | `"off"`, `"log"`, `"warn"`, `"block"` — prompt injection response |
 | `block_reply` | boolean | `false` | Deliver intermediate text to users during tool iterations |
@@ -376,6 +377,37 @@ Enable or disable individual shell deny-groups at the global level. This setting
 | `env_dump` | printenv, env, export -p, etc. |
 
 > See also: [Security Hardening](/deployment/security-hardening) for combining with per-agent shell policy.
+
+### `tools.commandKeywordAllowlist`
+
+A list of scoped rules that allow product/security vocabulary to appear in credentialed CLI content arguments without disabling the command-path deny patterns. Each rule narrows the bypass to a specific command (and optionally subcommands, argument positions, and keywords).
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "gh-issue-secret",
+        "command": "gh",
+        "subcommands": ["issue", "create"],
+        "keywords": ["password", "token"],
+        "reason": "security issue titles legitimately mention credentials"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | — | Optional rule identifier |
+| `command` | string | — | Command the rule applies to (e.g. `"gh"`) |
+| `subcommands` | string[] | — | Subcommands the rule scopes to |
+| `args` | string[] | — | Specific argument values the rule matches |
+| `argPositions` | integer[] | — | 0-based argument positions (after matched subcommand) |
+| `keywords` | string[] | — | Vocabulary allowed within the matched args |
+| `reason` | string | — | Human note explaining why the bypass exists |
+| `enabled` | boolean | `true` | Disable the rule by setting `false` (omit = enabled) |
 
 ---
 
@@ -447,6 +479,28 @@ Array of MCP server configs. Each entry:
 | `tool_prefix` | string | Optional prefix for tool names |
 | `timeout_sec` | integer | Request timeout (default 60) |
 | `enabled` | boolean | Enable/disable the server |
+
+---
+
+## `skills`
+
+Skills storage system configuration.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `storage_dir` | string | `{dataDir}/skills-store/` | Directory for skill content |
+| `max_upload_size_mb` | integer | `20` | Per-file skill ZIP upload limit in MB. Clamped to the range 1–500; values outside the range snap to the nearest bound. Also settable via `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` or the `skills.max_upload_size_mb` system config key |
+
+### `skills.slash_commands`
+
+Controls explicit slash-command skill activation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | — | Enable slash-command skill activation |
+| `suggest_not_found` | boolean | — | Suggest similar skills when a slash command has no match |
+| `partial_matching` | boolean | `false` | Match skills on partial command names |
+| `prefix` | string | `/` | Slash-command prefix |
 
 ---
 
@@ -715,4 +769,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` to generate this file interactively
 - [Database Schema](/database-schema) — how agents and providers are stored in PostgreSQL
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

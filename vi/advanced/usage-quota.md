@@ -214,6 +214,133 @@ Khi quota bị tắt (`"enabled": false`), phản hồi vẫn bao gồm thống 
 
 ---
 
+## AI Budget Usage Caps
+
+Tách biệt với request quota ở tầng channel phía trên, GoClaw có một **hệ thống cap dựa trên token và chi phí** thực thi giới hạn lên chính chi tiêu cho LLM provider. Trong khi request quota đếm tin nhắn, usage cap đếm *token và chi phí USD*, và chúng áp dụng không chỉ cho lượt agent chính mà cho mọi lần gọi LLM tính phí mà GoClaw thực hiện thay mặt một tenant.
+
+Cap được lưu dưới dạng **policy** trong PostgreSQL (migration `000070`–`000072`) và quản lý qua REST API. Chúng luôn hoạt động một khi có ít nhất một policy tồn tại cho một tenant — không có cờ config bật/tắt toàn cục.
+
+### Mô hình policy
+
+Một cap policy trả lời: *với scope này, trong cửa sổ thời gian này, được phép bao nhiêu token và/hoặc bao nhiêu chi phí?*
+
+**Các chiều scope** — mọi policy có thể để bất kỳ chiều nào không đặt (NULL) để nghĩa là "khớp tất cả":
+
+| Chiều | Ý nghĩa |
+|-----------|---------|
+| `tenant_id` | Luôn được đặt — mọi policy thuộc về một tenant |
+| `agent_id` | Giới hạn một agent (không đặt = tất cả agent trong tenant) |
+| `provider_id` | Giới hạn một LLM provider record đã cấu hình |
+| `provider_type` | Giới hạn một họ provider, ví dụ `anthropic`, `openai` |
+| `model_id` | Giới hạn một model, ví dụ `claude-sonnet-4-5` |
+
+**Loại cửa sổ** (`window`): `hour`, `day`, `week`, hoặc `month`. Cửa sổ căn theo ranh giới lịch UTC — `day` bắt đầu lúc 00:00 UTC, `week` bắt đầu thứ Hai, `month` bắt đầu ngày 1.
+
+**Giới hạn** — một policy phải đặt `max_tokens`, `max_cost_micros`, hoặc cả hai:
+
+| Trường | Đơn vị |
+|-------|------|
+| `max_tokens` | Tổng token (input + output + cache read + cache write) |
+| `max_cost_micros` | Chi phí tính bằng **micro-dollar** (1 USD = 1.000.000 micro). API cũng nhận `max_cost_usd` cho tiện và tự chuyển đổi |
+
+**Cách nhiều policy khớp kết hợp.** Khi một request đến, GoClaw tìm *mọi* policy được bật mà scope khớp (chiều NULL khớp bất kỳ, chiều được đặt phải bằng với request). Một request phải lọt dưới **tất cả** policy khớp — policy hạn chế nhất thắng. Trường `priority` (số nhỏ hơn = đánh giá trước, mặc định `100`) điều khiển thứ tự đánh giá, quyết định policy nào được báo là nguyên nhân chặn khi chạm cap.
+
+### Thực thi reservation + counter
+
+Cap dùng mô hình **reserve-then-settle** để các lần gọi đồng thời không thể chi vượt một cửa sổ:
+
+1. **Preflight (reserve)** — trước lần gọi LLM, GoClaw ước tính lượng token (và chi phí, nếu có policy khớp có cost cap), rồi atomically cộng vào counter per-window của mỗi policy. Nếu reservation đẩy `used + reserved + estimate` vượt `max_tokens` hoặc `max_cost_micros` của một policy, lần gọi bị **chặn** trước khi chạy.
+2. **Reconcile (settle)** — sau khi lần gọi trả về, reservation được thay bằng token và chi phí *thực tế* từ usage response của provider. Lượng reserved được giải phóng và lượng used được ghi lại. Lần gọi thất bại settle về 0 (reservation được giải phóng) trừ khi nhận được phản hồi một phần.
+
+Ước tính chi phí cần giá cho model. Nếu một policy có cost cap khớp nhưng không biết giá cho model, lần gọi bị **chặn** với lý do `pricing_unknown` — xem [Theo Dõi Chi Phí → Model Pricing](/cost-tracking) để biết cách điền giá.
+
+### Cap cũng áp dụng cho LLM call phụ trợ
+
+Usage cap được thực thi trên **mọi lần gọi LLM tính phí**, không chỉ lượt agent hướng tới người dùng. Bao gồm cả các lần gọi phụ trợ GoClaw thực hiện nội bộ:
+
+- Tạo tiêu đề hội thoại
+- Phân loại intent
+- Compaction giữa loop và lịch sử
+- Memory flush
+- Trích xuất knowledge-graph
+- Hợp nhất memory (dreaming / episodic worker)
+- Vault enrichment
+- Xác minh provider và regeneration của summoner
+
+Mỗi cái trong số này reserve và reconcile đối với cùng các policy, nên một token cap `day` chặt cũng sẽ throttle công việc nền, không chỉ chat reply.
+
+> **Provider Subscription / OAuth được miễn.** Cap chỉ áp dụng cho provider tính phí theo API key. Provider trả phí cố định hoặc theo subscription (Claude CLI, ChatGPT OAuth, Bailian, ACP, Ollama) được bỏ qua, và provider cấu hình không có API key cũng vậy.
+
+### Cầu nối ngân sách tháng của agent
+
+Trường per-agent cũ `budget_monthly_cents` (xem [Theo Dõi Chi Phí → Giới Hạn Ngân Sách Hàng Tháng](/cost-tracking)) được tự động mirror vào hệ thống cap. Migration `000072` tạo, cho mỗi agent có `budget_monthly_cents` dương, một cost-cap policy cửa sổ `month` được quản lý:
+
+- `max_cost_micros` = `budget_monthly_cents × 10.000` (cent → micro-dollar)
+- `source` = `agent_budget_monthly_cents`, `priority` = `90`
+
+Các policy được cầu nối này là **managed** — REST API từ chối sửa hoặc xóa chúng (trả về `409 Conflict`). Hãy điều chỉnh `budget_monthly_cents` của agent thay vào đó. Policy tạo thủ công có `source` = `manual`.
+
+### Điều gì xảy ra khi chạm cap
+
+Khi một reservation bị từ chối, GoClaw trả về lỗi `usage cap exceeded` từ lần gọi LLM. Với lượt agent chính, điều này hiện ra như một lần chạy thất bại — agent không tạo phản hồi. Một quyết định `block` cũng được ghi vào events log (xem bên dưới) ghi lại policy nào và lý do (`cap_exceeded` hoặc `pricing_unknown`) gây ra.
+
+### Truy vết quyết định
+
+Mỗi quyết định cap được ghi ở hai nơi:
+
+- **`usage_cap_events`** — một audit log chỉ-thêm (append-only) các quyết định `allow` / `block` / `skip` với policy, reservation key, token và chi phí ước tính/thực tế, và lý do. Truy vấn được qua events endpoint.
+- **Trace metadata** — mỗi agent trace mang một block `usage_caps` liệt kê quyết định, các policy ID khớp, reservation key, và token/chi phí ước tính so với thực tế cho mỗi lần thử gọi LLM, để bạn thấy hành vi cap inline với phần còn lại của trace.
+
+### REST endpoint
+
+Tất cả usage-cap endpoint yêu cầu admin Bearer token. Các thao tác ghi (tạo/cập nhật/xóa policy, pricing override) bổ sung yêu cầu tenant-admin scope; endpoint sync OpenRouter yêu cầu master scope.
+
+| Method & path | Scope | Mô tả |
+|---------------|-------|-------|
+| `GET /v1/usage-caps/policies` | admin | Liệt kê tất cả cap policy của tenant (bao gồm disabled) |
+| `POST /v1/usage-caps/policies` | tenant-admin | Tạo một cap policy |
+| `PATCH /v1/usage-caps/policies/{id}` | tenant-admin | Cập nhật một policy (policy ngân sách agent được quản lý sẽ bị từ chối) |
+| `DELETE /v1/usage-caps/policies/{id}` | tenant-admin | Xóa một policy (policy được quản lý sẽ bị từ chối) |
+| `GET /v1/usage-caps/utilization` | admin | Usage per-policy hiện tại so với giới hạn cho cửa sổ đang hoạt động |
+| `GET /v1/usage-caps/events` | admin | Các quyết định cap gần đây (`?limit=`, mặc định 50, tối đa 200) |
+
+**Tạo một policy** — giới hạn một agent ở 1M token mỗi ngày:
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "agent_id": "11111111-1111-1111-1111-111111111111",
+    "window": "day",
+    "max_tokens": 1000000
+  }'
+```
+
+**Tạo một cost cap** — giới hạn chi tiêu Anthropic ở $20/tháng toàn tenant (`max_cost_usd` được chuyển sang micro):
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "provider_type": "anthropic",
+    "window": "month",
+    "max_cost_usd": 20.00
+  }'
+```
+
+**Kiểm tra utilization:**
+
+```bash
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/usage-caps/utilization"
+```
+
+Model pricing (cung cấp cho phép tính chi phí phía sau cost cap) được cấu hình qua một bộ endpoint riêng — xem [Theo Dõi Chi Phí → Model Pricing](/cost-tracking).
+
+---
+
 ## Giới hạn tốc độ Webhook (Tầng Channel)
 
 Tách biệt với quota theo người dùng, có một rate limiter ở tầng webhook bảo vệ khỏi lũ webhook đến. Nó sử dụng cửa sổ cố định 60 giây với giới hạn cứng **30 request mỗi key** mỗi cửa sổ. Tối đa **4096 key duy nhất** được theo dõi đồng thời; ngoài đó, các entry cũ nhất bị xóa.
@@ -254,4 +381,4 @@ Index này bao gồm 89% traces (chỉ cấp cao nhất) và làm cho các truy 
 - [Security Hardening](/deploy-security) — rate limiting ở tầng gateway
 - [Database Setup](/deploy-database) — thiết lập PostgreSQL bao gồm quota index
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

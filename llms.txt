@@ -59,6 +59,7 @@
 ## Channels
 - [Channel Overview](channels/overview.md): Channels connect messaging platforms (Telegram, Discord, Larksuite, etc.) to the GoClaw agent runtime via a unified message bus. Each channel translates platform-specific events into standardized `InboundMessage` objects and converts agent responses into platform-appropriate output.
 - [Telegram](channels/telegram.md): Telegram bot integration via long polling (Bot API). Supports DMs, groups, forum topics, speech-to-text, and streaming responses.
+- [Bitrix24](channels/bitrix24.md): Bitrix24 integration via the **imbot** (chatbot) API. GoClaw registers a bot on a Bitrix24 portal, receives chat events through a webhook, and replies as the bot. One GoClaw gateway can serve many bots across many portals, and several bots can share a single portal (they share OAuth tokens and the refresh loop).
 - [Discord](channels/discord.md): Discord bot integration via the Discord Gateway API. Supports DMs, servers, threads, and streaming responses via message editing.
 - [Feishu / Lark](channels/feishu.md): **Create Feishu App:**
 - [Larksuite](channels/larksuite.md): **Create Larksuite App:**

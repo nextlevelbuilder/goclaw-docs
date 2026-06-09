@@ -235,6 +235,14 @@ Enable live response updates:
 
 Disabled by default. When enabled with `reasoning_stream: true` (default), reasoning tokens appear as a separate message before the final answer.
 
+### Media Handling
+
+**Albums / multi-attachment coalescing.** When a user sends an album (several photos or files grouped on the client), Telegram delivers it as N separate updates that share one `MediaGroupID`. GoClaw buffers album members at the channel layer (500 ms silence window) and synthesizes them into **one** inbound message, so the agent replies once instead of once per attachment. The buffer key is `(chatID, MediaGroupID)`; the sender is pinned on the first member, and a member arriving with a mismatched sender is dropped as a defensive measure.
+
+**Outbound upload limit.** Outbound media is validated against the upload ceiling before sending — files over the limit are rejected with a clear "outbound media too large" error rather than failing mid-upload. The ceiling is 50 MB on the official Bot API and 200 MB when a local Bot API server (`api_server`) is configured (or higher if `media_max_bytes` is raised above that).
+
+**Archive path preservation.** Inbound files keep their original extension when persisted (e.g. a `codex.zip` upload stays `.zip` rather than being rewritten to a generic name), so skills and document tools can detect and extract archives correctly downstream.
+
 ### Reactions
 
 Show emoji status on user messages. Set `reaction_level`:
@@ -329,9 +337,9 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 
 ## What's Next
 
-- [Overview](/channels-overview) — Channel concepts and policies
+- [Overview](/channels-overview) — Channel concepts, policies, and [inbound debounce](/channels-overview#inbound-debounce)
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation history
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

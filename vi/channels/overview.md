@@ -86,21 +86,41 @@ GoClaw trích xuất file đính kèm media từ tin nhắn đang được reply
 
 Trường config `media_max_bytes` áp đặt giới hạn kích thước upload media ra ngoài do agent gửi, theo từng channel. File vượt giới hạn sẽ bị bỏ qua và ghi log. Mỗi channel có giá trị mặc định riêng (ví dụ: 20 MB cho Telegram, 30 MB cho Feishu/Lark). Cấu hình theo từng channel nếu cần.
 
+## Inbound Debounce
+
+Khi người dùng gửi dồn dập nhiều tin nhắn (hoặc upload nhiều file cùng lúc), GoClaw gộp chúng thành **một** tin nhắn đến duy nhất trước khi chạy agent — trả lời một lần thay vì một lần cho mỗi mảnh.
+
+Đặt cửa sổ im lặng bằng `gateway.inbound_debounce_ms` (mili-giây):
+
+```json
+{
+  "gateway": {
+    "inbound_debounce_ms": 1500
+  }
+}
+```
+
+- Tin nhắn được buffer theo khóa `channel:chatID:senderID:agentID`. Bộ đếm thời gian reset mỗi khi có tin mới, nên tin gộp chỉ flush sau khi người gửi im lặng đủ cửa sổ đã cấu hình.
+- `0` **tắt** debounce cho text — mỗi tin được dispatch ngay lập tức.
+- **Ghi đè theo agent:** một agent có thể đặt `inbound_debounce_ms` trong `agent_config` của nó để dùng cửa sổ khác với mặc định của gateway.
+- **`/stop` và `/reset` bỏ qua debouncer** — lệnh điều khiển được xử lý ngay và không bao giờ bị buffer.
+- **Sàn media:** tin nhắn mang media không còn bỏ qua debounce. Cửa sổ hiệu lực là `max(giá trị cấu hình, sàn media)`, nên một lần upload nhiều file luôn gộp thành một tin đến kể cả khi debounce text đặt `0`. (Ghi đè khác 0 của agent được tôn trọng nguyên vẹn — operator đặt `500` thì giữ `500`, không phải sàn.) Tin nhắn do tool/subagent nội bộ tạo ra được miễn khỏi sàn này.
+
 ## So sánh Channel
 
-| Tính năng | Telegram | Discord | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
-|---------|----------|---------|--------|---------|-----------|----------|
-| **Transport** | Long polling | Gateway events | WS/Webhook | Long polling | Internal proto | WS bridge |
-| **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có |
-| **Hỗ trợ nhóm** | Có | Có | Có | Không | Có | Có |
-| **Streaming** | Có (typing) | Có (edit) | Có (card) | Không | Không | Không |
-| **Media** | Photos, voice, files | Files, embeds | Images, files (30MB) | Images (5MB) | -- | JSON |
-| **Reply media** | Có | Có | Có | -- | -- | -- |
-| **Định dạng phong phú** | HTML | Markdown | Cards | Plain text | Plain text | Plain |
-| **Hỗ trợ thread** | Có | -- | -- | -- | -- | -- |
-| **Reaction** | Có | -- | Có | -- | -- | -- |
-| **Pairing** | Có | Có | Có | Có | Có | Có |
-| **Giới hạn tin nhắn** | 4,096 | 2,000 | 4,000 | 2,000 | 2,000 | N/A |
+| Tính năng | Telegram | Bitrix24 | Discord | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
+|---------|----------|----------|---------|--------|---------|-----------|----------|
+| **Transport** | Long polling | Webhook (OAuth) | Gateway events | WS/Webhook | Long polling | Internal proto | WS bridge |
+| **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có | Có |
+| **Hỗ trợ nhóm** | Có | Có | Có | Có | Không | Có | Có |
+| **Streaming** | Có (typing) | Có | Có (edit) | Có (card) | Không | Không | Không |
+| **Media** | Photos, voice, files | Files (20MB) | Files, embeds | Images, files (30MB) | Images (5MB) | -- | JSON |
+| **Reply media** | Có | -- | Có | Có | -- | -- | -- |
+| **Định dạng phong phú** | HTML | Text | Markdown | Cards | Plain text | Plain text | Plain |
+| **Hỗ trợ thread** | Có | -- | -- | -- | -- | -- | -- |
+| **Reaction** | Có | Có | -- | Có | -- | -- | -- |
+| **Pairing** | Có | Có | Có | Có | Có | Có | Có |
+| **Giới hạn tin nhắn** | 4,096 | 4,000 | 2,000 | 4,000 | 2,000 | 2,000 | N/A |
 
 ## Chẩn Đoán Sức Khỏe Kênh
 
@@ -191,9 +211,10 @@ Channel có thể áp dụng giới hạn tốc độ theo từng user. Cấu h�
 ## Tiếp theo
 
 - [Telegram](/channel-telegram) — Hướng dẫn đầy đủ tích hợp Telegram
+- [Bitrix24](/channel-bitrix24) — Tích hợp imbot qua OAuth portal
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
 - [WebSocket](/channel-websocket) — Agent API trực tiếp qua WS
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing bằng mã 8 ký tự
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

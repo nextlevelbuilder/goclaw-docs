@@ -69,6 +69,8 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 | `agent_id` | UUID | null | Giới hạn cho một agent; bỏ trống để dùng global |
 | `enabled` | bool | true | Tắt mà không cần xóa |
 
+> **Ba loại timeout khác nhau — đừng nhầm lẫn.** `timeout_seconds` per-custom-tool này (mặc định 60) chỉ áp dụng cho lệnh của riêng custom tool đó. Nó tách biệt với `timeout_seconds` của chính builtin tool `exec` trên host (cũng mặc định 60, tối đa 3600 — xem [Tools Overview → Timeout thực thi](/tools-overview)) và với `sandbox_config.timeout_sec` của sandbox (cấp agent, mặc định 300 — xem [Sandbox](/sandbox)). Một custom tool chạy qua sandbox vẫn bị giới hạn bởi timeout của sandbox.
+
 ### Command template
 
 Dùng placeholder `{{.paramName}}`. GoClaw thay thế chúng bằng giá trị đã được shell-escape qua cơ chế thay thế chuỗi đơn giản — không dùng engine `text/template` của Go, vì vậy các hàm template và pipeline không được hỗ trợ. Mỗi giá trị được thay thế đều được bọc trong single-quote với các single-quote nhúng trong cũng được escape, đảm bảo ngay cả LLM độc hại cũng không thể thoát ra ngoài argument.
@@ -252,4 +254,4 @@ Trả về tất cả tài liệu liên kết đến đường dẫn được ch
 - [Exec Approval](/exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy
 - [Sandbox](/sandbox) — chạy lệnh trong Docker để tăng cô lập
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

@@ -232,6 +232,69 @@ monthly budget exceeded ($5.02 / $5.00)
 
 Kiểm tra chạy một lần mỗi request, trước bất kỳ lần gọi LLM nào. Sub-agent delegation chạy dưới agent record riêng với ngân sách riêng.
 
+> `budget_monthly_cents` của agent cũng được mirror vào hệ thống [AI Budget Usage Caps](/usage-quota) dưới dạng một cost-cap policy `month`-window được quản lý (managed), nên giới hạn tương tự cũng được thực thi ở đó.
+
+---
+
+## Model Pricing (Catalog & Override)
+
+Map tĩnh `telemetry.model_pricing` ở trên là cách đơn giản nhất để định giá model. Với pricing động, backed bởi database — được dùng bởi cost cap của [AI Budget Usage Caps](/usage-quota) — GoClaw còn duy trì một **pricing catalog** và **override** per-tenant trong PostgreSQL (migration `000070`).
+
+### Đồng bộ catalog từ OpenRouter
+
+GoClaw có thể kéo toàn bộ danh sách giá model từ [OpenRouter](https://openrouter.ai) và lưu vào bảng `usage_pricing_catalog`. Mỗi entry ghi lại giá per-unit cho input, output, cache read/write, reasoning, request, image và web-search unit, lưu dưới dạng decimal độ chính xác cao.
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/sync-openrouter"
+```
+
+Endpoint này yêu cầu **master scope** (nó cập nhật catalog toàn cục dùng chung). Catalog được upsert theo `model_id`, nên chạy lại sync sẽ refresh giá tại chỗ.
+
+### Override giá per-model
+
+Khi bạn muốn giá khác cho một tổ hợp tenant + provider + model cụ thể (ví dụ: mức giá đã đàm phán, hoặc một model mà OpenRouter không liệt kê), hãy đặt một **override** trong bảng `usage_pricing_overrides`. Override được scope theo một tenant và có ưu tiên cao hơn catalog toàn cục.
+
+```bash
+# Liệt kê catalog đã sync (tùy chọn lọc theo model)
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing?model=claude-sonnet-4-5"
+
+# Đặt override cho tenant
+curl -X PUT -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/model-pricing/overrides" \
+  -d '{
+    "provider_id": "22222222-2222-2222-2222-222222222222",
+    "provider_type": "anthropic",
+    "model_id": "claude-sonnet-4-5",
+    "pricing": { "input": "0.000003", "output": "0.000015" }
+  }'
+
+# Liệt kê / xóa override
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides"
+curl -X DELETE -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides/{id}"
+```
+
+| Method & path | Scope | Mô tả |
+|---------------|-------|-------|
+| `POST /v1/model-pricing/sync-openrouter` | master | Refresh catalog giá toàn cục từ OpenRouter |
+| `GET /v1/model-pricing` | admin | Liệt kê catalog đã sync (`?model=`, `?limit=`) |
+| `PUT /v1/model-pricing/overrides` | tenant-admin | Tạo hoặc cập nhật override giá model per-tenant |
+| `GET /v1/model-pricing/overrides` | admin | Liệt kê override (`?provider_id=`) |
+| `DELETE /v1/model-pricing/overrides/{id}` | tenant-admin | Xóa một override |
+
+### Cách pricing được phân giải
+
+Khi một cost cap cần giá cho một model, GoClaw phân giải theo thứ tự:
+
+1. **Override của tenant** cho tổ hợp provider + model khớp (ưu tiên cao nhất)
+2. **Catalog OpenRouter toàn cục** theo `model_id` / canonical id
+
+Nếu không tìm thấy cái nào, một lần gọi bị cost-cap sẽ bị chặn với lý do `pricing_unknown`. Giá được lưu dưới dạng decimal USD **per token/unit** và được chuyển sang micro-dollar khi cap tính chi phí.
+
 ---
 
 ## Các Vấn Đề Thường Gặp
@@ -252,4 +315,4 @@ Kiểm tra chạy một lần mỗi request, trước bất kỳ lần gọi LLM
 - [Observability](/deploy-observability) — xuất OpenTelemetry cho span bao gồm các trường chi phí
 - [Tham Chiếu Cấu Hình](/config-reference) — đầy đủ các tùy chọn cấu hình `telemetry`
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

@@ -146,7 +146,9 @@ docker compose \
 
 > **Data hooks:** GoClaw tracks post-migration Go transforms in a separate `data_migrations` table. Run `./goclaw upgrade --status` to see both SQL migration version and pending data hooks.
 
-Run `./goclaw migrate status` after deployment to confirm the current schema is version **44**.
+> Migrations `000045`–`000073` continue the schema: model fallback config, REST endpoint catalog, Bitrix24 portal OAuth state (`bitrix_portals`), server-side browser cookie sync (`browser_cookies`), the usage-cap pricing and enforcement tables (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), the agent-budget bridge, and typed secure-CLI credentials — see [Database Schema → Migration History](/database-schema).
+
+Run `./goclaw migrate status` after deployment to confirm the current schema is version **73**.
 
 ---
 
@@ -156,7 +158,7 @@ GoClaw v3 supports two database backends:
 
 | Feature | PostgreSQL | SQLite (desktop) |
 |---------|-----------|-----------------|
-| Full schema (all 44 migrations) | Yes | Yes |
+| Full schema (all 73 migrations) | Yes | Yes |
 | Vector similarity search (HNSW) | Yes — pgvector | No |
 | Episodic summaries vector search | Yes | Keyword (FTS) only |
 | Knowledge Vault auto-linking | Yes — similarity threshold 0.7 | No (summarise only) |
@@ -295,4 +297,4 @@ VACUUM ANALYZE traces, spans;
 - [Security Hardening](/deploy-security) — AES-256-GCM encryption for secrets in the database
 - [Observability](/deploy-observability) — querying traces and spans for LLM cost monitoring
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

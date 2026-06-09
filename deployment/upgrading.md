@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **57**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **73**.
 
 ```mermaid
 graph LR
@@ -208,7 +208,20 @@ Only do this if you understand what the failed migration was doing. When in doub
 
 ## Recent Migrations
 
-### v3.11.x — Highlights and Breaking Changes
+### v3.12.x — Highlights and Breaking Changes
+
+#### Schema 58 → 73
+
+Migrations `000058`–`000073` are applied automatically on next startup (`./goclaw upgrade` or `GOCLAW_AUTO_UPGRADE=true`) — no manual steps required. Highlights:
+
+- `000068_bitrix_portals` — adds `bitrix_portals` for per-tenant Bitrix24 portal OAuth state (credentials + tokens stored AES-256-GCM).
+- `000069_browser_cookies` — adds `browser_cookies` for user-selected, encrypted server-side browser cookies, scoped by tenant/user/agent.
+- `000070_usage_caps_pricing` — adds `usage_pricing_catalog` (synced per-model pricing) and `usage_pricing_overrides` (per-tenant price overrides).
+- `000071_usage_cap_policies` — adds the usage-cap enforcement tables: `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`.
+- `000072_agent_budget_usage_cap_bridge` — adds a `source` column to `usage_cap_policies` and **backfills** one `month`-window policy per agent that has a non-NULL `budget_monthly_cents` (1 cent = 10,000 micros, `source = 'agent_budget_monthly_cents'`). Existing per-agent monthly budgets are now enforced through the usage-cap engine. Idempotent (`ON CONFLICT DO NOTHING`); no action required.
+- `000073_secure_cli_credential_type` — adds nullable `credential_type` + `host_scope` to `secure_cli_user_credentials` and `adapter_name` to `secure_cli_binaries` for the typed credential-adapter framework. All columns NULL-by-default to preserve legacy passthrough behavior — no action required.
+
+**Gateway-triggered upgrades (host release-upgrade flow):** When a dashboard/API-triggered upgrade is run on a systemd host, `goclaw-upgrade-release` now re-launches itself as a transient `systemd-run` unit so stopping `goclaw` during deploy no longer kills the upgrade job. Stale `running` status records are also superseded after 30 minutes, and the deploy wait loop tolerates transient `502`s during restart. No configuration change required.
 
 #### v3.11.3
 
@@ -372,4 +385,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

@@ -148,6 +148,8 @@ After the bot replies in a thread, it auto-replies to subsequent messages in tha
 
 Rapid messages from the same thread are batched into a single dispatch. Default delay: 300ms (configurable via `debounce_delay`). Pending batches are flushed on shutdown.
 
+On top of this channel-level batching, the gateway-wide [Inbound Debounce](/channels-overview#inbound-debounce) also applies — it merges rapid messages (and multi-file uploads) from the same sender before the agent runs.
+
 ### Message Formatting
 
 LLM markdown output is converted to Slack mrkdwn:
@@ -236,4 +238,4 @@ The `allow_from` list supports both user IDs and Slack channel IDs for group-lev
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

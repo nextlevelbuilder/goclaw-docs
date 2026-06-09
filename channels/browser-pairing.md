@@ -2,6 +2,8 @@
 
 Secure authentication flow for custom WebSocket clients using 8-character pairing codes. Ideal for private web apps and desktop clients that need to verify device identity.
 
+> **Browser pairing vs. cookie sync.** Browser **pairing** authenticates a *client* (a browser or desktop app) so it can talk to the gateway. **Selected cookie sync** copies *site login cookies* into an agent's server-side browser so the agent can act as a signed-in session. Use pairing to let a device connect; use cookie sync to give an agent access to a site you are logged into. See [Browser Automation → Selected Cookie Sync](/browser-automation#selected-cookie-sync).
+
 ## Pairing Flow
 
 ```mermaid
@@ -254,4 +256,4 @@ class PairingClient {
 - [Telegram](/channel-telegram) — Telegram setup
 - [WebSocket Protocol](/websocket-protocol) — Full protocol reference
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

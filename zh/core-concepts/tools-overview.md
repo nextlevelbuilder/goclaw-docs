@@ -205,6 +205,8 @@ GoClaw 注册别名，让 agent 可以用替代名称引用工具。这实现了
 
 `credentialed_exec` 工具以凭证直接注入到子进程环境变量的方式运行 CLI 工具（gh、gcloud、aws、kubectl、terraform）——无 shell、无凭证泄露。安全层包括：路径验证（阻止 `./gh` 欺骗）、shell 操作符阻断（`;`、`|`、`&&`）、每二进制拒绝模式（如阻断 `auth\s+`）和输出清除。
 
+已注册的 secure-CLI 二进制即使通过普通的 `exec` 工具调用也会被拦截：如果 agent 没有该二进制的授权（grant），`exec` 会拒绝并返回 `Binary "<name>" requires a secure CLI grant. Ask admin to grant access to this agent.`，而不会以主机环境运行它。该网关还会逐层拆解 shell 包装器（`sh -c`、`bash -c`、`env …`），最深处理 3 层，并在授权查询不可用时 fail-closed（拒绝执行）。
+
 **Windows 环境变量继承：** 在 Windows 上，credentialed exec 会继承原生 CLI 所需的系统环境变量 —— `SYSTEMROOT`、`SYSTEMDRIVE`、`WINDIR`、`COMSPEC`、`PATHEXT`、`TEMP`、`TMP`、`USERPROFILE`、`APPDATA`、`LOCALAPPDATA` 和 `PROGRAMFILES`。这些是大多数 Win32 程序运行所需的非机密运行时变量。凭证值仍单独注入并从输出中清除。
 
 ### `exec` — Shell 安全
@@ -228,6 +230,66 @@ GoClaw 注册别名，让 agent 可以用替代名称引用工具。这实现了
 | `persistence` | `crontab`、写入 `.bashrc`/`.profile`/`.zshrc` |
 | `process_control` | `kill -9`、`killall`、`pkill` |
 | `env_dump` | `env`、`printenv`、`/proc/*/environ`、`echo $GOCLAW_*` 密钥 |
+
+### 执行超时
+
+主机 `exec` 工具会中止运行过久的命令。该超时是一个名为 `timeout_seconds` 的每工具内置（builtin）设置，存储在 `exec` 工具的设置项下：
+
+```json
+{
+  "timeout_seconds": 120
+}
+```
+
+| 属性 | 取值 |
+|----------|---------|
+| 默认值 / 回退值 | 60 秒 |
+| 最小值 | 1 秒 |
+| 最大值 | 3600 秒（1 小时）——超过则向下限制（clamp）到该值 |
+| 无效 / 缺失值 | 回退为 60 秒 |
+
+可在仪表盘（**Config → Tools → Built-in Tools → exec**）或通过内置工具设置 API 进行配置。租户级设置会覆盖全局设置。当命令超时，进程组会被终止（先 SIGTERM，3 秒宽限期后再 SIGKILL），工具返回 `command timed out after <duration>`。
+
+> 该设置仅控制主机 `exec` 工具。它与每个自定义工具的 `timeout_seconds` 以及沙箱的 `sandbox_config.timeout_sec` **不同** —— 参见 [自定义工具](/custom-tools)。
+
+### 命令关键词白名单（Command Keyword Allowlist）
+
+当 agent 运行 credentialed CLI（通过 `credentialed_exec` / secure-CLI 网关）时，每二进制的 `deny_args` 模式会扫描参数值中的危险词汇。这可能产生误报：作为参数传入的合法产品或安全内容（例如包含被标记词汇的帖子正文或消息）会被拦截，尽管它只是纯数据而非命令。
+
+命令关键词白名单在不削弱 `deny_args` 的前提下解决这一问题。通过 `tools.commandKeywordAllowlist` 配置带作用域的规则：
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "social-post-content",
+        "command": "zernio",
+        "subcommands": ["posts:create"],
+        "args": ["--text"],
+        "keywords": ["install", "exec"],
+        "reason": "marketing copy may mention these words as content",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `id` | string | 规则标识符（用于审计日志） |
+| `command` | string | 规则适用的二进制（按大小写和路径归一化） |
+| `subcommands` | string[] | 必须匹配的可选子命令（如 `"posts:create"`） |
+| `args` | string[] | 其值会被扫描的参数标志（如 `"--text"`） |
+| `argPositions` | int[] | 可选的位置参数（0 起始，位于匹配的子命令之后） |
+| `keywords` | string[] | 允许出现在匹配参数值内的词汇 |
+| `reason` | string | 记录在审计日志中的自由文本备注 |
+| `enabled` | bool | 省略时默认为启用 |
+
+工作原理：在执行 `deny_args` 检查之前，被列入白名单的关键词会被遮蔽（替换为占位符），且**仅在匹配的参数值内部**。拒绝扫描不再因该词而触发，但命令路径拒绝模式和 shell 操作符阻断仍完全生效——白名单从不禁用 `deny_args`，它只豁免特定内容参数内的特定被标记词汇。每次匹配都会记录到 `security.command_keyword_allowlist` 审计日志，包含二进制、子命令、参数、关键词、规则 ID 以及 agent/租户上下文。
+
+该配置会通过 `TopicConfigChanged` 总线在**运行时热重载**——无需重启网关。
 
 ### 全局 shellDenyGroups 配置（运行时热重载）
 
@@ -344,4 +406,4 @@ GoClaw 追踪每个 session 中每个工具的执行时间。如果工具调用�
 - [多租户](/multi-tenancy) — 每用户工具访问和隔离
 - [自定义工具](/custom-tools) — 构建你自己的工具
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

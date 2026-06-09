@@ -6,7 +6,7 @@
 
 ## 概览
 
-> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~286 REST 端点列表。
+> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~308 REST 端点列表。
 
 GoClaw 的 HTTP API 与 WebSocket gateway 共用同一端口。所有端点需要在 `Authorization` 头中提供与 `GOCLAW_GATEWAY_TOKEN` 匹配的 `Bearer` token。
 
@@ -80,6 +80,100 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 ### `POST /v1/responses`
 
 基于响应的替代协议（与 OpenAI Responses API 兼容）。接受相同的认证方式，返回结构化响应对象。
+
+---
+
+## 会话（Sessions）
+
+通过 HTTP 进行只读的会话发现与分支，适用于无法保持 WebSocket 连接的自动化场景。非管理员调用方仅能看到自己的会话（按 `X-GoClaw-User-Id` 匹配）；管理员和 gateway-owner 令牌可看到所有会话。
+
+> 完整的会话生命周期（preview、patch、delete、reset、compact）通过 [WebSocket RPC](/websocket-protocol#sessions) 提供。这些 HTTP 路由用于发现、分支和增量读取历史。
+
+### `GET /v1/sessions`
+
+分页列出会话。
+
+```bash
+curl "http://localhost:18790/v1/sessions?agent_id=AGENT_UUID&limit=20&offset=0" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123"
+```
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `agent_id` | string | 按 agent 过滤（别名：`agentId`） |
+| `channel` | string | 按 channel 过滤 |
+| `limit` | integer | 每页数量（默认 20） |
+| `offset` | integer | 页偏移（默认 0） |
+
+**响应：** `{ "sessions": [...], "total": N, "limit": 20, "offset": 0 }`
+
+### `POST /v1/chat/sessions/{key}/branch`
+
+从已有会话分支出一个新会话，复制消息到指定索引。路径段 `{key}` 是**源**会话键；分支复用相同的 agent 键。
+
+```bash
+curl -X POST http://localhost:18790/v1/chat/sessions/{key}/branch \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "up_to_index": 8,
+    "new_session_key": "",
+    "label": "what-if branch",
+    "metadata": {}
+  }'
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `up_to_index` | integer | 必填。将消息 `[0, up_to_index)` 复制到分支 |
+| `new_session_key` | string | 可选。必须与源使用相同的 agent 键。省略时自动生成 |
+| `label` | string | 可选的分支标签（供人阅读） |
+| `metadata` | object | 可选的字符串键值元数据 |
+
+**响应**（`201 Created`）：
+
+```json
+{
+  "ok": true,
+  "source_key": "agent:researcher:direct:...",
+  "session_key": "agent:researcher:branch:direct:...",
+  "copied_messages": 8,
+  "total_messages": 20,
+  "label": "what-if branch"
+}
+```
+
+若目标键已存在返回 `409`，若 `up_to_index` 越界返回 `400`。
+
+### `GET /v1/chat/sessions/{key}/history/follow`
+
+基于游标的增量历史读取 — 轮询新消息而无需重新获取整个对话记录。返回消息中的文件和媒体引用会被签名。
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `cursor` | integer | 起始读取索引（默认 0） |
+| `limit` | integer | 返回消息数上限（默认 50，最大 200） |
+
+**响应：**
+
+```json
+{
+  "session_key": "agent:researcher:direct:...",
+  "cursor": 0,
+  "next_cursor": 50,
+  "total": 120,
+  "messages": [ ... ],
+  "reset": false,
+  "updated": "2026-06-07T08:00:00Z"
+}
+```
+
+将 `next_cursor` 作为下一次的 `cursor` 继续读取。`reset: true`（且 `messages` 为空数组）表示游标已超出当前历史长度 — 从 `0` 重新开始。
 
 ---
 
@@ -349,6 +443,30 @@ curl -X POST http://localhost:18790/v1/providers/{id}/verify \
 ### `POST /v1/providers/{id}/verify-embedding`
 
 验证 provider 的 embedding 模型连通性。
+
+### `POST /v1/providers/{id}/reconnect`
+
+重新建立 provider 的内存连接 — 将其从运行时注册表注销，再从已保存的配置重新注册。在修改凭证后或 provider 从在线注册表中掉线时使用。**不**执行 verify；如需验证请单独调用 `/verify`。
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/reconnect \
+  -H "Authorization: Bearer TOKEN"
+```
+
+请求体可选。发送 `{"verify": true}` 将被拒绝并返回 `400` — reconnect 与 verify 是两个独立操作。
+
+**响应：**
+
+```json
+{
+  "status": "reconnected",
+  "provider": { "id": "uuid", "name": "my-openrouter", "...": "..." },
+  "registry_updated": true,
+  "cache_invalidated": true
+}
+```
+
+`status` 为 `reconnected`（已在内存中重新注册）、`not_registered`（已启用但注册失败）或 `disabled`（provider 已禁用）。会发出 `cache_invalidate` 事件，使已连接的 agent 获取该变更。
 
 ### `GET /v1/providers/{id}/codex-pool-activity`
 
@@ -641,6 +759,27 @@ curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### `GET /v1/traces/follow`
+
+按单个会话或 agent 范围轮询 trace 更新 — 专为实时"tail"视图设计。需要 `session_key` **或** `agent_id`。非管理员调用方仅限于自己的 trace。
+
+```bash
+curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-07T08:00:00Z" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `session_key` | string | 要跟踪的会话（省略 `agent_id` 时必填） |
+| `agent_id` | string | 要跟踪的 agent（省略 `session_key` 时必填） |
+| `status` | string | 按状态过滤 |
+| `channel` | string | 按 channel 过滤 |
+| `since` | RFC 3339 | 仅返回此时间之后变更的 trace |
+| `limit` | integer | trace 数上限（默认 50，最大 200） |
+| `include_spans` | boolean | 是否包含 span 详情（默认 `false`） |
+
 ### `GET /v1/traces/{traceID}`
 
 获取单条 trace 及其所有 span。
@@ -666,6 +805,153 @@ curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
 | `GET` | `/v1/usage/summary` | 含环比对比的摘要 |
 
 **查询参数：** `from`、`to`（RFC 3339）、`agent_id`、`provider`、`model`、`channel`、`group_by`
+
+---
+
+## 用量上限（Usage Caps）
+
+限制每个时间窗口内 token 用量和成本的支出上限策略，可选择按特定 agent、provider 或 model 限定范围。所有端点都需要**管理员角色**；写操作还需要**租户管理员（tenant-admin）**。被标记为 *managed*（由平台预置）的策略无法编辑或删除（`409`）。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/usage-caps/policies` | 列出当前租户的支出上限策略 |
+| `POST` | `/v1/usage-caps/policies` | 创建策略 |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | 部分更新（所有字段可选） |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | 删除策略（`204`） |
+| `GET` | `/v1/usage-caps/utilization` | 各策略的当前用量 |
+| `GET` | `/v1/usage-caps/events` | 近期上限事件（限流、超限） |
+
+### `POST /v1/usage-caps/policies`
+
+```bash
+curl -X POST http://localhost:18790/v1/usage-caps/policies \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "window": "day",
+    "max_tokens": 1000000,
+    "max_cost_usd": 25.0,
+    "agent_id": null,
+    "provider_id": null,
+    "priority": 100,
+    "enabled": true
+  }'
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `window` | string | 重置窗口 — 如 `day`（默认）。必填 |
+| `max_tokens` | integer | 每窗口 token 上限（可选） |
+| `max_cost_usd` | float | 成本上限（USD，可选；转换为 micros） |
+| `max_cost_micros` | integer | 成本上限（微美元）— 优先于 `max_cost_usd`（可选） |
+| `agent_id` | UUID | 限定为单个 agent（可选） |
+| `provider_id` | UUID | 限定为单个 provider（可选） |
+| `provider_type` | string | 限定为某 provider 类型（可选） |
+| `model_id` | string | 限定为单个 model（可选） |
+| `priority` | integer | 评估优先级，越高越先（默认 100） |
+| `enabled` | boolean | 默认 `true` |
+
+返回 `201` 及创建的策略。`PATCH` 接受相同字段，均可选 — 对 `max_tokens` / `max_cost_*` 发送 `null` 以清除上限。
+
+**`GET /v1/usage-caps/events`** 接受 `?limit=`，返回 `{ "events": [...] }`。Utilization 返回 `{ "rows": [...] }`。
+
+---
+
+## 模型定价（Model Pricing）
+
+按模型的定价目录及按租户的覆盖（override），用于计算用量成本。读取端点需要**管理员角色**；写入覆盖需要**租户管理员**；OpenRouter 同步需要**master 范围**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/model-pricing` | 列出定价目录 |
+| `GET` | `/v1/model-pricing/overrides` | 列出租户定价覆盖 |
+| `PUT` | `/v1/model-pricing/overrides` | upsert 一条定价覆盖 |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | 移除一条覆盖 |
+| `POST` | `/v1/model-pricing/sync-openrouter` | 从 OpenRouter 刷新目录（master 范围） |
+
+**`GET /v1/model-pricing`** 查询参数：`model`（按 model ID 过滤）、`limit`（默认 100）。响应 `{ "models": [...] }`。
+
+**`GET /v1/model-pricing/overrides`** 查询参数：`provider_id`（可选 UUID 过滤）。响应 `{ "overrides": [...] }`。
+
+### `PUT /v1/model-pricing/overrides`
+
+```bash
+curl -X PUT http://localhost:18790/v1/model-pricing/overrides \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider_id": "PROVIDER_UUID",
+    "provider_type": "openai_compat",
+    "model_id": "gpt-4o",
+    "pricing": { "...": "..." },
+    "enabled": true
+  }'
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `provider_id` | UUID | 必填 |
+| `provider_type` | string | provider 类型 |
+| `model_id` | string | 必填 |
+| `pricing` | object | 定价字段（输入/输出费率等） |
+| `enabled` | boolean | 默认 `true` |
+
+**`POST /v1/model-pricing/sync-openrouter`** 拉取 OpenRouter 目录并 upsert。响应 `{ "count": N }`。若上游拉取失败返回 `502`。
+
+---
+
+## 浏览器 Cookie 同步（Browser Cookie Sync）
+
+存储选定的浏览器 cookie，使服务端浏览器会话（如 browser 工具）能复用已登录状态。所有端点都需要**operator 角色**。Cookie 按租户 + 用户（+ 可选 agent）限定范围并在静态存储时加密 — 必须设置 `GOCLAW_ENCRYPTION_KEY`，否则 sync 返回 `503`。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `POST` | `/v1/browser/cookies/sync` | 为当前范围 upsert cookie |
+| `GET` | `/v1/browser/cookies` | 列出已存储的 cookie 元数据（从不返回值） |
+| `DELETE` | `/v1/browser/cookies` | 删除当前范围内已存储的 cookie |
+
+### `POST /v1/browser/cookies/sync`
+
+```bash
+curl -X POST http://localhost:18790/v1/browser/cookies/sync \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "AGENT_UUID",
+    "source": "chrome-extension",
+    "cookies": [
+      {
+        "domain": "example.com",
+        "name": "session",
+        "path": "/",
+        "value": "abc123",
+        "secure": true,
+        "httpOnly": true,
+        "sameSite": "Lax",
+        "expiresAt": "2026-12-31T00:00:00Z"
+      }
+    ]
+  }'
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `agent_id` | string | 可选的 agent 范围（别名：`agent`） |
+| `source` | string | 来源标签（默认 `chrome-extension`） |
+| `cookies` | array | cookie 项。必填、非空、最多 200 项 |
+
+**cookie 项字段：** `domain`（或用 `url` 推导）、`name`、`path`、`value`（≤ 16 KB）、`secure`、`httpOnly`（别名 `http_only`）、`sameSite`（别名 `same_site`），以及 `expiresAt` / `expires_at` / `expirationDate` / `expiration_date` 之一。整个请求体上限为 1 MB。
+
+**响应：** `{ "synced": N }`。
+
+### `GET /v1/browser/cookies`
+
+仅返回 cookie **元数据** — 值从不暴露。可选查询过滤：`agent_id`、`domain`、`name`、`path`。响应 `{ "items": [ { "domain", "name", "path", "secure", "httpOnly", "sameSite", "expiresAt", "source", "updatedAt" } ] }`。
+
+### `DELETE /v1/browser/cookies`
+
+删除当前范围内的 cookie。与 list 端点相同的可选过滤。响应 `{ "deleted": N }`。
 
 ---
 
@@ -855,8 +1141,25 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 |--------|------|-------------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | 列出有写入权限的群组 |
 | `GET` | `/v1/channels/instances/{id}/writers` | 列出已授权的写入者 |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | 测试某用户是否被允许写入某群组（不修改数据） |
 | `POST` | `/v1/channels/instances/{id}/writers` | 添加写入者 |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | 移除写入者 |
+
+**`POST .../writers/test`** — 在持久化前先试运行写入者检查。请求体 `{ "group_id": "...", "user_id": "..." }`（两者均必填）。始终返回 `200` 并附带评估结果：
+
+```json
+{
+  "allowed": true,
+  "reason": "writer",
+  "instance_id": "uuid",
+  "agent_id": "uuid",
+  "group_id": "telegram:-100123",
+  "user_id": "user123",
+  "writer_count": 3
+}
+```
+
+`reason` 为 `writer`、`not_writer`、`no_writers_configured` 或 `invalid_group` 之一。
 
 ---
 
@@ -1447,6 +1750,51 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/activity` | 列出活动审计日志（可过滤）|
+| `GET` | `/v1/activity/aggregate` | 按某一维度分组的活动聚合计数 |
+
+### `GET /v1/activity/aggregate`
+
+返回按某一维度分组的活动计数，而非原始记录行。非管理员调用方被限制在自己的 actor ID；按 `actor_id` 分组需要管理员角色。
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `group_by` | string | 分组维度 — 如 `action`、`entity_type`、`actor_type`、`actor_id`（仅管理员） |
+| `actor_type` | string | 按 actor 类型过滤 |
+| `actor_id` | string | 按 actor ID 过滤 |
+| `action` | string | 按 action 过滤 |
+| `entity_type` | string | 按实体类型过滤 |
+| `entity_id` | string | 按实体 ID 过滤 |
+| `from` | RFC 3339 | 时间窗口起点 |
+| `to` | RFC 3339 | 时间窗口终点（必须晚于 `from`） |
+| `limit` | integer | 返回的分组数上限 |
+
+---
+
+## 运行时日志（Runtime Logs）
+
+内存中运行时日志缓冲区的聚合视图。需要**管理员角色**。
+
+### `GET /v1/logs/runtime/aggregate`
+
+返回按 `level` 或 `source` 分组的运行时日志计数。
+
+```bash
+curl "http://localhost:18790/v1/logs/runtime/aggregate?group_by=level" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `group_by` | string | `level`（默认）或 `source` |
+| `level` | string | 按日志级别过滤 |
+| `source` | string | 按日志来源过滤 |
+| `from` | RFC 3339 | 仅统计此时间之后的条目 |
+
+> 服务器日志的实时 tail 可通过 WebSocket 的 `logs.tail` 获得 — 参见 [WebSocket 协议](/websocket-protocol#logs)。
 
 ---
 
@@ -1662,4 +2010,4 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

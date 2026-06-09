@@ -199,6 +199,91 @@ The snapshot returns an accessibility tree. Use `interactive: true` to see only 
 
 ---
 
+## Selected Cookie Sync
+
+Server-side browser sessions start with no login state. **Selected cookie sync** lets a user pick specific cookies from a site they are logged into and copy them into GoClaw, so an agent's browser can act as that signed-in session — without sharing a password.
+
+A small Chrome extension (`chrome-selected-cookie-sync`) does the picking. There is **no automatic background sync**: the user opens the extension on the active tab, checks the exact cookies to share, and clicks **Sync**. GoClaw stores the values encrypted and replays them into the agent's browser only for matching domains and paths.
+
+```mermaid
+flowchart LR
+    USER["User on logged-in site"] --> EXT["chrome-selected-cookie-sync\nextension"]
+    EXT -->|"POST /v1/browser/cookies/sync"| GW["GoClaw gateway"]
+    GW -->|"AES-256-GCM encrypt"| DB[("browser_cookies\ntable")]
+    DB -->|"decrypt + domain/path match"| AGENT["Agent browser session"]
+```
+
+### Endpoints
+
+All three endpoints require **operator** auth (gateway token, API key, or paired-browser auth).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert selected cookies for an agent |
+| `GET` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | List synced cookie **metadata** (never values) |
+| `DELETE` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | Revoke synced cookies |
+
+The client only ever chooses `agent_id`. **Tenant and user are derived from the auth context**, not from the request body — a client cannot spoof another user's cookies. Sync is rejected when the auth context has no user, or when no `agent_id` is supplied.
+
+**Sync request body:**
+
+```json
+{
+  "agent_id": "default",
+  "source": "chrome-selected-cookie-sync",
+  "cookies": [
+    {
+      "domain": "example.com",
+      "name": "session",
+      "path": "/",
+      "value": "REDACTED",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "expirationDate": 1789999999
+    }
+  ]
+}
+```
+
+**Response:** `{ "synced": 1 }`. Limits: max 200 cookies per request, 16 KB per cookie value, 1 MB total body.
+
+The `GET` response returns metadata only — `domain`, `name`, `path`, `secure`, `httpOnly`, `sameSite`, `expiresAt`, `source`, `updatedAt`. Cookie **values are never returned**.
+
+### Scope and uniqueness
+
+Each stored cookie is keyed by `(tenant_id, user_id, agent_id, domain, path, name)`. Re-syncing the same cookie updates the existing row (upsert). This scope is what keeps one user's cookies from leaking into another user's or another agent's browser session.
+
+### Security
+
+- **Encrypted at rest**: cookie values are encrypted with AES-256-GCM before being written to the `browser_cookies` table. Requires the `GOCLAW_ENCRYPTION_KEY` environment variable — **sync and list fail closed (HTTP 503) when it is unset**, so cookies are never persisted in plaintext.
+- **Write-only values**: the list endpoint and audit logs return metadata only. Cookie values never appear in API responses or logs.
+- **Scoped replay**: the agent browser receives a cookie only when the requested URL's host and path match the stored cookie's domain/path, the cookie has not expired, and the tenant/user/agent scope matches.
+- **Explicit selection**: the extension reads cookies only after the user grants host permission for the active site, and sends only the cookies the user checked.
+- **Revocation**: delete from the extension or call `DELETE /v1/browser/cookies?agent_id=<agent>&domain=<domain>` to remove synced cookies. Omitting `domain` removes all cookies for that agent.
+
+### How the agent consumes synced cookies
+
+When the agent's browser navigates to an `http(s)` URL, GoClaw's cookie provider looks up cookies for the current browser scope (`tenant_id` / `user_id` / `agent_id`), decrypts them, and injects only those whose domain and path match the target URL (and that have not expired). Non-HTTP schemes get no cookies. The agent never sees raw values — they are applied directly to the Chrome session via CDP.
+
+### Install the extension
+
+The extension lives in the GoClaw repo at `extensions/chrome-selected-cookie-sync/`.
+
+1. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the `extensions/chrome-selected-cookie-sync/` folder.
+2. Open a tab on the site you are logged into, then click the extension icon.
+3. Fill in the popup:
+   - **Gateway URL** — e.g. `http://localhost:18790`
+   - **Token** — an operator token (sent as `Authorization: Bearer <token>`)
+   - **User ID** — sent as the `X-GoClaw-User-Id` header
+   - **Agent ID** — e.g. `default`
+4. Click **Grant access** to give the extension host permission for the current site, then **Refresh** to list the site's cookies.
+5. Check the cookies you want to share (or **Select all**), then click **Sync**. The popup confirms `Synced N cookies.`
+
+Settings are saved in `chrome.storage.local`. The extension requests gateway-origin permission before sending, and asks for active-tab host permission before reading cookies.
+
+---
+
 ## Security Considerations
 
 - **SSRF protection**: GoClaw applies SSRF filtering to tool inputs — agents cannot be trivially directed to internal network addresses.
@@ -256,4 +341,4 @@ Returns:
 - [Exec Approval](/exec-approval) — require human sign-off before running commands
 - [Hooks & Quality Gates](/hooks-quality-gates) — add pre/post checks to agent actions
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

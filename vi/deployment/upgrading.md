@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **57**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **73**.
 
 ```mermaid
 graph LR
@@ -210,7 +210,20 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ## Migration gần đây
 
-### v3.11.x — Highlights và Breaking Changes
+### v3.12.x — Highlights và Breaking Changes
+
+#### Schema 58 → 73
+
+Các migration `000058`–`000073` được áp dụng tự động ở lần khởi động kế tiếp (`./goclaw upgrade` hoặc `GOCLAW_AUTO_UPGRADE=true`) — không cần thao tác thủ công. Điểm nổi bật:
+
+- `000068_bitrix_portals` — thêm `bitrix_portals` cho OAuth state của portal Bitrix24 theo tenant (credential + token lưu AES-256-GCM).
+- `000069_browser_cookies` — thêm `browser_cookies` cho cookie browser phía server do user chọn, đã mã hóa, scope theo tenant/user/agent.
+- `000070_usage_caps_pricing` — thêm `usage_pricing_catalog` (pricing theo model được sync) và `usage_pricing_overrides` (override giá theo tenant).
+- `000071_usage_cap_policies` — thêm các bảng enforcement usage-cap: `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`.
+- `000072_agent_budget_usage_cap_bridge` — thêm cột `source` vào `usage_cap_policies` và **backfill** một policy window `month` cho mỗi agent có `budget_monthly_cents` non-NULL (1 cent = 10.000 micros, `source = 'agent_budget_monthly_cents'`). Budget hàng tháng theo agent hiện có giờ được enforce qua engine usage-cap. Idempotent (`ON CONFLICT DO NOTHING`); không cần thao tác.
+- `000073_secure_cli_credential_type` — thêm `credential_type` + `host_scope` (nullable) vào `secure_cli_user_credentials` và `adapter_name` vào `secure_cli_binaries` cho framework credential-adapter có kiểu. Tất cả cột NULL mặc định để giữ hành vi passthrough legacy — không cần thao tác.
+
+**Upgrade do gateway kích hoạt (luồng host release-upgrade):** Khi một upgrade được kích hoạt qua dashboard/API trên host systemd, `goclaw-upgrade-release` giờ tự re-launch chính nó dưới dạng một unit `systemd-run` tạm thời, nên việc dừng `goclaw` trong lúc deploy không còn giết job upgrade. Các record status `running` cũ cũng được thay thế sau 30 phút, và vòng lặp chờ deploy chịu được lỗi `502` thoáng qua trong lúc restart. Không cần thay đổi config.
 
 #### v3.11.3
 
@@ -373,4 +386,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

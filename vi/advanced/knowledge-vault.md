@@ -337,6 +337,8 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{agentID}/vault/documents` | Liệt kê tài liệu (scope, doc_type, limit, offset) |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | Lấy một tài liệu |
+| `POST` | `/v1/agents/{agentID}/vault/documents` | Tạo tài liệu (body `content` tùy chọn — xem bên dưới) |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` | Cập nhật tài liệu (body `content` tùy chọn — xem bên dưới) |
 | `POST` | `/v1/agents/{agentID}/vault/search` | Tìm kiếm thống nhất |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Outlink + backlink |
 
@@ -345,8 +347,35 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 | Phương thức | Đường dẫn | Mô tả |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | Liệt kê qua tất cả agent của tenant (lọc theo `agent_id`) |
+| `POST` | `/v1/vault/documents` | Tạo tài liệu (body `content` tùy chọn — xem bên dưới) |
+| `PUT` | `/v1/vault/documents/{docID}` | Cập nhật tài liệu (body `content` tùy chọn — xem bên dưới) |
 | `GET` | `/v1/vault/tree` | Xem cấu trúc cây của vault |
 | `GET` | `/v1/vault/graph` | Trực quan hóa đồ thị liên tenant (giới hạn 2000 node, layout FA2) |
+
+### Ghi Nội Dung Khi Tạo/Cập Nhật
+
+`POST`/`PUT` chấp nhận trường `content` tùy chọn. Khi được cung cấp, các byte được ghi vào `<tenant-workspace>/<path>`, hash SHA-256 được lưu trên dòng dữ liệu, và một sự kiện enrichment được phát ra để tính summary, embedding và link — cùng đường dẫn mã mà endpoint multipart `/v1/vault/upload` sử dụng.
+
+| Giá trị `content` | Hành vi |
+|-------------------|---------|
+| bỏ qua trường | Stub chỉ metadata; không ghi file, không có sự kiện enrichment |
+| có và không rỗng | Ghi byte ra đĩa; lưu hash; enrichment chạy |
+| có và rỗng (`""`) | Ghi file 0 byte; enrichment vẫn chạy |
+
+Đường dẫn phải dùng phần mở rộng được cho phép (cùng whitelist với `/v1/vault/upload`). Việc ghi được giới hạn bên trong workspace của tenant: kiểm tra `../` theo từ vựng, phân giải tổ tiên symlink, và một thao tác mở `O_NOFOLLOW` nguyên tử từ chối mọi nỗ lực đi theo symlink ra ngoài workspace.
+
+```bash
+POST /v1/vault/documents
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "path": "notes/auth.md",
+  "title": "Authentication Flow",
+  "doc_type": "note",
+  "content": "# Authentication Flow\n\nSee [[architecture/components]] for details."
+}
+```
 
 ### Endpoint Điều Khiển Enrichment
 
@@ -395,4 +424,4 @@ Không có feature flag. Vault hoạt động nếu migration đã chạy và Va
 - [Memory System](../../core-concepts/memory-system.md) — Bộ nhớ dài hạn dạng vector
 - [Context Files](../../agents/context-files.md) — Tài liệu tĩnh được inject vào context của agent
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

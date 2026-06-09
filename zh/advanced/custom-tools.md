@@ -69,6 +69,8 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 | `agent_id` | UUID | null | 限定到单个 agent；省略则为全局 |
 | `enabled` | bool | true | 禁用而不删除 |
 
+> **三种不同的超时——不要混淆。** 这里每个自定义工具的 `timeout_seconds`（默认 60）仅作用于该自定义工具自身的命令。它与主机 `exec` 内置工具自己的 `timeout_seconds` 设置（同样默认 60，最大 3600 —— 参见 [工具总览 → 执行超时](/tools-overview)），以及沙箱的 `sandbox_config.timeout_sec`（agent 级，默认 300 —— 参见 [沙箱](/sandbox)）都是相互独立的。通过沙箱运行的自定义工具仍受沙箱超时的约束。
+
 ### 命令模板
 
 使用 `{{.paramName}}` 占位符。GoClaw 通过简单字符串替换来替换这些占位符，并对值进行 shell 转义 — 不使用 Go 的 `text/template` 引擎，因此不支持模板函数和管道。每个替换值都会被单引号包裹，内嵌的单引号也会被转义，即使是恶意 LLM 也无法突破参数边界。
@@ -252,4 +254,4 @@ GoClaw 在整个 agent run 生命周期中维护一个 `DeliveredMedia` 跟踪�
 - [Exec 审批](/exec-approval) — 在命令执行前要求人工审批
 - [Sandbox](/sandbox) — 在 Docker 中运行命令以获得额外隔离
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

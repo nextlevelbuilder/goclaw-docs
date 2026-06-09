@@ -214,6 +214,133 @@ Quota exceeded: 10/10 requests this hour. Try again later.
 
 ---
 
+## AI 预算用量上限
+
+独立于上面 channel 层的请求配额，GoClaw 有一套**基于 token 和成本的上限系统**，对 LLM provider 支出本身执行限制。请求配额计数的是消息，而用量上限计数的是 *token 和美元成本*，并且不仅适用于主 agent 回合，还适用于 GoClaw 代表某租户进行的每一次计费 LLM 调用。
+
+上限以 **策略（policy）** 的形式存储在 PostgreSQL 中（迁移 `000070`–`000072`），通过 REST API 管理。一旦某租户存在至少一条策略，它们就始终生效 —— 没有全局开/关 config 标志。
+
+### 策略模型
+
+一条上限策略回答：*对于此作用域、在此时间窗口内，允许多少 token 和/或多少成本？*
+
+**作用域维度** —— 每条策略都可以将任意维度留空（NULL），表示"匹配所有"：
+
+| 维度 | 含义 |
+|-----------|---------|
+| `tenant_id` | 始终设置 —— 每条策略属于一个租户 |
+| `agent_id` | 限制单个 agent（未设置 = 租户内所有 agent） |
+| `provider_id` | 限制单个已配置的 LLM provider 记录 |
+| `provider_type` | 限制一个 provider 系列，如 `anthropic`、`openai` |
+| `model_id` | 限制单个模型，如 `claude-sonnet-4-5` |
+
+**窗口类型**（`window`）：`hour`、`day`、`week` 或 `month`。窗口对齐到 UTC 日历边界 —— `day` 从 00:00 UTC 开始，`week` 从周一开始，`month` 从 1 号开始。
+
+**限制** —— 一条策略必须设置 `max_tokens`、`max_cost_micros` 或两者：
+
+| 字段 | 单位 |
+|-------|------|
+| `max_tokens` | 总 token（input + output + cache read + cache write） |
+| `max_cost_micros` | 成本，以**微美元**计（1 USD = 1,000,000 微美元）。API 也接受 `max_cost_usd` 作为便利项并自动转换 |
+
+**多条匹配策略如何组合。** 当请求到来时，GoClaw 找出 scope 匹配的*每一条*已启用策略（NULL 维度匹配任意值，已设置的维度必须与请求相等）。一个请求必须满足**所有**匹配的策略 —— 最严格的那条获胜。`priority` 字段（数字越小越先评估，默认 `100`）控制评估顺序，从而决定命中上限时哪条策略被报告为阻止者。
+
+### 预留 + 计数器执行
+
+上限采用 **reserve-then-settle（先预留后结算）** 模型，使并发调用无法在一个窗口内超支：
+
+1. **Preflight（预留）** —— 在 LLM 调用之前，GoClaw 估算 token 用量（如有匹配策略含成本上限则还估算成本），然后原子地将其加到每条策略的 per-window 计数器上。若预留会使 `used + reserved + estimate` 超过某策略的 `max_tokens` 或 `max_cost_micros`，调用在运行前被**阻止**。
+2. **Reconcile（结算）** —— 调用返回后，预留被替换为来自 provider usage 响应的*实际* token 和成本。预留量被释放，已用量被记录。失败的调用结算为 0（预留被释放），除非收到了部分响应。
+
+成本估算需要模型的价格。若一条含成本上限的策略匹配但模型价格未知，调用被**阻止**，原因为 `pricing_unknown` —— 参见 [成本追踪 → 模型定价](/cost-tracking) 了解如何填充价格。
+
+### 上限同样适用于辅助 LLM 调用
+
+用量上限在**每一次计费 LLM 调用**上执行，而不仅是面向用户的 agent 回合。这包括 GoClaw 内部进行的辅助调用：
+
+- 会话标题生成
+- 意图分类
+- 循环中和历史压缩
+- Memory flush
+- 知识图谱抽取
+- Memory 合并（dreaming / episodic worker）
+- Vault enrichment
+- Provider 验证和 summoner 重生成
+
+这些调用各自针对相同的策略进行预留和结算，因此一个严格的 `day` token 上限也会节流后台工作，而不仅是聊天回复。
+
+> **Subscription / OAuth provider 豁免。** 上限仅适用于按 API key 计费的 provider。按固定费率或订阅计费的 provider（Claude CLI、ChatGPT OAuth、Bailian、ACP、Ollama）会被跳过，未配置 API key 的 provider 同样如此。
+
+### Agent 月度预算桥接
+
+旧的 per-agent `budget_monthly_cents` 字段（参见 [成本追踪 → 月度预算执行](/cost-tracking)）会自动镜像到上限系统中。迁移 `000072` 为每个 `budget_monthly_cents` 为正值的 agent 创建一条受管理的 `month` 窗口成本上限策略：
+
+- `max_cost_micros` = `budget_monthly_cents × 10,000`（分 → 微美元）
+- `source` = `agent_budget_monthly_cents`，`priority` = `90`
+
+这些桥接策略是**受管理（managed）**的 —— REST API 拒绝编辑或删除它们（返回 `409 Conflict`）。请改为调整 agent 的 `budget_monthly_cents`。手动创建的策略的 `source` = `manual`。
+
+### 命中上限时会发生什么
+
+当预留被拒绝时，GoClaw 从该 LLM 调用返回 `usage cap exceeded` 错误。对于主 agent 回合，这表现为一次失败的运行 —— agent 不产生回复。一个 `block` 决策也会写入事件日志（见下文），记录哪条策略以及触发原因（`cap_exceeded` 或 `pricing_unknown`）。
+
+### 决策追踪
+
+每个上限决策记录在两处：
+
+- **`usage_cap_events`** —— 一个仅追加（append-only）的审计日志，记录 `allow` / `block` / `skip` 决策，含策略、预留 key、估算/实际 token 和成本，以及原因。可通过 events 端点查询。
+- **Trace 元数据** —— 每个 agent trace 携带一个 `usage_caps` 块，列出决策、匹配的策略 ID、预留 key，以及每次 LLM 尝试的估算与实际 token/成本，使你能在 trace 的其余部分内联看到上限行为。
+
+### REST 端点
+
+所有 usage-cap 端点都需要 admin Bearer token。写操作（创建/更新/删除策略、定价覆盖）额外需要 tenant-admin scope；OpenRouter 同步端点需要 master scope。
+
+| 方法与路径 | Scope | 描述 |
+|---------------|-------|-------|
+| `GET /v1/usage-caps/policies` | admin | 列出租户的所有上限策略（含已禁用） |
+| `POST /v1/usage-caps/policies` | tenant-admin | 创建一条上限策略 |
+| `PATCH /v1/usage-caps/policies/{id}` | tenant-admin | 更新一条策略（受管理的 agent 预算策略会被拒绝） |
+| `DELETE /v1/usage-caps/policies/{id}` | tenant-admin | 删除一条策略（受管理的策略会被拒绝） |
+| `GET /v1/usage-caps/utilization` | admin | 当前活动窗口的 per-policy 用量与限制对比 |
+| `GET /v1/usage-caps/events` | admin | 最近的上限决策（`?limit=`，默认 50，最大 200） |
+
+**创建一条策略** —— 将一个 agent 限制为每天 1M token：
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "agent_id": "11111111-1111-1111-1111-111111111111",
+    "window": "day",
+    "max_tokens": 1000000
+  }'
+```
+
+**创建一个成本上限** —— 将 Anthropic 支出限制为全租户每月 $20（`max_cost_usd` 会被转换为微美元）：
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "provider_type": "anthropic",
+    "window": "month",
+    "max_cost_usd": 20.00
+  }'
+```
+
+**检查 utilization：**
+
+```bash
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/usage-caps/utilization"
+```
+
+模型定价（为成本上限背后的成本计算提供数据）通过一组独立的端点配置 —— 参见 [成本追踪 → 模型定价](/cost-tracking)。
+
+---
+
 ## Webhook 速率限制（Channel 层）
 
 独立于每用户配额，还有一个 webhook 级别的速率限制器，用于防止入站 webhook 洪水。它使用固定 60 秒窗口，每个 key 每个窗口硬上限 **30 次请求**。同时最多追踪 **4096 个唯一 key**；超出后驱逐最旧条目。
@@ -254,4 +381,4 @@ WHERE parent_trace_id IS NULL AND user_id IS NOT NULL;
 - [安全加固](/deploy-security) — 网关级速率限制
 - [数据库设置](/deploy-database) — 包含配额索引的 PostgreSQL 设置
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

@@ -156,6 +156,8 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `connect` | `{token, user_id, sender_id?, locale?}` | 认证。必须是第一个请求 |
 | `health` | — | Ping / 健康检查 |
 | `status` | — | Gateway 状态 |
+| `agent` | `{agentId?}` | 获取单个 agent 的运行时状态（默认 `"default"`） |
+| `send` | `{channel, to, message}` | 将出站消息路由到外部 channel |
 | `providers.models` | — | 列出所有已配置 LLM provider 的可用模型 |
 
 ### 聊天
@@ -433,6 +435,28 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 
 > **状态：已规划** — `whatsapp.qr.start`、`zalo.personal.qr.start` 和 `zalo.personal.contacts` 的协议常量已定义，但 gateway 中对应的处理器尚未实现。
 
+### Bitrix Portals
+
+对 Bitrix24 门户连接的自助管理。所有方法都按租户限定范围（从连接解析，绝不从调用方参数获取）。`list` 和 `get_install_url` 对任何已认证的租户成员开放；`create` 和 `delete` 需要**管理员角色**。任何响应中都不会返回凭证。
+
+| 方法 | 参数 | 说明 |
+|--------|--------|-------------|
+| `bitrix.portals.list` | — | 列出当前租户的门户（凭证已脱敏） |
+| `bitrix.portals.create` | `{name, domain, client_id, client_secret}` | 创建门户；返回 `{name, domain, install_url}` |
+| `bitrix.portals.get_install_url` | `{name}` | 为已有门户重新生成安装 URL → `{install_url}` |
+| `bitrix.portals.delete` | `{name}` | 删除门户 → `{status: "deleted"}` |
+
+**`bitrix.portals.create` 参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `name` | string | 门户 slug — 小写字母、数字、连字符、下划线（2–64 字符） |
+| `domain` | string | 门户主机 — `*.bitrix24.{com,eu,ru,…}` 或 `*.bitrix.info` |
+| `client_id` | string | Bitrix OAuth client ID |
+| `client_secret` | string | Bitrix OAuth client secret |
+
+> 若 gateway 尚未观测到其公网 URL，`create` 会以 `FAILED_PRECONDITION` 失败 — 请先通过 gateway 的外部 URL 打开 UI，以便生成安装 URL。当仍有 channel instance 引用该门户时，`delete` 会被阻止（`FAILED_PRECONDITION`）。
+
 ---
 
 ## 服务器推送事件
@@ -579,4 +603,4 @@ ws.onmessage = (e) => {
 - [CLI 命令](/cli-commands) — 从终端进行配对和会话管理
 - [词汇表](/glossary) — Session、Lane、Compaction 等核心术语
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

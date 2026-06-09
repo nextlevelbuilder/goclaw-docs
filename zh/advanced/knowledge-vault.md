@@ -337,6 +337,8 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 |--------|------|-------------|
 | `GET` | `/v1/agents/{agentID}/vault/documents` | 列出文档（scope、doc_type、limit、offset） |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | 获取单个文档 |
+| `POST` | `/v1/agents/{agentID}/vault/documents` | 创建文档（可选 `content` 请求体 — 见下文） |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` | 更新文档（可选 `content` 请求体 — 见下文） |
 | `POST` | `/v1/agents/{agentID}/vault/search` | 统一搜索 |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | 出链 + 反链 |
 
@@ -345,8 +347,35 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 | 方法 | 路径 | 描述 |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | 列出租户下所有 agent 的文档（可按 `agent_id` 过滤） |
+| `POST` | `/v1/vault/documents` | 创建文档（可选 `content` 请求体 — 见下文） |
+| `PUT` | `/v1/vault/documents/{docID}` | 更新文档（可选 `content` 请求体 — 见下文） |
 | `GET` | `/v1/vault/tree` | 查看 vault 结构树状视图 |
 | `GET` | `/v1/vault/graph` | 跨租户图谱可视化（节点上限 2000，FA2 布局） |
+
+### 创建/更新时写入内容
+
+`POST`/`PUT` 接受可选的 `content` 字段。提供该字段时，字节会被写入 `<tenant-workspace>/<path>`，SHA-256 哈希存储到该行，并发出 enrichment 事件以计算 summary、embedding 和 link — 与 multipart `/v1/vault/upload` 端点使用相同的代码路径。
+
+| `content` 取值 | 行为 |
+|----------------|------|
+| 省略该字段 | 仅元数据存根；不写文件，不触发 enrichment 事件 |
+| 存在且非空 | 字节写入磁盘；存储哈希；触发 enrichment |
+| 存在且为空（`""`） | 写入 0 字节文件；仍触发 enrichment |
+
+路径必须使用允许的扩展名（与 `/v1/vault/upload` 相同的白名单）。写入被沙箱限制在租户 workspace 内：词法 `../` 检查、symlink 祖先解析，以及原子化的 `O_NOFOLLOW` open 操作，拒绝任何跟随 symlink 逃逸出 workspace 的尝试。
+
+```bash
+POST /v1/vault/documents
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "path": "notes/auth.md",
+  "title": "Authentication Flow",
+  "doc_type": "note",
+  "content": "# Authentication Flow\n\nSee [[architecture/components]] for details."
+}
+```
 
 ### Enrichment 控制端点
 
@@ -395,4 +424,4 @@ Agent 可以用 `[[target]]` 格式创建双向 markdown 链接。
 - [Memory 系统](../../core-concepts/memory-system.md) — 向量化长期记忆
 - [Context 文件](../../agents/context-files.md) — 注入 agent context 的静态文档
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

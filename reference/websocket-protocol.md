@@ -452,6 +452,28 @@ Manage lifecycle hooks stored in `agent_hooks`. See [Agent Hooks](/hooks-quality
 
 > **Status: Planned** — `whatsapp.qr.start`, `zalo.personal.qr.start`, and `zalo.personal.contacts` have protocol constants defined but handlers are not yet implemented in the gateway.
 
+### Bitrix Portals
+
+Self-service management of Bitrix24 portal connections. All methods are tenant-scoped (resolved from the connection, never from caller params). `list` and `get_install_url` are open to any authenticated tenant member; `create` and `delete` require **admin role**. Credentials are never returned in any response.
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `bitrix.portals.list` | — | List portals for the current tenant (credentials masked) |
+| `bitrix.portals.create` | `{name, domain, client_id, client_secret}` | Provision a portal; returns `{name, domain, install_url}` |
+| `bitrix.portals.get_install_url` | `{name}` | Re-build the install URL for an existing portal → `{install_url}` |
+| `bitrix.portals.delete` | `{name}` | Delete a portal → `{status: "deleted"}` |
+
+**`bitrix.portals.create` params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `name` | string | Portal slug — lowercase letters, digits, hyphen, underscore (2–64 chars) |
+| `domain` | string | Portal host — `*.bitrix24.{com,eu,ru,…}` or `*.bitrix.info` |
+| `client_id` | string | Bitrix OAuth client ID |
+| `client_secret` | string | Bitrix OAuth client secret |
+
+> `create` fails with `FAILED_PRECONDITION` if the gateway has not yet observed its public URL — open the UI through the gateway's external URL first so the install URL can be built. `delete` is blocked (`FAILED_PRECONDITION`) while any channel instance still references the portal.
+
 ---
 
 ## Server-Push Events
@@ -600,4 +622,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: 1b862707 | updated: 2026-04-20 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

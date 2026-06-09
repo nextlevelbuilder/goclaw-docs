@@ -212,6 +212,133 @@ When quota is disabled (`"enabled": false`), the response still includes today's
 
 ---
 
+## AI Budget Usage Caps
+
+Separate from the channel-layer request quota above, GoClaw has a **token- and cost-based cap system** that enforces limits on the LLM provider spend itself. Where request quota counts messages, usage caps count *tokens and dollar cost*, and they apply not only to the main agent turn but to every billable LLM call GoClaw makes on a tenant's behalf.
+
+Caps are stored as **policies** in PostgreSQL (migrations `000070`–`000072`) and managed through a REST API. They are always active once at least one policy exists for a tenant — there is no global on/off config flag.
+
+### Policy model
+
+A cap policy answers: *for this scope, in this time window, how many tokens and/or how much cost is allowed?*
+
+**Scope dimensions** — every policy can leave any dimension unset (NULL) to mean "matches everything":
+
+| Dimension | Meaning |
+|-----------|---------|
+| `tenant_id` | Always set — every policy belongs to one tenant |
+| `agent_id` | Limit one agent (unset = all agents in the tenant) |
+| `provider_id` | Limit one configured LLM provider record |
+| `provider_type` | Limit a provider family, e.g. `anthropic`, `openai` |
+| `model_id` | Limit one model, e.g. `claude-sonnet-4-5` |
+
+**Window types** (`window`): `hour`, `day`, `week`, or `month`. Windows are aligned to UTC calendar boundaries — `day` starts at 00:00 UTC, `week` starts Monday, `month` starts on the 1st.
+
+**Limits** — a policy must set `max_tokens`, `max_cost_micros`, or both:
+
+| Field | Unit |
+|-------|------|
+| `max_tokens` | Total tokens (input + output + cache read + cache write) |
+| `max_cost_micros` | Cost in **micro-dollars** (1 USD = 1,000,000 micros). The API also accepts `max_cost_usd` as a convenience and converts it for you |
+
+**How multiple matching policies combine.** When a request comes in, GoClaw finds *every* enabled policy whose scope matches (NULL dimensions match anything, set dimensions must equal the request). A request must fit under **all** matched policies — the most restrictive one wins. The `priority` field (lower number = evaluated first, default `100`) controls evaluation order, which determines which policy is reported as the blocker when a cap is hit.
+
+### Reservation + counter enforcement
+
+Caps use a **reserve-then-settle** model so concurrent calls can't overspend a window:
+
+1. **Preflight (reserve)** — before the LLM call, GoClaw estimates token usage (and cost, if any matched policy has a cost cap), then atomically adds it to each policy's per-window counter. If the reservation would push `used + reserved + estimate` over a policy's `max_tokens` or `max_cost_micros`, the call is **blocked** before it runs.
+2. **Reconcile (settle)** — after the call returns, the reservation is replaced with the *actual* tokens and cost from the provider's usage response. The reserved amount is released and the used amount is recorded. Failed calls settle to zero (the reservation is freed) unless a partial response was received.
+
+Cost estimation needs a price for the model. If a cost-capped policy matches but no pricing is known for the model, the call is **blocked** with reason `pricing_unknown` — see [Cost Tracking → Model Pricing](/cost-tracking) for how to populate prices.
+
+### Caps apply to auxiliary LLM calls too
+
+Usage caps are enforced on **every billable LLM call**, not just the user-facing agent turn. This includes auxiliary calls GoClaw makes internally:
+
+- Conversation title generation
+- Intent classification
+- Mid-loop and history compaction
+- Memory flush
+- Knowledge-graph extraction
+- Memory consolidation (dreaming / episodic workers)
+- Vault enrichment
+- Provider verification and summoner regeneration
+
+Each of these reserves and reconciles against the same policies, so a tight `day` token cap will also throttle background work, not only chat replies.
+
+> **Subscription / OAuth providers are exempt.** Caps only apply to providers billed by API key. Providers that are flat-rate or subscription-based (Claude CLI, ChatGPT OAuth, Bailian, ACP, Ollama) are skipped, and so are providers configured without an API key.
+
+### Agent monthly budget bridge
+
+The legacy per-agent `budget_monthly_cents` field (see [Cost Tracking → Monthly Budget Enforcement](/cost-tracking)) is automatically mirrored into the cap system. Migration `000072` creates, for every agent with a positive `budget_monthly_cents`, a managed `month`-window cost-cap policy:
+
+- `max_cost_micros` = `budget_monthly_cents × 10,000` (cents → micro-dollars)
+- `source` = `agent_budget_monthly_cents`, `priority` = `90`
+
+These bridged policies are **managed** — the REST API refuses to edit or delete them (returns `409 Conflict`). Adjust the agent's `budget_monthly_cents` instead. Manually created policies have `source` = `manual`.
+
+### What happens when a cap is hit
+
+When a reservation is rejected, GoClaw returns a `usage cap exceeded` error from the LLM call. For the main agent turn this surfaces as a failed run — the agent does not produce a reply. A `block` decision is also written to the events log (see below) recording which policy and reason (`cap_exceeded` or `pricing_unknown`) triggered it.
+
+### Decision tracing
+
+Every cap decision is recorded in two places:
+
+- **`usage_cap_events`** — an append-only audit log of `allow` / `block` / `skip` decisions with the policy, reservation key, estimated/actual tokens and cost, and reason. Queryable via the events endpoint.
+- **Trace metadata** — each agent trace carries a `usage_caps` block listing the decision, matched policy IDs, reservation key, and estimated vs. actual tokens/cost per LLM attempt, so you can see cap behavior inline with the rest of the trace.
+
+### REST endpoints
+
+All usage-cap endpoints require an admin Bearer token. Write operations (create/update/delete policy, pricing overrides) additionally require tenant-admin scope; the OpenRouter sync endpoint requires master scope.
+
+| Method & path | Scope | Description |
+|---------------|-------|-------------|
+| `GET /v1/usage-caps/policies` | admin | List all cap policies for the tenant (includes disabled) |
+| `POST /v1/usage-caps/policies` | tenant-admin | Create a cap policy |
+| `PATCH /v1/usage-caps/policies/{id}` | tenant-admin | Update a policy (managed agent-budget policies are rejected) |
+| `DELETE /v1/usage-caps/policies/{id}` | tenant-admin | Delete a policy (managed policies are rejected) |
+| `GET /v1/usage-caps/utilization` | admin | Current per-policy usage vs. limit for the active window |
+| `GET /v1/usage-caps/events` | admin | Recent cap decisions (`?limit=`, default 50, max 200) |
+
+**Create a policy** — cap one agent to 1M tokens per day:
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "agent_id": "11111111-1111-1111-1111-111111111111",
+    "window": "day",
+    "max_tokens": 1000000
+  }'
+```
+
+**Create a cost cap** — limit Anthropic spend to $20/month tenant-wide (`max_cost_usd` is converted to micros):
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "provider_type": "anthropic",
+    "window": "month",
+    "max_cost_usd": 20.00
+  }'
+```
+
+**Check utilization:**
+
+```bash
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/usage-caps/utilization"
+```
+
+Model pricing (which feeds the cost calculation behind cost caps) is configured through a separate set of endpoints — see [Cost Tracking → Model Pricing](/cost-tracking).
+
+---
+
 ## Webhook Rate Limiting (Channel Layer)
 
 Separate from per-user quota, there is a webhook-level rate limiter that protects against incoming webhook floods. It uses a fixed 60-second window with a hard cap of **30 requests per key** per window. Up to **4096 unique keys** are tracked simultaneously; beyond that, oldest entries are evicted.
@@ -252,4 +379,4 @@ This index covers 89% of traces (top-level only) and makes hourly/daily/weekly w
 - [Security Hardening](/deploy-security) — rate limiting at the gateway level
 - [Database Setup](/deploy-database) — PostgreSQL setup including the quota index
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

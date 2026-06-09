@@ -646,6 +646,80 @@ goclaw tui onboard   # wizard onboard dạng TUI
 goclaw tui setup     # wizard setup dạng TUI
 ```
 
+## `bitrix-portal`
+
+Quản lý các dòng portal Bitrix24 trực tiếp trong database (chỉ PostgreSQL). GoClaw cần một dòng `bitrix_portals` tồn tại trước khi operator chạy luồng cài đặt OAuth tại `/bitrix24/install`; lệnh này tạo và bảo trì dòng đó mà không cần truy cập SQL thô.
+
+> Credential được mã hóa khi lưu bằng `GOCLAW_ENCRYPTION_KEY`. Nếu không đặt key, lệnh sẽ cảnh báo và lưu credential không mã hóa.
+
+### `bitrix-portal create`
+
+Tạo một dòng `bitrix_portals` với credential OAuth.
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <uuid> \
+  --name <portal> \
+  --domain tamgiac.bitrix24.com \
+  --client-id <client_id> \
+  --client-secret <client_secret>
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | UUID tenant mà portal này thuộc về (bắt buộc) |
+| `--name` | Tên portal ngắn, được tham chiếu bởi `channel_instance.config.portal` (bắt buộc) |
+| `--domain` | Host portal Bitrix24, ví dụ `tamgiac.bitrix24.com` (bắt buộc) |
+| `--client-id` | `client_id` / `application_id` của ứng dụng Bitrix24 (bắt buộc) |
+| `--client-secret` | `client_secret` / application key của ứng dụng Bitrix24 (bắt buộc) |
+
+### `bitrix-portal list`
+
+Liệt kê các dòng `bitrix_portals`, tùy chọn giới hạn theo một tenant.
+
+```bash
+goclaw bitrix-portal list
+goclaw bitrix-portal list --tenant-id <uuid>
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | Lọc theo một UUID tenant (tùy chọn) |
+
+### `bitrix-portal update-credentials`
+
+Thay thế `client_id`/`client_secret` trên một dòng portal hiện có. Dùng khi xoay client secret hoặc chuyển từ local app sang marketplace app. OAuth state token bị xóa theo mặc định, vì state được tạo bằng credential cũ không thể refresh bằng credential mới.
+
+```bash
+goclaw bitrix-portal update-credentials \
+  --tenant-id <uuid> --name <portal> \
+  --client-id <client_id> --client-secret <client_secret>
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | UUID tenant mà portal này thuộc về (bắt buộc) |
+| `--name` | Tên portal cần cập nhật (bắt buộc) |
+| `--client-id` | `client_id` mới của ứng dụng Bitrix24 (bắt buộc) |
+| `--client-secret` | `client_secret` mới của ứng dụng Bitrix24 (bắt buộc) |
+| `--keep-state` | Giữ OAuth state token hiện có (chỉ an toàn khi xoay secret của CÙNG một ứng dụng) |
+
+### `bitrix-portal set-public-url`
+
+Backfill URL public của gateway dùng để đăng ký imbot event handler của Bitrix24. Thao tác một lần cho các portal được cài đặt trước khi có cơ chế tự động lấy public URL.
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <uuid> --name <portal> \
+  --url https://goclaw.example.com
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | UUID tenant mà portal này thuộc về (bắt buộc) |
+| `--name` | Tên portal (bắt buộc) |
+| `--url` | URL public của gateway, ví dụ `https://goclaw.example.com` (bắt buộc) |
+
 ---
 
 ## Tiếp theo
@@ -654,4 +728,4 @@ goclaw tui setup     # wizard setup dạng TUI
 - [REST API](/rest-api) — danh sách HTTP API endpoint
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 
-<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

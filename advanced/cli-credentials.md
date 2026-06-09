@@ -167,6 +167,7 @@ A `400` response on create/update includes the rejected key names in `rejected_k
   "error": "env keys denied: LD_PRELOAD, PATH",
   "rejected_keys": "LD_PRELOAD,PATH"
 }
+```
 
 ## REST API
 
@@ -246,6 +247,126 @@ POST /v1/cli-credentials/{id}/agent-grants/{grantId}/env:reveal
 
 Returns the decrypted plaintext env vars. Rate-limited to 10 calls/minute per user. See [Revealing Decrypted Env Vars](#revealing-decrypted-env-vars) for full details.
 
+## Typed Credential Adapters
+
+The sections above describe the **legacy env-paste model** — you paste arbitrary environment variables and GoClaw injects them verbatim into the child process. That works for tools that read auth from a single stable env var (`GH_TOKEN`, `AWS_ACCESS_KEY_ID`, …), but it fails for tools like `git` that read credentials from config files, credential helpers, or per-remote URLs — pasting a PAT into `GIT_TOKEN` does nothing.
+
+**Typed credential adapters** solve this. Instead of pasting raw env vars, you choose a credential *type*, and GoClaw routes the credential through a server-side adapter that knows how to inject it correctly and securely for that specific tool.
+
+### Credential types
+
+A user credential row carries a `credential_type` (migration `000073`):
+
+| `credential_type` | Meaning |
+|-------------------|---------|
+| `NULL` / `env` | Legacy env passthrough — env vars injected verbatim, exactly as before. No host scoping. |
+| `pat` | Personal Access Token, for HTTPS git remotes (GitHub/GitLab/Gitea). Requires a `host_scope`. |
+| `ssh_key` | SSH private key (PEM), for git over SSH. Requires a `host_scope`. |
+
+`NULL`/`env` rows are never migrated — existing legacy credentials keep working unchanged. Typed adapters are opt-in per credential.
+
+### User credentials vs binary/system credentials
+
+Typed adapters operate on **user credentials**, not the binary-level env defaults:
+
+- **Binary/system credentials** — the binary definition + its default env vars (and agent-grant overrides) described above. Shared across the binary's grants.
+- **User credentials** — per-user typed secrets stored in `secure_cli_user_credentials`, scoped to a single hostname.
+
+Manage user credentials in the dashboard under **Settings → CLI Credentials → User Credentials**. Click **Add**, select the user, choose the credential type (`Personal Access Token` or `SSH Private Key`), enter the **Host Scope**, and paste the secret. The stored secret is AES-256-GCM encrypted and can never be read back — editing the row shows a `••••••••` placeholder; leaving the secret field blank preserves the stored value, typing a new value replaces it.
+
+### The git adapter
+
+The `git` adapter is the first shipped typed adapter. It injects credentials **only** for network subcommands:
+
+```
+clone   fetch   pull   push   submodule
+```
+
+Any other subcommand (`status`, `log`, `diff`, `commit`, `branch`, …) is a local operation and runs **uncredentialed** — no injection, no audit-log line.
+
+**PAT flow.** The token is injected through environment variables, never on `argv`:
+
+```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
+GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+```
+
+Because the token lives in an env value (not a command-line flag), it never appears in `ps`, `/proc/<pid>/cmdline`, or shell history. The injected vars are scoped to the spawned `git` process only — GoClaw's own environment and sibling exec calls never see them.
+
+**SSH flow.** The PEM key is written to a `0600`-mode tmpfile in the system temp dir (prefix `goclaw-gitkey-*`), and `GIT_SSH_COMMAND` is set to:
+
+```
+ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
+```
+
+`StrictHostKeyChecking=accept-new` accepts unknown host keys on **first contact (TOFU)**. Pre-seed `~/.ssh/known_hosts` to close the window (see [Security Hardening](/deploy-security)). The tmpfile is removed after exec via a deferred cleanup. **Passphrase-protected SSH keys are rejected at save time** — re-export your key without a passphrase, or use a dedicated deploy key.
+
+### Host scope
+
+Both `pat` and `ssh_key` require a **`host_scope`** — the exact ASCII `host` or `host:port` the credential is valid for. It is normalized to lowercase ASCII (via `idna.ToASCII`) and matched **exactly**. v1 has **no wildcards**, and the port is part of the key:
+
+| Stored `host_scope` | `github.com` | `api.github.com` | `github.com:8443` |
+|---------------------|:---:|:---:|:---:|
+| `github.com` | ✓ | ✗ | ✗ |
+
+If you run a self-hosted server on the scheme's default port (443 HTTPS, 22 SSH), omit the port; if on a non-default port, include it (e.g. `gitea.internal:8443`). When no stored credential matches the resolved remote host, the adapter falls through to the uncredentialed path and the remote rejects the operation if it requires auth.
+
+### Env visibility: sensitive vs non-sensitive
+
+Stored env entries now carry a `kind`. When the dashboard or admin API reads a credential back, the response masks values according to kind:
+
+| `kind` | In API response |
+|--------|-----------------|
+| `sensitive` (default; legacy string maps decode here) | `value: null`, `masked: true` |
+| `value` (explicitly non-sensitive, e.g. a region or profile name) | plain value returned, `masked: false` |
+
+This lets operators see non-secret context (e.g. `AWS_DEFAULT_REGION=us-west-2`) in the UI while secrets stay masked. Secrets are still never returned except via the dedicated `env:reveal` endpoint.
+
+### Migrating from legacy env credentials
+
+There is no forced migration. A row with `credential_type IS NULL` or `= 'env'` keeps emitting its env vars exactly as before. To upgrade a git credential, open the user-credentials dialog, pick **Personal Access Token** or **SSH Private Key**, enter the host scope, paste the secret, and save — the legacy row is replaced atomically.
+
+### v1 limitations
+
+- **No wildcard hosts** — one credential per exact `host[:port]`; `*.github.com` is not supported.
+- **No passphrase-protected SSH keys** — rejected at validation time.
+- **No sandbox propagation** — the adapter mutates the forked child's environment, which is incompatible with the bind-mount Docker sandbox path. Credentialed exec runs on the host only in v1.
+- **No host-key pinning** — SSH uses TOFU (`accept-new`); pre-seed `known_hosts`.
+
+### Google Workspace CLI (gws)
+
+GoClaw ships a `gws` preset for the Google Workspace CLI (`@googleworkspace/cli`).
+
+**Availability.** The `gws` binary is preinstalled **only in the published `full` Docker image**. On `latest`/`base` images, install `@googleworkspace/cli` from the Packages page (requires a Node-enabled build, `ENABLE_NODE=true`; Node.js 18+).
+
+**Credentials.** Create a SecureCLI credential from the `gws` preset and provide at least one auth source:
+
+| Env var | Purpose |
+|---------|---------|
+| `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` | Path to exported `gws` credentials or an OAuth credentials JSON file |
+| `GOOGLE_WORKSPACE_CLI_TOKEN` | Pre-obtained Google OAuth access token (optional) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_ID` | OAuth client ID for manual auth flows (optional) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_SECRET` | OAuth client secret for manual auth flows (optional) |
+
+**Blocked commands.** The preset blocks interactive and credential-exporting auth flows:
+
+```
+gws auth setup    gws auth login    gws auth export    gws auth logout
+```
+
+Run those flows outside agent execution, then store the resulting token or credentials-file path in SecureCLI.
+
+**Usage.** Default usage is read-oriented. Use `--params` for query parameters, `--json` for request bodies, and `--page-all` for paginated reads:
+
+```sh
+gws drive files list --params '{"pageSize": 10}'
+gws gmail users messages list --params '{"userId": "me", "maxResults": 10}'
+gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
+```
+
+> **Write caution.** Write commands can modify Workspace data. Keep the default preset read-oriented and create a separate, reviewed SecureCLI config for any approved write workflow.
+
 ## Common Patterns
 
 ### Allow only one agent to use a sensitive CLI tool
@@ -277,4 +398,4 @@ Update the grant: `{"enabled": false}`. The binary remains accessible to other a
 - [API Keys & RBAC](/api-keys-rbac)
 - [Security Hardening](/deploy-security)
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

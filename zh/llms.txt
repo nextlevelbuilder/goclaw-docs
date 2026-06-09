@@ -59,6 +59,7 @@
 ## Channels
 - [Channel Overview](zh/channels/overview.md): Channels 将消息平台（Telegram、Discord、Larksuite 等）通过统一消息总线连接到 GoClaw agent 运行时。每个 channel 将平台特定事件转换为标准化的 `InboundMessage` 对象，并将 agent 响应转换为平台适配的输出格式。
 - [Telegram](zh/channels/telegram.md): 通过长轮询（Bot API）集成 Telegram bot。支持 DM、群组、论坛话题、语音转文字和流式响应。
+- [Bitrix24](zh/channels/bitrix24.md): 通过 **imbot**（聊天机器人）API 集成 Bitrix24。GoClaw 在 Bitrix24 portal 上注册一个 bot，通过 webhook 接收聊天事件，并以该 bot 的身份回复。一个 GoClaw gateway 可以服务跨多个 portal 的多个 bot，多个 bot 也可以共用一个 portal（它们共享 OAuth token 和刷新循环）。
 - [Discord](zh/channels/discord.md): 通过 Discord Gateway API 集成 Discord bot。支持 DM、服务器、线程和通过消息编辑实现的流式响应。
 - [Feishu / Lark](zh/channels/feishu.md): **创建飞书应用：**
 - [Larksuite](zh/channels/larksuite.md): **创建 Larksuite 应用：**

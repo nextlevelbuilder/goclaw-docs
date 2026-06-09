@@ -148,7 +148,9 @@ docker compose \
 
 > **Data hooks:** GoClaw theo dõi các Go transform sau migration trong bảng `data_migrations` riêng. Chạy `./goclaw upgrade --status` để xem cả phiên bản SQL migration và các data hook đang chờ.
 
-Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **44**.
+> Các migration `000045`–`000073` tiếp tục mở rộng schema: config model fallback, catalog REST endpoint, OAuth state của portal Bitrix24 (`bitrix_portals`), sync cookie browser phía server (`browser_cookies`), các bảng pricing và enforcement của usage-cap (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), bridge agent-budget, và credential secure-CLI có kiểu — xem [Database Schema → Migration History](/database-schema).
+
+Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **73**.
 
 ---
 
@@ -158,7 +160,7 @@ GoClaw v3 hỗ trợ hai backend database:
 
 | Tính năng | PostgreSQL | SQLite (desktop) |
 |-----------|-----------|-----------------|
-| Schema đầy đủ (44 migration) | Có | Có |
+| Schema đầy đủ (73 migration) | Có | Có |
 | Tìm kiếm vector similarity (HNSW) | Có — pgvector | Không |
 | Tìm kiếm vector episodic summaries | Có | Chỉ FTS |
 | Knowledge Vault tự động liên kết | Có — ngưỡng 0.7 | Không (chỉ tóm tắt) |
@@ -297,4 +299,4 @@ VACUUM ANALYZE traces, spans;
 - [Security Hardening](/deploy-security) — mã hóa AES-256-GCM cho secrets trong database
 - [Observability](/deploy-observability) — query traces và spans để theo dõi chi phí LLM
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

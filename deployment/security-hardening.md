@@ -430,6 +430,62 @@ Format stored: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Valu
 
 > **Must match across replicas.** In a clustered deployment, every gateway instance must use the same `GOCLAW_ENCRYPTION_KEY`. Rotating the key requires re-encrypting all stored secrets before restarting.
 
+Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`, `secure_cli_agent_grants`, and `secure_cli_user_credentials` all store secrets in an `encrypted_env` column. Each entry carries a visibility `kind` — `sensitive` entries are masked in normal API/UI responses and only returned via the audited `env:reveal` flow; `value` entries (e.g. region or profile names) are returned to admins for operational review.
+
+---
+
+## Credential Adapter Security Model
+
+[Typed credential adapters](/cli-credentials) are the **system-trusted** path for injecting auth material into spawned CLI subprocesses (`git clone`, `git push`, …). This is a second trust boundary, distinct from the user-paste env denylist — not a replacement for it.
+
+| Path | Trust boundary |
+|------|----------------|
+| User-pasted env vars (`env` credential type) | First line of defense — `ValidateGrantEnvVars` rejects `GIT_SSH_COMMAND`, `LD_PRELOAD`, `PATH`, and the rest of the denylist |
+| System-injected adapter env (e.g. `git` adapter) | Second, audit-trailed line — bypasses the denylist by design and emits one audit event per injection |
+
+A typo in the adapter name falls back to passthrough (the legacy denylist-only behavior) — there is **no silent bypass**.
+
+### Audit event: `security.system_env_injection`
+
+Every adapter injection emits **exactly one** structured `slog.Warn` line. The plaintext hostname is intentionally **never logged** — keeping audit logs PII-safe inside regulated tenants.
+
+| Field | Notes |
+|-------|-------|
+| `msg` | always `security.system_env_injection` |
+| `adapter` | e.g. `git`, `passthrough` |
+| `binary` | binary name (`git`, …) |
+| `user_id` | tenant user UUID (empty in global-only contexts) |
+| `env_keys` | sorted env-var **names** only — never values |
+| `argv_prefix_len` | number of argv elements prepended, not their content |
+| `host_scope_hash` | first 8 hex chars of `SHA-256(normalized host_scope)`, or `"none"` |
+
+There is **no dedicated audit table** in v1 — the line routes through `slog` to stderr → systemd/journald or Docker logs. To grep for activity against a specific host, pre-compute its hash:
+
+```sh
+echo -n "github.com" | sha256sum | cut -c1-8
+```
+
+### Output scrubbing for credentialed exec
+
+Output of credentialed commands passes through the same regex scrubber as all tool output, plus credentials registered at runtime for the binary are scrubbed from stdout/stderr before the result reaches the LLM. Secrets injected through an adapter never round-trip back into the conversation.
+
+### SSH TOFU MITM caveat
+
+The git adapter's SSH path sets `StrictHostKeyChecking=accept-new`, which accepts an unknown host key on first contact. A network attacker positioned between GoClaw and the git host can capture that **first** SSH session. Pre-seed `known_hosts` at deploy time to close the window — after that, `accept-new` enforces match-or-fail:
+
+```sh
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh-keyscan -p 22 gitea.internal >> ~/.ssh/known_hosts
+```
+
+### Ephemeral credential tmpfiles
+
+The SSH adapter writes the PEM key to a `0600`-mode tmpfile in `os.TempDir()` (prefix `goclaw-gitkey-*`) and removes it via a deferred cleanup after exec returns. A `SIGKILL` of the GoClaw process skips that cleanup, leaving the file behind. `os.TempDir()` is per-user on POSIX, so exposure is limited to the GoClaw uid. High-security deployments should run a periodic sweep:
+
+```sh
+find "$TMPDIR" -name 'goclaw-gitkey-*' -mmin +60 -delete
+```
+
 ---
 
 ## Webhook Security
@@ -615,4 +671,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Webhooks](../advanced/webhooks.md) — HMAC-authenticated HTTP endpoints, signature verification, and replay protection
 - [Workstations](../advanced/workstations.md) — remote execution targets, permission model, and activity audit
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

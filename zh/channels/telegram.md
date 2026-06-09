@@ -237,6 +237,14 @@ LLM 输出（Markdown）
 
 默认禁用。启用后若 `reasoning_stream: true`（默认），推理 token 在最终答案前作为独立消息显示。
 
+### 媒体处理
+
+**相册 / 多附件合并。** 当用户发送一个相册（在客户端上分组的多张图片或文件）时，Telegram 会把它作为 N 个独立 update 投递，它们共享同一个 `MediaGroupID`。GoClaw 在 channel 层缓冲相册成员（500 ms 静默窗口），并将它们合成为**一条**入站消息，因此 agent 回复一次而非每个附件回复一次。缓冲键为 `(chatID, MediaGroupID)`；发送者在第一个成员处被固定，发送者不匹配的成员会作为防御措施被丢弃。
+
+**出站上传限制。** 出站媒体在发送前会针对上传上限做校验 — 超限文件会以明确的 "outbound media too large" 错误被拒绝，而不是在上传中途失败。官方 Bot API 上限为 50 MB，配置本地 Bot API server（`api_server`）时为 200 MB（若 `media_max_bytes` 调高到该值以上则更高）。
+
+**保留 archive 路径。** 入站文件在持久化时保留其原始扩展名（例如一个 `codex.zip` 上传仍是 `.zip`，而不是被改写成通用名称），因此 skill 和文档工具可以在下游正确识别并解压 archive。
+
 ### 表情回应
 
 在用户消息上显示 emoji 状态。设置 `reaction_level`：
@@ -333,9 +341,9 @@ Writer 是允许执行敏感命令（`/reset`、文件写入）的群组成员�
 
 ## 下一步
 
-- [概览](/channels-overview) — Channel 概念和策略
+- [概览](/channels-overview) — Channel 概念、策略和[入站防抖](/channels-overview#inbound-debounce)
 - [Discord](/channel-discord) — Discord bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 - [Sessions & History](../core-concepts/sessions-and-history.md) — 会话历史
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

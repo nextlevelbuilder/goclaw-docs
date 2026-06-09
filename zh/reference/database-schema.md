@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector 用于 embedding
 
 自定义 `uuid_generate_v7()` 函数提供时序有序的 UUID。所有主键默认使用此函数。
 
-Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**67**。
+Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**73**。
 
 ### v3 Store 统一
 
@@ -121,7 +121,7 @@ Agent 核心记录。每个 agent 有自己的 context、工具和模型配置�
 | `frontmatter` | TEXT | | 用于委派和 UI 的简短专长摘要 |
 | `tsv` | tsvector | GENERATED ALWAYS | 全文搜索向量（display_name + frontmatter）|
 | `embedding` | vector(1536) | | 语义搜索 embedding |
-| `budget_monthly_cents` | INTEGER | | 月度消费上限（美分）；NULL = 无限制（迁移 015）|
+| `budget_monthly_cents` | INTEGER | | 月度消费上限（美分）；NULL = 无限制（迁移 015）。迁移 072 将任何非 NULL 值桥接为一条 `month` 窗口的 `usage_cap_policies` 记录，`source = 'agent_budget_monthly_cents'`（1 美分 = 10,000 micros）。|
 | `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | 当主模型失败时按序尝试的 fallback 模型标识符数组（迁移 065）|
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
@@ -842,6 +842,7 @@ Exec 工具的凭证注入配置（Direct Exec Mode）。管理员将二进制�
 | `is_global` | BOOLEAN | NOT NULL DEFAULT true | 若为 true，所有 agent 均可使用；若为 false，仅有显式 grant 的 agent 可访问 |
 | `enabled` | BOOLEAN DEFAULT true | | |
 | `created_by` | TEXT DEFAULT `''` | | 创建此条目的管理员用户 |
+| `adapter_name` | TEXT | NULL | 在 exec 时将该 binary 路由到带类型的 `CredentialAdapter`；NULL = 旧版 passthrough（迁移 073）|
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
 > **迁移 036 说明：** `agent_id` 列已从此表移除。per-agent 访问控制现通过 `secure_cli_agent_grants` 表管理。`is_global = true` 的 binary 对所有 agent 可用；`is_global = false` 的 binary 需要显式 grant。
@@ -1079,6 +1080,8 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM 加密的 JSON 环境变量映射 |
 | `metadata` | JSONB | NOT NULL DEFAULT `{}` | 附加元数据 |
 | `tenant_id` | UUID FK → tenants | NOT NULL | 所属租户 |
+| `credential_type` | TEXT | NULL | 凭证类型 — `env`、`pat`、`ssh_key`、…；NULL = 旧版 passthrough（迁移 073）|
+| `host_scope` | TEXT | NULL | 将凭证绑定到特定主机名（如 `github.com`）；NULL = 无 scope（迁移 073）|
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **唯一约束：** `(binary_id, user_id, tenant_id)`
@@ -1524,10 +1527,177 @@ workstation exec 事件（`exec` 和 `deny`）的滚动审计日志。Append-onl
 
 ---
 
+### `bitrix_portals`
+
+按租户存储 Bitrix24 portal 的 OAuth state。多个 Bitrix24 channel 实例（chatbot）可通过 channel 配置中的 portal 引用共享同一条 portal 记录。（迁移 068）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `name` | VARCHAR(100) | NOT NULL | Portal 显示名称（每租户唯一）|
+| `domain` | VARCHAR(255) | NOT NULL | Bitrix24 portal 域名 |
+| `credentials` | BYTEA | | `{client_id, client_secret}` 的 AES-256-GCM 密文 |
+| `state` | BYTEA | | portal state 的 AES-256-GCM 密文（access/refresh token、`member_id`、`app_token`、已注册 bot、媒体目录）|
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**索引：** unique `(tenant_id, name)`；unique `LOWER(TRIM(domain))`（安装/事件回调在确定租户 scope 之前先按域名解析）
+
+---
+
+### `browser_cookies`
+
+用户选定的、用于服务端浏览器上下文的 cookie。值为 AES-256-GCM 密文；cookie 按租户、用户和 agent 隔离，以防止跨主体复用。（迁移 069）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `user_id` | VARCHAR(255) | NOT NULL | 所属用户 |
+| `agent_id` | VARCHAR(255) | NOT NULL | 所属 agent |
+| `domain` | TEXT | NOT NULL（非空）| Cookie 域名 |
+| `name` | TEXT | NOT NULL（非空）| Cookie 名称 |
+| `path` | TEXT | NOT NULL DEFAULT `/`（非空）| Cookie 路径 |
+| `encrypted_value` | TEXT | NOT NULL | AES-256-GCM 加密的 cookie 值 |
+| `secure` | BOOLEAN | NOT NULL DEFAULT FALSE | `Secure` 标志 |
+| `http_only` | BOOLEAN | NOT NULL DEFAULT FALSE | `HttpOnly` 标志 |
+| `same_site` | VARCHAR(32) | NOT NULL DEFAULT `''` | `SameSite` 属性 |
+| `expires_at` | TIMESTAMPTZ | | Cookie 过期时间；NULL = 会话 cookie |
+| `source` | VARCHAR(64) | NOT NULL DEFAULT `''` | Cookie 的采集来源 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**索引：** unique `(tenant_id, user_id, agent_id, domain, path, name)`；`(tenant_id, user_id, agent_id, domain)`；`expires_at`
+
+---
+
+### `usage_pricing_catalog`
+
+同步的按模型定价参考，用于计算 token usage 成本。每个 `model_id` 一条记录。（迁移 070）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `model_id` | TEXT | NOT NULL UNIQUE | 模型标识 |
+| `canonical_model_id` | TEXT | | 规范模型别名 |
+| `raw_pricing` / `raw_model` | JSONB | NOT NULL DEFAULT `{}` | 上游原始定价/模型负载 |
+| `input_price`、`output_price`、`cache_read_price`、`cache_write_price`、`reasoning_price`、`request_price`、`image_price`、`web_search_price` | NUMERIC(30,18) | `>= 0` 或 NULL | 单位价格 |
+| `synced_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 上次同步时间 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** `synced_at DESC`
+
+---
+
+### `usage_pricing_overrides`
+
+按租户、按 provider 的价格覆盖，叠加在 catalog 之上。（迁移 070）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `provider_id` | UUID FK → llm_providers | NOT NULL ON DELETE CASCADE | 目标 provider |
+| `provider_type` | TEXT | NOT NULL | Provider 类型 |
+| `model_id` | TEXT | NOT NULL | 目标模型 |
+| `input_price` … `web_search_price` | NUMERIC(30,18) | `>= 0` 或 NULL | 覆盖价格（与 catalog 同一组）|
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique：** `(tenant_id, provider_id, model_id)`
+
+**索引：** `(tenant_id, provider_id, model_id)`（部分索引，`WHERE enabled`）
+
+---
+
+### `usage_cap_policies`
+
+按租户评估的 token/成本上限规则，可选地按 agent、provider、provider 类型或模型在滚动时间窗口上 scope。（迁移 071；`source` 列在迁移 072 添加）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `agent_id` | UUID FK → agents | NULL ON DELETE CASCADE | Agent scope；NULL = 所有 agent |
+| `provider_id` | UUID FK → llm_providers | NULL ON DELETE CASCADE | Provider scope |
+| `provider_type` | TEXT | | Provider 类型 scope |
+| `model_id` | TEXT | | 模型 scope |
+| `window_key` | TEXT | NOT NULL CHECK 取值（`hour`、`day`、`week`、`month`）| 上限窗口 |
+| `max_tokens` | BIGINT | `>= 0` 或 NULL | Token 上限 |
+| `max_cost_micros` | BIGINT | `>= 0` 或 NULL | 成本上限（micro-USD）|
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `priority` | INTEGER | NOT NULL DEFAULT 100 | priority 越小越先评估 |
+| `source` | TEXT | NOT NULL DEFAULT `manual` | `manual` 或 `agent_budget_monthly_cents`（迁移 072）|
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**约束：** `max_tokens` / `max_cost_micros` 至少设置一个。
+
+**索引：** `(tenant_id, enabled, agent_id, provider_id, provider_type, model_id)`；unique `(tenant_id, agent_id)` 部分索引 `WHERE source = 'agent_budget_monthly_cents'`（每个 agent 一条由 budget 派生的 policy，迁移 072）
+
+---
+
+### `usage_cap_counters`
+
+每个 policy 的按窗口累加器（已用 + 已预留）。（迁移 071）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | 父 policy |
+| `window_start` / `window_end` | TIMESTAMPTZ | NOT NULL | 窗口边界 |
+| `used_tokens` / `reserved_tokens` | BIGINT | NOT NULL DEFAULT 0 | Token 使用量 |
+| `used_cost_micros` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | 成本（micro-USD）|
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**PK：** `(policy_id, window_start)`
+
+---
+
+### `usage_cap_reservations`
+
+在请求完成前持有容量的进行中预留，随后与 actual 对账。（迁移 071）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `reservation_key` | TEXT | NOT NULL | 调用方提供的幂等 key |
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | 父 policy |
+| `window_start` | TIMESTAMPTZ | NOT NULL | 预留窗口 |
+| `reserved_tokens` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | 预留量 |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | 已对账 actual |
+| `status` | TEXT | NOT NULL DEFAULT `reserved` | 预留状态 |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique：** `(reservation_key, policy_id)`
+
+**索引：** `reservation_key`
+
+---
+
+### `usage_cap_events`
+
+上限决策（allow/deny）及其原因的审计日志。（迁移 071）
+
+| 列 | 类型 | 约束 | 说明 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `policy_id` | UUID FK → usage_cap_policies | NULL ON DELETE SET NULL | 产生该决策的 policy |
+| `reservation_key` | TEXT | | 相关预留（如有）|
+| `decision` | TEXT | NOT NULL | 决策结果 |
+| `reason` | TEXT | | 可读原因 |
+| `estimated_tokens` / `estimated_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | 预飞估算 |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | 最终 actual |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** `(tenant_id, created_at DESC)`
+
+---
+
 ## 下一步
 
 - [环境变量](/env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->

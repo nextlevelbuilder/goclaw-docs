@@ -2884,6 +2884,8 @@ Ghi vào `MEMORY.md`, `memory.md`, hoặc `memory/*` được định tuyến đ
 
 Tool `credentialed_exec` chạy CLI tool (gh, gcloud, aws, kubectl, terraform) với credentials được tự động inject trực tiếp vào process con dưới dạng biến môi trường — không qua shell, không lộ credentials. Các lớp bảo mật: xác minh đường dẫn (chặn giả mạo `./gh`), chặn toán tử shell (`;`, `|`, `&&`), pattern deny per-binary (ví dụ: chặn `auth\s+`), và output scrubbing.
 
+Một binary secure-CLI đã đăng ký vẫn bị chặn ngay cả khi được gọi qua tool `exec` thông thường: nếu agent chưa được cấp quyền (grant), `exec` sẽ từ chối với thông báo `Binary "<name>" requires a secure CLI grant. Ask admin to grant access to this agent.` thay vì chạy nó với môi trường của host. Lớp gate này còn bóc tách các lớp shell wrapper (`sh -c`, `bash -c`, `env …`) sâu tối đa 3 cấp và fail-closed nếu việc tra cứu grant không khả dụng.
+
 **Kế thừa biến môi trường trên Windows:** Trên Windows, credentialed exec kế thừa các biến môi trường hệ thống cần thiết cho CLI — `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA` và `PROGRAMFILES`. Đây là các biến runtime không chứa bí mật mà hầu hết chương trình Win32 cần để hoạt động. Giá trị credentials vẫn được inject riêng và bị scrub khỏi output.
 
 ### `exec` — Bảo mật Shell
@@ -2907,6 +2909,66 @@ Tool `exec` áp dụng 15 nhóm deny — tất cả đều bật theo mặc đ�
 | `persistence` | `crontab`, ghi vào `.bashrc`/`.profile`/`.zshrc` |
 | `process_control` | `kill -9`, `killall`, `pkill` |
 | `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Timeout thực thi
+
+Tool `exec` trên host sẽ hủy lệnh chạy quá lâu. Timeout là một setting per-tool của builtin tên `timeout_seconds`, lưu dưới settings của tool `exec`:
+
+```json
+{
+  "timeout_seconds": 120
+}
+```
+
+| Thuộc tính | Giá trị |
+|----------|---------|
+| Mặc định / fallback | 60 giây |
+| Tối thiểu | 1 giây |
+| Tối đa | 3600 giây (1 giờ) — giá trị lớn hơn sẽ bị giới hạn (clamp) về mức này |
+| Giá trị không hợp lệ / thiếu | Quay về 60 giây |
+
+Đặt giá trị này từ dashboard (**Config → Tools → Built-in Tools → exec**) hoặc qua API settings của builtin tool. Setting cấp tenant ghi đè setting toàn cục. Khi lệnh vượt quá timeout, process group bị kill (SIGTERM, sau đó SIGKILL sau 3 giây gia hạn) và tool trả về `command timed out after <duration>`.
+
+> Setting này chỉ điều khiển tool `exec` trên host. Nó **khác** với `timeout_seconds` của từng custom tool và với `sandbox_config.timeout_sec` của sandbox — xem [Custom Tools](/custom-tools).
+
+### Command Keyword Allowlist
+
+Khi agent chạy một credentialed CLI (qua `credentialed_exec` / secure-CLI gate), các pattern `deny_args` per-binary sẽ quét giá trị đối số để tìm từ vựng nguy hiểm. Điều này có thể tạo ra false positive: nội dung sản phẩm hoặc bảo mật hợp lệ truyền vào dưới dạng đối số (ví dụ một bài đăng hoặc tin nhắn có chứa từ bị gắn cờ) bị chặn dù đó chỉ là dữ liệu thuần túy, không phải lệnh.
+
+Command keyword allowlist giải quyết việc này mà không làm suy yếu `deny_args`. Cấu hình các rule có phạm vi qua `tools.commandKeywordAllowlist`:
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "social-post-content",
+        "command": "zernio",
+        "subcommands": ["posts:create"],
+        "args": ["--text"],
+        "keywords": ["install", "exec"],
+        "reason": "marketing copy may mention these words as content",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+| Trường | Kiểu | Mô tả |
+|-------|------|-------------|
+| `id` | string | Định danh của rule (dùng trong audit log) |
+| `command` | string | Binary mà rule áp dụng (được chuẩn hóa case và đường dẫn) |
+| `subcommands` | string[] | Subcommand tùy chọn phải khớp (ví dụ `"posts:create"`) |
+| `args` | string[] | Các flag đối số có giá trị được quét (ví dụ `"--text"`) |
+| `argPositions` | int[] | Đối số theo vị trí (0-based, sau subcommand đã khớp) tùy chọn |
+| `keywords` | string[] | Từ vựng được cho phép xuất hiện bên trong giá trị đối số đã khớp |
+| `reason` | string | Ghi chú tự do được lưu trong audit log |
+| `enabled` | bool | Mặc định là bật khi bỏ qua |
+
+Cơ chế: trước khi chạy kiểm tra `deny_args`, từ khóa được allowlist sẽ bị mask (thay bằng placeholder) **chỉ bên trong giá trị đối số đã khớp**. Quá trình quét deny không còn vướng vào từ đó nữa, nhưng các pattern deny theo command-path và việc chặn toán tử shell vẫn hoàn toàn hoạt động — allowlist không bao giờ tắt `deny_args`, nó chỉ miễn trừ từ vựng bị gắn cờ cụ thể bên trong các đối số nội dung cụ thể. Mỗi lần khớp được ghi vào audit log `security.command_keyword_allowlist` với binary, subcommand, đối số, từ khóa, rule ID, và context agent/tenant.
+
+Cấu hình này được **reload lúc runtime** qua bus `TopicConfigChanged` — không cần restart gateway.
 
 ### Cấu hình toàn cục shellDenyGroups (runtime-reloadable)
 
@@ -8185,21 +8247,41 @@ GoClaw trích xuất file đính kèm media từ tin nhắn đang được reply
 
 Trường config `media_max_bytes` áp đặt giới hạn kích thước upload media ra ngoài do agent gửi, theo từng channel. File vượt giới hạn sẽ bị bỏ qua và ghi log. Mỗi channel có giá trị mặc định riêng (ví dụ: 20 MB cho Telegram, 30 MB cho Feishu/Lark). Cấu hình theo từng channel nếu cần.
 
+## Inbound Debounce
+
+Khi người dùng gửi dồn dập nhiều tin nhắn (hoặc upload nhiều file cùng lúc), GoClaw gộp chúng thành **một** tin nhắn đến duy nhất trước khi chạy agent — trả lời một lần thay vì một lần cho mỗi mảnh.
+
+Đặt cửa sổ im lặng bằng `gateway.inbound_debounce_ms` (mili-giây):
+
+```json
+{
+  "gateway": {
+    "inbound_debounce_ms": 1500
+  }
+}
+```
+
+- Tin nhắn được buffer theo khóa `channel:chatID:senderID:agentID`. Bộ đếm thời gian reset mỗi khi có tin mới, nên tin gộp chỉ flush sau khi người gửi im lặng đủ cửa sổ đã cấu hình.
+- `0` **tắt** debounce cho text — mỗi tin được dispatch ngay lập tức.
+- **Ghi đè theo agent:** một agent có thể đặt `inbound_debounce_ms` trong `agent_config` của nó để dùng cửa sổ khác với mặc định của gateway.
+- **`/stop` và `/reset` bỏ qua debouncer** — lệnh điều khiển được xử lý ngay và không bao giờ bị buffer.
+- **Sàn media:** tin nhắn mang media không còn bỏ qua debounce. Cửa sổ hiệu lực là `max(giá trị cấu hình, sàn media)`, nên một lần upload nhiều file luôn gộp thành một tin đến kể cả khi debounce text đặt `0`. (Ghi đè khác 0 của agent được tôn trọng nguyên vẹn — operator đặt `500` thì giữ `500`, không phải sàn.) Tin nhắn do tool/subagent nội bộ tạo ra được miễn khỏi sàn này.
+
 ## So sánh Channel
 
-| Tính năng | Telegram | Discord | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
-|---------|----------|---------|--------|---------|-----------|----------|
-| **Transport** | Long polling | Gateway events | WS/Webhook | Long polling | Internal proto | WS bridge |
-| **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có |
-| **Hỗ trợ nhóm** | Có | Có | Có | Không | Có | Có |
-| **Streaming** | Có (typing) | Có (edit) | Có (card) | Không | Không | Không |
-| **Media** | Photos, voice, files | Files, embeds | Images, files (30MB) | Images (5MB) | -- | JSON |
-| **Reply media** | Có | Có | Có | -- | -- | -- |
-| **Định dạng phong phú** | HTML | Markdown | Cards | Plain text | Plain text | Plain |
-| **Hỗ trợ thread** | Có | -- | -- | -- | -- | -- |
-| **Reaction** | Có | -- | Có | -- | -- | -- |
-| **Pairing** | Có | Có | Có | Có | Có | Có |
-| **Giới hạn tin nhắn** | 4,096 | 2,000 | 4,000 | 2,000 | 2,000 | N/A |
+| Tính năng | Telegram | Bitrix24 | Discord | Larksuite | Zalo OA | Zalo Pers | WhatsApp |
+|---------|----------|----------|---------|--------|---------|-----------|----------|
+| **Transport** | Long polling | Webhook (OAuth) | Gateway events | WS/Webhook | Long polling | Internal proto | WS bridge |
+| **Hỗ trợ DM** | Có | Có | Có | Có | Có | Có | Có |
+| **Hỗ trợ nhóm** | Có | Có | Có | Có | Không | Có | Có |
+| **Streaming** | Có (typing) | Có | Có (edit) | Có (card) | Không | Không | Không |
+| **Media** | Photos, voice, files | Files (20MB) | Files, embeds | Images, files (30MB) | Images (5MB) | -- | JSON |
+| **Reply media** | Có | -- | Có | Có | -- | -- | -- |
+| **Định dạng phong phú** | HTML | Text | Markdown | Cards | Plain text | Plain text | Plain |
+| **Hỗ trợ thread** | Có | -- | -- | -- | -- | -- | -- |
+| **Reaction** | Có | Có | -- | Có | -- | -- | -- |
+| **Pairing** | Có | Có | Có | Có | Có | Có | Có |
+| **Giới hạn tin nhắn** | 4,096 | 4,000 | 2,000 | 4,000 | 2,000 | 2,000 | N/A |
 
 ## Chẩn Đoán Sức Khỏe Kênh
 
@@ -8480,6 +8562,14 @@ Bật cập nhật phản hồi trực tiếp:
 
 Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), reasoning token hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
 
+### Xử lý Media
+
+**Album / gộp nhiều file đính kèm.** Khi người dùng gửi một album (nhiều ảnh hoặc file gom lại trên client), Telegram giao nó dưới dạng N update riêng biệt cùng chung một `MediaGroupID`. GoClaw buffer các thành viên album ở tầng channel (cửa sổ im lặng 500 ms) và tổng hợp chúng thành **một** tin nhắn đến, nên agent trả lời một lần thay vì một lần cho mỗi file. Khóa buffer là `(chatID, MediaGroupID)`; người gửi được ghim từ thành viên đầu tiên, và một thành viên đến với người gửi không khớp sẽ bị loại bỏ như một biện pháp phòng vệ.
+
+**Giới hạn upload ra ngoài.** Media gửi ra được kiểm tra với ngưỡng upload trước khi gửi — file vượt giới hạn bị từ chối với lỗi rõ ràng "outbound media too large" thay vì hỏng giữa chừng. Ngưỡng là 50 MB trên Bot API chính thức và 200 MB khi cấu hình một Bot API server cục bộ (`api_server`) (hoặc cao hơn nếu `media_max_bytes` được nâng trên mức đó).
+
+**Giữ nguyên đường dẫn archive.** File đến giữ nguyên phần mở rộng gốc khi được lưu (ví dụ một file upload `codex.zip` vẫn là `.zip` thay vì bị đổi thành tên chung), nên các skill và công cụ xử lý tài liệu có thể nhận diện và giải nén archive đúng cách ở phía sau.
+
 ### Reaction
 
 Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
@@ -8576,10 +8666,233 @@ Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` 
 
 ## Tiếp theo
 
-- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
+- [Tổng quan](/channels-overview) — Khái niệm, chính sách channel và [inbound debounce](/channels-overview#inbound-debounce)
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Lịch sử cuộc trò chuyện
+
+
+
+---
+
+> Bản dịch từ [English version](/channel-bitrix24)
+
+# Channel Bitrix24
+
+Tích hợp Bitrix24 qua API **imbot** (chatbot). GoClaw đăng ký một bot trên portal Bitrix24, nhận sự kiện chat qua webhook, và trả lời với tư cách là bot đó. Một gateway GoClaw có thể phục vụ nhiều bot trên nhiều portal, và nhiều bot có thể dùng chung một portal (chúng chia sẻ OAuth token và vòng lặp refresh).
+
+Khác với các channel dùng token (Telegram, Slack), Bitrix24 dùng **luồng cài đặt portal qua OAuth**: admin cấp quyền cho app GoClaw trên portal của họ một lần, GoClaw lưu và tự động refresh token, rồi đăng ký bot khi cần.
+
+## Cách hoạt động
+
+```mermaid
+flowchart LR
+    Admin["Admin portal"] -->|"truy cập /bitrix24/install"| Install["Install handler<br/>OAuth exchange"]
+    Install -->|"lưu token"| Portal["bản ghi bitrix_portals<br/>(đã mã hóa)"]
+    Channel["channel bitrix24"] -->|"imbot.register"| BX["Portal Bitrix24"]
+    BX -->|"POST /bitrix24/events"| Webhook["Webhook router"]
+    Webhook -->|"dedup + dispatch"| Agent["Agent loop"]
+    Agent -->|"imbot.message.add"| BX
+```
+
+1. **Tạo bản ghi portal** với `client_id` / `client_secret` của app (qua CLI hoặc dashboard).
+2. **Admin cấp quyền** bằng cách truy cập install URL — GoClaw đổi code lấy token và lưu lại dạng mã hóa.
+3. **Cấu hình channel instance** trỏ tới portal và đặt tên bot.
+4. Khi khởi động, channel gọi `imbot.register` (idempotent) và gắn bot ID trả về vào webhook router.
+5. Sự kiện chat đến `/bitrix24/events`; GoClaw khử trùng lặp, dispatch tới agent loop, và trả lời với tư cách bot.
+
+## Thiết lập
+
+### 1. Tạo application Bitrix24
+
+Trong portal Bitrix24 của bạn, tạo một **Local application** hoặc một **Marketplace (OAuth2) application**. Bạn cần:
+
+- `client_id` (application ID)
+- `client_secret` (application key)
+- OAuth scope bao gồm `imbot` (chatbot) và `user` (để GoClaw lấy được tên hiển thị của người gửi)
+
+Đặt URL handler / installer của application thành public URL của GoClaw:
+
+- **Install / installer URL:** `https://<public-url-của-bạn>/bitrix24/install`
+- **Events:** GoClaw tự động đăng ký (`https://<public-url-của-bạn>/bitrix24/events`)
+
+> **Bắt buộc có public URL.** Bitrix24 cần URL tuyệt đối, truy cập được từ internet cho các event handler mà nó gọi. GoClaw tự động ghi lại public URL từ install callback. Nếu gateway của bạn nằm sau tunnel hoặc ingress hay đổi, xem [Xử lý public URL](#xu-ly-public-url).
+
+### 2. Tạo bản ghi portal
+
+Một bản ghi `bitrix_portals` phải tồn tại trước khi admin cấp quyền cho app. Tạo qua CLI:
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <tenant-uuid> \
+  --name acme \
+  --domain acme.bitrix24.com \
+  --client-id <client-id-của-bạn> \
+  --client-secret <client-secret-của-bạn>
+```
+
+`--name` (ví dụ `acme`) là khóa portal mà config channel sẽ tham chiếu. `--domain` là host trần — không có scheme, không có dấu `/` cuối.
+
+> Đặt `GOCLAW_ENCRYPTION_KEY` trước khi chạy lệnh này. Credential và token được lưu mã hóa AES-256-GCM; nếu thiếu key chúng sẽ lưu dạng plaintext (kèm cảnh báo).
+
+Bạn cũng có thể tạo portal từ dashboard, nó sẽ trả về install URL trực tiếp.
+
+### 3. Cấp quyền cho portal
+
+Hướng dẫn admin portal truy cập install URL do lệnh create in ra:
+
+```
+https://<public-url-của-bạn>/bitrix24/install?state=<tenant-uuid>:acme
+```
+
+Admin cấp quyền cho app bên trong Bitrix24. GoClaw đổi code lấy token, ghi lại public URL, và hiển thị một trang thành công nhỏ tự đóng. Portal giờ đã ở trạng thái **installed**.
+
+Cả hai luồng cài đặt đều được hỗ trợ tự động:
+
+- **Marketplace (OAuth2):** `code` được đổi lấy token.
+- **Local application:** Bitrix24 POST token trực tiếp (`AUTH_ID` / `REFRESH_ID`); không có bước exchange.
+
+### 4. Cấu hình channel instance
+
+Tạo một channel instance `bitrix24` với config trỏ tới portal và đặt tên bot:
+
+```json
+{
+  "portal": "acme",
+  "bot_code": "support-bot",
+  "bot_name": "GoClaw Assistant",
+  "bot_type": "B",
+  "dm_policy": "pairing",
+  "group_policy": "open"
+}
+```
+
+Khi khởi động, channel đăng ký bot (idempotent — khởi động lại không bao giờ tạo bot trùng) và bắt đầu nhận sự kiện. Nếu portal chưa được cài đặt, channel báo trạng thái sức khỏe `failed` với thông báo "Portal not installed — visit /bitrix24/install".
+
+## Cấu hình
+
+Các trường config của channel instance:
+
+| Khóa | Kiểu | Mặc định | Mô tả |
+|-----|------|---------|-------------|
+| `portal` | string | bắt buộc | Tên portal (khớp với `bitrix-portal create --name`) |
+| `bot_code` | string | bắt buộc | Khóa bot ổn định truyền cho `imbot.register`. Khởi động lại dùng lại cùng code. |
+| `bot_name` | string | bắt buộc | Tên hiển thị của bot trên portal |
+| `bot_avatar` | string | -- | URL ảnh; được tải và mã hóa base64 khi khởi động (chỉ http/https, ≤256 KB) |
+| `bot_type` | string | `"B"` | `"B"` = chatbot nội bộ chuẩn; `"O"` = bot Open Channel (hướng khách hàng) |
+| `dm_policy` | string | `"pairing"` | `pairing`, `allowlist`, `open`, `disabled` |
+| `group_policy` | string | `"open"` | `open`, `allowlist`, `disabled` |
+| `allow_from` | list | -- | Allowlist người gửi DM |
+| `group_allow_from` | list | -- | Allowlist người gửi trong nhóm |
+| `require_mention` | bool | true | Yêu cầu @mention trong chat nhóm |
+| `text_chunk_limit` | int | 4000 | Số ký tự tối đa mỗi đoạn gửi ra |
+| `media_max_mb` | int | 20 | Kích thước media tối đa (MB) |
+| `streaming` | bool | true | Phản hồi dạng streaming |
+| `reaction_level` | string | `"minimal"` | `off`, `minimal`, `full` |
+| `history_limit` | int | -- | Số tin nhắn nhóm đang chờ giữ làm ngữ cảnh |
+| `block_reply` | bool | -- | Ghi đè `block_reply` của gateway (nil = kế thừa) |
+| `public_url` | string | -- | Ghi đè public URL theo instance (legacy; nên dùng URL portal tự ghi lại) |
+| `mcp_server_name` | string | -- | Tên MCP server cho việc cấp credential theo từng người dùng (xem [Tích hợp MCP](#tich-hop-mcp)) |
+| `mcp_base_url` | string | -- | Base URL của MCP server; phải đặt cùng với `mcp_server_name` |
+
+### Loại bot
+
+| Loại | Đối tượng | Ghi chú |
+|------|----------|-------|
+| `B` | Nhân viên nội bộ | Luôn thấy DM; chỉ thấy tin nhắn nhóm khi được @mention. Pair được với người dùng và nhận được credential MCP theo từng người. Khuyến nghị: `dm_policy: pairing`, `group_policy: open`. |
+| `O` | Khách hàng bên ngoài (widget Open Channel) | Sau khi đăng ký, admin phải gắn bot vào Open Channel queue trong giao diện Bitrix24. Khuyến nghị: `dm_policy: open`. Việc cấp MCP theo từng người bị bỏ qua (khách hàng là tạm thời). |
+
+> GoClaw chỉ chấp nhận `B` hoặc `O`. Loại không xác định bị từ chối khi khởi động để tránh tạo bot âm thầm không nhận được sự kiện nào.
+
+## Xử lý public URL
+
+`imbot.register` yêu cầu URL tuyệt đối cho các event handler. GoClaw xác định public URL theo thứ tự:
+
+1. **URL portal tự ghi lại** — lấy từ chính request `/bitrix24/install` mà Bitrix24 gửi tới. Đây là nguồn được ưu tiên vì đã chứng minh là truy cập được.
+2. **`public_url` trong config channel** — phương án dự phòng legacy, chỉ dùng khi (1) trống (ví dụ portal được cài trên phiên bản GoClaw cũ).
+
+Nếu public URL thay đổi (tunnel đổi, deploy sang host mới), chạy lại luồng install để ghi lại, hoặc backfill:
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <tenant-uuid> \
+  --name acme \
+  --url https://goclaw.example.com
+```
+
+Để đẩy URL đã thay đổi vào event handler của Bitrix24 mà không phải tạo lại bot, khởi động lại channel với:
+
+```bash
+BITRIX24_FORCE_REREGISTER=1 goclaw gateway
+```
+
+Lệnh này bỏ qua state bot đã cache và chạy lại `imbot.register` với URL và config hiện tại.
+
+## Tính năng
+
+### Làm giàu thông tin liên hệ
+
+Sự kiện webhook Bitrix24 không mang theo tên hiển thị của người gửi. Khi gặp người dùng lần đầu, GoClaw gọi `user.get` để lấy tên thân thiện (ví dụ `Name Last_Name`, dự phòng về login hoặc email) và cache theo từng channel (1 giờ với trường hợp thành công, 5 phút với trường hợp thất bại). Việc này cần OAuth scope `user` — nếu thiếu, tên sẽ để trống và một log debug giải thích lý do. Làm giàu là best-effort: thất bại không bao giờ chặn việc xử lý tin nhắn.
+
+### Khử trùng lặp tin nhắn đến
+
+Bitrix24 gửi lại sự kiện khi nhận bất kỳ phản hồi nào không phải 2xx (và có thể bắn 3–5 lần liên tiếp). GoClaw khử trùng lặp sự kiện đến theo `domain:event_type:message_id` bằng một cache LRU có giới hạn, nên lần gửi lại trả về `{"duplicate":true}` (HTTP 200) và không bao giờ kích hoạt lần chạy agent thứ hai — điều này quan trọng vì Bitrix24 tính phí theo từng bot và lần chạy trùng sẽ tốn gấp đôi token.
+
+### Refresh token
+
+OAuth access token (TTL 1 giờ) được tự động refresh trong nền, ngay trước khi hết hạn, với backoff lũy thừa khi thất bại. Các request đồng thời gộp lại để chỉ có một lần refresh chạy tại một thời điểm. Nếu refresh token không còn hợp lệ, portal cần được cài đặt lại.
+
+### Inbound debounce
+
+Giống các channel khác, Bitrix24 tuân theo cửa sổ inbound debounce toàn gateway, gộp các tin nhắn dồn dập từ cùng một người gửi thành một lần chạy agent. Xem [Inbound Debounce](/channels-overview#inbound-debounce) ở trang tổng quan.
+
+## Tích hợp MCP
+
+Channel Bitrix24 có thể cấp **credential MCP theo từng người dùng** một cách lười (lazy) để công cụ agent của mỗi người thao tác trên Bitrix24 với tư cách người đó. Tính năng này là tùy chọn và theo từng bước — cài channel trước, thêm MCP sau.
+
+Đặt cả hai trường để bật:
+
+```json
+{
+  "portal": "acme",
+  "bot_code": "support-bot",
+  "bot_name": "GoClaw Assistant",
+  "mcp_server_name": "bitrix-mcp",
+  "mcp_base_url": "https://mcp.example.com"
+}
+```
+
+Cách hoạt động:
+
+1. Khi người dùng gửi tin nhắn đầu tiên, channel kiểm tra credential MCP đã có hay chưa.
+2. Nếu chưa có (hoặc sắp hết hạn), nó POST tới `{mcp_base_url}/api/auto-onboard`, chuyển tiếp OAuth token của người dùng đó.
+3. MCP server xác thực lệnh gọi bằng cách kiểm tra access token với Bitrix24 `profile` (không cần admin secret dùng chung), rồi trả về một API key riêng cho người dùng đó.
+4. GoClaw lưu key; các lệnh gọi công cụ agent phía sau dùng nó một cách trong suốt.
+
+Lưu ý:
+
+- `mcp_server_name` và `mcp_base_url` phải đặt cùng nhau, hoặc không đặt cả hai (cấu hình nửa vời sẽ lỗi khi khởi động). Bản ghi MCP server có tên đó cũng phải tồn tại.
+- Việc cấp credential là **best-effort**: nếu bước nào thất bại, người dùng vẫn nhận được phản hồi (không có công cụ MCP), và một thông báo một lần được gửi để họ biết cần liên hệ admin.
+- Bỏ qua hoàn toàn với bot Open Channel (`bot_type: "O"`) — khách hàng tạm thời không có ánh xạ người dùng.
+
+## Khắc phục sự cố
+
+| Vấn đề | Giải pháp |
+|-------|----------|
+| Channel `failed`: "Portal not installed" | Admin phải truy cập `/bitrix24/install` để cấp quyền cho app trước. |
+| `imbot.register` lỗi: public_url chưa đặt | Portal chưa có public URL được ghi lại. Chạy lại install, hoặc `goclaw bitrix-portal set-public-url`. |
+| Bot đã đăng ký nhưng không nhận được sự kiện chat | Quá trình install chưa hoàn tất — Bitrix24 chặn sự kiện cho tới khi `BX24.installFinish()` chạy. Cài lại qua `/bitrix24/install` để trang thành công báo hoàn tất. |
+| Tên liên hệ để trống | Thiếu OAuth scope `user`. Thêm scope và cài lại; tên sẽ xuất hiện trong vòng 5 phút. |
+| Bot Open Channel im lặng với khách hàng | `bot_type: "O"` cần `dm_policy: "open"`, và admin phải gắn bot vào một Open Channel queue trong giao diện Bitrix24. |
+| URL event handler cũ sau khi redeploy | Đặt `BITRIX24_FORCE_REREGISTER=1` và khởi động lại để đẩy URL mới vào Bitrix24. |
+| Muốn xem sự kiện thô | Đặt `BITRIX24_LOG_RAW_EVENT=1` khi khởi động tiến trình (credential được che). Tắt trong production — nó ghi log nội dung tin nhắn. |
+
+## Tiếp theo
+
+- [Tổng quan](/channels-overview) — Khái niệm channel, chính sách, và inbound debounce
+- [Telegram](/channel-telegram) — Thiết lập Telegram bot
+- [Slack](/channel-slack) — Tích hợp Slack Socket Mode
+- [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
 
 
@@ -9645,6 +9958,8 @@ Sau khi bot trả lời trong thread, bot tự động trả lời các tin nh�
 ### Message Debouncing
 
 Các tin nhắn nhanh từ cùng thread được gộp lại thành một lần gửi. Delay mặc định: 300ms (cấu hình qua `debounce_delay`). Các batch đang chờ được flush khi shutdown.
+
+Ngoài việc gộp ở tầng channel này, [Inbound Debounce](/channels-overview#inbound-debounce) toàn gateway cũng áp dụng — nó gộp các tin nhắn dồn dập (và việc upload nhiều file) từ cùng một người gửi trước khi agent chạy.
 
 ### Định dạng tin nhắn
 
@@ -10751,6 +11066,8 @@ Request thất bại bao gồm chi tiết lỗi:
 # Browser Pairing
 
 Luồng xác thực bảo mật cho client WebSocket tuỳ chỉnh sử dụng mã pairing 8 ký tự. Lý tưởng cho web app riêng tư và desktop client cần xác minh danh tính thiết bị.
+
+> **Browser pairing vs. cookie sync.** Browser **pairing** xác thực một *client* (trình duyệt hoặc desktop app) để nó có thể giao tiếp với gateway. **Selected cookie sync** sao chép *cookie đăng nhập của site* vào trình duyệt phía server của agent để agent có thể hoạt động như một phiên đã đăng nhập. Dùng pairing để cho một thiết bị kết nối; dùng cookie sync để cấp cho agent quyền truy cập một site bạn đã đăng nhập. Xem [Browser Automation → Selected Cookie Sync](/browser-automation#selected-cookie-sync).
 
 ## Luồng Pairing
 
@@ -12382,6 +12699,8 @@ curl -X POST http://localhost:8080/v1/tools/custom \
 | `agent_id` | UUID | null | Giới hạn cho một agent; bỏ trống để dùng global |
 | `enabled` | bool | true | Tắt mà không cần xóa |
 
+> **Ba loại timeout khác nhau — đừng nhầm lẫn.** `timeout_seconds` per-custom-tool này (mặc định 60) chỉ áp dụng cho lệnh của riêng custom tool đó. Nó tách biệt với `timeout_seconds` của chính builtin tool `exec` trên host (cũng mặc định 60, tối đa 3600 — xem [Tools Overview → Timeout thực thi](/tools-overview)) và với `sandbox_config.timeout_sec` của sandbox (cấp agent, mặc định 300 — xem [Sandbox](/sandbox)). Một custom tool chạy qua sandbox vẫn bị giới hạn bởi timeout của sandbox.
+
 ### Command template
 
 Dùng placeholder `{{.paramName}}`. GoClaw thay thế chúng bằng giá trị đã được shell-escape qua cơ chế thay thế chuỗi đơn giản — không dùng engine `text/template` của Go, vì vậy các hàm template và pipeline không được hỗ trợ. Mỗi giá trị được thay thế đều được bọc trong single-quote với các single-quote nhúng trong cũng được escape, đảm bảo ngay cả LLM độc hại cũng không thể thoát ra ngoài argument.
@@ -12860,6 +13179,47 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
   > ~/.goclaw/skills/my-new-skill/SKILL.md
 ```
 
+## Kích hoạt bằng Slash Command
+
+Thay vì chờ agent tự khám phá một skill qua `skill_search`, bạn có thể kích hoạt nó một cách tường minh bằng cách bắt đầu tin nhắn chat với một slash command. Tính năng này được bật mặc định.
+
+```
+/code-reviewer review this PR
+/use sql-style format these queries
+/list-skills
+/help code-reviewer
+```
+
+**Các dạng được hỗ trợ:**
+
+| Lệnh | Tác dụng |
+|---|---|
+| `/<skill-slug> <yêu cầu của bạn>` | Kích hoạt skill theo slug (hoặc tên hiển thị) và xem phần còn lại của tin nhắn là input cho skill |
+| `/use <skill> <yêu cầu>` | Giống như trên, dạng động từ tường minh (`/activate` cũng dùng được) |
+| `/list-skills` | Yêu cầu agent liệt kê tất cả skill có sẵn |
+| `/help <skill>` | Yêu cầu agent giải thích một skill và cách dùng nó |
+
+Khi một skill được kích hoạt, GoClaw nạp `SKILL.md` của nó vào lượt hiện tại và giới hạn agent trong phạm vi skill đó cho yêu cầu này.
+
+**Quy tắc khớp:**
+
+- **Khớp chính xác** được ưu tiên trước — slug hoặc tên hiển thị (không phân biệt hoa thường) được khớp trực tiếp. `/code-reviewer` khớp với skill `code-reviewer`.
+- **Khớp một phần (prefix)** là tùy chọn (mặc định tắt). Khi được bật, `/code` khớp với `code-reviewer` nếu đó là kết quả khớp prefix duy nhất.
+- **Bảo vệ chống nhập nhằng** — nếu hai skill có độ khớp ngang nhau (khớp cùng độ dài), lệnh được coi là *không khớp* thay vì đoán bừa.
+
+**Không khớp:** nếu không tìm thấy skill được yêu cầu, GoClaw chạy tìm kiếm tương đồng mờ (edit-distance, tối đa 3 gợi ý) và yêu cầu agent báo cho bạn biết skill không tìm thấy đồng thời gợi ý các skill gần nhất có sẵn. Hành vi gợi ý này được bật mặc định. Nếu không có skill nào tương tự, tin nhắn được xử lý như một prompt thông thường.
+
+**Cấu hình** (tất cả đều tùy chọn):
+
+| Khóa config | Env / system config | Mặc định | Tác dụng |
+|---|---|---|---|
+| `skills.slash_commands.enabled` | `skills.slash_commands.enabled` | `true` | Công tắc tổng |
+| `skills.slash_commands.prefix` | `skills.slash_commands.prefix` | `/` | Ký tự prefix kích hoạt (một ký tự) |
+| `skills.slash_commands.partial_matching` | `skills.slash_commands.partial_matching` | `false` | Cho phép khớp prefix |
+| `skills.slash_commands.suggest_not_found` | `skills.slash_commands.suggest_not_found` | `true` | Gợi ý lựa chọn thay thế khi không khớp |
+
+> Những tin nhắn trông giống đường dẫn file (chứa `/`, `\`, hoặc `.` trong token đầu tiên, ví dụ `/etc/hosts`) **không** được coi là slash command và được giữ nguyên không đổi.
+
 ## Upload qua Dashboard
 
 Vào **Skills → Upload** và kéo thả file ZIP. ZIP có thể chứa **một skill** hoặc **nhiều skill** trong một archive duy nhất:
@@ -12895,6 +13255,32 @@ Skills được upload lưu trong cấu trúc thư mục có version dưới th�
 Metadata (tên, mô tả, visibility, grants) lưu trong PostgreSQL; nội dung file lưu trên đĩa. GoClaw luôn phục vụ version có số cao nhất. Các version cũ được giữ để rollback.
 
 Skills được upload qua Dashboard mặc định có visibility **internal** — có thể truy cập ngay khi bạn cấp quyền cho agent hoặc user.
+
+### Giới hạn Kích thước Upload
+
+Việc upload ZIP skill (qua Dashboard và `POST /v1/skills/import`) bị giới hạn bởi một mức kích thước cấu hình được. Mặc định là **20 MB**, và giá trị hiệu lực luôn được kẹp trong khoảng **1–500 MB**.
+
+Giới hạn được giải quyết theo thứ tự ưu tiên sau (cao nhất trước):
+
+1. **Override theo tenant** — khóa system config `skills.max_upload_size_mb` (đặt riêng cho từng tenant)
+2. **Frontmatter trong SKILL.md** — trường `max_upload_size_mb` trong frontmatter của skill
+3. **Mặc định của gateway** — biến môi trường `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` hoặc `skills.max_upload_size_mb` trong file config (mặc định về 20 MB)
+
+```yaml
+# Nâng giới hạn cho một skill qua frontmatter SKILL.md của nó
+---
+name: large-skill
+description: Ships large reference assets.
+max_upload_size_mb: 100
+---
+```
+
+```bash
+# Đặt mặc định toàn gateway qua biến môi trường
+export GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB=128
+```
+
+Các upload vượt quá giới hạn đã giải quyết sẽ bị từ chối với lỗi kiểu `skill ZIP size 42.0 MB exceeds 20 MB limit`.
 
 ## Import qua API
 
@@ -12979,13 +13365,13 @@ Package cài lúc runtime tồn tại qua các tool call trong cùng vòng đờ
 
 ### Agent Có thể / Không thể Làm Gì
 
-Agent **có thể**: chạy script Python/Node, cài package qua `pip3 install` hoặc `npm install -g`, truy cập file trong `/app/workspace/` bao gồm `.media/`.
+Agent **có thể**: chạy script Python/Node, cài package qua `pip3 install` hoặc `npm install -g`, truy cập file trong `/app/workspace/` — bao gồm `.uploads/` cho các file mà user hiện tại upload và `.media/` cho các tham chiếu media cũ.
 
 Agent **không thể**: ghi vào system path, thực thi binary từ `/tmp`, chạy shell pattern bị chặn.
 
 ## Skills Tích hợp Sẵn (Bundled Skills)
 
-GoClaw đóng gói năm core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
+GoClaw đóng gói sáu core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
 
 | Skill | Mục đích |
 |---|---|
@@ -12994,6 +13380,7 @@ GoClaw đóng gói năm core skill bên trong Docker image tại `/app/bundled-s
 | `docx` | Đọc, tạo, chỉnh sửa Word document |
 | `pptx` | Đọc, tạo, chỉnh sửa presentation |
 | `skill-creator` | Tạo skill mới |
+| `workspace-organizing` | Giữ workspace của agent gọn gàng và dễ tìm — áp dụng quy ước thư mục theo mục đích và chạy khám phá memory/Vault/knowledge-graph trước khi ghi file để tránh trùng lặp |
 
 Bundled skill được seed vào PostgreSQL mỗi lần gateway khởi động (theo dõi hash, không re-import nếu không thay đổi). Chúng được đánh dấu `is_system = true` và `visibility = 'public'`.
 
@@ -15466,6 +15853,8 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 |--------|------|-------------|
 | `GET` | `/v1/agents/{agentID}/vault/documents` | Liệt kê tài liệu (scope, doc_type, limit, offset) |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}` | Lấy một tài liệu |
+| `POST` | `/v1/agents/{agentID}/vault/documents` | Tạo tài liệu (body `content` tùy chọn — xem bên dưới) |
+| `PUT` | `/v1/agents/{agentID}/vault/documents/{docID}` | Cập nhật tài liệu (body `content` tùy chọn — xem bên dưới) |
 | `POST` | `/v1/agents/{agentID}/vault/search` | Tìm kiếm thống nhất |
 | `GET` | `/v1/agents/{agentID}/vault/documents/{docID}/links` | Outlink + backlink |
 
@@ -15474,8 +15863,35 @@ Tất cả endpoint yêu cầu `Authorization: Bearer <token>`.
 | Phương thức | Đường dẫn | Mô tả |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | Liệt kê qua tất cả agent của tenant (lọc theo `agent_id`) |
+| `POST` | `/v1/vault/documents` | Tạo tài liệu (body `content` tùy chọn — xem bên dưới) |
+| `PUT` | `/v1/vault/documents/{docID}` | Cập nhật tài liệu (body `content` tùy chọn — xem bên dưới) |
 | `GET` | `/v1/vault/tree` | Xem cấu trúc cây của vault |
 | `GET` | `/v1/vault/graph` | Trực quan hóa đồ thị liên tenant (giới hạn 2000 node, layout FA2) |
+
+### Ghi Nội Dung Khi Tạo/Cập Nhật
+
+`POST`/`PUT` chấp nhận trường `content` tùy chọn. Khi được cung cấp, các byte được ghi vào `<tenant-workspace>/<path>`, hash SHA-256 được lưu trên dòng dữ liệu, và một sự kiện enrichment được phát ra để tính summary, embedding và link — cùng đường dẫn mã mà endpoint multipart `/v1/vault/upload` sử dụng.
+
+| Giá trị `content` | Hành vi |
+|-------------------|---------|
+| bỏ qua trường | Stub chỉ metadata; không ghi file, không có sự kiện enrichment |
+| có và không rỗng | Ghi byte ra đĩa; lưu hash; enrichment chạy |
+| có và rỗng (`""`) | Ghi file 0 byte; enrichment vẫn chạy |
+
+Đường dẫn phải dùng phần mở rộng được cho phép (cùng whitelist với `/v1/vault/upload`). Việc ghi được giới hạn bên trong workspace của tenant: kiểm tra `../` theo từ vựng, phân giải tổ tiên symlink, và một thao tác mở `O_NOFOLLOW` nguyên tử từ chối mọi nỗ lực đi theo symlink ra ngoài workspace.
+
+```bash
+POST /v1/vault/documents
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "path": "notes/auth.md",
+  "title": "Authentication Flow",
+  "doc_type": "note",
+  "content": "# Authentication Flow\n\nSee [[architecture/components]] for details."
+}
+```
 
 ### Endpoint Điều Khiển Enrichment
 
@@ -15780,6 +16196,91 @@ Snapshot trả về accessibility tree. Dùng `interactive: true` để chỉ th
 | `interactive` | boolean | false | Chỉ hiển thị các phần tử tương tác |
 | `compact` | boolean | false | Xóa các node cấu trúc rỗng |
 | `depth` | number | không giới hạn | Độ sâu cây tối đa |
+
+---
+
+## Selected Cookie Sync
+
+Phiên trình duyệt phía server khởi động mà không có trạng thái đăng nhập nào. **Selected cookie sync** cho phép người dùng chọn các cookie cụ thể từ một site mà họ đã đăng nhập và sao chép chúng vào GoClaw, để trình duyệt của agent có thể hoạt động như phiên đã đăng nhập đó — mà không cần chia sẻ mật khẩu.
+
+Một extension Chrome nhỏ (`chrome-selected-cookie-sync`) thực hiện việc chọn. **Không có sync nền tự động**: người dùng mở extension trên tab đang hoạt động, tick chính xác các cookie muốn chia sẻ, rồi bấm **Sync**. GoClaw lưu giá trị đã mã hoá và chỉ replay chúng vào trình duyệt của agent cho các domain và path khớp.
+
+```mermaid
+flowchart LR
+    USER["User trên site đã đăng nhập"] --> EXT["chrome-selected-cookie-sync\nextension"]
+    EXT -->|"POST /v1/browser/cookies/sync"| GW["GoClaw gateway"]
+    GW -->|"mã hoá AES-256-GCM"| DB[("bảng\nbrowser_cookies")]
+    DB -->|"giải mã + khớp domain/path"| AGENT["Phiên trình duyệt agent"]
+```
+
+### Endpoints
+
+Cả ba endpoint đều yêu cầu auth **operator** (gateway token, API key, hoặc paired-browser auth).
+
+| Method | Path | Mục đích |
+|--------|------|----------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert các cookie đã chọn cho một agent |
+| `GET` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | Liệt kê **metadata** cookie đã sync (không bao giờ trả về giá trị) |
+| `DELETE` | `/v1/browser/cookies?agent_id=&domain=&name=&path=` | Thu hồi cookie đã sync |
+
+Client chỉ chọn được `agent_id`. **Tenant và user được lấy từ auth context**, không phải từ request body — một client không thể giả mạo cookie của user khác. Sync bị từ chối khi auth context không có user, hoặc khi không có `agent_id`.
+
+**Request body cho sync:**
+
+```json
+{
+  "agent_id": "default",
+  "source": "chrome-selected-cookie-sync",
+  "cookies": [
+    {
+      "domain": "example.com",
+      "name": "session",
+      "path": "/",
+      "value": "REDACTED",
+      "secure": true,
+      "httpOnly": true,
+      "sameSite": "lax",
+      "expirationDate": 1789999999
+    }
+  ]
+}
+```
+
+**Response:** `{ "synced": 1 }`. Giới hạn: tối đa 200 cookie mỗi request, 16 KB cho mỗi giá trị cookie, 1 MB tổng body.
+
+Response `GET` chỉ trả về metadata — `domain`, `name`, `path`, `secure`, `httpOnly`, `sameSite`, `expiresAt`, `source`, `updatedAt`. Giá trị cookie **không bao giờ được trả về**.
+
+### Phạm vi (scope) và tính duy nhất
+
+Mỗi cookie được lưu được định danh bằng `(tenant_id, user_id, agent_id, domain, path, name)`. Sync lại cùng một cookie sẽ cập nhật row hiện có (upsert). Scope này là thứ ngăn cookie của một user lọt sang phiên trình duyệt của user khác hoặc agent khác.
+
+### Bảo mật
+
+- **Mã hoá khi lưu**: giá trị cookie được mã hoá bằng AES-256-GCM trước khi ghi vào bảng `browser_cookies`. Yêu cầu biến môi trường `GOCLAW_ENCRYPTION_KEY` — **sync và list fail closed (HTTP 503) khi biến này chưa được đặt**, nên cookie không bao giờ được lưu dạng plaintext.
+- **Giá trị chỉ ghi**: endpoint list và audit log chỉ trả về metadata. Giá trị cookie không bao giờ xuất hiện trong response API hay log.
+- **Replay theo scope**: trình duyệt agent chỉ nhận một cookie khi host và path của URL được yêu cầu khớp với domain/path của cookie đã lưu, cookie chưa hết hạn, và scope tenant/user/agent khớp.
+- **Chọn tường minh**: extension chỉ đọc cookie sau khi người dùng cấp host permission cho site đang hoạt động, và chỉ gửi các cookie mà người dùng đã tick.
+- **Thu hồi**: xoá từ extension hoặc gọi `DELETE /v1/browser/cookies?agent_id=<agent>&domain=<domain>` để xoá cookie đã sync. Bỏ qua `domain` sẽ xoá tất cả cookie của agent đó.
+
+### Agent dùng cookie đã sync như thế nào
+
+Khi trình duyệt của agent điều hướng đến một URL `http(s)`, cookie provider của GoClaw tra cứu cookie cho scope trình duyệt hiện tại (`tenant_id` / `user_id` / `agent_id`), giải mã chúng, và chỉ inject những cookie có domain và path khớp với URL đích (và chưa hết hạn). Các scheme không phải HTTP không nhận cookie. Agent không bao giờ thấy giá trị thô — chúng được áp dụng trực tiếp vào phiên Chrome qua CDP.
+
+### Cài đặt extension
+
+Extension nằm trong repo GoClaw tại `extensions/chrome-selected-cookie-sync/`.
+
+1. Mở `chrome://extensions`, bật **Developer mode**, bấm **Load unpacked**, và chọn thư mục `extensions/chrome-selected-cookie-sync/`.
+2. Mở một tab trên site bạn đã đăng nhập, rồi bấm icon extension.
+3. Điền vào popup:
+   - **Gateway URL** — ví dụ `http://localhost:18790`
+   - **Token** — một operator token (gửi dưới dạng `Authorization: Bearer <token>`)
+   - **User ID** — gửi dưới dạng header `X-GoClaw-User-Id`
+   - **Agent ID** — ví dụ `default`
+4. Bấm **Grant access** để cấp host permission cho site hiện tại, rồi **Refresh** để liệt kê cookie của site.
+5. Tick các cookie muốn chia sẻ (hoặc **Select all**), rồi bấm **Sync**. Popup xác nhận `Synced N cookies.`
+
+Cài đặt được lưu trong `chrome.storage.local`. Extension yêu cầu gateway-origin permission trước khi gửi, và xin active-tab host permission trước khi đọc cookie.
 
 ---
 
@@ -17028,6 +17529,126 @@ Response `400` khi tạo/cập nhật bao gồm tên key bị từ chối trong 
   "rejected_keys": "LD_PRELOAD,PATH"
 }
 ```
+
+## Typed Credential Adapters
+
+Các phần trên mô tả **mô hình paste env cũ** — bạn paste các biến môi trường tùy ý và GoClaw inject chúng nguyên văn vào tiến trình con. Cách này hoạt động với các tool đọc auth từ một env var ổn định (`GH_TOKEN`, `AWS_ACCESS_KEY_ID`, …), nhưng thất bại với các tool như `git` vốn đọc credential từ file config, credential helper, hoặc URL theo từng remote — paste một PAT vào `GIT_TOKEN` chẳng có tác dụng gì.
+
+**Typed credential adapters** giải quyết điều này. Thay vì paste env var thô, bạn chọn một *loại* credential, và GoClaw định tuyến credential qua một adapter phía server biết cách inject nó đúng và an toàn cho từng tool cụ thể.
+
+### Các loại credential
+
+Mỗi dòng user credential mang một `credential_type` (migration `000073`):
+
+| `credential_type` | Ý nghĩa |
+|-------------------|---------|
+| `NULL` / `env` | Passthrough env cũ — env var được inject nguyên văn, đúng như trước. Không có host scoping. |
+| `pat` | Personal Access Token, cho git remote HTTPS (GitHub/GitLab/Gitea). Yêu cầu `host_scope`. |
+| `ssh_key` | SSH private key (PEM), cho git qua SSH. Yêu cầu `host_scope`. |
+
+Các dòng `NULL`/`env` không bao giờ bị migrate — credential cũ vẫn hoạt động nguyên vẹn. Typed adapter là tùy chọn opt-in theo từng credential.
+
+### User credential và binary/system credential
+
+Typed adapter thao tác trên **user credential**, không phải env default cấp binary:
+
+- **Binary/system credential** — định nghĩa binary + env var default của nó (và override từ agent grant) đã mô tả ở trên. Dùng chung cho mọi grant của binary.
+- **User credential** — secret typed theo từng user lưu trong `secure_cli_user_credentials`, scope tới một hostname duy nhất.
+
+Quản lý user credential trong dashboard tại **Settings → CLI Credentials → User Credentials**. Nhấn **Add**, chọn user, chọn loại credential (`Personal Access Token` hoặc `SSH Private Key`), nhập **Host Scope**, và paste secret. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — sửa dòng đó sẽ hiển thị placeholder `••••••••`; để trống ô secret sẽ giữ giá trị đã lưu, gõ giá trị mới sẽ thay thế nó.
+
+### Adapter git
+
+Adapter `git` là typed adapter đầu tiên được ship. Nó chỉ inject credential **cho** các subcommand mạng:
+
+```
+clone   fetch   pull   push   submodule
+```
+
+Bất kỳ subcommand nào khác (`status`, `log`, `diff`, `commit`, `branch`, …) là thao tác cục bộ và chạy **không credential** — không inject, không dòng audit-log.
+
+**Luồng PAT.** Token được inject qua biến môi trường, không bao giờ trên `argv`:
+
+```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
+GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+```
+
+Vì token nằm trong một env value (không phải flag dòng lệnh), nó không bao giờ xuất hiện trong `ps`, `/proc/<pid>/cmdline`, hay lịch sử shell. Các env var được inject chỉ giới hạn trong tiến trình `git` được spawn — môi trường của chính GoClaw và các lệnh exec khác không bao giờ thấy chúng.
+
+**Luồng SSH.** Key PEM được ghi vào một tmpfile mode `0600` trong thư mục temp hệ thống (prefix `goclaw-gitkey-*`), và `GIT_SSH_COMMAND` được đặt thành:
+
+```
+ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
+```
+
+`StrictHostKeyChecking=accept-new` chấp nhận host key chưa biết ở **lần kết nối đầu (TOFU)**. Pre-seed `~/.ssh/known_hosts` để đóng cửa sổ này (xem [Security Hardening](/deploy-security)). Tmpfile bị xóa sau khi exec qua deferred cleanup. **SSH key có passphrase bị từ chối lúc lưu** — hãy export lại key không passphrase, hoặc dùng deploy key riêng.
+
+### Host scope
+
+Cả `pat` và `ssh_key` đều yêu cầu **`host_scope`** — chính xác `host` hoặc `host:port` dạng ASCII mà credential hợp lệ. Nó được chuẩn hóa về ASCII chữ thường (qua `idna.ToASCII`) và khớp **chính xác**. v1 **không có wildcard**, và port là một phần của key:
+
+| `host_scope` đã lưu | `github.com` | `api.github.com` | `github.com:8443` |
+|---------------------|:---:|:---:|:---:|
+| `github.com` | ✓ | ✗ | ✗ |
+
+Nếu bạn chạy server self-hosted trên port mặc định của scheme (443 HTTPS, 22 SSH), bỏ port; nếu trên port không mặc định, thêm port vào (vd `gitea.internal:8443`). Khi không có credential lưu trữ nào khớp host của remote đã resolve, adapter rơi xuống đường không credential và remote sẽ từ chối thao tác nếu nó yêu cầu auth.
+
+### Khả năng hiển thị env: nhạy cảm và không nhạy cảm
+
+Các entry env lưu trữ giờ mang một `kind`. Khi dashboard hoặc admin API đọc lại một credential, response che giá trị theo kind:
+
+| `kind` | Trong response API |
+|--------|--------------------|
+| `sensitive` (mặc định; map string cũ decode vào đây) | `value: null`, `masked: true` |
+| `value` (không nhạy cảm rõ ràng, vd region hoặc tên profile) | trả về giá trị thuần, `masked: false` |
+
+Điều này cho phép operator thấy ngữ cảnh không bí mật (vd `AWS_DEFAULT_REGION=us-west-2`) trong UI trong khi secret vẫn bị che. Secret vẫn không bao giờ được trả về trừ qua endpoint `env:reveal` chuyên dụng.
+
+### Migrate từ credential env cũ
+
+Không có migration bắt buộc. Một dòng có `credential_type IS NULL` hoặc `= 'env'` vẫn phát ra env var của nó đúng như trước. Để nâng cấp một git credential, mở dialog user-credential, chọn **Personal Access Token** hoặc **SSH Private Key**, nhập host scope, paste secret, và lưu — dòng cũ được thay thế atomically.
+
+### Giới hạn v1
+
+- **Không có wildcard host** — một credential cho mỗi `host[:port]` chính xác; `*.github.com` không được hỗ trợ.
+- **Không có SSH key có passphrase** — bị từ chối lúc validation.
+- **Không propagate vào sandbox** — adapter mutate môi trường của tiến trình con đã fork, không tương thích với đường sandbox Docker bind-mount. Credentialed exec chỉ chạy trên host trong v1.
+- **Không pin host key** — SSH dùng TOFU (`accept-new`); pre-seed `known_hosts`.
+
+### Google Workspace CLI (gws)
+
+GoClaw ship một preset `gws` cho Google Workspace CLI (`@googleworkspace/cli`).
+
+**Tính khả dụng.** Binary `gws` chỉ được cài sẵn **trong Docker image `full` đã publish**. Trên image `latest`/`base`, cài `@googleworkspace/cli` từ trang Packages (yêu cầu build có Node, `ENABLE_NODE=true`; Node.js 18+).
+
+**Credential.** Tạo một SecureCLI credential từ preset `gws` và cung cấp ít nhất một nguồn auth:
+
+| Env var | Mục đích |
+|---------|----------|
+| `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` | Đường dẫn tới credential `gws` đã export hoặc file JSON OAuth credentials |
+| `GOOGLE_WORKSPACE_CLI_TOKEN` | Google OAuth access token lấy sẵn (tùy chọn) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_ID` | OAuth client ID cho luồng auth thủ công (tùy chọn) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_SECRET` | OAuth client secret cho luồng auth thủ công (tùy chọn) |
+
+**Lệnh bị chặn.** Preset chặn các luồng auth tương tác và export credential:
+
+```
+gws auth setup    gws auth login    gws auth export    gws auth logout
+```
+
+Chạy các luồng đó ngoài agent execution, rồi lưu token hoặc đường dẫn credentials-file kết quả vào SecureCLI.
+
+**Cách dùng.** Mặc định thiên về đọc. Dùng `--params` cho query parameter, `--json` cho request body, và `--page-all` cho đọc phân trang:
+
+```sh
+gws drive files list --params '{"pageSize": 10}'
+gws gmail users messages list --params '{"userId": "me", "maxResults": 10}'
+gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
+```
+
+> **Cảnh báo ghi.** Lệnh ghi có thể sửa đổi dữ liệu Workspace. Giữ preset mặc định thiên về đọc và tạo một SecureCLI config riêng, đã review cho mọi workflow ghi đã được duyệt.
 
 ## Pattern phổ biến
 
@@ -18636,6 +19257,133 @@ Khi quota bị tắt (`"enabled": false`), phản hồi vẫn bao gồm thống 
 
 ---
 
+## AI Budget Usage Caps
+
+Tách biệt với request quota ở tầng channel phía trên, GoClaw có một **hệ thống cap dựa trên token và chi phí** thực thi giới hạn lên chính chi tiêu cho LLM provider. Trong khi request quota đếm tin nhắn, usage cap đếm *token và chi phí USD*, và chúng áp dụng không chỉ cho lượt agent chính mà cho mọi lần gọi LLM tính phí mà GoClaw thực hiện thay mặt một tenant.
+
+Cap được lưu dưới dạng **policy** trong PostgreSQL (migration `000070`–`000072`) và quản lý qua REST API. Chúng luôn hoạt động một khi có ít nhất một policy tồn tại cho một tenant — không có cờ config bật/tắt toàn cục.
+
+### Mô hình policy
+
+Một cap policy trả lời: *với scope này, trong cửa sổ thời gian này, được phép bao nhiêu token và/hoặc bao nhiêu chi phí?*
+
+**Các chiều scope** — mọi policy có thể để bất kỳ chiều nào không đặt (NULL) để nghĩa là "khớp tất cả":
+
+| Chiều | Ý nghĩa |
+|-----------|---------|
+| `tenant_id` | Luôn được đặt — mọi policy thuộc về một tenant |
+| `agent_id` | Giới hạn một agent (không đặt = tất cả agent trong tenant) |
+| `provider_id` | Giới hạn một LLM provider record đã cấu hình |
+| `provider_type` | Giới hạn một họ provider, ví dụ `anthropic`, `openai` |
+| `model_id` | Giới hạn một model, ví dụ `claude-sonnet-4-5` |
+
+**Loại cửa sổ** (`window`): `hour`, `day`, `week`, hoặc `month`. Cửa sổ căn theo ranh giới lịch UTC — `day` bắt đầu lúc 00:00 UTC, `week` bắt đầu thứ Hai, `month` bắt đầu ngày 1.
+
+**Giới hạn** — một policy phải đặt `max_tokens`, `max_cost_micros`, hoặc cả hai:
+
+| Trường | Đơn vị |
+|-------|------|
+| `max_tokens` | Tổng token (input + output + cache read + cache write) |
+| `max_cost_micros` | Chi phí tính bằng **micro-dollar** (1 USD = 1.000.000 micro). API cũng nhận `max_cost_usd` cho tiện và tự chuyển đổi |
+
+**Cách nhiều policy khớp kết hợp.** Khi một request đến, GoClaw tìm *mọi* policy được bật mà scope khớp (chiều NULL khớp bất kỳ, chiều được đặt phải bằng với request). Một request phải lọt dưới **tất cả** policy khớp — policy hạn chế nhất thắng. Trường `priority` (số nhỏ hơn = đánh giá trước, mặc định `100`) điều khiển thứ tự đánh giá, quyết định policy nào được báo là nguyên nhân chặn khi chạm cap.
+
+### Thực thi reservation + counter
+
+Cap dùng mô hình **reserve-then-settle** để các lần gọi đồng thời không thể chi vượt một cửa sổ:
+
+1. **Preflight (reserve)** — trước lần gọi LLM, GoClaw ước tính lượng token (và chi phí, nếu có policy khớp có cost cap), rồi atomically cộng vào counter per-window của mỗi policy. Nếu reservation đẩy `used + reserved + estimate` vượt `max_tokens` hoặc `max_cost_micros` của một policy, lần gọi bị **chặn** trước khi chạy.
+2. **Reconcile (settle)** — sau khi lần gọi trả về, reservation được thay bằng token và chi phí *thực tế* từ usage response của provider. Lượng reserved được giải phóng và lượng used được ghi lại. Lần gọi thất bại settle về 0 (reservation được giải phóng) trừ khi nhận được phản hồi một phần.
+
+Ước tính chi phí cần giá cho model. Nếu một policy có cost cap khớp nhưng không biết giá cho model, lần gọi bị **chặn** với lý do `pricing_unknown` — xem [Theo Dõi Chi Phí → Model Pricing](/cost-tracking) để biết cách điền giá.
+
+### Cap cũng áp dụng cho LLM call phụ trợ
+
+Usage cap được thực thi trên **mọi lần gọi LLM tính phí**, không chỉ lượt agent hướng tới người dùng. Bao gồm cả các lần gọi phụ trợ GoClaw thực hiện nội bộ:
+
+- Tạo tiêu đề hội thoại
+- Phân loại intent
+- Compaction giữa loop và lịch sử
+- Memory flush
+- Trích xuất knowledge-graph
+- Hợp nhất memory (dreaming / episodic worker)
+- Vault enrichment
+- Xác minh provider và regeneration của summoner
+
+Mỗi cái trong số này reserve và reconcile đối với cùng các policy, nên một token cap `day` chặt cũng sẽ throttle công việc nền, không chỉ chat reply.
+
+> **Provider Subscription / OAuth được miễn.** Cap chỉ áp dụng cho provider tính phí theo API key. Provider trả phí cố định hoặc theo subscription (Claude CLI, ChatGPT OAuth, Bailian, ACP, Ollama) được bỏ qua, và provider cấu hình không có API key cũng vậy.
+
+### Cầu nối ngân sách tháng của agent
+
+Trường per-agent cũ `budget_monthly_cents` (xem [Theo Dõi Chi Phí → Giới Hạn Ngân Sách Hàng Tháng](/cost-tracking)) được tự động mirror vào hệ thống cap. Migration `000072` tạo, cho mỗi agent có `budget_monthly_cents` dương, một cost-cap policy cửa sổ `month` được quản lý:
+
+- `max_cost_micros` = `budget_monthly_cents × 10.000` (cent → micro-dollar)
+- `source` = `agent_budget_monthly_cents`, `priority` = `90`
+
+Các policy được cầu nối này là **managed** — REST API từ chối sửa hoặc xóa chúng (trả về `409 Conflict`). Hãy điều chỉnh `budget_monthly_cents` của agent thay vào đó. Policy tạo thủ công có `source` = `manual`.
+
+### Điều gì xảy ra khi chạm cap
+
+Khi một reservation bị từ chối, GoClaw trả về lỗi `usage cap exceeded` từ lần gọi LLM. Với lượt agent chính, điều này hiện ra như một lần chạy thất bại — agent không tạo phản hồi. Một quyết định `block` cũng được ghi vào events log (xem bên dưới) ghi lại policy nào và lý do (`cap_exceeded` hoặc `pricing_unknown`) gây ra.
+
+### Truy vết quyết định
+
+Mỗi quyết định cap được ghi ở hai nơi:
+
+- **`usage_cap_events`** — một audit log chỉ-thêm (append-only) các quyết định `allow` / `block` / `skip` với policy, reservation key, token và chi phí ước tính/thực tế, và lý do. Truy vấn được qua events endpoint.
+- **Trace metadata** — mỗi agent trace mang một block `usage_caps` liệt kê quyết định, các policy ID khớp, reservation key, và token/chi phí ước tính so với thực tế cho mỗi lần thử gọi LLM, để bạn thấy hành vi cap inline với phần còn lại của trace.
+
+### REST endpoint
+
+Tất cả usage-cap endpoint yêu cầu admin Bearer token. Các thao tác ghi (tạo/cập nhật/xóa policy, pricing override) bổ sung yêu cầu tenant-admin scope; endpoint sync OpenRouter yêu cầu master scope.
+
+| Method & path | Scope | Mô tả |
+|---------------|-------|-------|
+| `GET /v1/usage-caps/policies` | admin | Liệt kê tất cả cap policy của tenant (bao gồm disabled) |
+| `POST /v1/usage-caps/policies` | tenant-admin | Tạo một cap policy |
+| `PATCH /v1/usage-caps/policies/{id}` | tenant-admin | Cập nhật một policy (policy ngân sách agent được quản lý sẽ bị từ chối) |
+| `DELETE /v1/usage-caps/policies/{id}` | tenant-admin | Xóa một policy (policy được quản lý sẽ bị từ chối) |
+| `GET /v1/usage-caps/utilization` | admin | Usage per-policy hiện tại so với giới hạn cho cửa sổ đang hoạt động |
+| `GET /v1/usage-caps/events` | admin | Các quyết định cap gần đây (`?limit=`, mặc định 50, tối đa 200) |
+
+**Tạo một policy** — giới hạn một agent ở 1M token mỗi ngày:
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "agent_id": "11111111-1111-1111-1111-111111111111",
+    "window": "day",
+    "max_tokens": 1000000
+  }'
+```
+
+**Tạo một cost cap** — giới hạn chi tiêu Anthropic ở $20/tháng toàn tenant (`max_cost_usd` được chuyển sang micro):
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/usage-caps/policies" \
+  -d '{
+    "provider_type": "anthropic",
+    "window": "month",
+    "max_cost_usd": 20.00
+  }'
+```
+
+**Kiểm tra utilization:**
+
+```bash
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/usage-caps/utilization"
+```
+
+Model pricing (cung cấp cho phép tính chi phí phía sau cost cap) được cấu hình qua một bộ endpoint riêng — xem [Theo Dõi Chi Phí → Model Pricing](/cost-tracking).
+
+---
+
 ## Giới hạn tốc độ Webhook (Tầng Channel)
 
 Tách biệt với quota theo người dùng, có một rate limiter ở tầng webhook bảo vệ khỏi lũ webhook đến. Nó sử dụng cửa sổ cố định 60 giây với giới hạn cứng **30 request mỗi key** mỗi cửa sổ. Tối đa **4096 key duy nhất** được theo dõi đồng thời; ngoài đó, các entry cũ nhất bị xóa.
@@ -18870,6 +19618,69 @@ monthly budget exceeded ($5.02 / $5.00)
 ```
 
 Kiểm tra chạy một lần mỗi request, trước bất kỳ lần gọi LLM nào. Sub-agent delegation chạy dưới agent record riêng với ngân sách riêng.
+
+> `budget_monthly_cents` của agent cũng được mirror vào hệ thống [AI Budget Usage Caps](/usage-quota) dưới dạng một cost-cap policy `month`-window được quản lý (managed), nên giới hạn tương tự cũng được thực thi ở đó.
+
+---
+
+## Model Pricing (Catalog & Override)
+
+Map tĩnh `telemetry.model_pricing` ở trên là cách đơn giản nhất để định giá model. Với pricing động, backed bởi database — được dùng bởi cost cap của [AI Budget Usage Caps](/usage-quota) — GoClaw còn duy trì một **pricing catalog** và **override** per-tenant trong PostgreSQL (migration `000070`).
+
+### Đồng bộ catalog từ OpenRouter
+
+GoClaw có thể kéo toàn bộ danh sách giá model từ [OpenRouter](https://openrouter.ai) và lưu vào bảng `usage_pricing_catalog`. Mỗi entry ghi lại giá per-unit cho input, output, cache read/write, reasoning, request, image và web-search unit, lưu dưới dạng decimal độ chính xác cao.
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/sync-openrouter"
+```
+
+Endpoint này yêu cầu **master scope** (nó cập nhật catalog toàn cục dùng chung). Catalog được upsert theo `model_id`, nên chạy lại sync sẽ refresh giá tại chỗ.
+
+### Override giá per-model
+
+Khi bạn muốn giá khác cho một tổ hợp tenant + provider + model cụ thể (ví dụ: mức giá đã đàm phán, hoặc một model mà OpenRouter không liệt kê), hãy đặt một **override** trong bảng `usage_pricing_overrides`. Override được scope theo một tenant và có ưu tiên cao hơn catalog toàn cục.
+
+```bash
+# Liệt kê catalog đã sync (tùy chọn lọc theo model)
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing?model=claude-sonnet-4-5"
+
+# Đặt override cho tenant
+curl -X PUT -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/model-pricing/overrides" \
+  -d '{
+    "provider_id": "22222222-2222-2222-2222-222222222222",
+    "provider_type": "anthropic",
+    "model_id": "claude-sonnet-4-5",
+    "pricing": { "input": "0.000003", "output": "0.000015" }
+  }'
+
+# Liệt kê / xóa override
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides"
+curl -X DELETE -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides/{id}"
+```
+
+| Method & path | Scope | Mô tả |
+|---------------|-------|-------|
+| `POST /v1/model-pricing/sync-openrouter` | master | Refresh catalog giá toàn cục từ OpenRouter |
+| `GET /v1/model-pricing` | admin | Liệt kê catalog đã sync (`?model=`, `?limit=`) |
+| `PUT /v1/model-pricing/overrides` | tenant-admin | Tạo hoặc cập nhật override giá model per-tenant |
+| `GET /v1/model-pricing/overrides` | admin | Liệt kê override (`?provider_id=`) |
+| `DELETE /v1/model-pricing/overrides/{id}` | tenant-admin | Xóa một override |
+
+### Cách pricing được phân giải
+
+Khi một cost cap cần giá cho một model, GoClaw phân giải theo thứ tự:
+
+1. **Override của tenant** cho tổ hợp provider + model khớp (ưu tiên cao nhất)
+2. **Catalog OpenRouter toàn cục** theo `model_id` / canonical id
+
+Nếu không tìm thấy cái nào, một lần gọi bị cost-cap sẽ bị chặn với lý do `pricing_unknown`. Giá được lưu dưới dạng decimal USD **per token/unit** và được chuyển sang micro-dollar khi cap tính chi phí.
 
 ---
 
@@ -20158,7 +20969,9 @@ docker compose \
 
 > **Data hooks:** GoClaw theo dõi các Go transform sau migration trong bảng `data_migrations` riêng. Chạy `./goclaw upgrade --status` để xem cả phiên bản SQL migration và các data hook đang chờ.
 
-Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **44**.
+> Các migration `000045`–`000073` tiếp tục mở rộng schema: config model fallback, catalog REST endpoint, OAuth state của portal Bitrix24 (`bitrix_portals`), sync cookie browser phía server (`browser_cookies`), các bảng pricing và enforcement của usage-cap (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), bridge agent-budget, và credential secure-CLI có kiểu — xem [Database Schema → Migration History](/database-schema).
+
+Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **73**.
 
 ---
 
@@ -20168,7 +20981,7 @@ GoClaw v3 hỗ trợ hai backend database:
 
 | Tính năng | PostgreSQL | SQLite (desktop) |
 |-----------|-----------|-----------------|
-| Schema đầy đủ (44 migration) | Có | Có |
+| Schema đầy đủ (73 migration) | Có | Có |
 | Tìm kiếm vector similarity (HNSW) | Có — pgvector | Không |
 | Tìm kiếm vector episodic summaries | Có | Chỉ FTS |
 | Knowledge Vault tự động liên kết | Có — ngưỡng 0.7 | Không (chỉ tóm tắt) |
@@ -20715,6 +21528,62 @@ Key được chấp nhận ở ba định dạng: base64 (44 ký tự, kết qu�
 Format lưu: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Giá trị không có prefix được trả về plaintext để tương thích migration.
 
 > **Phải giống nhau trên tất cả replica.** Trong deployment cluster, mọi gateway instance phải dùng cùng `GOCLAW_ENCRYPTION_KEY`. Rotate key yêu cầu mã hóa lại toàn bộ secret đã lưu trước khi khởi động lại.
+
+Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_binaries`, `secure_cli_agent_grants`, và `secure_cli_user_credentials` đều lưu secret trong cột `encrypted_env`. Mỗi entry mang một `kind` hiển thị — entry `sensitive` bị che trong các response API/UI thông thường và chỉ trả về qua luồng `env:reveal` đã audit; entry `value` (vd tên region hoặc profile) được trả về cho admin để review vận hành.
+
+---
+
+## Mô hình bảo mật Credential Adapter
+
+[Typed credential adapter](/cli-credentials) là đường **được hệ thống tin cậy** để inject auth material vào tiến trình con CLI được spawn (`git clone`, `git push`, …). Đây là một trust boundary thứ hai, khác với denylist env do user paste — không phải để thay thế nó.
+
+| Đường | Trust boundary |
+|-------|----------------|
+| Env var do user paste (loại credential `env`) | Tuyến phòng thủ đầu tiên — `ValidateGrantEnvVars` từ chối `GIT_SSH_COMMAND`, `LD_PRELOAD`, `PATH`, và phần còn lại của denylist |
+| Env adapter do hệ thống inject (vd adapter `git`) | Tuyến thứ hai, có audit-trail — bỏ qua denylist theo thiết kế và phát một sự kiện audit cho mỗi lần inject |
+
+Gõ sai tên adapter sẽ rơi xuống passthrough (hành vi denylist-only cũ) — **không có bypass ngầm**.
+
+### Sự kiện audit: `security.system_env_injection`
+
+Mỗi lần adapter inject phát ra **đúng một** dòng `slog.Warn` có cấu trúc. Hostname dạng plaintext cố tình **không bao giờ được log** — giữ audit log an toàn PII bên trong các tenant bị quản lý.
+
+| Trường | Ghi chú |
+|--------|---------|
+| `msg` | luôn là `security.system_env_injection` |
+| `adapter` | vd `git`, `passthrough` |
+| `binary` | tên binary (`git`, …) |
+| `user_id` | tenant user UUID (rỗng trong ngữ cảnh chỉ global) |
+| `env_keys` | chỉ **tên** env var đã sort — không bao giờ là giá trị |
+| `argv_prefix_len` | số phần tử argv được prepend, không phải nội dung |
+| `host_scope_hash` | 8 ký tự hex đầu của `SHA-256(host_scope đã chuẩn hóa)`, hoặc `"none"` |
+
+v1 **không có bảng audit chuyên dụng** — dòng này route qua `slog` ra stderr → systemd/journald hoặc Docker logs. Để grep hoạt động với một host cụ thể, tính trước hash của nó:
+
+```sh
+echo -n "github.com" | sha256sum | cut -c1-8
+```
+
+### Scrub output cho credentialed exec
+
+Output của lệnh credentialed đi qua cùng regex scrubber như mọi output tool, cộng thêm credential đăng ký lúc runtime cho binary đó được scrub khỏi stdout/stderr trước khi kết quả tới LLM. Secret được inject qua adapter không bao giờ round-trip ngược lại hội thoại.
+
+### Cảnh báo MITM SSH TOFU
+
+Đường SSH của adapter git đặt `StrictHostKeyChecking=accept-new`, chấp nhận host key chưa biết ở lần kết nối đầu. Một attacker mạng nằm giữa GoClaw và git host có thể capture phiên SSH **đầu tiên** đó. Pre-seed `known_hosts` lúc deploy để đóng cửa sổ này — sau đó `accept-new` enforce match-or-fail:
+
+```sh
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh-keyscan -p 22 gitea.internal >> ~/.ssh/known_hosts
+```
+
+### Tmpfile credential tạm thời
+
+Adapter SSH ghi key PEM vào một tmpfile mode `0600` trong `os.TempDir()` (prefix `goclaw-gitkey-*`) và xóa nó qua deferred cleanup sau khi exec trả về. Một `SIGKILL` của tiến trình GoClaw bỏ qua cleanup đó, để lại file. `os.TempDir()` là per-user trên POSIX, nên phơi nhiễm chỉ giới hạn ở uid của GoClaw. Deployment bảo mật cao nên chạy quét định kỳ:
+
+```sh
+find "$TMPDIR" -name 'goclaw-gitkey-*' -mmin +60 -delete
+```
 
 ---
 
@@ -21526,7 +22395,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **57**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **73**.
 
 ```mermaid
 graph LR
@@ -21725,7 +22594,20 @@ Chỉ làm điều này nếu bạn hiểu migration lỗi đã làm gì. Khi kh
 
 ## Migration gần đây
 
-### v3.11.x — Highlights và Breaking Changes
+### v3.12.x — Highlights và Breaking Changes
+
+#### Schema 58 → 73
+
+Các migration `000058`–`000073` được áp dụng tự động ở lần khởi động kế tiếp (`./goclaw upgrade` hoặc `GOCLAW_AUTO_UPGRADE=true`) — không cần thao tác thủ công. Điểm nổi bật:
+
+- `000068_bitrix_portals` — thêm `bitrix_portals` cho OAuth state của portal Bitrix24 theo tenant (credential + token lưu AES-256-GCM).
+- `000069_browser_cookies` — thêm `browser_cookies` cho cookie browser phía server do user chọn, đã mã hóa, scope theo tenant/user/agent.
+- `000070_usage_caps_pricing` — thêm `usage_pricing_catalog` (pricing theo model được sync) và `usage_pricing_overrides` (override giá theo tenant).
+- `000071_usage_cap_policies` — thêm các bảng enforcement usage-cap: `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`.
+- `000072_agent_budget_usage_cap_bridge` — thêm cột `source` vào `usage_cap_policies` và **backfill** một policy window `month` cho mỗi agent có `budget_monthly_cents` non-NULL (1 cent = 10.000 micros, `source = 'agent_budget_monthly_cents'`). Budget hàng tháng theo agent hiện có giờ được enforce qua engine usage-cap. Idempotent (`ON CONFLICT DO NOTHING`); không cần thao tác.
+- `000073_secure_cli_credential_type` — thêm `credential_type` + `host_scope` (nullable) vào `secure_cli_user_credentials` và `adapter_name` vào `secure_cli_binaries` cho framework credential-adapter có kiểu. Tất cả cột NULL mặc định để giữ hành vi passthrough legacy — không cần thao tác.
+
+**Upgrade do gateway kích hoạt (luồng host release-upgrade):** Khi một upgrade được kích hoạt qua dashboard/API trên host systemd, `goclaw-upgrade-release` giờ tự re-launch chính nó dưới dạng một unit `systemd-run` tạm thời, nên việc dừng `goclaw` trong lúc deploy không còn giết job upgrade. Các record status `running` cũ cũng được thay thế sau 30 phút, và vòng lặp chờ deploy chịu được lỗi `502` thoáng qua trong lúc restart. Không cần thay đổi config.
 
 #### v3.11.3
 
@@ -23743,6 +24625,80 @@ goclaw tui onboard   # wizard onboard dạng TUI
 goclaw tui setup     # wizard setup dạng TUI
 ```
 
+## `bitrix-portal`
+
+Quản lý các dòng portal Bitrix24 trực tiếp trong database (chỉ PostgreSQL). GoClaw cần một dòng `bitrix_portals` tồn tại trước khi operator chạy luồng cài đặt OAuth tại `/bitrix24/install`; lệnh này tạo và bảo trì dòng đó mà không cần truy cập SQL thô.
+
+> Credential được mã hóa khi lưu bằng `GOCLAW_ENCRYPTION_KEY`. Nếu không đặt key, lệnh sẽ cảnh báo và lưu credential không mã hóa.
+
+### `bitrix-portal create`
+
+Tạo một dòng `bitrix_portals` với credential OAuth.
+
+```bash
+goclaw bitrix-portal create \
+  --tenant-id <uuid> \
+  --name <portal> \
+  --domain tamgiac.bitrix24.com \
+  --client-id <client_id> \
+  --client-secret <client_secret>
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | UUID tenant mà portal này thuộc về (bắt buộc) |
+| `--name` | Tên portal ngắn, được tham chiếu bởi `channel_instance.config.portal` (bắt buộc) |
+| `--domain` | Host portal Bitrix24, ví dụ `tamgiac.bitrix24.com` (bắt buộc) |
+| `--client-id` | `client_id` / `application_id` của ứng dụng Bitrix24 (bắt buộc) |
+| `--client-secret` | `client_secret` / application key của ứng dụng Bitrix24 (bắt buộc) |
+
+### `bitrix-portal list`
+
+Liệt kê các dòng `bitrix_portals`, tùy chọn giới hạn theo một tenant.
+
+```bash
+goclaw bitrix-portal list
+goclaw bitrix-portal list --tenant-id <uuid>
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | Lọc theo một UUID tenant (tùy chọn) |
+
+### `bitrix-portal update-credentials`
+
+Thay thế `client_id`/`client_secret` trên một dòng portal hiện có. Dùng khi xoay client secret hoặc chuyển từ local app sang marketplace app. OAuth state token bị xóa theo mặc định, vì state được tạo bằng credential cũ không thể refresh bằng credential mới.
+
+```bash
+goclaw bitrix-portal update-credentials \
+  --tenant-id <uuid> --name <portal> \
+  --client-id <client_id> --client-secret <client_secret>
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | UUID tenant mà portal này thuộc về (bắt buộc) |
+| `--name` | Tên portal cần cập nhật (bắt buộc) |
+| `--client-id` | `client_id` mới của ứng dụng Bitrix24 (bắt buộc) |
+| `--client-secret` | `client_secret` mới của ứng dụng Bitrix24 (bắt buộc) |
+| `--keep-state` | Giữ OAuth state token hiện có (chỉ an toàn khi xoay secret của CÙNG một ứng dụng) |
+
+### `bitrix-portal set-public-url`
+
+Backfill URL public của gateway dùng để đăng ký imbot event handler của Bitrix24. Thao tác một lần cho các portal được cài đặt trước khi có cơ chế tự động lấy public URL.
+
+```bash
+goclaw bitrix-portal set-public-url \
+  --tenant-id <uuid> --name <portal> \
+  --url https://goclaw.example.com
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--tenant-id` | UUID tenant mà portal này thuộc về (bắt buộc) |
+| `--name` | Tên portal (bắt buộc) |
+| `--url` | URL public của gateway, ví dụ `https://goclaw.example.com` (bắt buộc) |
+
 ---
 
 ## Tiếp theo
@@ -23894,6 +24850,8 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `connect` | `{token, user_id, sender_id?, locale?}` | Xác thực. Phải là request đầu tiên |
 | `health` | — | Ping / health check |
 | `status` | — | Trạng thái gateway |
+| `agent` | `{agentId?}` | Lấy trạng thái runtime của một agent (mặc định `"default"`) |
+| `send` | `{channel, to, message}` | Định tuyến tin nhắn outbound đến một channel bên ngoài |
 | `providers.models` | — | Liệt kê model khả dụng từ tất cả LLM provider đã cấu hình |
 
 ### Chat
@@ -24171,6 +25129,28 @@ Quản lý lifecycle hook lưu trong `agent_hooks`. Xem [Agent Hooks](/hooks-qua
 
 > **Trạng thái: Đã lên kế hoạch** — `whatsapp.qr.start`, `zalo.personal.qr.start` và `zalo.personal.contacts` đã có hằng số protocol nhưng handler chưa được triển khai trong gateway.
 
+### Bitrix Portals
+
+Quản lý self-service các kết nối portal Bitrix24. Mọi method đều giới hạn theo tenant (lấy từ kết nối, không bao giờ từ param của caller). `list` và `get_install_url` mở cho mọi thành viên tenant đã xác thực; `create` và `delete` yêu cầu **admin role**. Credential không bao giờ được trả về trong bất kỳ response nào.
+
+| Method | Params | Mô tả |
+|--------|--------|-------|
+| `bitrix.portals.list` | — | Liệt kê portal của tenant hiện tại (credential bị che) |
+| `bitrix.portals.create` | `{name, domain, client_id, client_secret}` | Tạo portal; trả về `{name, domain, install_url}` |
+| `bitrix.portals.get_install_url` | `{name}` | Tạo lại install URL cho portal có sẵn → `{install_url}` |
+| `bitrix.portals.delete` | `{name}` | Xóa portal → `{status: "deleted"}` |
+
+**Params của `bitrix.portals.create`:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `name` | string | Slug portal — chữ thường, số, gạch ngang, gạch dưới (2–64 ký tự) |
+| `domain` | string | Host portal — `*.bitrix24.{com,eu,ru,…}` hoặc `*.bitrix.info` |
+| `client_id` | string | Bitrix OAuth client ID |
+| `client_secret` | string | Bitrix OAuth client secret |
+
+> `create` thất bại với `FAILED_PRECONDITION` nếu gateway chưa quan sát được public URL của nó — hãy mở UI qua URL bên ngoài của gateway trước để install URL có thể được tạo. `delete` bị chặn (`FAILED_PRECONDITION`) khi còn channel instance tham chiếu portal.
+
 ---
 
 ## Server-Push Events
@@ -24329,7 +25309,7 @@ ws.onmessage = (e) => {
 
 ## Tổng quan
 
-> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~286 REST endpoint.
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~308 REST endpoint.
 
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
@@ -24366,6 +25346,100 @@ X-GoClaw-User-Id: user123
 ### `POST /v1/responses`
 
 Protocol dựa trên response thay thế (tương thích OpenAI Responses API). Nhận cùng auth và trả về response object có cấu trúc.
+
+---
+
+## Sessions
+
+Khám phá và branch session ở chế độ read-only qua HTTP, dành cho automation không thể giữ kết nối WebSocket. Caller không phải admin chỉ thấy session của chính mình (khớp `X-GoClaw-User-Id`); admin và token gateway-owner thấy mọi session.
+
+> Vòng đời session đầy đủ (preview, patch, delete, reset, compact) có sẵn qua [WebSocket RPC](/websocket-protocol#sessions). Các route HTTP này phục vụ việc khám phá, branch và đọc history theo từng phần.
+
+### `GET /v1/sessions`
+
+Liệt kê session có phân trang.
+
+```bash
+curl "http://localhost:18790/v1/sessions?agent_id=AGENT_UUID&limit=20&offset=0" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123"
+```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `agent_id` | string | Lọc theo agent (alias: `agentId`) |
+| `channel` | string | Lọc theo channel |
+| `limit` | integer | Kích thước trang (mặc định 20) |
+| `offset` | integer | Offset trang (mặc định 0) |
+
+**Response:** `{ "sessions": [...], "total": N, "limit": 20, "offset": 0 }`
+
+### `POST /v1/chat/sessions/{key}/branch`
+
+Branch một session mới từ session có sẵn, copy message tới một index cho trước. Đoạn path `{key}` là session key **nguồn**; branch dùng lại cùng agent key.
+
+```bash
+curl -X POST http://localhost:18790/v1/chat/sessions/{key}/branch \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "up_to_index": 8,
+    "new_session_key": "",
+    "label": "what-if branch",
+    "metadata": {}
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `up_to_index` | integer | Bắt buộc. Copy message `[0, up_to_index)` vào branch |
+| `new_session_key` | string | Tùy chọn. Phải dùng cùng agent key với nguồn. Tự sinh nếu bỏ trống |
+| `label` | string | Nhãn branch tùy chọn cho người đọc |
+| `metadata` | object | Metadata key-value dạng string tùy chọn |
+
+**Response** (`201 Created`):
+
+```json
+{
+  "ok": true,
+  "source_key": "agent:researcher:direct:...",
+  "session_key": "agent:researcher:branch:direct:...",
+  "copied_messages": 8,
+  "total_messages": 20,
+  "label": "what-if branch"
+}
+```
+
+Trả về `409` nếu key đích đã tồn tại, `400` nếu `up_to_index` ngoài phạm vi.
+
+### `GET /v1/chat/sessions/{key}/history/follow`
+
+Đọc history theo từng phần dựa trên cursor — poll message mới mà không cần fetch lại toàn bộ transcript. Các tham chiếu file và media trong message trả về đều được ký (signed).
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `cursor` | integer | Index bắt đầu đọc (mặc định 0) |
+| `limit` | integer | Số message tối đa trả về (mặc định 50, tối đa 200) |
+
+**Response:**
+
+```json
+{
+  "session_key": "agent:researcher:direct:...",
+  "cursor": 0,
+  "next_cursor": 50,
+  "total": 120,
+  "messages": [ ... ],
+  "reset": false,
+  "updated": "2026-06-07T08:00:00Z"
+}
+```
+
+Truyền `next_cursor` làm `cursor` kế tiếp để đọc tiếp. `reset: true` (kèm `messages` rỗng) báo hiệu cursor đã vượt quá độ dài history hiện tại — bắt đầu lại từ `0`.
 
 ---
 
@@ -24668,6 +25742,30 @@ curl -X POST http://localhost:18790/v1/providers/{id}/verify \
 
 Xác minh kết nối embedding model cho một provider.
 
+### `POST /v1/providers/{id}/reconnect`
+
+Thiết lập lại kết nối in-memory cho một provider — hủy đăng ký khỏi runtime registry rồi đăng ký lại từ config đã lưu. Dùng sau khi sửa credential hoặc khi provider biến mất khỏi live registry. **Không** thực hiện verify; gọi `/verify` riêng nếu cần.
+
+```bash
+curl -X POST http://localhost:18790/v1/providers/{id}/reconnect \
+  -H "Authorization: Bearer TOKEN"
+```
+
+Request body là tùy chọn. Gửi `{"verify": true}` sẽ bị từ chối với `400` — reconnect và verify là hai thao tác riêng biệt.
+
+**Response:**
+
+```json
+{
+  "status": "reconnected",
+  "provider": { "id": "uuid", "name": "my-openrouter", "...": "..." },
+  "registry_updated": true,
+  "cache_invalidated": true
+}
+```
+
+`status` là `reconnected` (đã đăng ký lại in-memory), `not_registered` (đang bật nhưng đăng ký thất bại), hoặc `disabled` (provider bị tắt). Một event `cache_invalidate` được phát ra để các agent đang kết nối cập nhật thay đổi.
+
 ### `GET /v1/providers/{id}/codex-pool-activity`
 
 Trả về hoạt động routing của Codex OAuth pool ở cấp provider (xem thêm endpoint cấp agent ở trên).
@@ -24959,6 +26057,27 @@ curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### `GET /v1/traces/follow`
+
+Poll cập nhật trace giới hạn theo một session hoặc agent — thiết kế cho view "tail" trực tiếp. Yêu cầu `session_key` **hoặc** `agent_id`. Caller không phải admin chỉ được xem trace của chính mình.
+
+```bash
+curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-07T08:00:00Z" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `session_key` | string | Session cần follow (bắt buộc nếu bỏ `agent_id`) |
+| `agent_id` | string | Agent cần follow (bắt buộc nếu bỏ `session_key`) |
+| `status` | string | Lọc theo trạng thái |
+| `channel` | string | Lọc theo channel |
+| `since` | RFC 3339 | Chỉ trả về trace thay đổi sau thời điểm này |
+| `limit` | integer | Số trace tối đa (mặc định 50, tối đa 200) |
+| `include_spans` | boolean | Bao gồm chi tiết span (mặc định `false`) |
+
 ### `GET /v1/traces/{traceID}`
 
 Lấy một trace cùng tất cả spans của nó.
@@ -24984,6 +26103,153 @@ Xuất cây trace dưới dạng gzipped JSON.
 | `GET` | `/v1/usage/summary` | Tóm tắt với so sánh kỳ trước |
 
 **Query param:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+---
+
+## Usage Caps
+
+Policy giới hạn chi tiêu (spend-cap) khống chế lượng token và chi phí theo từng cửa sổ, tùy chọn giới hạn theo một agent, provider hoặc model cụ thể. Mọi endpoint yêu cầu **admin role**; thao tác ghi cần thêm **tenant-admin**. Policy được đánh dấu *managed* (do nền tảng cấp) không thể sửa hoặc xóa (`409`).
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/usage-caps/policies` | Liệt kê policy spend-cap của tenant hiện tại |
+| `POST` | `/v1/usage-caps/policies` | Tạo policy |
+| `PATCH` | `/v1/usage-caps/policies/{id}` | Cập nhật một phần (mọi field tùy chọn) |
+| `DELETE` | `/v1/usage-caps/policies/{id}` | Xóa policy (`204`) |
+| `GET` | `/v1/usage-caps/utilization` | Mức sử dụng hiện tại theo từng policy |
+| `GET` | `/v1/usage-caps/events` | Cap event gần đây (throttle, vượt ngưỡng) |
+
+### `POST /v1/usage-caps/policies`
+
+```bash
+curl -X POST http://localhost:18790/v1/usage-caps/policies \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "window": "day",
+    "max_tokens": 1000000,
+    "max_cost_usd": 25.0,
+    "agent_id": null,
+    "provider_id": null,
+    "priority": 100,
+    "enabled": true
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `window` | string | Cửa sổ reset — ví dụ `day` (mặc định). Bắt buộc |
+| `max_tokens` | integer | Giới hạn token mỗi cửa sổ (tùy chọn) |
+| `max_cost_usd` | float | Giới hạn chi phí theo USD (tùy chọn; chuyển sang micros) |
+| `max_cost_micros` | integer | Giới hạn chi phí theo micro-dollar — ưu tiên hơn `max_cost_usd` (tùy chọn) |
+| `agent_id` | UUID | Giới hạn cho một agent (tùy chọn) |
+| `provider_id` | UUID | Giới hạn cho một provider (tùy chọn) |
+| `provider_type` | string | Giới hạn cho một provider type (tùy chọn) |
+| `model_id` | string | Giới hạn cho một model (tùy chọn) |
+| `priority` | integer | Độ ưu tiên đánh giá, cao chạy trước (mặc định 100) |
+| `enabled` | boolean | Mặc định `true` |
+
+Trả về `201` kèm policy đã tạo. `PATCH` nhận cùng field, đều tùy chọn — gửi `null` cho `max_tokens` / `max_cost_*` để bỏ giới hạn.
+
+**`GET /v1/usage-caps/events`** nhận `?limit=` và trả về `{ "events": [...] }`. Utilization trả về `{ "rows": [...] }`.
+
+---
+
+## Model Pricing
+
+Catalog pricing theo từng model cùng các override theo tenant, dùng để tính chi phí usage. Endpoint đọc yêu cầu **admin role**; ghi override cần **tenant-admin**; sync OpenRouter cần **master scope**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/model-pricing` | Liệt kê catalog pricing |
+| `GET` | `/v1/model-pricing/overrides` | Liệt kê override pricing của tenant |
+| `PUT` | `/v1/model-pricing/overrides` | Upsert một override pricing |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` | Xóa một override |
+| `POST` | `/v1/model-pricing/sync-openrouter` | Làm mới catalog từ OpenRouter (master scope) |
+
+**`GET /v1/model-pricing`** query param: `model` (lọc theo model ID), `limit` (mặc định 100). Response `{ "models": [...] }`.
+
+**`GET /v1/model-pricing/overrides`** query param: `provider_id` (UUID lọc tùy chọn). Response `{ "overrides": [...] }`.
+
+### `PUT /v1/model-pricing/overrides`
+
+```bash
+curl -X PUT http://localhost:18790/v1/model-pricing/overrides \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider_id": "PROVIDER_UUID",
+    "provider_type": "openai_compat",
+    "model_id": "gpt-4o",
+    "pricing": { "...": "..." },
+    "enabled": true
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `provider_id` | UUID | Bắt buộc |
+| `provider_type` | string | Provider type |
+| `model_id` | string | Bắt buộc |
+| `pricing` | object | Các field pricing (giá input/output, v.v.) |
+| `enabled` | boolean | Mặc định `true` |
+
+**`POST /v1/model-pricing/sync-openrouter`** fetch catalog OpenRouter rồi upsert. Response `{ "count": N }`. Trả về `502` nếu fetch upstream thất bại.
+
+---
+
+## Browser Cookie Sync
+
+Lưu các cookie trình duyệt được chọn để session browser phía server (ví dụ browser tool) tái sử dụng trạng thái đã đăng nhập. Mọi endpoint yêu cầu **operator role**. Cookie được giới hạn theo tenant + user (+ agent tùy chọn) và mã hóa khi lưu — phải đặt `GOCLAW_ENCRYPTION_KEY`, nếu không sync trả về `503`.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `POST` | `/v1/browser/cookies/sync` | Upsert cookie cho scope hiện tại |
+| `GET` | `/v1/browser/cookies` | Liệt kê metadata cookie (không bao giờ trả về giá trị) |
+| `DELETE` | `/v1/browser/cookies` | Xóa cookie đã lưu trong scope hiện tại |
+
+### `POST /v1/browser/cookies/sync`
+
+```bash
+curl -X POST http://localhost:18790/v1/browser/cookies/sync \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-GoClaw-User-Id: user123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "AGENT_UUID",
+    "source": "chrome-extension",
+    "cookies": [
+      {
+        "domain": "example.com",
+        "name": "session",
+        "path": "/",
+        "value": "abc123",
+        "secure": true,
+        "httpOnly": true,
+        "sameSite": "Lax",
+        "expiresAt": "2026-12-31T00:00:00Z"
+      }
+    ]
+  }'
+```
+
+| Field | Kiểu | Mô tả |
+|-------|------|-------|
+| `agent_id` | string | Scope agent tùy chọn (alias: `agent`) |
+| `source` | string | Nhãn nguồn (mặc định `chrome-extension`) |
+| `cookies` | array | Danh sách cookie. Bắt buộc, không rỗng, tối đa 200 |
+
+**Field của mỗi cookie:** `domain` (hoặc `url` để suy ra), `name`, `path`, `value` (≤ 16 KB), `secure`, `httpOnly` (alias `http_only`), `sameSite` (alias `same_site`), và một trong `expiresAt` / `expires_at` / `expirationDate` / `expiration_date`. Tổng request body giới hạn 1 MB.
+
+**Response:** `{ "synced": N }`.
+
+### `GET /v1/browser/cookies`
+
+Chỉ trả về **metadata** cookie — giá trị không bao giờ được phơi bày. Query filter tùy chọn: `agent_id`, `domain`, `name`, `path`. Response `{ "items": [ { "domain", "name", "path", "secure", "httpOnly", "sameSite", "expiresAt", "source", "updatedAt" } ] }`.
+
+### `DELETE /v1/browser/cookies`
+
+Xóa cookie trong scope hiện tại. Cùng các filter tùy chọn như endpoint list. Response `{ "deleted": N }`.
 
 ---
 
@@ -25173,8 +26439,25 @@ Xóa channel instance.
 |--------|------|-------|
 | `GET` | `/v1/channels/instances/{id}/writers/groups` | Liệt kê group có quyền ghi |
 | `GET` | `/v1/channels/instances/{id}/writers` | Liệt kê writer được phép |
+| `POST` | `/v1/channels/instances/{id}/writers/test` | Kiểm tra thử một user có được phép ghi vào group không (không thay đổi dữ liệu) |
 | `POST` | `/v1/channels/instances/{id}/writers` | Thêm writer |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` | Xóa writer |
+
+**`POST .../writers/test`** — kiểm tra thử quyền writer trước khi lưu. Body `{ "group_id": "...", "user_id": "..." }` (cả hai bắt buộc). Luôn trả về `200` kèm kết quả đánh giá:
+
+```json
+{
+  "allowed": true,
+  "reason": "writer",
+  "instance_id": "uuid",
+  "agent_id": "uuid",
+  "group_id": "telegram:-100123",
+  "user_id": "user123",
+  "writer_count": 3
+}
+```
+
+`reason` là một trong `writer`, `not_writer`, `no_writers_configured`, hoặc `invalid_group`.
 
 ---
 
@@ -25765,6 +27048,51 @@ Backup và khôi phục theo tenant. Yêu cầu quyền admin.
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/activity` | Liệt kê activity audit log (có thể filter) |
+| `GET` | `/v1/activity/aggregate` | Đếm activity tổng hợp, nhóm theo một chiều (dimension) |
+
+### `GET /v1/activity/aggregate`
+
+Trả về số đếm activity nhóm theo một chiều thay vì các dòng thô. Caller không phải admin bị giới hạn theo actor ID của chính mình; nhóm theo `actor_id` yêu cầu admin role.
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `group_by` | string | Chiều nhóm — ví dụ `action`, `entity_type`, `actor_type`, `actor_id` (chỉ admin) |
+| `actor_type` | string | Lọc theo actor type |
+| `actor_id` | string | Lọc theo actor ID |
+| `action` | string | Lọc theo action |
+| `entity_type` | string | Lọc theo entity type |
+| `entity_id` | string | Lọc theo entity ID |
+| `from` | RFC 3339 | Đầu cửa sổ thời gian |
+| `to` | RFC 3339 | Cuối cửa sổ thời gian (phải sau `from`) |
+| `limit` | integer | Số nhóm tối đa trả về |
+
+---
+
+## Runtime Logs
+
+View tổng hợp của buffer runtime log trong bộ nhớ. Yêu cầu **admin role**.
+
+### `GET /v1/logs/runtime/aggregate`
+
+Trả về số đếm runtime log nhóm theo `level` hoặc `source`.
+
+```bash
+curl "http://localhost:18790/v1/logs/runtime/aggregate?group_by=level" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `group_by` | string | `level` (mặc định) hoặc `source` |
+| `level` | string | Lọc theo log level |
+| `source` | string | Lọc theo log source |
+| `from` | RFC 3339 | Chỉ đếm entry sau thời điểm này |
+
+> Tail log server trực tiếp có sẵn qua WebSocket bằng `logs.tail` — xem [WebSocket Protocol](/websocket-protocol#logs).
 
 ---
 
@@ -25988,7 +27316,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 286 — generated from goclaw `392f0fda` on `2026-05-21`.
+**Total endpoints:** 308 — generated from goclaw `d85bf171` on `2026-06-07`.
 
 ## Cách sử dụng trang này
 
@@ -26004,6 +27332,15 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | Method | Path |
 |---|---|
 | `GET` | `/v1/activity` |
+| `GET` | `/v1/activity/aggregate` |
+
+### Browser Cookies (`internal/http/browser_cookies.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/browser/cookies` |
+| `DELETE` | `/v1/browser/cookies` |
+| `POST` | `/v1/browser/cookies/sync` |
 
 ### Agents (`internal/http/agents.go`)
 
@@ -26086,6 +27423,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `PUT` | `/v1/channels/instances/{id}` |
 | `GET` | `/v1/channels/instances/{id}/writers` |
 | `POST` | `/v1/channels/instances/{id}/writers` |
+| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
 | `GET` | `/v1/channels/instances/{id}/writers/groups` |
 | `GET` | `/v1/contacts` |
@@ -26155,6 +27493,12 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `GET` | `/v1/agents/{agentID}/kg/stats` |
 | `POST` | `/v1/agents/{agentID}/kg/traverse` |
 
+### Logs (`internal/http/logs.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/logs/runtime/aggregate` |
+
 ### MCP Servers (`internal/http/mcp.go`)
 
 | Method | Path |
@@ -26208,6 +27552,16 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `POST` | `/v1/agents/{agentID}/memory/index-all` |
 | `POST` | `/v1/agents/{agentID}/memory/search` |
 | `GET` | `/v1/memory/documents` |
+
+### Model Pricing (`internal/http/usage_caps.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/model-pricing` |
+| `GET` | `/v1/model-pricing/overrides` |
+| `PUT` | `/v1/model-pricing/overrides` |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` |
+| `POST` | `/v1/model-pricing/sync-openrouter` |
 
 ### OAuth (`internal/http/oauth.go`)
 
@@ -26274,6 +27628,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `PUT` | `/v1/providers/{id}` |
 | `GET` | `/v1/providers/{id}/codex-pool-activity` |
 | `GET` | `/v1/providers/{id}/models` |
+| `POST` | `/v1/providers/{id}/reconnect` |
 | `POST` | `/v1/providers/{id}/verify` |
 | `POST` | `/v1/providers/{id}/verify-embedding` |
 | `GET` | `/v1/providers/claude-cli/auth-status` |
@@ -26306,6 +27661,14 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` |
 | `POST` | `/v1/cli-credentials/check-binary` |
 | `GET` | `/v1/cli-credentials/presets` |
+
+### Sessions (`internal/http/sessions.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/sessions` |
+| `POST` | `/v1/chat/sessions/{key}/branch` |
+| `GET` | `/v1/chat/sessions/{key}/history/follow` |
 
 ### Skills (`internal/http/skills.go`)
 
@@ -26390,6 +27753,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 |---|---|
 | `GET` | `/v1/costs/summary` |
 | `GET` | `/v1/traces` |
+| `GET` | `/v1/traces/follow` |
 | `GET` | `/v1/traces/{traceID}` |
 | `GET` | `/v1/traces/{traceID}/export` |
 
@@ -26412,6 +27776,17 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `GET` | `/v1/usage/breakdown` |
 | `GET` | `/v1/usage/summary` |
 | `GET` | `/v1/usage/timeseries` |
+
+### Usage Caps (`internal/http/usage_caps.go`)
+
+| Method | Path |
+|---|---|
+| `GET` | `/v1/usage-caps/policies` |
+| `POST` | `/v1/usage-caps/policies` |
+| `PATCH` | `/v1/usage-caps/policies/{id}` |
+| `DELETE` | `/v1/usage-caps/policies/{id}` |
+| `GET` | `/v1/usage-caps/utilization` |
+| `GET` | `/v1/usage-caps/events` |
 
 ### Vault (`internal/http/vault_graph_handler.go`)
 
@@ -26812,7 +28187,7 @@ Khi group tích lũy nhiều hơn `threshold` tin nhắn đang chờ, các tin n
 | `owner_ids` | string[] | — | User ID có quyền admin/owner |
 | `allowed_origins` | string[] | `[]` | Các origin WebSocket CORS được phép (trống = cho phép tất cả) |
 | `max_message_chars` | integer | `32000` | Độ dài tin nhắn đến tối đa |
-| `inbound_debounce_ms` | integer | `1000` | Gộp các tin nhắn nhanh liên tiếp (ms) |
+| `inbound_debounce_ms` | integer | `0` | Cửa sổ im lặng (ms) gộp các tin nhắn channel/Web Chat đến nhanh từ cùng một người gửi/session. `0` tắt debounce cho text, nhưng tin nhắn có media vẫn tuân theo một ngưỡng media tích hợp sẵn để các đợt nhiều attachment gộp thành một lần chạy. Agent có thể ghi đè qua `agent_config.inbound_debounce_ms` theo từng agent |
 | `rate_limit_rpm` | integer | `20` | WebSocket rate limit (requests mỗi phút) |
 | `injection_action` | string | `warn` | `"off"`, `"log"`, `"warn"`, `"block"` — phản hồi prompt injection |
 | `block_reply` | boolean | `false` | Gửi text trung gian cho user trong quá trình tool đang chạy |
@@ -26850,6 +28225,37 @@ Bật hoặc tắt từng deny-group shell ở mức global. Đây là cấu hì
 | `env_dump` | printenv, env, export -p, v.v. |
 
 > Xem thêm: [Security Hardening](/deployment/security-hardening) để biết cách kết hợp với per-agent shell policy.
+
+### `tools.commandKeywordAllowlist`
+
+Danh sách các quy tắc có phạm vi cho phép từ vựng sản phẩm/bảo mật xuất hiện trong các tham số nội dung của CLI có credential mà không tắt các deny pattern theo đường dẫn lệnh. Mỗi quy tắc thu hẹp việc bypass về một lệnh cụ thể (và tùy chọn subcommand, vị trí tham số, và từ khóa).
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "gh-issue-secret",
+        "command": "gh",
+        "subcommands": ["issue", "create"],
+        "keywords": ["password", "token"],
+        "reason": "tiêu đề issue bảo mật hợp lệ có nhắc đến credential"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `id` | string | — | Định danh quy tắc tùy chọn |
+| `command` | string | — | Lệnh mà quy tắc áp dụng (ví dụ `"gh"`) |
+| `subcommands` | string[] | — | Subcommand mà quy tắc giới hạn tới |
+| `args` | string[] | — | Giá trị tham số cụ thể mà quy tắc khớp |
+| `argPositions` | integer[] | — | Vị trí tham số đếm từ 0 (sau subcommand đã khớp) |
+| `keywords` | string[] | — | Từ vựng được phép trong các tham số đã khớp |
+| `reason` | string | — | Ghi chú giải thích lý do tồn tại bypass này |
+| `enabled` | boolean | `true` | Đặt `false` để tắt quy tắc (bỏ qua = bật) |
 
 ---
 
@@ -26921,6 +28327,28 @@ Mảng MCP server config. Mỗi entry:
 | `tool_prefix` | string | Prefix tùy chọn cho tên tool |
 | `timeout_sec` | integer | Request timeout (mặc định 60) |
 | `enabled` | boolean | Bật/tắt server |
+
+---
+
+## `skills`
+
+Cấu hình hệ thống lưu trữ skill.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `storage_dir` | string | `{dataDir}/skills-store/` | Thư mục chứa nội dung skill |
+| `max_upload_size_mb` | integer | `20` | Giới hạn upload ZIP mỗi skill theo MB. Bị kẹp trong khoảng 1–500; giá trị ngoài khoảng sẽ về biên gần nhất. Cũng có thể đặt qua `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` hoặc khóa system config `skills.max_upload_size_mb` |
+
+### `skills.slash_commands`
+
+Kiểm soát việc kích hoạt skill bằng slash-command tường minh.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `enabled` | boolean | — | Bật kích hoạt skill bằng slash-command |
+| `suggest_not_found` | boolean | — | Gợi ý skill tương tự khi slash command không khớp |
+| `partial_matching` | boolean | `false` | Khớp skill theo tên lệnh một phần |
+| `prefix` | string | `/` | Tiền tố slash-command |
 
 ---
 
@@ -27306,6 +28734,7 @@ API key từ environment ghi đè mọi giá trị trong `config.json`. Đặt k
 | `GOCLAW_SKILLS_DIR` | Thư mục skills global. Mặc định: `~/.goclaw/skills` |
 | `GOCLAW_BUILTIN_SKILLS_DIR` | Đường dẫn đến định nghĩa built-in skill. Mặc định: `./builtin-skills` |
 | `GOCLAW_BUNDLED_SKILLS_DIR` | Đường dẫn đến gói bundled skill. Mặc định: `./bundled-skills` |
+| `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` | Giới hạn upload ZIP mỗi skill theo MB. Mặc định: `20`. Bị kẹp trong khoảng 1–500. Ghi đè `skills.max_upload_size_mb` trong `config.json` |
 
 ## Runtime Packages (Docker v3)
 
@@ -27436,7 +28865,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **67**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **73**.
 
 ### Thống nhất Store v3
 
@@ -27498,7 +28927,7 @@ Bản ghi agent core. Mỗi agent có context, tools, và model configuration ri
 | `frontmatter` | TEXT | | Tóm tắt chuyên môn ngắn cho delegation và UI |
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
-| `budget_monthly_cents` | INTEGER | | Ngưỡng chi tiêu hàng tháng tính bằng USD cents; NULL = không giới hạn (migration 015) |
+| `budget_monthly_cents` | INTEGER | | Ngưỡng chi tiêu hàng tháng tính bằng USD cents; NULL = không giới hạn (migration 015). Migration 072 bridge mọi giá trị non-NULL thành một row `usage_cap_policies` với window `month` và `source = 'agent_budget_monthly_cents'` (1 cent = 10.000 micros). |
 | `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Mảng thứ tự các model fallback được thử khi primary model thất bại (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
@@ -28219,6 +29648,7 @@ Cấu hình credential injection cho Exec tool (Direct Exec Mode). Admin map tê
 | `is_global` | BOOLEAN | NOT NULL DEFAULT true | Nếu true, tất cả agent đều dùng được; nếu false, chỉ agent có grant mới truy cập được |
 | `enabled` | BOOLEAN DEFAULT true | | |
 | `created_by` | TEXT DEFAULT `''` | | Admin user đã tạo entry này |
+| `adapter_name` | TEXT | NULL | Route binary tới một `CredentialAdapter` có kiểu tại thời điểm exec; NULL = passthrough legacy (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
 > **Lưu ý migration 036:** Cột `agent_id` đã bị xóa khỏi bảng này. Quyền truy cập per-agent giờ được quản lý qua bảng `secure_cli_agent_grants`. Binary có `is_global = true` thì tất cả agent đều dùng được; binary có `is_global = false` yêu cầu grant tường minh.
@@ -28456,6 +29886,8 @@ Credential CLI theo từng user, ghi đè credential mặc định của binary.
 | `encrypted_env` | BYTEA | NOT NULL | JSON env map mã hoá AES-256-GCM |
 | `metadata` | JSONB | NOT NULL DEFAULT `{}` | Metadata bổ sung |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Tenant sở hữu |
+| `credential_type` | TEXT | NULL | Kiểu credential — `env`, `pat`, `ssh_key`, …; NULL = passthrough legacy (migration 073) |
+| `host_scope` | TEXT | NULL | Ràng buộc credential với một hostname cụ thể (vd `github.com`); NULL = không scope (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **Unique:** `(binary_id, user_id, tenant_id)`
@@ -28898,6 +30330,173 @@ Log audit rolling cho exec event trên workstation (`exec` và `deny`). Append-o
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **Index:** `idx_ws_activity_ws_time` trên `(workstation_id, created_at DESC)`, `idx_ws_activity_tenant_time` trên `(tenant_id, created_at DESC)`, `idx_ws_activity_retention` trên `(created_at)` (dùng bởi pruner hàng đêm)
+
+---
+
+### `bitrix_portals`
+
+OAuth state của portal Bitrix24 theo tenant. Nhiều channel instance Bitrix24 (chatbot) có thể dùng chung một row portal qua tham chiếu portal trong config channel. (migration 068)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `name` | VARCHAR(100) | NOT NULL | Tên hiển thị portal (một tên mỗi tenant) |
+| `domain` | VARCHAR(255) | NOT NULL | Domain portal Bitrix24 |
+| `credentials` | BYTEA | | Ciphertext AES-256-GCM của `{client_id, client_secret}` |
+| `state` | BYTEA | | Ciphertext AES-256-GCM của state portal (access/refresh token, `member_id`, `app_token`, bot đã đăng ký, media folder) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Index:** unique `(tenant_id, name)`; unique `LOWER(TRIM(domain))` (callback install/event đến được resolve theo domain trước khi biết tenant scope)
+
+---
+
+### `browser_cookies`
+
+Cookie do user chọn cho browser context phía server. Giá trị là ciphertext AES-256-GCM; cookie được scope theo tenant, user và agent để tránh tái dùng cross-principal. (migration 069)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `user_id` | VARCHAR(255) | NOT NULL | User sở hữu |
+| `agent_id` | VARCHAR(255) | NOT NULL | Agent sở hữu |
+| `domain` | TEXT | NOT NULL (không rỗng) | Domain cookie |
+| `name` | TEXT | NOT NULL (không rỗng) | Tên cookie |
+| `path` | TEXT | NOT NULL DEFAULT `/` (không rỗng) | Path cookie |
+| `encrypted_value` | TEXT | NOT NULL | Giá trị cookie mã hóa AES-256-GCM |
+| `secure` | BOOLEAN | NOT NULL DEFAULT FALSE | Cờ `Secure` |
+| `http_only` | BOOLEAN | NOT NULL DEFAULT FALSE | Cờ `HttpOnly` |
+| `same_site` | VARCHAR(32) | NOT NULL DEFAULT `''` | Thuộc tính `SameSite` |
+| `expires_at` | TIMESTAMPTZ | | Thời điểm hết hạn cookie; NULL = session cookie |
+| `source` | VARCHAR(64) | NOT NULL DEFAULT `''` | Nơi cookie được thu thập |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Index:** unique `(tenant_id, user_id, agent_id, domain, path, name)`; `(tenant_id, user_id, agent_id, domain)`; `expires_at`
+
+---
+
+### `usage_pricing_catalog`
+
+Tham chiếu giá theo model được sync, dùng để tính chi phí token usage. Một row mỗi `model_id`. (migration 070)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `model_id` | TEXT | NOT NULL UNIQUE | Định danh model |
+| `canonical_model_id` | TEXT | | Alias model chuẩn |
+| `raw_pricing` / `raw_model` | JSONB | NOT NULL DEFAULT `{}` | Payload pricing/model thô từ upstream |
+| `input_price`, `output_price`, `cache_read_price`, `cache_write_price`, `reasoning_price`, `request_price`, `image_price`, `web_search_price` | NUMERIC(30,18) | `>= 0` hoặc NULL | Giá theo đơn vị |
+| `synced_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Thời điểm sync gần nhất |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `synced_at DESC`
+
+---
+
+### `usage_pricing_overrides`
+
+Override giá theo tenant, theo provider, áp lên trên catalog. (migration 070)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `provider_id` | UUID FK → llm_providers | NOT NULL ON DELETE CASCADE | Provider mục tiêu |
+| `provider_type` | TEXT | NOT NULL | Kiểu provider |
+| `model_id` | TEXT | NOT NULL | Model mục tiêu |
+| `input_price` … `web_search_price` | NUMERIC(30,18) | `>= 0` hoặc NULL | Giá override (cùng tập với catalog) |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, provider_id, model_id)`
+
+**Index:** `(tenant_id, provider_id, model_id)` (partial, `WHERE enabled`)
+
+---
+
+### `usage_cap_policies`
+
+Quy tắc cap token/chi phí được đánh giá theo tenant, tùy chọn scope theo agent, provider, kiểu provider hoặc model, trên một window thời gian cuộn. (migration 071; cột `source` thêm ở migration 072)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `agent_id` | UUID FK → agents | NULL ON DELETE CASCADE | Scope agent; NULL = mọi agent |
+| `provider_id` | UUID FK → llm_providers | NULL ON DELETE CASCADE | Scope provider |
+| `provider_type` | TEXT | | Scope kiểu provider |
+| `model_id` | TEXT | | Scope model |
+| `window_key` | TEXT | NOT NULL CHECK trong (`hour`, `day`, `week`, `month`) | Window cap |
+| `max_tokens` | BIGINT | `>= 0` hoặc NULL | Cap token |
+| `max_cost_micros` | BIGINT | `>= 0` hoặc NULL | Cap chi phí tính bằng micro-USD |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `priority` | INTEGER | NOT NULL DEFAULT 100 | Policy priority thấp hơn được đánh giá trước |
+| `source` | TEXT | NOT NULL DEFAULT `manual` | `manual` hoặc `agent_budget_monthly_cents` (migration 072) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Ràng buộc:** phải set ít nhất một trong `max_tokens` / `max_cost_micros`.
+
+**Index:** `(tenant_id, enabled, agent_id, provider_id, provider_type, model_id)`; unique `(tenant_id, agent_id)` partial `WHERE source = 'agent_budget_monthly_cents'` (một policy dẫn xuất từ budget mỗi agent, migration 072)
+
+---
+
+### `usage_cap_counters`
+
+Accumulator theo window (đã dùng + đã reserve) cho mỗi policy. (migration 071)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Policy cha |
+| `window_start` / `window_end` | TIMESTAMPTZ | NOT NULL | Biên window |
+| `used_tokens` / `reserved_tokens` | BIGINT | NOT NULL DEFAULT 0 | Token usage |
+| `used_cost_micros` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Chi phí tính bằng micro-USD |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**PK:** `(policy_id, window_start)`
+
+---
+
+### `usage_cap_reservations`
+
+Reservation in-flight giữ capacity trước khi request hoàn tất, sau đó reconcile về actual. (migration 071)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `reservation_key` | TEXT | NOT NULL | Key idempotency do caller cung cấp |
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Policy cha |
+| `window_start` | TIMESTAMPTZ | NOT NULL | Window reservation |
+| `reserved_tokens` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Lượng đã reserve |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Actual đã reconcile |
+| `status` | TEXT | NOT NULL DEFAULT `reserved` | Trạng thái reservation |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(reservation_key, policy_id)`
+
+**Index:** `reservation_key`
+
+---
+
+### `usage_cap_events`
+
+Audit log các quyết định cap (allow/deny) và lý do. (migration 071)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `policy_id` | UUID FK → usage_cap_policies | NULL ON DELETE SET NULL | Policy tạo ra quyết định |
+| `reservation_key` | TEXT | | Reservation liên quan, nếu có |
+| `decision` | TEXT | NOT NULL | Kết quả quyết định |
+| `reason` | TEXT | | Lý do dạng người đọc được |
+| `estimated_tokens` / `estimated_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Ước tính trước khi chạy |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Actual cuối cùng |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(tenant_id, created_at DESC)`
 
 ---
 

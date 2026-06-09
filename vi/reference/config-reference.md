@@ -25,6 +25,7 @@ GoClaw dùng file config JSON5 (hỗ trợ comments, trailing commas). Đường
   "providers": { ... },
   "gateway":   { ... },
   "tools":     { ... },
+  "skills":    { ... },
   "sessions":  { ... },
   "database":  { ... },
   "tts":       { ... },
@@ -340,7 +341,7 @@ Khi group tích lũy nhiều hơn `threshold` tin nhắn đang chờ, các tin n
 | `owner_ids` | string[] | — | User ID có quyền admin/owner |
 | `allowed_origins` | string[] | `[]` | Các origin WebSocket CORS được phép (trống = cho phép tất cả) |
 | `max_message_chars` | integer | `32000` | Độ dài tin nhắn đến tối đa |
-| `inbound_debounce_ms` | integer | `1000` | Gộp các tin nhắn nhanh liên tiếp (ms) |
+| `inbound_debounce_ms` | integer | `0` | Cửa sổ im lặng (ms) gộp các tin nhắn channel/Web Chat đến nhanh từ cùng một người gửi/session. `0` tắt debounce cho text, nhưng tin nhắn có media vẫn tuân theo một ngưỡng media tích hợp sẵn để các đợt nhiều attachment gộp thành một lần chạy. Agent có thể ghi đè qua `agent_config.inbound_debounce_ms` theo từng agent |
 | `rate_limit_rpm` | integer | `20` | WebSocket rate limit (requests mỗi phút) |
 | `injection_action` | string | `warn` | `"off"`, `"log"`, `"warn"`, `"block"` — phản hồi prompt injection |
 | `block_reply` | boolean | `false` | Gửi text trung gian cho user trong quá trình tool đang chạy |
@@ -378,6 +379,37 @@ Bật hoặc tắt từng deny-group shell ở mức global. Đây là cấu hì
 | `env_dump` | printenv, env, export -p, v.v. |
 
 > Xem thêm: [Security Hardening](/deployment/security-hardening) để biết cách kết hợp với per-agent shell policy.
+
+### `tools.commandKeywordAllowlist`
+
+Danh sách các quy tắc có phạm vi cho phép từ vựng sản phẩm/bảo mật xuất hiện trong các tham số nội dung của CLI có credential mà không tắt các deny pattern theo đường dẫn lệnh. Mỗi quy tắc thu hẹp việc bypass về một lệnh cụ thể (và tùy chọn subcommand, vị trí tham số, và từ khóa).
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "gh-issue-secret",
+        "command": "gh",
+        "subcommands": ["issue", "create"],
+        "keywords": ["password", "token"],
+        "reason": "tiêu đề issue bảo mật hợp lệ có nhắc đến credential"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `id` | string | — | Định danh quy tắc tùy chọn |
+| `command` | string | — | Lệnh mà quy tắc áp dụng (ví dụ `"gh"`) |
+| `subcommands` | string[] | — | Subcommand mà quy tắc giới hạn tới |
+| `args` | string[] | — | Giá trị tham số cụ thể mà quy tắc khớp |
+| `argPositions` | integer[] | — | Vị trí tham số đếm từ 0 (sau subcommand đã khớp) |
+| `keywords` | string[] | — | Từ vựng được phép trong các tham số đã khớp |
+| `reason` | string | — | Ghi chú giải thích lý do tồn tại bypass này |
+| `enabled` | boolean | `true` | Đặt `false` để tắt quy tắc (bỏ qua = bật) |
 
 ---
 
@@ -449,6 +481,28 @@ Mảng MCP server config. Mỗi entry:
 | `tool_prefix` | string | Prefix tùy chọn cho tên tool |
 | `timeout_sec` | integer | Request timeout (mặc định 60) |
 | `enabled` | boolean | Bật/tắt server |
+
+---
+
+## `skills`
+
+Cấu hình hệ thống lưu trữ skill.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `storage_dir` | string | `{dataDir}/skills-store/` | Thư mục chứa nội dung skill |
+| `max_upload_size_mb` | integer | `20` | Giới hạn upload ZIP mỗi skill theo MB. Bị kẹp trong khoảng 1–500; giá trị ngoài khoảng sẽ về biên gần nhất. Cũng có thể đặt qua `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` hoặc khóa system config `skills.max_upload_size_mb` |
+
+### `skills.slash_commands`
+
+Kiểm soát việc kích hoạt skill bằng slash-command tường minh.
+
+| Field | Type | Mặc định | Mô tả |
+|-------|------|----------|-------|
+| `enabled` | boolean | — | Bật kích hoạt skill bằng slash-command |
+| `suggest_not_found` | boolean | — | Gợi ý skill tương tự khi slash command không khớp |
+| `partial_matching` | boolean | `false` | Khớp skill theo tên lệnh một phần |
+| `prefix` | string | `/` | Tiền tố slash-command |
 
 ---
 
@@ -717,4 +771,4 @@ Secrets (`GOCLAW_GATEWAY_TOKEN`, `GOCLAW_OPENROUTER_API_KEY`, `GOCLAW_POSTGRES_D
 - [CLI Commands](/cli-commands) — `goclaw onboard` để tạo file này tự động
 - [Database Schema](/database-schema) — agents và providers lưu trong PostgreSQL như thế nào
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

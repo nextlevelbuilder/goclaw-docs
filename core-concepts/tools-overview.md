@@ -203,6 +203,8 @@ Writes to `MEMORY.md`, `memory.md`, or `memory/*` are routed to the `memory_docu
 
 The `credentialed_exec` tool runs CLI tools (gh, gcloud, aws, kubectl, terraform) with credentials auto-injected as environment variables directly into the child process — no shell, no credential leakage. Security layers: path verification (blocks `./gh` spoofing), shell operator blocking (`;`, `|`, `&&`), per-binary deny patterns (e.g., block `auth\s+`), and output scrubbing.
 
+A registered secure-CLI binary is gated even when reached through the plain `exec` tool: if the agent has no grant for it, `exec` refuses with `Binary "<name>" requires a secure CLI grant. Ask admin to grant access to this agent.` rather than running it with the host environment. The gate also unwraps shell wrappers (`sh -c`, `bash -c`, `env …`) up to 3 levels deep and fails closed if the grant lookup is unavailable.
+
 **Windows environment inheritance:** On Windows, credentialed exec inherits system environment variables required by native CLIs — `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, and `PROGRAMFILES`. These are non-secret runtime variables that most Win32 programs need to function. Credential values are still injected separately and scrubbed from output.
 
 ### `exec` — Shell Safety
@@ -226,6 +228,66 @@ The `exec` tool enforces 15 deny groups — all enabled by default:
 | `persistence` | `crontab`, writes to `.bashrc`/`.profile`/`.zshrc` |
 | `process_control` | `kill -9`, `killall`, `pkill` |
 | `env_dump` | `env`, `printenv`, `/proc/*/environ`, `echo $GOCLAW_*` secrets |
+
+### Execution Timeout
+
+The host `exec` tool aborts a command that runs too long. The timeout is a per-tool builtin setting named `timeout_seconds`, stored under the `exec` tool's settings:
+
+```json
+{
+  "timeout_seconds": 120
+}
+```
+
+| Property | Value |
+|----------|-------|
+| Default / fallback | 60 seconds |
+| Minimum | 1 second |
+| Maximum | 3600 seconds (1 hour) — values above are clamped down |
+| Invalid / missing value | Falls back to 60 seconds |
+
+Set it from the dashboard (**Config → Tools → Built-in Tools → exec**) or via the builtin-tool settings API. A tenant-level setting overrides the global one. When the command exceeds the timeout, the process group is killed (SIGTERM, then SIGKILL after a 3-second grace period) and the tool returns `command timed out after <duration>`.
+
+> This setting governs only the host `exec` tool. It is **distinct** from the per-custom-tool `timeout_seconds` and the sandbox `sandbox_config.timeout_sec` — see [Custom Tools](/custom-tools).
+
+### Command Keyword Allowlist
+
+When an agent runs a credentialed CLI (via `credentialed_exec` / the secure-CLI gate), the per-binary `deny_args` patterns scan argument values for dangerous vocabulary. This can produce false positives: legitimate product or security content passed as an argument (for example, a post body or message that mentions a flagged word) gets blocked even though it is plain data, not a command.
+
+The command keyword allowlist solves this without weakening `deny_args`. Configure scoped rules via `tools.commandKeywordAllowlist`:
+
+```json
+{
+  "tools": {
+    "commandKeywordAllowlist": [
+      {
+        "id": "social-post-content",
+        "command": "zernio",
+        "subcommands": ["posts:create"],
+        "args": ["--text"],
+        "keywords": ["install", "exec"],
+        "reason": "marketing copy may mention these words as content",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Identifier for the rule (used in audit logs) |
+| `command` | string | Binary the rule applies to (case- and path-normalized) |
+| `subcommands` | string[] | Optional subcommands that must match (e.g. `"posts:create"`) |
+| `args` | string[] | Argument flags whose values are scanned (e.g. `"--text"`) |
+| `argPositions` | int[] | Optional 0-based positional args (after the matched subcommand) |
+| `keywords` | string[] | Vocabulary that is allowed inside the matched argument values |
+| `reason` | string | Free-form note recorded in the audit log |
+| `enabled` | bool | Defaults to enabled when omitted |
+
+How it works: before the `deny_args` check runs, the allowlisted keyword is masked (replaced with a placeholder) **only inside the matched argument value**. The deny scan no longer trips on that word, but command-path deny patterns and shell-operator blocking stay fully active — the allowlist never disables `deny_args`, it only exempts specific flagged vocabulary inside specific content arguments. Each match is recorded in a `security.command_keyword_allowlist` audit log with the binary, subcommand, argument, keyword, rule ID, and agent/tenant context.
+
+This config is **reloaded at runtime** via the `TopicConfigChanged` bus — no gateway restart required.
 
 ### Global shellDenyGroups (Runtime-Reloadable)
 
@@ -346,4 +408,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

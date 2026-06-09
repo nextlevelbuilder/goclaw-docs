@@ -232,6 +232,69 @@ monthly budget exceeded ($5.02 / $5.00)
 
 The check runs once per request, before any LLM calls. Sub-agent delegations run under their own agent records with their own budgets.
 
+> The agent's `budget_monthly_cents` is also mirrored into the [AI Budget Usage Caps](/usage-quota) system as a managed `month`-window cost-cap policy, so the same limit is enforced there too.
+
+---
+
+## Model Pricing (Catalog & Overrides)
+
+The static `telemetry.model_pricing` map above is the simplest way to price models. For dynamic, database-backed pricing — used by the [AI Budget Usage Caps](/usage-quota) cost caps — GoClaw also keeps a **pricing catalog** and per-tenant **overrides** in PostgreSQL (migration `000070`).
+
+### OpenRouter catalog sync
+
+GoClaw can pull a full model price list from [OpenRouter](https://openrouter.ai) and store it in the `usage_pricing_catalog` table. Each entry captures per-unit prices for input, output, cache read/write, reasoning, request, image, and web-search units, stored as high-precision decimals.
+
+```bash
+curl -X POST -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/sync-openrouter"
+```
+
+This endpoint requires **master scope** (it updates the shared global catalog). The catalog is upserted by `model_id`, so re-running the sync refreshes prices in place.
+
+### Per-model price overrides
+
+When you want different prices for a specific tenant + provider + model (e.g. a negotiated rate, or a model OpenRouter doesn't list), set an **override** in the `usage_pricing_overrides` table. Overrides are scoped to one tenant and take priority over the global catalog.
+
+```bash
+# List the synced catalog (optionally filter by model)
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing?model=claude-sonnet-4-5"
+
+# Set a tenant override
+curl -X PUT -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/v1/model-pricing/overrides" \
+  -d '{
+    "provider_id": "22222222-2222-2222-2222-222222222222",
+    "provider_type": "anthropic",
+    "model_id": "claude-sonnet-4-5",
+    "pricing": { "input": "0.000003", "output": "0.000015" }
+  }'
+
+# List / delete overrides
+curl -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides"
+curl -X DELETE -H "Authorization: Bearer your-token" \
+  "http://localhost:8080/v1/model-pricing/overrides/{id}"
+```
+
+| Method & path | Scope | Description |
+|---------------|-------|-------------|
+| `POST /v1/model-pricing/sync-openrouter` | master | Refresh the global price catalog from OpenRouter |
+| `GET /v1/model-pricing` | admin | List the synced catalog (`?model=`, `?limit=`) |
+| `PUT /v1/model-pricing/overrides` | tenant-admin | Create or update a per-tenant model price override |
+| `GET /v1/model-pricing/overrides` | admin | List overrides (`?provider_id=`) |
+| `DELETE /v1/model-pricing/overrides/{id}` | tenant-admin | Remove an override |
+
+### How pricing resolves
+
+When a cost cap needs a price for a model, GoClaw resolves in this order:
+
+1. **Tenant override** for the matching provider + model (highest priority)
+2. **Global OpenRouter catalog** entry by `model_id` / canonical id
+
+If neither is found, a cost-capped call is blocked with reason `pricing_unknown`. Prices are stored as decimal USD **per token/unit** and converted to micro-dollars when caps compute cost.
+
 ---
 
 ## Common Issues
@@ -252,4 +315,4 @@ The check runs once per request, before any LLM calls. Sub-agent delegations run
 - [Observability](/deploy-observability) — OpenTelemetry export for spans including cost fields
 - [Configuration Reference](/config-reference) — full `telemetry` config options
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

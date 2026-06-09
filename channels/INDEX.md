@@ -6,14 +6,15 @@ Complete documentation for all messaging platform integrations in GoClaw.
 
 1. **[Overview](./overview.md)** — Concepts, policies, message flow diagram
 2. **[Telegram](./telegram.md)** — Long polling, forum topics, STT, streaming
-3. **[Discord](./discord.md)** — Gateway API, placeholder editing, threads
-4. **[Slack](./slack.md)** — Socket Mode, threads, streaming, reactions, debounce
-5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
-6. **[Zalo OA](./zalo-oa.md)** — Official Account, DM-only, pairing, images
-7. **[Zalo Personal](./zalo-personal.md)** — Personal account (unofficial), DM + groups
-8. **[WhatsApp](./whatsapp.md)** — Direct connection, QR auth, media, typing indicators, pairing
-9. **[WebSocket](./websocket.md)** — Direct RPC, custom clients, streaming events
-10. **[Browser Pairing](./browser-pairing.md)** — 8-char code auth, session tokens
+3. **[Bitrix24](./bitrix24.md)** — imbot OAuth portal install, per-user MCP, dedup
+4. **[Discord](./discord.md)** — Gateway API, placeholder editing, threads
+5. **[Slack](./slack.md)** — Socket Mode, threads, streaming, reactions, debounce
+6. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
+7. **[Zalo OA](./zalo-oa.md)** — Official Account, DM-only, pairing, images
+8. **[Zalo Personal](./zalo-personal.md)** — Personal account (unofficial), DM + groups
+9. **[WhatsApp](./whatsapp.md)** — Direct connection, QR auth, media, typing indicators, pairing
+10. **[WebSocket](./websocket.md)** — Direct RPC, custom clients, streaming events
+11. **[Browser Pairing](./browser-pairing.md)** — 8-char code auth, session tokens
 
 ## Channel Comparison Table
 

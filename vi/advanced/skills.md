@@ -78,6 +78,47 @@ echo "---\nname: My Skill\ndescription: Does something useful.\n---\n\n## Instru
   > ~/.goclaw/skills/my-new-skill/SKILL.md
 ```
 
+## Kích hoạt bằng Slash Command
+
+Thay vì chờ agent tự khám phá một skill qua `skill_search`, bạn có thể kích hoạt nó một cách tường minh bằng cách bắt đầu tin nhắn chat với một slash command. Tính năng này được bật mặc định.
+
+```
+/code-reviewer review this PR
+/use sql-style format these queries
+/list-skills
+/help code-reviewer
+```
+
+**Các dạng được hỗ trợ:**
+
+| Lệnh | Tác dụng |
+|---|---|
+| `/<skill-slug> <yêu cầu của bạn>` | Kích hoạt skill theo slug (hoặc tên hiển thị) và xem phần còn lại của tin nhắn là input cho skill |
+| `/use <skill> <yêu cầu>` | Giống như trên, dạng động từ tường minh (`/activate` cũng dùng được) |
+| `/list-skills` | Yêu cầu agent liệt kê tất cả skill có sẵn |
+| `/help <skill>` | Yêu cầu agent giải thích một skill và cách dùng nó |
+
+Khi một skill được kích hoạt, GoClaw nạp `SKILL.md` của nó vào lượt hiện tại và giới hạn agent trong phạm vi skill đó cho yêu cầu này.
+
+**Quy tắc khớp:**
+
+- **Khớp chính xác** được ưu tiên trước — slug hoặc tên hiển thị (không phân biệt hoa thường) được khớp trực tiếp. `/code-reviewer` khớp với skill `code-reviewer`.
+- **Khớp một phần (prefix)** là tùy chọn (mặc định tắt). Khi được bật, `/code` khớp với `code-reviewer` nếu đó là kết quả khớp prefix duy nhất.
+- **Bảo vệ chống nhập nhằng** — nếu hai skill có độ khớp ngang nhau (khớp cùng độ dài), lệnh được coi là *không khớp* thay vì đoán bừa.
+
+**Không khớp:** nếu không tìm thấy skill được yêu cầu, GoClaw chạy tìm kiếm tương đồng mờ (edit-distance, tối đa 3 gợi ý) và yêu cầu agent báo cho bạn biết skill không tìm thấy đồng thời gợi ý các skill gần nhất có sẵn. Hành vi gợi ý này được bật mặc định. Nếu không có skill nào tương tự, tin nhắn được xử lý như một prompt thông thường.
+
+**Cấu hình** (tất cả đều tùy chọn):
+
+| Khóa config | Env / system config | Mặc định | Tác dụng |
+|---|---|---|---|
+| `skills.slash_commands.enabled` | `skills.slash_commands.enabled` | `true` | Công tắc tổng |
+| `skills.slash_commands.prefix` | `skills.slash_commands.prefix` | `/` | Ký tự prefix kích hoạt (một ký tự) |
+| `skills.slash_commands.partial_matching` | `skills.slash_commands.partial_matching` | `false` | Cho phép khớp prefix |
+| `skills.slash_commands.suggest_not_found` | `skills.slash_commands.suggest_not_found` | `true` | Gợi ý lựa chọn thay thế khi không khớp |
+
+> Những tin nhắn trông giống đường dẫn file (chứa `/`, `\`, hoặc `.` trong token đầu tiên, ví dụ `/etc/hosts`) **không** được coi là slash command và được giữ nguyên không đổi.
+
 ## Upload qua Dashboard
 
 Vào **Skills → Upload** và kéo thả file ZIP. ZIP có thể chứa **một skill** hoặc **nhiều skill** trong một archive duy nhất:
@@ -113,6 +154,32 @@ Skills được upload lưu trong cấu trúc thư mục có version dưới th�
 Metadata (tên, mô tả, visibility, grants) lưu trong PostgreSQL; nội dung file lưu trên đĩa. GoClaw luôn phục vụ version có số cao nhất. Các version cũ được giữ để rollback.
 
 Skills được upload qua Dashboard mặc định có visibility **internal** — có thể truy cập ngay khi bạn cấp quyền cho agent hoặc user.
+
+### Giới hạn Kích thước Upload
+
+Việc upload ZIP skill (qua Dashboard và `POST /v1/skills/import`) bị giới hạn bởi một mức kích thước cấu hình được. Mặc định là **20 MB**, và giá trị hiệu lực luôn được kẹp trong khoảng **1–500 MB**.
+
+Giới hạn được giải quyết theo thứ tự ưu tiên sau (cao nhất trước):
+
+1. **Override theo tenant** — khóa system config `skills.max_upload_size_mb` (đặt riêng cho từng tenant)
+2. **Frontmatter trong SKILL.md** — trường `max_upload_size_mb` trong frontmatter của skill
+3. **Mặc định của gateway** — biến môi trường `GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB` hoặc `skills.max_upload_size_mb` trong file config (mặc định về 20 MB)
+
+```yaml
+# Nâng giới hạn cho một skill qua frontmatter SKILL.md của nó
+---
+name: large-skill
+description: Ships large reference assets.
+max_upload_size_mb: 100
+---
+```
+
+```bash
+# Đặt mặc định toàn gateway qua biến môi trường
+export GOCLAW_SKILLS_MAX_UPLOAD_SIZE_MB=128
+```
+
+Các upload vượt quá giới hạn đã giải quyết sẽ bị từ chối với lỗi kiểu `skill ZIP size 42.0 MB exceeds 20 MB limit`.
 
 ## Import qua API
 
@@ -197,13 +264,13 @@ Package cài lúc runtime tồn tại qua các tool call trong cùng vòng đờ
 
 ### Agent Có thể / Không thể Làm Gì
 
-Agent **có thể**: chạy script Python/Node, cài package qua `pip3 install` hoặc `npm install -g`, truy cập file trong `/app/workspace/` bao gồm `.media/`.
+Agent **có thể**: chạy script Python/Node, cài package qua `pip3 install` hoặc `npm install -g`, truy cập file trong `/app/workspace/` — bao gồm `.uploads/` cho các file mà user hiện tại upload và `.media/` cho các tham chiếu media cũ.
 
 Agent **không thể**: ghi vào system path, thực thi binary từ `/tmp`, chạy shell pattern bị chặn.
 
 ## Skills Tích hợp Sẵn (Bundled Skills)
 
-GoClaw đóng gói năm core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
+GoClaw đóng gói sáu core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
 
 | Skill | Mục đích |
 |---|---|
@@ -212,6 +279,7 @@ GoClaw đóng gói năm core skill bên trong Docker image tại `/app/bundled-s
 | `docx` | Đọc, tạo, chỉnh sửa Word document |
 | `pptx` | Đọc, tạo, chỉnh sửa presentation |
 | `skill-creator` | Tạo skill mới |
+| `workspace-organizing` | Giữ workspace của agent gọn gàng và dễ tìm — áp dụng quy ước thư mục theo mục đích và chạy khám phá memory/Vault/knowledge-graph trước khi ghi file để tránh trùng lặp |
 
 Bundled skill được seed vào PostgreSQL mỗi lần gateway khởi động (theo dõi hash, không re-import nếu không thay đổi). Chúng được đánh dấu `is_system = true` và `visibility = 'public'`.
 
@@ -477,4 +545,4 @@ Xem [Agent Evolution](agent-evolution.md) để biết chi tiết về tool `ski
 - [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

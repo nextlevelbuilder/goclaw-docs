@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **67**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **73**.
 
 ### v3 Store Unification
 
@@ -121,7 +121,7 @@ Core agent records. Each agent has its own context, tools, and model configurati
 | `frontmatter` | TEXT | | Short expertise summary for delegation and UI |
 | `tsv` | tsvector | GENERATED ALWAYS | Full-text search vector (display_name + frontmatter) |
 | `embedding` | vector(1536) | | Semantic search embedding |
-| `budget_monthly_cents` | INTEGER | | Monthly spend cap in USD cents; NULL = unlimited (migration 015) |
+| `budget_monthly_cents` | INTEGER | | Monthly spend cap in USD cents; NULL = unlimited (migration 015). Migration 072 bridges any non-NULL value into a `month`-window `usage_cap_policies` row with `source = 'agent_budget_monthly_cents'` (1 cent = 10,000 micros). |
 | `model_fallback` | JSONB | NOT NULL DEFAULT `{}` | Ordered array of fallback model identifiers tried when primary model fails (migration 065) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | |
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW() | |
@@ -844,6 +844,7 @@ Credential injection configuration for the Exec tool (Direct Exec Mode). Admins 
 | `is_global` | BOOLEAN | NOT NULL DEFAULT true | If true, available to all agents; if false, only agents with an explicit grant |
 | `enabled` | BOOLEAN DEFAULT true | | |
 | `created_by` | TEXT DEFAULT `''` | | Admin user who created this entry |
+| `adapter_name` | TEXT | NULL | Routes the binary to a typed `CredentialAdapter` at exec time; NULL = legacy passthrough (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | | |
 
 > **Migration 036 note:** The `agent_id` column was removed from this table. Per-agent access is now controlled via the `secure_cli_agent_grants` table. Binaries with `is_global = true` are accessible to all agents; binaries with `is_global = false` require an explicit grant.
@@ -1081,6 +1082,8 @@ Per-user credential overrides for secure CLI binaries. Mirrors the `mcp_user_cre
 | `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM encrypted JSON env map |
 | `metadata` | JSONB | NOT NULL DEFAULT `{}` | Extra metadata |
 | `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `credential_type` | TEXT | NULL | Credential shape — `env`, `pat`, `ssh_key`, …; NULL = legacy passthrough (migration 073) |
+| `host_scope` | TEXT | NULL | Binds the credential to a specific hostname (e.g. `github.com`); NULL = unscoped (migration 073) |
 | `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
 
 **Unique:** `(binary_id, user_id, tenant_id)`
@@ -1534,10 +1537,177 @@ Rolling audit log for workstation exec events (`exec` and `deny`). Append-only; 
 
 ---
 
+### `bitrix_portals`
+
+Per-tenant Bitrix24 portal OAuth state. Multiple Bitrix24 channel instances (chatbots) can share one portal row via a portal reference in their channel config. (migration 068)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `name` | VARCHAR(100) | NOT NULL | Portal display name (one per tenant) |
+| `domain` | VARCHAR(255) | NOT NULL | Bitrix24 portal domain |
+| `credentials` | BYTEA | | AES-256-GCM ciphertext of `{client_id, client_secret}` |
+| `state` | BYTEA | | AES-256-GCM ciphertext of portal state (access/refresh tokens, `member_id`, `app_token`, registered bots, media folders) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** unique `(tenant_id, name)`; unique `LOWER(TRIM(domain))` (incoming install/event callbacks resolve by domain before tenant scope is known)
+
+---
+
+### `browser_cookies`
+
+User-selected cookies for server-side browser contexts. Values are AES-256-GCM ciphertext; cookies are scoped by tenant, user, and agent to prevent cross-principal reuse. (migration 069)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `user_id` | VARCHAR(255) | NOT NULL | Owning user |
+| `agent_id` | VARCHAR(255) | NOT NULL | Owning agent |
+| `domain` | TEXT | NOT NULL (non-empty) | Cookie domain |
+| `name` | TEXT | NOT NULL (non-empty) | Cookie name |
+| `path` | TEXT | NOT NULL DEFAULT `/` (non-empty) | Cookie path |
+| `encrypted_value` | TEXT | NOT NULL | AES-256-GCM encrypted cookie value |
+| `secure` | BOOLEAN | NOT NULL DEFAULT FALSE | `Secure` flag |
+| `http_only` | BOOLEAN | NOT NULL DEFAULT FALSE | `HttpOnly` flag |
+| `same_site` | VARCHAR(32) | NOT NULL DEFAULT `''` | `SameSite` attribute |
+| `expires_at` | TIMESTAMPTZ | | Cookie expiry; NULL = session cookie |
+| `source` | VARCHAR(64) | NOT NULL DEFAULT `''` | Where the cookie was captured from |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | |
+
+**Indexes:** unique `(tenant_id, user_id, agent_id, domain, path, name)`; `(tenant_id, user_id, agent_id, domain)`; `expires_at`
+
+---
+
+### `usage_pricing_catalog`
+
+Synced per-model pricing reference used to cost token usage. One row per `model_id`. (migration 070)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `model_id` | TEXT | NOT NULL UNIQUE | Model identifier |
+| `canonical_model_id` | TEXT | | Canonical model alias |
+| `raw_pricing` / `raw_model` | JSONB | NOT NULL DEFAULT `{}` | Raw upstream pricing/model payload |
+| `input_price`, `output_price`, `cache_read_price`, `cache_write_price`, `reasoning_price`, `request_price`, `image_price`, `web_search_price` | NUMERIC(30,18) | `>= 0` or NULL | Per-unit prices |
+| `synced_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Last sync time |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `synced_at DESC`
+
+---
+
+### `usage_pricing_overrides`
+
+Per-tenant, per-provider price overrides applied on top of the catalog. (migration 070)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `provider_id` | UUID FK → llm_providers | NOT NULL ON DELETE CASCADE | Target provider |
+| `provider_type` | TEXT | NOT NULL | Provider type |
+| `model_id` | TEXT | NOT NULL | Target model |
+| `input_price` … `web_search_price` | NUMERIC(30,18) | `>= 0` or NULL | Override prices (same set as catalog) |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, provider_id, model_id)`
+
+**Index:** `(tenant_id, provider_id, model_id)` (partial, `WHERE enabled`)
+
+---
+
+### `usage_cap_policies`
+
+Token/cost cap rules evaluated per tenant, optionally scoped to an agent, provider, provider type, or model, over a rolling time window. (migration 071; `source` column added migration 072)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `agent_id` | UUID FK → agents | NULL ON DELETE CASCADE | Agent scope; NULL = all agents |
+| `provider_id` | UUID FK → llm_providers | NULL ON DELETE CASCADE | Provider scope |
+| `provider_type` | TEXT | | Provider type scope |
+| `model_id` | TEXT | | Model scope |
+| `window_key` | TEXT | NOT NULL CHECK in (`hour`, `day`, `week`, `month`) | Cap window |
+| `max_tokens` | BIGINT | `>= 0` or NULL | Token cap |
+| `max_cost_micros` | BIGINT | `>= 0` or NULL | Cost cap in micro-USD |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `priority` | INTEGER | NOT NULL DEFAULT 100 | Lower-priority policies evaluated first |
+| `source` | TEXT | NOT NULL DEFAULT `manual` | `manual` or `agent_budget_monthly_cents` (migration 072) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Constraint:** at least one of `max_tokens` / `max_cost_micros` must be set.
+
+**Indexes:** `(tenant_id, enabled, agent_id, provider_id, provider_type, model_id)`; unique `(tenant_id, agent_id)` partial `WHERE source = 'agent_budget_monthly_cents'` (one budget-derived policy per agent, migration 072)
+
+---
+
+### `usage_cap_counters`
+
+Per-window accumulators (used + reserved) for each policy. (migration 071)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Parent policy |
+| `window_start` / `window_end` | TIMESTAMPTZ | NOT NULL | Window bounds |
+| `used_tokens` / `reserved_tokens` | BIGINT | NOT NULL DEFAULT 0 | Token usage |
+| `used_cost_micros` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Cost usage in micro-USD |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**PK:** `(policy_id, window_start)`
+
+---
+
+### `usage_cap_reservations`
+
+In-flight reservations that hold capacity before a request completes, later reconciled to actuals. (migration 071)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `reservation_key` | TEXT | NOT NULL | Caller-supplied idempotency key |
+| `policy_id` | UUID FK → usage_cap_policies | NOT NULL ON DELETE CASCADE | Parent policy |
+| `window_start` | TIMESTAMPTZ | NOT NULL | Reservation window |
+| `reserved_tokens` / `reserved_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Reserved amounts |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Reconciled actuals |
+| `status` | TEXT | NOT NULL DEFAULT `reserved` | Reservation state |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(reservation_key, policy_id)`
+
+**Index:** `reservation_key`
+
+---
+
+### `usage_cap_events`
+
+Audit log of cap decisions (allow/deny) and their reasons. (migration 071)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `policy_id` | UUID FK → usage_cap_policies | NULL ON DELETE SET NULL | Policy that produced the decision |
+| `reservation_key` | TEXT | | Related reservation, if any |
+| `decision` | TEXT | NOT NULL | Decision outcome |
+| `reason` | TEXT | | Human-readable reason |
+| `estimated_tokens` / `estimated_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Pre-flight estimates |
+| `actual_tokens` / `actual_cost_micros` | BIGINT | NOT NULL DEFAULT 0 | Final actuals |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(tenant_id, created_at DESC)`
+
+---
+
 ## What's Next
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->

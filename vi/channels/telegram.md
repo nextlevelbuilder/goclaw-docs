@@ -237,6 +237,14 @@ Bật cập nhật phản hồi trực tiếp:
 
 Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), reasoning token hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
 
+### Xử lý Media
+
+**Album / gộp nhiều file đính kèm.** Khi người dùng gửi một album (nhiều ảnh hoặc file gom lại trên client), Telegram giao nó dưới dạng N update riêng biệt cùng chung một `MediaGroupID`. GoClaw buffer các thành viên album ở tầng channel (cửa sổ im lặng 500 ms) và tổng hợp chúng thành **một** tin nhắn đến, nên agent trả lời một lần thay vì một lần cho mỗi file. Khóa buffer là `(chatID, MediaGroupID)`; người gửi được ghim từ thành viên đầu tiên, và một thành viên đến với người gửi không khớp sẽ bị loại bỏ như một biện pháp phòng vệ.
+
+**Giới hạn upload ra ngoài.** Media gửi ra được kiểm tra với ngưỡng upload trước khi gửi — file vượt giới hạn bị từ chối với lỗi rõ ràng "outbound media too large" thay vì hỏng giữa chừng. Ngưỡng là 50 MB trên Bot API chính thức và 200 MB khi cấu hình một Bot API server cục bộ (`api_server`) (hoặc cao hơn nếu `media_max_bytes` được nâng trên mức đó).
+
+**Giữ nguyên đường dẫn archive.** File đến giữ nguyên phần mở rộng gốc khi được lưu (ví dụ một file upload `codex.zip` vẫn là `.zip` thay vì bị đổi thành tên chung), nên các skill và công cụ xử lý tài liệu có thể nhận diện và giải nén archive đúng cách ở phía sau.
+
 ### Reaction
 
 Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
@@ -333,9 +341,9 @@ Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` 
 
 ## Tiếp theo
 
-- [Tổng quan](/channels-overview) — Khái niệm và chính sách channel
+- [Tổng quan](/channels-overview) — Khái niệm, chính sách channel và [inbound debounce](/channels-overview#inbound-debounce)
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->

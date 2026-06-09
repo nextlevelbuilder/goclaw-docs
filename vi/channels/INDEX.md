@@ -6,14 +6,15 @@ Tài liệu đầy đủ cho tất cả các tích hợp nền tảng nhắn tin
 
 1. **[Tổng quan](./overview.md)** — Khái niệm, chính sách, sơ đồ luồng tin nhắn
 2. **[Telegram](./telegram.md)** — Long polling, forum topics, STT, streaming
-3. **[Discord](./discord.md)** — Gateway API, placeholder editing, threads
-4. **[Slack](./slack.md)** — Socket Mode, threads, streaming, reactions, debounce
-5. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
-6. **[Zalo OA](./zalo-oa.md)** — Official Account, chỉ DM, pairing, hình ảnh
-7. **[Zalo Cá nhân](./zalo-personal.md)** — Tài khoản cá nhân (không chính thức), DM + nhóm
-8. **[WhatsApp](./whatsapp.md)** — Kết nối trực tiếp, xác thực QR, media, typing indicators, pairing
-9. **[WebSocket](./websocket.md)** — RPC trực tiếp, custom client, streaming events
-10. **[Ghép nối trình duyệt](./browser-pairing.md)** — Xác thực mã 8 ký tự, session token
+3. **[Bitrix24](./bitrix24.md)** — Cài đặt imbot qua OAuth portal, MCP theo từng người, dedup
+4. **[Discord](./discord.md)** — Gateway API, placeholder editing, threads
+5. **[Slack](./slack.md)** — Socket Mode, threads, streaming, reactions, debounce
+6. **[Larksuite](./larksuite.md)** — WebSocket/Webhook, streaming cards, media
+7. **[Zalo OA](./zalo-oa.md)** — Official Account, chỉ DM, pairing, hình ảnh
+8. **[Zalo Cá nhân](./zalo-personal.md)** — Tài khoản cá nhân (không chính thức), DM + nhóm
+9. **[WhatsApp](./whatsapp.md)** — Kết nối trực tiếp, xác thực QR, media, typing indicators, pairing
+10. **[WebSocket](./websocket.md)** — RPC trực tiếp, custom client, streaming events
+11. **[Ghép nối trình duyệt](./browser-pairing.md)** — Xác thực mã 8 ký tự, session token
 
 ## Bảng so sánh kênh
 

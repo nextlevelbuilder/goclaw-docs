@@ -242,6 +242,126 @@ Response `400` khi tạo/cập nhật bao gồm tên key bị từ chối trong 
 }
 ```
 
+## Typed Credential Adapters
+
+Các phần trên mô tả **mô hình paste env cũ** — bạn paste các biến môi trường tùy ý và GoClaw inject chúng nguyên văn vào tiến trình con. Cách này hoạt động với các tool đọc auth từ một env var ổn định (`GH_TOKEN`, `AWS_ACCESS_KEY_ID`, …), nhưng thất bại với các tool như `git` vốn đọc credential từ file config, credential helper, hoặc URL theo từng remote — paste một PAT vào `GIT_TOKEN` chẳng có tác dụng gì.
+
+**Typed credential adapters** giải quyết điều này. Thay vì paste env var thô, bạn chọn một *loại* credential, và GoClaw định tuyến credential qua một adapter phía server biết cách inject nó đúng và an toàn cho từng tool cụ thể.
+
+### Các loại credential
+
+Mỗi dòng user credential mang một `credential_type` (migration `000073`):
+
+| `credential_type` | Ý nghĩa |
+|-------------------|---------|
+| `NULL` / `env` | Passthrough env cũ — env var được inject nguyên văn, đúng như trước. Không có host scoping. |
+| `pat` | Personal Access Token, cho git remote HTTPS (GitHub/GitLab/Gitea). Yêu cầu `host_scope`. |
+| `ssh_key` | SSH private key (PEM), cho git qua SSH. Yêu cầu `host_scope`. |
+
+Các dòng `NULL`/`env` không bao giờ bị migrate — credential cũ vẫn hoạt động nguyên vẹn. Typed adapter là tùy chọn opt-in theo từng credential.
+
+### User credential và binary/system credential
+
+Typed adapter thao tác trên **user credential**, không phải env default cấp binary:
+
+- **Binary/system credential** — định nghĩa binary + env var default của nó (và override từ agent grant) đã mô tả ở trên. Dùng chung cho mọi grant của binary.
+- **User credential** — secret typed theo từng user lưu trong `secure_cli_user_credentials`, scope tới một hostname duy nhất.
+
+Quản lý user credential trong dashboard tại **Settings → CLI Credentials → User Credentials**. Nhấn **Add**, chọn user, chọn loại credential (`Personal Access Token` hoặc `SSH Private Key`), nhập **Host Scope**, và paste secret. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — sửa dòng đó sẽ hiển thị placeholder `••••••••`; để trống ô secret sẽ giữ giá trị đã lưu, gõ giá trị mới sẽ thay thế nó.
+
+### Adapter git
+
+Adapter `git` là typed adapter đầu tiên được ship. Nó chỉ inject credential **cho** các subcommand mạng:
+
+```
+clone   fetch   pull   push   submodule
+```
+
+Bất kỳ subcommand nào khác (`status`, `log`, `diff`, `commit`, `branch`, …) là thao tác cục bộ và chạy **không credential** — không inject, không dòng audit-log.
+
+**Luồng PAT.** Token được inject qua biến môi trường, không bao giờ trên `argv`:
+
+```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
+GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+```
+
+Vì token nằm trong một env value (không phải flag dòng lệnh), nó không bao giờ xuất hiện trong `ps`, `/proc/<pid>/cmdline`, hay lịch sử shell. Các env var được inject chỉ giới hạn trong tiến trình `git` được spawn — môi trường của chính GoClaw và các lệnh exec khác không bao giờ thấy chúng.
+
+**Luồng SSH.** Key PEM được ghi vào một tmpfile mode `0600` trong thư mục temp hệ thống (prefix `goclaw-gitkey-*`), và `GIT_SSH_COMMAND` được đặt thành:
+
+```
+ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
+```
+
+`StrictHostKeyChecking=accept-new` chấp nhận host key chưa biết ở **lần kết nối đầu (TOFU)**. Pre-seed `~/.ssh/known_hosts` để đóng cửa sổ này (xem [Security Hardening](/deploy-security)). Tmpfile bị xóa sau khi exec qua deferred cleanup. **SSH key có passphrase bị từ chối lúc lưu** — hãy export lại key không passphrase, hoặc dùng deploy key riêng.
+
+### Host scope
+
+Cả `pat` và `ssh_key` đều yêu cầu **`host_scope`** — chính xác `host` hoặc `host:port` dạng ASCII mà credential hợp lệ. Nó được chuẩn hóa về ASCII chữ thường (qua `idna.ToASCII`) và khớp **chính xác**. v1 **không có wildcard**, và port là một phần của key:
+
+| `host_scope` đã lưu | `github.com` | `api.github.com` | `github.com:8443` |
+|---------------------|:---:|:---:|:---:|
+| `github.com` | ✓ | ✗ | ✗ |
+
+Nếu bạn chạy server self-hosted trên port mặc định của scheme (443 HTTPS, 22 SSH), bỏ port; nếu trên port không mặc định, thêm port vào (vd `gitea.internal:8443`). Khi không có credential lưu trữ nào khớp host của remote đã resolve, adapter rơi xuống đường không credential và remote sẽ từ chối thao tác nếu nó yêu cầu auth.
+
+### Khả năng hiển thị env: nhạy cảm và không nhạy cảm
+
+Các entry env lưu trữ giờ mang một `kind`. Khi dashboard hoặc admin API đọc lại một credential, response che giá trị theo kind:
+
+| `kind` | Trong response API |
+|--------|--------------------|
+| `sensitive` (mặc định; map string cũ decode vào đây) | `value: null`, `masked: true` |
+| `value` (không nhạy cảm rõ ràng, vd region hoặc tên profile) | trả về giá trị thuần, `masked: false` |
+
+Điều này cho phép operator thấy ngữ cảnh không bí mật (vd `AWS_DEFAULT_REGION=us-west-2`) trong UI trong khi secret vẫn bị che. Secret vẫn không bao giờ được trả về trừ qua endpoint `env:reveal` chuyên dụng.
+
+### Migrate từ credential env cũ
+
+Không có migration bắt buộc. Một dòng có `credential_type IS NULL` hoặc `= 'env'` vẫn phát ra env var của nó đúng như trước. Để nâng cấp một git credential, mở dialog user-credential, chọn **Personal Access Token** hoặc **SSH Private Key**, nhập host scope, paste secret, và lưu — dòng cũ được thay thế atomically.
+
+### Giới hạn v1
+
+- **Không có wildcard host** — một credential cho mỗi `host[:port]` chính xác; `*.github.com` không được hỗ trợ.
+- **Không có SSH key có passphrase** — bị từ chối lúc validation.
+- **Không propagate vào sandbox** — adapter mutate môi trường của tiến trình con đã fork, không tương thích với đường sandbox Docker bind-mount. Credentialed exec chỉ chạy trên host trong v1.
+- **Không pin host key** — SSH dùng TOFU (`accept-new`); pre-seed `known_hosts`.
+
+### Google Workspace CLI (gws)
+
+GoClaw ship một preset `gws` cho Google Workspace CLI (`@googleworkspace/cli`).
+
+**Tính khả dụng.** Binary `gws` chỉ được cài sẵn **trong Docker image `full` đã publish**. Trên image `latest`/`base`, cài `@googleworkspace/cli` từ trang Packages (yêu cầu build có Node, `ENABLE_NODE=true`; Node.js 18+).
+
+**Credential.** Tạo một SecureCLI credential từ preset `gws` và cung cấp ít nhất một nguồn auth:
+
+| Env var | Mục đích |
+|---------|----------|
+| `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` | Đường dẫn tới credential `gws` đã export hoặc file JSON OAuth credentials |
+| `GOOGLE_WORKSPACE_CLI_TOKEN` | Google OAuth access token lấy sẵn (tùy chọn) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_ID` | OAuth client ID cho luồng auth thủ công (tùy chọn) |
+| `GOOGLE_WORKSPACE_CLI_CLIENT_SECRET` | OAuth client secret cho luồng auth thủ công (tùy chọn) |
+
+**Lệnh bị chặn.** Preset chặn các luồng auth tương tác và export credential:
+
+```
+gws auth setup    gws auth login    gws auth export    gws auth logout
+```
+
+Chạy các luồng đó ngoài agent execution, rồi lưu token hoặc đường dẫn credentials-file kết quả vào SecureCLI.
+
+**Cách dùng.** Mặc định thiên về đọc. Dùng `--params` cho query parameter, `--json` cho request body, và `--page-all` cho đọc phân trang:
+
+```sh
+gws drive files list --params '{"pageSize": 10}'
+gws gmail users messages list --params '{"userId": "me", "maxResults": 10}'
+gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
+```
+
+> **Cảnh báo ghi.** Lệnh ghi có thể sửa đổi dữ liệu Workspace. Giữ preset mặc định thiên về đọc và tạo một SecureCLI config riêng, đã review cho mọi workflow ghi đã được duyệt.
+
 ## Pattern phổ biến
 
 ### Chỉ cho phép một agent dùng CLI tool nhạy cảm
@@ -273,4 +393,4 @@ Cập nhật grant: `{"enabled": false}`. Binary vẫn dùng được với các
 - [API Keys & RBAC](/api-keys-rbac)
 - [Security Hardening](/deploy-security)
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
