@@ -35,6 +35,7 @@ Seven lifecycle events fire during an agent session:
 | `command` | Lite only | Local shell command; exit 2 → block, exit 0 → allow |
 | `http` | Lite + Standard | POST to endpoint; JSON body → decision. SSRF-protected |
 | `prompt` | Lite + Standard | LLM-based evaluation with structured tool-call output. Budget-bounded, requires `matcher` or `if_expr` |
+| `script` | Lite + Standard | Sandboxed ES5.1 JavaScript; in-process execution with zero latency. See [JavaScript Hooks](/advanced/hooks-javascript) |
 
 ### Scopes
 
