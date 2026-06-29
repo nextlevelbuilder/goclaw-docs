@@ -6,7 +6,7 @@
 
 ## 概览
 
-> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~308 REST 端点列表。
+> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 REST 端点列表。
 
 GoClaw 的 HTTP API 与 WebSocket gateway 共用同一端口。所有端点需要在 `Authorization` 头中提供与 `GOCLAW_GATEWAY_TOKEN` 匹配的 `Bearer` token。
 
@@ -537,6 +537,12 @@ curl -X POST http://localhost:18790/v1/skills/upload \
 | 参数 | 类型 | 说明 |
 |-------|------|-------------|
 | `stream` | `bool` | 为 `true` 时以 SSE 流式推送进度，最后发送含 `download_url` 的 `complete` 事件 |
+| `format` | string | 归档格式 — `tar.gz`（默认）、`tgz`（gzip tar 的别名）或 `zip`。ZIP 仅用于导出/下载；导入仍要求 skills bundle 格式 |
+| `id` | string | 按 ID 选择单个 skill。重复该参数可选择多个 |
+| `ids` | string | 以逗号分隔的列表选择多个 skill ID |
+| `include_system` | `bool` | 未选择任何 ID 进行完整导出时，包含 system skill |
+
+> `GET /v1/skills/export` 同时支持**直接下载**（在响应中流式传输归档）和 SSE token 流（`stream=true` → `download_url`）。不指定 `id`/`ids` 时，导出保持向后兼容，默认包含租户的自定义 skill。
 
 **归档格式**（`skills-YYYYMMDD.tar.gz`）：
 
@@ -582,6 +588,63 @@ skills/{slug}/grants.jsonl    — agent grant（agent_key + pinned version）
 | `POST` | `/v1/skills/install-deps` | 安装所有缺失依赖 |
 | `POST` | `/v1/skills/install-dep` | 安装单个依赖 |
 | `GET` | `/v1/skills/runtimes` | 检查运行时可用性 |
+
+---
+
+### Skill 自进化与指标
+
+Skill 可以收集使用指标并提出自身改进建议。自进化按租户限定范围，且**每个 skill 默认关闭**。使用指标仅由受信任的运行时路径写入（如 `use_skill` 工具和 slash-command 激活）——不存在公开的用量写入端点。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/evolution` | 读取某 skill 的自进化设置 |
+| `PATCH` | `/v1/skills/{id}/evolution` | 更新启用状态或 mode（租户管理员）|
+| `GET` | `/v1/skills/{id}/metrics` | 聚合使用指标 + 状态计数 |
+| `GET` | `/v1/skills/{id}/activity` | 仅管理员的进化活动日志 |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | 列出该 skill 范围内的改进建议 |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` | 创建带证据 + 草稿补丁的建议（租户管理员）|
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` | 批准建议（租户管理员）|
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` | 拒绝建议（租户管理员）|
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` | 应用已批准的建议 → 生成新 skill 版本（租户管理员）|
+
+**进化 mode（`PATCH .../evolution`，字段 `mode`）：**
+
+| Mode | 行为 |
+|------|----------|
+| `suggest_only` | 收集指标并管理建议；不自动打补丁 |
+| `auto_analyze` | 为分析自动化保留。**补丁应用始终需要显式批准** |
+
+> Viewer/operator 调用方可读取聚合指标。原始 activity、actor ID、失败证据、草稿补丁和 apply 操作仅限管理员。System skill 不可变更；应用自定义 skill 的建议会写入一个新的版本化目录和一条 `skill_versions` 记录。
+
+### Skill 访问控制与授权（批量）
+
+读取和管理谁可以使用某个 skill。复数形式的 `grants/agents` 和 `grants/users` 路由接受**批量**集合；[Skill 授权](#skill-授权)中记录的单数路由仍可用于单条授权。所有路由都需要 **admin 角色**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/access` | 读取访问配置（visibility + agent/user 授权）|
+| `PATCH` | `/v1/skills/{id}/access` | 更新访问配置（如 `visibility`）|
+| `GET` | `/v1/skills/{id}/access/effective` | 该 skill 的有效访问权限 |
+| `GET` | `/v1/skills/access/effective` | 所有 skill 的有效访问权限 |
+| `GET` | `/v1/skills/{id}/grants/agents` | 列出 agent 授权（批量视图）|
+| `POST` | `/v1/skills/{id}/grants/agents` | 批量设置 agent 授权（`agent_id`、可选 `version`/`pinned_version`、`can_manage`）|
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` | 移除一条 agent 授权 |
+| `GET` | `/v1/skills/{id}/grants/users` | 列出 user 授权（批量视图）|
+| `POST` | `/v1/skills/{id}/grants/users` | 批量设置 user 授权（`user_id`）|
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` | 移除一条 user 授权 |
+
+**有效访问响应**中每个 skill 包含 `accessible`、`reason`、`can_manage` 和可选的 `pinned_version`。
+
+### Skill 依赖
+
+检查并解析某 skill 的运行时依赖。需要 **admin 角色**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/dependencies` | 列出该 skill 的依赖及其状态 |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | 重新扫描声明的依赖并刷新状态 |
+| `POST` | `/v1/skills/{id}/dependencies/check` | 检查依赖是否已满足 |
+| `POST` | `/v1/skills/{id}/dependencies/install` | 为该 skill 安装缺失依赖 |
 
 ---
 
@@ -752,12 +815,28 @@ POST /v1/tools/invoke
 
 ### `GET /v1/traces`
 
-列出 LLM traces。支持查询参数：`agentId`、`userId`、`status`、`limit`、`offset`。
+列出 LLM traces。
 
 ```bash
-curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
+curl "http://localhost:18790/v1/traces?agentId=UUID&q=timeout&min_input_tokens=1000&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `agentId` | string | 按 agent 过滤 |
+| `userId` | string | 按用户过滤 |
+| `status` | string | 按状态过滤 |
+| `channel` | string | 按 channel 过滤 |
+| `q` | string | 在 trace/span 字段上进行宽泛的 contains 搜索 |
+| `min_input_tokens` / `max_input_tokens` | integer | 按输入 token 范围过滤 |
+| `min_output_tokens` / `max_output_tokens` | integer | 按输出 token 范围过滤 |
+| `tool_name` | string | 过滤使用了指定 tool 的 trace |
+| `min_tool_calls` / `max_tool_calls` | integer | 按 tool 调用次数范围过滤 |
+| `limit` | integer | 每页数量 |
+| `offset` | integer | 页偏移 |
 
 ### `GET /v1/traces/follow`
 
@@ -788,6 +867,10 @@ curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-
 
 将 trace 树导出为 gzip 压缩的 JSON。
 
+### `GET /v1/runs/{runID}/timeline`
+
+返回单次运行已持久化的 display-safe 归档时间线 — 与 run/会话时间线面板中呈现的条目相同。Tool 条目仅存储有界的 preview；原始 reasoning 不会被持久化。非管理员调用方仅限于自己的条目。
+
 ### 成本
 
 | 方法 | 路径 | 说明 |
@@ -803,8 +886,13 @@ curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-
 | `GET` | `/v1/usage/timeseries` | 时序用量数据点 |
 | `GET` | `/v1/usage/breakdown` | 按 provider/model/channel 分类 |
 | `GET` | `/v1/usage/summary` | 含环比对比的摘要 |
+| `GET` | `/v1/usage/events/timeseries` | 基于事件的时序（从原始用量事件计算）|
+| `GET` | `/v1/usage/events/breakdown` | 基于事件的按 provider/model/channel 分类 |
+| `GET` | `/v1/usage/events/summary` | 基于事件、含环比对比的摘要 |
 
 **查询参数：** `from`、`to`（RFC 3339）、`agent_id`、`provider`、`model`、`channel`、`group_by`
+
+> `/v1/usage/events/*` 变体从原始用量事件存储而非预计算快照计算相同的数据结构 — 适用于获取精确、即时到事件的数据。
 
 ---
 
@@ -1161,6 +1249,44 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 
 `reason` 为 `writer`、`not_writer`、`no_writers_configured` 或 `invalid_group` 之一。
 
+### 被动记忆提取（Passive Memory Extraction）
+
+按 channel 实例的被动记忆提取 — 从近期对话中挖掘出进入审核队列的记忆候选项，再将其批准进入情节记忆。读取端点 viewer 可访问；设置与条目状态转换需要**租户管理员（tenant-admin）**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | 配置 + 最近一次运行 + 待处理数量 + 近期条目 |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | 替换归一化后的 `passive_memory` 配置块 |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | 触发一次手动提取运行 |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | 列出审核队列条目（可选 `status` 过滤）|
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | 将候选项写入情节记忆 + 发布 KG 事件 |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | 拒绝候选项 |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | 删除候选项（及任何关联的情节摘要）|
+
+**`passive_memory` 配置字段：** `enabled`、`review_mode`、`interval_minutes`、`message_cap`、`retention_hours`、`allowed_types`、`exclude_users`、`exclude_patterns`、`min_messages`、`group_only`。默认值：禁用、开启审核模式、仅群组、360 分钟间隔、100 条消息上限、168 小时保留，以及持久类型（people、projects、decisions、todos、preferences、events）。
+
+### 上下文能力管理（Context Capability Administration）
+
+管理某 channel 实例的 per-context（按 scope）工具访问。context 由 `{scopeType}/{scopeKey}` 标识（如某个群组或 DM）。Grant/credential 路由需要 **admin 角色**；list/capabilities 读取 viewer 可访问。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/contexts` | 列出该实例的 context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` | 列出某 context 的成员 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` | 为该 context 解析出的有效能力 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` | 列出 MCP server 授权 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | 设置一条 MCP 授权 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | 移除一条 MCP 授权 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` | 列出 MCP 凭证 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | 设置一条 MCP 凭证 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | 移除一条 MCP 凭证 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` | 列出 CLI 二进制授权 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | 设置一条 CLI 授权 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | 移除一条 CLI 授权 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` | 列出 CLI 凭证 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | 设置一条 CLI 凭证 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | 移除一条 CLI 凭证 |
+
 ---
 
 ## 联系人
@@ -1292,6 +1418,17 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 获取用户专属凭证 |
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 设置用户专属凭证 |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 删除用户专属凭证 |
+
+### 按 Agent CLI 凭证
+
+某 CLI 配置的 agent 级凭证存储 — 存储单个 agent 应使用的凭证值。这与下方的 **[CLI 凭证 Agent 授权](#cli-凭证-agent-授权)有所区别**：授权控制 agent *是否*可以使用某二进制（含参数/超时限制），而这些端点存储的是 agent 实际的凭证 payload。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` | 列出某 CLI 配置的 agent 级凭证 |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | 获取 agent 凭证元数据 |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | 创建或替换一条 agent 凭证 |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | 删除一条 agent 凭证 |
 
 ### CLI 凭证 Agent 授权
 
@@ -2010,4 +2147,4 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

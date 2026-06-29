@@ -89,6 +89,16 @@ POST /v1/agents/:id/shares
 
 Predefined agent 也可以通过 `channel_instances` 访问。若 predefined agent 有一个已启用的 channel instance，其 `allow_from` 列表包含你的用户 ID，则即使没有直接共享或 default 标志，你也可以访问该 agent。
 
+## 首个 setup agent 的网关 operator 访问
+
+在 `goclaw setup` 期间创建**第一个** agent 时，向导会询问：
+
+```
+Grant this first agent local gateway operator access via the goclaw CLI? [默认：No]
+```
+
+若你回答 **yes**，该 agent 将获得**可撤销的 SecureCLI 访问权限**，可通过 goclaw CLI 运行本地网关命令（例如 `goclaw agent list`）。创建 agent 的响应携带一个 `gateway_operator_bootstrap` 块，含 `status` 字段和可选的 `warning`。默认为 **No** — 仅当你希望第一个 agent 自行操作网关时才启用。由于该权限以 SecureCLI grant 形式授予，你之后可像任何 grant 一样撤销它。
+
 ## 通过 HTTP API 共享 Agent
 
 使用 `POST /v1/agents/:id/shares` 共享 agent。只有所有者（或 gateway 所有者级别的用户）才能共享。
@@ -235,8 +245,9 @@ GoClaw 在内存中缓存热点权限查询，以减少高流量部署下的数�
 
 ## 下一步
 
+- [权限矩阵 — agent 配置权限、group/channel 范围以及完整的权限层级表](/permission-matrix)
 - [User Overrides — 让用户按 agent 自定义 LLM provider/model](/user-overrides)
 - [System Prompt Anatomy — 权限如何影响 system prompt 各部分](/system-prompt-anatomy)
 - [Creating Agents — 创建 agent 并立即共享](/creating-agents)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

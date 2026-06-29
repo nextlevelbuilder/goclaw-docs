@@ -43,6 +43,7 @@ All config keys are in `channels.zalo`:
 | `webhook_secret` | string | -- | Optional webhook signature secret |
 | `media_max_mb` | int | 5 | Max image file size (MB) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Features
 
@@ -115,4 +116,4 @@ Default DM policy is `"pairing"`. New users see pairing code instructions with 6
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

@@ -6,6 +6,8 @@
 
 GoClaw sử dụng **hệ thống phân quyền 5 lớp**. API key và vai trò nằm ở lớp 1 — xác thực gateway. Khi một yêu cầu đến, GoClaw kiểm tra header `Authorization: Bearer <token>`, ánh xạ token thành một vai trò, và áp dụng vai trò đó lên phương thức đang được gọi.
 
+> API key và RBAC theo tenant chỉ là lớp đầu tiên. Quyền cấu hình agent, phạm vi group/channel, và credential theo context channel được mô tả trong [Ma trận phân quyền](/permission-matrix).
+
 Ba vai trò tồn tại:
 
 | Vai trò | Cấp độ | Mô tả |
@@ -254,9 +256,10 @@ Khi một key được tạo hoặc thu hồi, sự kiện `cache.invalidate` đ
 
 ## Tiếp theo
 
+- [Ma trận phân quyền](/permission-matrix) — quyền cấu hình agent, phạm vi group/channel, và bảng đầy đủ các lớp phân quyền
 - [Authentication & OAuth](/authentication) — gateway token và luồng OAuth
 - [Exec Approval](/exec-approval) — yêu cầu scope `operator.approvals`
 - [Security Hardening](/deploy-security) — tổng quan đầy đủ 5 lớp phân quyền
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials vào CLI tool (gh, aws, gcloud) mà không để lộ secret cho agent
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

@@ -6,7 +6,7 @@
 
 Extended thinking lets a supported LLM reason through a problem before producing its final reply. The model generates internal reasoning tokens that are not part of the visible response but improve the quality of complex analysis, multi-step planning, and decision-making.
 
-GoClaw supports extended thinking across four provider families — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), and Codex (Alibaba AI Reasoning) — through a single unified `thinking_level` setting per agent.
+GoClaw supports extended thinking across four provider families — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), and Codex (OpenAI ChatGPT OAuth, Responses API) — through a single unified `thinking_level` setting per agent.
 
 ---
 
@@ -59,6 +59,8 @@ When thinking is active, GoClaw:
 - **Strips the `temperature` parameter** — Anthropic rejects thinking requests that include temperature
 - Auto-adjusts `max_tokens` to `budget_tokens + 8,192` to accommodate thinking overhead
 
+> **Sampling params on Claude 4.6+:** For Claude Opus/Sonnet 4.6+ and Opus 4.7+, GoClaw omits `temperature` (and `top_p`/`top_k`) from **every** request — independent of thinking. These models return `HTTP 400` if sampling params are included. This is broader than the thinking-only strip above. See the [Anthropic provider](/provider-anthropic) page.
+
 ### OpenAI-Compatible (OpenAI, Groq, DeepSeek, etc.)
 
 Maps `thinking_level` directly to `reasoning_effort`:
@@ -68,6 +70,10 @@ Maps `thinking_level` directly to `reasoning_effort`:
 - `high` → `reasoning_effort: "high"`
 
 Reasoning content arrives in `reasoning_content` during streaming and does not require special passback handling between turns.
+
+> **Kimi Coding (`kimi_coding`):** Kimi is OpenAI-compatible but has **server-side thinking on by default** for `kimi-k2-turbo-preview`. As a result, assistant tool-call messages replayed in history **must carry** a `reasoning_content` field — GoClaw auto-emits an empty string when none was captured, otherwise upstream returns `HTTP 400`. See the [Kimi Coding](/provider-kimi) page.
+
+> **Bailian Coding (`bailian`):** Bailian is a separate OpenAI-compatible Coding endpoint. Its hardcoded catalog includes `qwen3.7-plus` (advertised with Deep Thinking and Visual Understanding), but the DashScope `enable_thinking`/`thinking_budget` injection path described below does **not** apply to Bailian — it is treated as a plain OpenAI-compatible provider. See [Bailian](/provider-bailian).
 
 ### DashScope (Alibaba Qwen)
 
@@ -109,6 +115,8 @@ flowchart TD
 | Codex | `OutputTokensDetails.ReasoningTokens` tracked | Standard content |
 
 Thinking tokens are estimated as `character_count / 4` for context window tracking.
+
+> **Channel delivery is separate from provider streaming.** Whether a provider streams reasoning is one decision; whether a chat channel (e.g. Telegram) shows that reasoning to end users is another. Telegram exposes a `reasoning_delivery` setting for this — see the channel documentation for its modes.
 
 ---
 
@@ -204,4 +212,4 @@ Maps to `reasoning_effort: "low"` on the OpenAI API.
 - [Agents Overview](/agents-explained) — per-agent configuration reference
 - [Hooks & Quality Gates](/hooks-quality-gates) — validate agent outputs after reasoning
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

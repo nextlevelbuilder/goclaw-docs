@@ -49,6 +49,7 @@
 | `require_mention` | bool | true | 服务器（channel）中是否需要 @bot 提及 |
 | `history_limit` | int | 50 | 每个 channel 的待处理消息数（0=禁用） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 覆盖此 channel 的 gateway [拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 功能特性
 
@@ -87,6 +88,20 @@ Agent 处理期间显示 typing 指示器（9 秒保活）。消息成功投递�
 ### 线程支持
 
 Bot 自动检测并在 Discord 线程中响应。响应保持在同一线程中。
+
+### 线程历史回填
+
+当 bot 在 **Discord 线程内**被提及时，GoClaw 会在回答前拉取最近的线程上下文 — 这样线程中途的提及不会被盲目作答。
+
+- 通过 Discord REST API 获取触发消息之前的最多 **25** 条线程消息，并将它们的文本作为上下文前置。
+- 将最多 **15** 个之前的附件下载到入站媒体管道，每个文件上限 **5 MB**。
+- 整个回填受 **30 秒**超时约束。
+
+这是**仅限线程**的。如果 bot 缺少 `READ_MESSAGE_HISTORY` 权限或 REST 调用失败，GoClaw 会优雅地回退为只用当前消息。
+
+### 多文件投递
+
+Discord 在**单条消息**中投递多个文件（外加可选文本），最多 10 个附件 — 因此一次批量 `send_file` 会落地为一条整洁的消息，而非一连串刷屏。参见概览中的 [多附件投递](/channels-overview#multi-attachment-delivery-batching)。
 
 ### 回复消息中的媒体
 
@@ -137,6 +152,7 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 | 占位符编辑失败 | 确保 bot 有 `Manage Messages` 权限。Discord 可能在设置期间撤销此权限。 |
 | 消息分割不正确 | 长响应在换行处分割。通过模型 `max_tokens` 控制消息长度。 |
 | Bot 提及自己 | 检查 Discord 权限。Bot 响应中不应包含 `@everyone` 或 `@here`。 |
+| 线程上下文缺失 | 线程历史回填需要 `READ_MESSAGE_HISTORY`。授予该权限；仅在线程内生效。 |
 
 ## 下一步
 
@@ -145,4 +161,4 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 - [Larksuite](/channel-feishu) — Larksuite 流式卡片集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

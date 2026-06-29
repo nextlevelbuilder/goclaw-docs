@@ -227,6 +227,76 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 **基于哈希的幂等性：** 上传端点使用 `SKILL.md` 内容的 SHA-256 哈希进行去重。如果相同的 `SKILL.md` 内容再次上传（即使打包在不同的 ZIP 中），也不会创建新版本 — 现有版本保持不变。只有 `SKILL.md` 实际内容发生变化时才会触发新版本创建。
 
+> **通过 `skill_manage` 内联伴生文件：** 启用了 skill 进化的 agent 也可以通过向 `skill_manage` tool 传入 `files` 对象来内联创建小型文本伴生文件（无需 ZIP）—— 以相对路径作为键，例如 `references/guide.md`。每个内联文本文件限制为 **2 MB**，路径校验器会拒绝绝对路径、Windows 盘符路径（`C:\...`）、空字节、`..` 穿越、覆盖 `SKILL.md`、dotfile/dotdir 以及系统工件（例如 `.git`）。详见 [Agent 进化](agent-evolution.md)。
+
+## 选择性导出与下载
+
+你可以从 Dashboard 或 API 将 skill 导出为 ZIP 归档 —— 既可导出全部 skill，也可导出手动挑选的子集。
+
+**构建前预览** —— `GET /v1/skills/export/preview` 返回*将要*导出的数量而不构建归档，以便 UI 在你确认前显示"N 个 skill，将包含 M 个"：
+
+```bash
+curl "http://localhost:8080/v1/skills/export/preview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**导出选定的 skill** —— 传入特定的 skill ID 仅导出那些 skill，并可附带可选的 `include_system` 标志以包含内置/系统 skill：
+
+```bash
+# 导出两个特定 skill，排除系统 skill
+curl "http://localhost:8080/v1/skills/export?ids=SKILL_ID_1,SKILL_ID_2&include_system=false" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+对于大型导出，服务器可异步构建归档，并在处理过程中流式推送 Server-Sent Events。完成时返回指向一次性 token 端点的 `download_url`：
+
+```
+event: complete
+data: {"download_url":"/v1/export/download/TOKEN"}
+```
+
+```bash
+# 使用返回的 token 获取已构建的归档
+curl "http://localhost:8080/v1/export/download/TOKEN" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+**Dashboard：** **Skills** 页面有一个批量选择工具栏 —— 勾选你想要的 skill，然后点击 **Export selected** 仅下载那些 skill。
+
+## 访问模式与有效访问
+
+除可见性级别外，每个 skill 还有一个**访问模式（access mode）**，用于控制其可达范围。管理员通过 access 端点读取和设置它：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/access` | 显示该 skill 的访问模式和 grants |
+| `PATCH` | `/v1/skills/{id}/access` | 设置访问模式（`private`、`internal` 或 `public`） |
+| `GET` | `/v1/skills/{id}/access/effective` | 针对给定 agent 和 user，解释单个 skill 的有效访问 |
+| `GET` | `/v1/skills/access/effective` | 针对一个 agent 和 user，解释所有 skill 的有效访问 |
+
+```bash
+# 将某个 skill 的访问模式设为 internal
+curl -X PATCH "http://localhost:8080/v1/skills/{id}/access" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_mode": "internal"}'
+
+# 解释某个 agent/user 为何能或不能访问某个 skill
+curl "http://localhost:8080/v1/skills/{id}/access/effective?agent_id=AGENT_UUID&user_id=user@example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### 按 skill 的依赖端点
+
+除了全网关重新扫描外，你还可以检查和管理单个 skill 的依赖：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/dependencies` | skill 当前的依赖状态 |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | 重新扫描已声明和检测到的依赖 |
+| `POST` | `/v1/skills/{id}/dependencies/check` | 检查每个依赖在运行时能否解析 |
+| `POST` | `/v1/skills/{id}/dependencies/install` | 安装缺失的依赖（master 租户） |
+
 ## 运行时环境
 
 使用 Python 或 Node.js 的 skill 在预装了相应包的 Docker 容器中运行。
@@ -270,7 +340,7 @@ Agent **不可以**：写入系统路径，从 `/tmp` 执行二进制文件，�
 
 ## 内置 Skill
 
-GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了六个核心 skill，优先级最低 — 用户上传的同名 slug skill 可覆盖它们。
+GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了七个核心 skill，优先级最低 — 用户上传的同名 slug skill 可覆盖它们。
 
 | Skill | 用途 |
 |---|---|
@@ -280,6 +350,7 @@ GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了六个核心 s
 | `pptx` | 读取、创建、编辑演示文稿 |
 | `skill-creator` | 创建新 skill |
 | `workspace-organizing` | 保持 agent 工作空间整洁、易于查找 — 强制执行基于用途的文件夹约定，并在写入文件前运行 memory/Vault/knowledge-graph 发现以避免重复 |
+| `goclaw` | 通过 `goclaw` CLI/runtime 运维、检查、管理和调试 GoClaw 网关 — CLI 发现、网关 health/config 诊断、agents、skills、MCP/tools、运行时包、credentials、traces、sessions、channels、providers 和 cron/jobs。始终先检查实时的 `goclaw --help` 输出，因为可用命令取决于版本。 |
 
 内置 skill 在每次网关启动时种入 PostgreSQL（哈希跟踪，未变更则不重新导入）。它们被标记为 `is_system = true` 且 `visibility = 'public'`。
 
@@ -545,4 +616,4 @@ Token 估算：每个 skill 约 `(len(name) + len(description) + 10) / 4`（约 
 - [自定义工具](/custom-tools) — 为 agent 添加基于 shell 的工具
 - [定时任务与 Cron](/scheduling-cron) — 按计划运行 agent
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

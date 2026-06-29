@@ -61,6 +61,7 @@
 | `reaction_level` | string | `"off"` | `off`、`minimal`（仅 ⏳）、`full` |
 | `history_limit` | int | -- | 从历史加载的最大消息数 |
 | `block_reply` | bool | -- | 屏蔽回复消息上下文 |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `stt_proxy_url` | string | -- | 语音转文字代理 URL |
 | `stt_api_key` | string | -- | 语音转文字 API key |
 | `stt_tenant_id` | string | -- | 语音转文字租户 ID |
@@ -242,4 +243,4 @@ list_group_members(channel?, chat_id?) → { count, members: [{ member_id, name 
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

@@ -47,7 +47,7 @@ Name()        — 返回 provider 标识符（如 "anthropic"、"openai"）
 |----------|------|---------|
 | **anthropic** | 原生 HTTP + SSE | `claude-sonnet-4-5-20250929` |
 | **claude_cli** | stdio 子进程 + MCP | `sonnet` |
-| **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.5` |
+| **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
 | **acp** | JSON-RPC 2.0 子 agent | `claude` |
 | **dashscope** | OpenAI 兼容封装 | `qwen3-max` |
 | **vertex** | OpenAI 兼容（OAuth2） | `google/gemini-2.0-flash-001` |
@@ -69,6 +69,8 @@ Name()        — 返回 provider 标识符（如 "anthropic"、"openai"）
 | perplexity | `https://api.perplexity.ai` | `sonar-pro` |
 | ollama | `http://localhost:11434/v1` | `llama3.3` |
 | byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` |
+| bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
+| kimi_coding | `https://api.kimi.com/coding/v1` | `kimi-k2-turbo-preview` |
 
 ## 添加 Provider
 
@@ -227,6 +229,8 @@ Reasoning effort 控制参数（`reasoning_effort`、`thinking_budget` 等）在
 - [DeepSeek](/provider-deepseek) — 支持 reasoning_content 的 DeepSeek
 - [Groq](/provider-groq) — 超快推理
 - [DashScope](/provider-dashscope) — 支持思考的阿里 Qwen 模型
+- [Bailian](/provider-bailian) — 阿里云百炼 Coding 端点（与 DashScope 分离）
+- [Kimi Coding](/provider-kimi) — Moonshot Kimi，固定 User-Agent 且服务端思考
 - [ACP](/provider-acp) — Claude Code、Codex CLI、Gemini CLI 子 agent 编排
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

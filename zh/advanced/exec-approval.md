@@ -243,6 +243,14 @@ Agent goroutine 阻塞直到你响应。如果 2 分钟内无响应，请求自�
 
 拒绝组与 exec 审批流程独立运作——命令可以通过拒绝组检查，但仍会根据你的 `ask` 模式设置被暂停等待人工审批。
 
+### 实时重载的持久性
+
+全局拒绝组更改无需重启即可立即生效。重载会在应用前克隆配置快照，因此**禁用会正确保留**——你关闭的组会保持关闭，直到你重新开启。同一次重载还会刷新 provider 级 shell-deny 策略（Claude CLI / ACP），而不仅是全局 exec 工具。
+
+### venv Python 豁免
+
+GoClaw 阻止 shell 访问其内部 `.goclaw/` 数据目录。**GoClaw 托管的 Python 解释器获得豁免**：用其绝对路径（`<home>/.goclaw/venv/bin/python3`）调用是允许的。GoClaw 在启动时解析该路径（跟随符号链接）一次，并豁免已解析的解释器目录；若不存在 venv 则静默回退。这是 agent 的 shell 命令在 `.goclaw/` 下唯一能触及的路径。
+
 ---
 
 ## 常见问题
@@ -263,4 +271,4 @@ Agent goroutine 阻塞直到你响应。如果 2 分钟内无响应，请求自�
 - [自定义工具](/custom-tools) — 定义由 shell 命令支持的工具
 - [安全加固](/deploy-security) — 完整的五层安全概览
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

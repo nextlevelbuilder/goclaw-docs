@@ -105,6 +105,7 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | `first_inbox_message` | string | 内置文本 | first inbox 功能发送的自定义私信内容 |
 | `post_context_cache_ttl` | string | `"15m"` | 评论 context 抓取的帖子内容缓存 TTL（如 `"30m"`） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `allow_from` | list | -- | 用户/群组 ID 白名单 |
 
 ## 架构
@@ -347,4 +348,4 @@ API 错误映射到 channel 健康状态：
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [多 Channel 设置](/recipe-multi-channel) — 配置多个 channel
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

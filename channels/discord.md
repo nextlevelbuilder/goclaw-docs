@@ -47,6 +47,7 @@ All config keys are in `channels.discord`:
 | `require_mention` | bool | true | Require @bot mention in servers (channels) |
 | `history_limit` | int | 50 | Pending messages per channel (0=disabled) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Features
 
@@ -85,6 +86,20 @@ While the agent processes, a typing indicator is shown (9-second keepalive). The
 ### Thread Support
 
 The bot automatically detects and responds in Discord threads. Responses stay in the same thread.
+
+### Thread History Backfill
+
+When the bot is mentioned **inside a Discord thread**, GoClaw pulls in the recent thread context before answering — so a mid-thread mention isn't answered blind.
+
+- Fetches up to **25** prior thread messages (before the trigger) via the Discord REST API and prepends their text as context.
+- Downloads up to **15** prior attachments into the inbound media pipeline, bounded to **5 MB per file**.
+- The whole backfill is bounded by a **30-second** timeout.
+
+This is **thread-only**. If the bot is missing the `READ_MESSAGE_HISTORY` permission or the REST call fails, GoClaw falls back gracefully to just the current message.
+
+### Multi-File Delivery
+
+Discord delivers multiple files (plus optional text) in a **single message**, up to 10 attachments — so a batch `send_file` lands as one tidy message rather than a flood. See [Multi-Attachment Delivery](/channels-overview#multi-attachment-delivery-batching) in the overview.
 
 ### Media from Replied-to Messages
 
@@ -135,6 +150,7 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 | Placeholder editing fails | Ensure bot has `Manage Messages` permission. Discord may revoke this during setup. |
 | Message split incorrectly | Long responses are split at newlines. Control message length via model `max_tokens`. |
 | Bot mentions itself | Check Discord permissions. Bot should not have `@everyone` or `@here` in responses. |
+| Thread context missing | Thread history backfill needs `READ_MESSAGE_HISTORY`. Grant the permission; only works inside threads. |
 
 ## What's Next
 
@@ -143,4 +159,4 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 - [Larksuite](/channel-feishu) — Larksuite integration with streaming cards
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

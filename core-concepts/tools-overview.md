@@ -22,7 +22,7 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
 | **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Generate images, audio, video, and text-to-speech; `image_generation` is a native tool for Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — see [Media Generation](/advanced/media-generation) |
 | **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
-| **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images, transcribe audio, extract documents, analyze video |
+| **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images (file, attachment, or URL), transcribe audio, extract documents (PDF, DOCX, images; optional local-first extraction via pdftotext/pandoc), analyze video (file or URL) — see [Media Generation](/advanced/media-generation) |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
 | **Workspace** | workspace_dir | Resolve workspace directory for team/user context |
 | **AI** | openai_compat_call | Call OpenAI-compatible endpoints with custom request formats |
@@ -88,6 +88,28 @@ The minimum and maximum bounds can be tuned per-deployment via the tool's runtim
 
 > **Not the same as `spawn(action=wait)`:** `wait` is a top-level built-in tool that pauses **the calling agent** for `timeMs` milliseconds. The `spawn(action=wait)` pattern (also called **WaitAll**, see below) is a delegation primitive that blocks the parent **until previously spawned subagents finish**. Use `wait` for time-based pauses; use `spawn(action=wait)` for fan-out/fan-in delegation.
 
+### `read_document` Local-First Extraction
+
+`read_document` analyzes PDF, DOCX, and images of documents. By default it sends the file to a cloud vision provider. You can opt into **local-first extraction** that runs `pdftotext` (PDF) and `pandoc --sandbox` (DOCX) on the host *before* any cloud call, configured via the `document_parser` block:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `local_first` | `false` | Enable local extraction (opt-in). Requires `pdftotext`/`pandoc` on PATH — present in the `full` Docker variant or builds with `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | PDF page limit; passed to `pdftotext -l` |
+| `timeout_sec` | `30` | Per-extraction timeout; the process group is killed on timeout |
+| `min_text_len` | `16` | Minimum characters (after trim) for a successful extraction; shorter output triggers cloud fallback |
+
+Config is captured at startup (not hot-reloaded), but binary availability is re-checked per call so a runtime install is detected without a restart. Any extraction miss — disabled, unsupported MIME, missing binary, timeout, or too-little text (e.g. a scanned image-only PDF) — transparently falls back to the cloud vision chain with no caller-visible difference.
+
 ## Tool Execution Flow
 
 When an agent calls a tool:
@@ -106,6 +128,10 @@ graph LR
 3. **Execute** — The tool runs and produces output
 4. **Scrub** — Credentials and sensitive data are removed from output
 5. **Return** — Clean result goes back to the LLM for the next iteration
+
+### Parallel vs Sequential Scheduling
+
+When the LLM emits **multiple** tool calls in one turn, GoClaw decides whether to run them concurrently. Only registered **read-only** tools are eligible for bounded-parallel raw I/O. Mutating, async, MCP-bridged (`mcp_*`), `exec`/`bash`, `wait`, unknown/unregistered tools, and batches that exceed the tool-call budget run **sequentially**. A mixed batch containing any ineligible call runs entirely sequentially. `PreToolUse` hooks run before any parallel execution, and results are always processed in the original assistant order. This eligibility is driven by each tool's capability metadata (the side-effect class), so custom tools default to sequential unless registered read-only.
 
 ## Tool Profiles
 
@@ -408,4 +434,4 @@ All parameters are optional — defaults apply when not configured.
 - [Multi-Tenancy](/multi-tenancy) — Per-user tool access and isolation
 - [Custom Tools](/custom-tools) — Build your own tools
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

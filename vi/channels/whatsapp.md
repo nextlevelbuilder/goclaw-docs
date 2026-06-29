@@ -42,6 +42,7 @@ Tất cả config key nằm trong `channels.whatsapp` (file config) hoặc confi
 | `require_mention` | bool | `false` | Chỉ trả lời trong nhóm khi bot được @mention |
 | `history_limit` | int | `200` | Số tin nhắn nhóm tối đa cho ngữ cảnh (0=tắt) |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Kiến trúc
 
@@ -168,4 +169,4 @@ GoClaw sẽ phát hiện config `bridge_url` cũ và hiển thị lỗi di chuy�
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

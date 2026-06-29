@@ -197,6 +197,8 @@ Khi `skill_evolve=false`, `skill_manage` tool hoàn toàn bị ẩn khỏi LLM �
 | `content` | string | create | Toàn bộ SKILL.md bao gồm YAML frontmatter |
 | `find` | string | patch | Văn bản cần tìm trong SKILL.md hiện tại |
 | `replace` | string | patch | Văn bản thay thế |
+| `files` | object | tùy chọn (create, patch) | File văn bản đi kèm, khóa theo đường dẫn tương đối (ví dụ `references/guide.md`). Mỗi file giới hạn **2 MB**; đường dẫn được xác thực (không cho `..`, đường dẫn tuyệt đối/Windows, null byte, ghi đè `SKILL.md`, dotfile, hoặc system artifact) |
+| `visibility` | string | tùy chọn (patch) | Thay đổi visibility chỉ ở mức metadata (`private` hoặc `public`) — cập nhật ai có thể khám phá skill mà không tạo version mới khi không có thay đổi `content`/`files` |
 
 **Ví dụ — tạo skill từ cuộc hội thoại:**
 
@@ -224,6 +226,16 @@ skill_manage(
 skill_manage(action="delete", slug="deploy-checklist")
 ```
 
+**Ví dụ — tạo skill kèm file reference đi kèm:**
+
+```
+skill_manage(
+  action="create",
+  content="---\nname: Deploy Checklist\ndescription: Steps to deploy the app safely.\n---\n\n## Steps\nSee {baseDir}/references/runbook.md",
+  files={"references/runbook.md": "# Runbook\n1. Run tests\n2. Build image\n3. Push to registry"}
+)
+```
+
 ### publish_skill tool
 
 `publish_skill` là con đường thay thế để đăng ký toàn bộ thư mục local thành một skill. Tool này luôn khả dụng dưới dạng built-in tool toggle (không bị kiểm soát bởi `skill_evolve`).
@@ -239,7 +251,7 @@ Thư mục phải chứa `SKILL.md` với `name` trong frontmatter. Skill bắt 
 | | `skill_manage` | `publish_skill` |
 |---|---|---|
 | Đầu vào | Chuỗi nội dung | Đường dẫn thư mục |
-| File | Chỉ SKILL.md (companion được sao chép khi patch) | Toàn bộ thư mục (scripts, assets, v.v.) |
+| File | SKILL.md cùng file văn bản đi kèm trực tiếp (`files=...`); patch sao chép companion hiện có sang version mới | Toàn bộ thư mục (scripts, assets, v.v.) |
 | Kiểm soát bởi | Config `skill_evolve` | Built-in tool toggle (luôn khả dụng) |
 | Hướng dẫn | Tiêm qua skill_evolve prompt | Dùng `skill-creator` core skill |
 | Auto-grant | Có | Có |
@@ -396,6 +408,68 @@ Admin xem xét → approve / reject / rollback
 
 ---
 
+## Skill Self-Evolution (metrics theo từng skill)
+
+Đây là một **hệ thống con riêng biệt** so với "v3 Metrics Tiến Hóa" ở trên. Trong khi tiến hóa cấp agent điều chỉnh tham số của *agent*, skill self-evolution theo dõi mỗi **skill hiện có** hoạt động ra sao theo thời gian và đề xuất cải tiến cho chính skill đó. Nó cũng khác với vòng lặp học `skill_evolve` vốn dạy agent *khi nào* nên tạo hoặc vá skill tái sử dụng.
+
+### Ghi nhận lúc runtime
+
+Usage được ghi nhận tự động khi agent dùng skill — **không có endpoint usage công khai**:
+
+- Tool call `use_skill` ghi nhận usage trong phạm vi tenant với trạng thái `succeeded` hoặc `failed`, kèm duration, session key, run/trace ID, agent ID, và phạm vi user.
+- Kích hoạt qua slash command (`/<slug>` hoặc `/use <skill>`) ghi nhận sự kiện `started` khi nó resolve về một skill.
+- Việc ghi usage là **nội bộ only**. v1 cố ý không có endpoint công khai `POST /v1/skills/{id}/usage`, nên client không thể giả mạo tỷ lệ thành công.
+
+### Các bảng lưu trữ
+
+| Bảng | Mục đích |
+|---|---|
+| `skill_evolution_settings` | Cờ `enabled` và `mode` theo từng tenant, từng skill |
+| `skill_usage_metrics` | Sự kiện usage lúc runtime và số đếm theo trạng thái |
+| `skill_improvement_suggestions` | Suggestion theo phạm vi skill, kèm evidence và draft patch |
+| `skill_versions` | Bản ghi version đã áp dụng bất biến, liên kết tới file đã thay đổi và suggestion gốc |
+
+### Mode và trạng thái
+
+| Trường | Giá trị | Ghi chú |
+|---|---|---|
+| Settings `mode` | `suggest_only` (mặc định), `auto_analyze` | v1 không tự động *patch* — `auto_analyze` chỉ tự động sinh suggestion |
+| Usage `status` | `started`, `succeeded`, `failed`, `abandoned` | Ghi nhận theo từng lần gọi skill |
+| Suggestion `status` | `pending`, `approved`, `rejected`, `applied` | Vòng đời của một suggestion cải tiến |
+
+### Áp dụng một suggestion
+
+Suggestion được admin xem xét và áp dụng. Áp dụng suggestion cho một skill **custom**:
+
+1. Sao chép thư mục skill hiện tại sang version mới.
+2. Xác thực đường dẫn đích (cùng quy tắc với file đi kèm `skill_manage`).
+3. Chạy bộ quét content guard của SKILL.md khi SKILL.md thay đổi.
+4. Cập nhật skill đang hoạt động và ghi một hàng `skill_versions` mới.
+5. Ghi một mục activity log.
+
+**Việc thay đổi system/bundled skill bị từ chối** — đường apply trả về `403` cho bất kỳ skill nào có `is_system = true`, trước khi chạm vào filesystem.
+
+### Các bề mặt yêu cầu quyền admin
+
+Các bề mặt xem được sanitize. Failure evidence, draft patch, actor ID, và chi tiết activity yêu cầu quyền **admin** — người không phải admin chỉ thấy dữ liệu tổng hợp, không nhạy cảm.
+
+### HTTP API
+
+| Method | Path | Quyền truy cập |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/evolution` | Đọc cài đặt self-evolution |
+| `PATCH` | `/v1/skills/{id}/evolution` | Thiết lập `enabled` / `mode` (tenant admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Metrics usage (total / started / succeeded / failed / abandoned / success rate) |
+| `GET` | `/v1/skills/{id}/activity` | Activity self-evolution gần đây (chỉ admin) |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | Liệt kê suggestion của skill |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/approve` | Approve một suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/reject` | Reject một suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/apply` | Apply một suggestion đã approve (tenant admin) |
+
+Các lệnh CLI tương ứng là `goclaw skills evolve`, `goclaw skills metrics`, `goclaw skills suggestions`, và `goclaw skills activity`. Dashboard hiển thị toàn bộ trong tab **Evolution** ở phần chi tiết skill.
+
+---
+
 ## Các Vấn Đề Thường Gặp
 
 | Vấn đề | Nguyên nhân | Cách khắc phục |
@@ -406,6 +480,9 @@ Admin xem xét → approve / reject / rollback
 | Patch thất bại với lỗi "not owner" | Agent cố patch skill của agent khác | Mỗi agent chỉ có thể sửa đổi skill do mình tạo |
 | Patch thất bại với lỗi "system skill" | Cố sửa đổi built-in system skill | System skills luôn ở chế độ chỉ đọc |
 | Nội dung skill bị từ chối | Nội dung khớp với quy tắc bảo mật trong guard.go | Xóa pattern vi phạm; xem danh mục Lớp 1 ở trên |
+| File đi kèm bị `skill_manage` từ chối | Đường dẫn dùng `..`, đường dẫn tuyệt đối/Windows, dotfile, hoặc system artifact; hoặc file vượt 2 MB | Dùng đường dẫn tương đối sạch dưới skill root và giữ mỗi file văn bản dưới 2 MB |
+| Không thể apply một skill suggestion | Đích là system/bundled skill, hoặc suggestion chưa ở trạng thái `approved` | System skill là chỉ đọc; approve suggestion trước rồi mới apply |
+| Skill metrics không có dữ liệu | Chưa có kích hoạt `use_skill`/slash command nào, hoặc self-evolution đang tắt | Usage được ghi nội bộ khi agent dùng skill; bật self-evolution trong tab Evolution của skill |
 
 ---
 
@@ -414,4 +491,4 @@ Admin xem xét → approve / reject / rollback
 - [Skills](./skills.md) — định dạng skill, phân cấp và hot reload
 - [Predefined Agents](../core-concepts/agents-explained.md) — sự khác biệt giữa predefined agents và open agents
 
-<!-- goclaw-source: 1296cdbf | cập nhật: 2026-04-11 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

@@ -6,7 +6,7 @@
 
 ## 概览
 
-GoClaw 需要 PostgreSQL 15+，并安装 `pgvector` 和 `pgcrypto` 扩展。数据库连接仅通过 `GOCLAW_POSTGRES_DSN` 配置（从不存储在 `config.json` 中）。迁移由 `golang-migrate` 管理，通过 `./goclaw migrate up` 运行。当前 schema 版本：**44**。
+GoClaw 需要 PostgreSQL 15+，并安装 `pgvector` 和 `pgcrypto` 扩展。数据库连接仅通过 `GOCLAW_POSTGRES_DSN` 配置（从不存储在 `config.json` 中）。迁移由 `golang-migrate` 管理，通过 `./goclaw migrate up` 运行。当前 schema 版本：**80**。
 
 ## 连接失败
 
@@ -176,6 +176,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## v3 迁移故障（037–044）
 
+> Schema 现已扩展至 **080**。下面的恢复步骤涵盖 v3 批次（037–044），它们是从较旧的 v3 安装升级时最容易失败的迁移；后续迁移（045–080）均为增量式，很少需要手动干预。完整列表参见 [Database Schema → Migration History](/database-schema)。
+
 Migration 037–044 是 v3 批次迁移。如有失败：
 
 | Migration | 常见错误 | 解决方案 |
@@ -226,4 +228,4 @@ Migration `000057_heartbeat_provider_fk_set_null` 删除 `agent_heartbeats.provi
 - [Provider 问题](/troubleshoot-providers)
 - [Channel 问题](/troubleshoot-channels)
 
-<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-29 -->

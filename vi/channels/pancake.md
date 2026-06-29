@@ -105,6 +105,7 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 | `first_inbox_message` | string | mặc định | Nội dung DM tùy chỉnh gửi cho tính năng first inbox |
 | `post_context_cache_ttl` | string | `"15m"` | TTL cache nội dung bài đăng lấy cho context bình luận (ví dụ `"30m"`) |
 | `block_reply` | bool | -- | Ghi đè gateway block_reply (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `allow_from` | list | -- | Danh sách trắng User/Group ID |
 
 ## Kiến trúc
@@ -347,4 +348,4 @@ Lỗi ở tầng ứng dụng (HTTP 200 với `success: false` trong JSON body) 
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Cài đặt đa kênh](/recipe-multi-channel) — Cấu hình nhiều kênh
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

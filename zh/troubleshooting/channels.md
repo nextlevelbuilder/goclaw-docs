@@ -28,6 +28,7 @@ Telegram 使用**长轮询**——无需公开 webhook URL。
 | 菜单命令未同步 | `setMyCommands` 速率限制 | 自动重试；几秒后重启 gateway |
 | 代理无法连接 | 代理 URL 无效 | 在 `proxy` 配置字段中使用 `http://user:pass@host:port` 格式 |
 | 表格显示混乱 | Telegram HTML 不支持表格 | 预期行为——GoClaw 在 `<pre>` 块中将表格渲染为 ASCII |
+| 推理气泡从不出现 | `reasoning_delivery` 未设置/为 `off`，或流式传输已关闭 | 设置 `reasoning_delivery: "always_bubbles"`，即使 `dm_stream`/`group_stream` 关闭也将推理显示为气泡消息 |
 
 **必填环境变量：** `GOCLAW_TELEGRAM_TOKEN`
 
@@ -113,6 +114,26 @@ WhatsApp **直接连接**（原生多设备协议）。无需外部桥接服务�
 
 ---
 
+## Bitrix24
+
+| 问题 | 原因 | 解决方案 |
+|---------|-------|----------|
+| 自托管域名被拒绝 | SSRF 安全校验 | 门户 FQDN 必须解析为公网 IP。环回/私有/元数据 IP 段以及 `localhost` / `.local` / `.localhost` 名称会被阻止；端口必须在 1–65535 范围内。云端 `*.bitrix24.*` 域名跳过此检查。 |
+
+---
+
+## 拟人化投递与被动记忆
+
+这些功能**默认禁用**。如果你期待它们但什么都看不到，请检查配置。
+
+| 问题 | 原因 | 解决方案 |
+|---------|-------|----------|
+| 快速确认/进度回复未出现 | `gateway.chat_behavior` 已禁用（默认） | 启用 `chat_behavior`（及其 `quick_ack` / `intermediate_replies` 子块）；确认 sidecar 的 `provider`/`model` 能解析。参见[拟人化投递](/channels-overview#human-like-delivery)。 |
+| 行为因 channel 而异 | 覆盖解析 | 顺序为 **Channel > Agent > Workspace** —— channel 级别的 `chat_behavior` 优先于 agent 和工作区基准。 |
+| 被动 channel 记忆未提取 | `passive_memory.enabled` 已关闭、不是群组，或未达到 `min_messages` | 启用 `passive_memory`；注意 v1 中仅限群组。参见[记忆系统 › 被动 channel 记忆提取](/memory-system#passive-channel-memory-extraction)。 |
+
+---
+
 ## Channel 健康状态
 
 GoClaw v3 跟踪每个 channel 的运行时状态。仪表盘和 `channels.status` RPC 反映以下状态：
@@ -134,4 +155,4 @@ GoClaw v3 跟踪每个 channel 的运行时状态。仪表盘和 `channels.statu
 - [数据库问题](/troubleshoot-database)
 - [常见问题](/troubleshoot-common)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

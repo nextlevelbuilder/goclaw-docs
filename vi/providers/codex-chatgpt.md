@@ -195,6 +195,14 @@ Xem [REST API](/rest-api) để biết cấu trúc response.
 
 ---
 
+## Fallback khi gặp Lỗi An toàn
+
+Khi Responses API phía upstream từ chối một request vì lý do an toàn — các response chứa cụm từ như *"limited access to this content for safety reasons"* hoặc *"invalid prompt … safety"* — GoClaw phân loại lỗi này là **đủ điều kiện fallback** thay vì lỗi nghiêm trọng. Thay vì đưa ra lỗi nghiêm trọng, GoClaw kích hoạt chuỗi model-fallback và thử lại request trên model được cấu hình tiếp theo. Điều này giúp agent vẫn phản hồi khi một model cụ thể từ chối prompt mà model khác có thể chấp nhận.
+
+Fallback được ghi lại dưới dạng một model-fallback observation để bạn thấy trong tracing model nào đã được thử và vì sao bị bỏ qua.
+
+---
+
 ## Lỗi thường gặp
 
 | Vấn đề | Nguyên nhân | Cách xử lý |
@@ -210,4 +218,4 @@ Xem [REST API](/rest-api) để biết cấu trúc response.
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
 - [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

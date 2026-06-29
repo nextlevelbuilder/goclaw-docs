@@ -25,7 +25,7 @@ graph TD
 | Tầng | Lưu trữ | Nội dung | Thời gian tồn tại | Tìm kiếm |
 |------|---------|---------|---------|--------|
 | **L0 Working** | `memory_documents` + `memory_embeddings` | Thông tin agent tự lưu, ghi chú auto-flush, kết quả dreaming | Vĩnh viễn cho đến khi xóa | Hybrid FTS + vector |
-| **L1 Episodic** | `episodic_summaries` | Tóm tắt session, key topic, L0 abstract | 90 ngày (có thể cấu hình) | FTS + HNSW vector |
+| **L1 Episodic** | `episodic_summaries` | Tóm tắt session, key topic, L0 abstract (cộng thêm [facts từ channel thụ động đã duyệt](#passive-channel-memory-extraction)) | 90 ngày (có thể cấu hình) | FTS + HNSW vector |
 | **L2 Semantic** | Bảng Knowledge Graph | Thực thể, quan hệ, cửa sổ hiệu lực temporal | Vĩnh viễn | Duyệt đồ thị |
 
 ### Ranh giới tầng và quy tắc thăng cấp
@@ -159,6 +159,41 @@ Không phải worker độc lập — là tiện ích được `episodic_worker`
 
 **Dọn dẹp định kỳ**: Một goroutine chạy mỗi 6 giờ để xóa các episodic summary đã qua `expires_at`.
 
+## Passive Channel Memory Extraction
+
+Phần lớn memory đến từ việc một session hoàn thành. **Passive channel memory extraction** thêm một nguồn thứ hai, theo dạng opt-in: nó định kỳ khai thác các tin nhắn đã được đệm từ một channel (Telegram, Discord, v.v.) để tìm các facts bền vững — mà không cần ai chạy session — và đưa các facts đã được duyệt vào cùng pipeline L1 → L2.
+
+Tính năng này **mặc định tắt** và **ưu tiên quyền riêng tư**: ở v1 nó chỉ xem các cuộc hội thoại **group**, các candidate được **xếp hàng để duyệt** thay vì tự động ghi, và **nội dung tin nhắn thô không bao giờ được lưu** — chỉ lưu các tóm tắt đã redact, topic/thực thể, độ tin cậy, và số đếm.
+
+### Cách hoạt động
+
+Một worker chạy nền định kỳ đọc các buffer group `channel_pending_messages` hiện có (scope theo tenant), redact nội dung nhạy cảm, và hỏi **background LLM provider** về các candidate facts bền vững. Các candidate rơi vào review queue (`channel_memory_extraction_runs` / `_items`). Việc trích xuất có thể chạy theo:
+
+- **manual trigger** — chạy ngay cả khi `enabled` là `false`;
+- **message cap** — buffer group đạt `message_cap`;
+- **interval** — đã trôi qua `interval_minutes` được cấu hình.
+
+Khi một item được **approve**, GoClaw ghi một dòng `episodic_summaries` với `source_type='channel'` và một `source_id` xác định. Từ đó các [consolidation workers](#consolidation-workers) hiện có (`semantic_worker`, `dreaming_worker`, …) thăng cấp nó lên knowledge graph và memory dài hạn như bất kỳ episodic entry nào khác. **Reject/delete** ngăn việc ghi sau này; delete cũng xóa dòng episodic liên kết (các node KG đã được thăng cấp không bị xóa đồng bộ ở v1).
+
+### Cấu hình
+
+Bật theo từng channel instance dưới `config.passive_memory` (xem [Channel Instances](/channel-instances#passive-channel-memory-passive_memory)):
+
+| Trường | Mặc định | Giới hạn / Ghi chú |
+|---|---|---|
+| `enabled` | `false` | Mặc định tắt. |
+| `review_mode` | `true` | Candidate được xếp hàng để duyệt, không tự động ghi. |
+| `interval_minutes` | `360` | Giới hạn 15–10080. |
+| `message_cap` | `100` | Giới hạn 10–1000. |
+| `retention_hours` | `168` | Giới hạn 1–720. |
+| `allowed_types` | people, projects, decisions, todos, preferences, events | Mục không hợp lệ bị bỏ; danh sách rỗng → dùng đầy đủ tập mặc định. |
+| `exclude_users` | — | ≤50 mục, mỗi mục ≤255 ký tự. |
+| `exclude_patterns` | — | ≤20 regex hợp lệ, mỗi cái ≤255 ký tự. |
+| `min_messages` | `5` | Giới hạn 2–100. |
+| `group_only` | `true` | **Bị ép `true` ở v1** (luôn được coerce). |
+
+> Các bảng trích xuất lưu metadata, tóm tắt, topic/thực thể, độ tin cậy, trạng thái, và số đếm redaction — **không** lưu nội dung tin nhắn thô.
+
 ## Auto-Injector
 
 **Auto-injector** tự động đưa các memory liên quan vào system prompt của agent ở đầu mỗi turn, trước khi gọi LLM.
@@ -251,6 +286,7 @@ Khi các agent làm việc theo [team](#agent-teams), thành viên có thể **�
 | Memory không liên quan xuất hiện | Memory tích lũy theo thời gian; cân nhắc xóa memory cũ qua API |
 | Episodic summary không được tạo | Xác minh consolidation worker đã đăng ký lúc khởi động; kiểm tra event bus đang chạy |
 | dreaming_worker không bao giờ promote | Kiểm tra ≥5 session đã hoàn thành cho cặp agent/user; xem log debounce |
+| Passive channel memory không trích xuất | `passive_memory.enabled` đang tắt, cuộc hội thoại không phải group (chỉ group ở v1), hoặc buffer có ít hơn `min_messages`. Các item đã approve cũng cần được duyệt trừ khi `review_mode` bị tắt. |
 
 ## Tiếp theo
 
@@ -259,4 +295,4 @@ Khi các agent làm việc theo [team](#agent-teams), thành viên có thể **�
 - [Context Pruning](/context-pruning) — Pruning tích hợp với pipeline consolidation như thế nào
 - [Agents Explained](/agents-explained) — Loại agent và context file
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

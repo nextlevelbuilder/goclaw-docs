@@ -45,8 +45,10 @@ All config keys are in `channels.telegram`:
 | `dm_stream` | bool | false | Enable streaming for DMs (edits placeholder) |
 | `group_stream` | bool | false | Enable streaming for groups (new message) |
 | `draft_transport` | bool | false | Use `sendMessageDraft` for DM streaming (stealth preview, no per-edit notifications) |
-| `reasoning_stream` | bool | true | Show reasoning tokens as a separate message before the answer |
+| `reasoning_delivery` | string | -- | How reasoning is surfaced: `off`, `streaming_only`, `always_bubbles`. See [Reasoning Delivery](#reasoning-delivery). |
+| `reasoning_stream` | bool | true | **Legacy.** Show reasoning tokens as a separate message before the answer. Used only when `reasoning_delivery` is unset. |
 | `block_reply` | bool | -- | Override gateway `block_reply` setting for this channel (nil = inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (⏳ only), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Max media file size |
 | `link_preview` | bool | true | Show URL previews |
@@ -226,6 +228,8 @@ When a user sends a voice message:
 3. Transcript prepended to message: `[audio: filename] Transcript: text`
 4. Routed to `voice_agent_id` if configured, else default agent
 
+Transcription runs through GoClaw's unified STT chain, which tries providers in order — `elevenlabs`, then `proxy`. (These are the current provider names; older releases called them `elevenlabs_scribe` and `proxy_stt`.) Telegram preserves the original voice MIME type when forwarding audio to the chain, and the legacy STT-proxy bridge override is keyed by the platform type `telegram`.
+
 ### Streaming
 
 Enable live response updates:
@@ -233,11 +237,27 @@ Enable live response updates:
 - **DMs** (`dm_stream`): Edits the "Thinking..." placeholder as chunks arrive. Uses `sendMessage+editMessageText` by default; set `draft_transport: true` to use `sendMessageDraft` (stealth preview, no per-edit notifications, but may cause "reply to deleted message" artifacts on some clients).
 - **Groups** (`group_stream`): Sends placeholder, edits with full response
 
-Disabled by default. When enabled with `reasoning_stream: true` (default), reasoning tokens appear as a separate message before the final answer.
+Disabled by default.
+
+### Reasoning Delivery
+
+When the model emits reasoning ("thinking") tokens, `reasoning_delivery` controls how — or whether — that reasoning shows up in the chat:
+
+| `reasoning_delivery` | Behavior |
+|----------------------|----------|
+| `streaming_only` | Reasoning appears only in the live streaming lane (the legacy behavior). |
+| `always_bubbles` | Forces provider streaming internally and sends reasoning as bounded normal "bubble" messages — even when `dm_stream` / `group_stream` are off. The final answer is still delivered non-streaming. |
+| `off` | Reasoning is suppressed in the channel. Traces and usage accounting are unaffected. |
+
+**Backward compatibility.** When `reasoning_delivery` is unset, the legacy `reasoning_stream` boolean is honored: `reasoning_stream: false` resolves to `off`, otherwise to `streaming_only`. An explicit `reasoning_delivery` value always wins over the legacy boolean.
+
+Reasoning bubbles are delivery-only — they are not added to assistant/session history. Telegram is currently the only channel that implements this control (`ReasoningDeliveryChannel`).
 
 ### Media Handling
 
 **Albums / multi-attachment coalescing.** When a user sends an album (several photos or files grouped on the client), Telegram delivers it as N separate updates that share one `MediaGroupID`. GoClaw buffers album members at the channel layer (500 ms silence window) and synthesizes them into **one** inbound message, so the agent replies once instead of once per attachment. The buffer key is `(chatID, MediaGroupID)`; the sender is pinned on the first member, and a member arriving with a mismatched sender is dropped as a defensive measure.
+
+**Outbound album batching.** When the agent sends several files at once — via the `send_file` tool's `attachments: [{path, caption?}, ...]` form — Telegram groups compatible outbound media into `sendMediaGroup` album chunks of **2–10** items. Photos and videos can share a chunk; documents group only with documents and audio only with audio. Voice-mode audio, singleton chunks, oversized images that fall back to being sent as documents, and otherwise-incompatible runs degrade gracefully to ordered single-send. File order, MIME type, filename, and captions are preserved.
 
 **Outbound upload limit.** Outbound media is validated against the upload ceiling before sending — files over the limit are rejected with a clear "outbound media too large" error rather than failing mid-upload. The ceiling is 50 MB on the official Bot API and 200 MB when a local Bot API server (`api_server`) is configured (or higher if `media_max_bytes` is raised above that).
 
@@ -266,6 +286,8 @@ Show emoji status on user messages. Set `reaction_level`:
 | stallHard | 😨 | No activity for 30s |
 
 Each status has fallback emoji variants in case the primary emoji is restricted by the chat's allowed reactions. Intermediate states (thinking, tool, etc.) are debounced at 700ms to avoid reaction spam.
+
+> **No placeholder tool-status text.** Deterministic tool-status updates are surfaced through reactions only — they no longer emit a separate "tool" text message in the channel. Platform reactions and explicit reasoning delivery remain independent behaviors.
 
 ### Bot Commands
 
@@ -342,4 +364,4 @@ No configuration needed. Check logs for `telegram: migrating group chat` entries
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Conversation history
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

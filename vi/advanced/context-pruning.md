@@ -290,6 +290,10 @@ History ngắn nhận ngân sách nhỏ hơn (floor: 1024 token) và history dà
 
 Khi context vẫn vượt ngân sách sau một lần nén (ví dụ: system prompt và tool schema đã gần lấp đầy context window), GoClaw thực hiện một lượt khôi phục thứ cấp trước khi trả về lỗi. Cơ chế này (PR #958) giới hạn tối đa một lần thử lại và chỉ trả về lỗi `context overflow after compaction` khi lượt thứ hai cũng thất bại. Trên thực tế, điều này ngăn lỗi cứng đối với agent có tool schema hoặc system prompt lớn.
 
+### Bảo toàn message đang xử lý (Pending-Message Preservation)
+
+Nén có thể xảy ra **giữa vòng lặp**, giữa một message assistant yêu cầu tool call và các kết quả `tool` trả lời chúng. GoClaw giờ bảo toàn message `tool_calls` của assistant đang xử lý qua lượt nén giữa vòng lặp, nên request kế tiếp gửi tới provider không bao giờ gửi message kết quả `tool` mà thiếu message `tool_calls` đứng trước. Nếu không, provider sẽ từ chối request với lỗi **HTTP 400** (kết quả tool mồ côi). Nếu trước đây bạn từng gặp lỗi 400 lúc-được-lúc-không trong các lượt nhiều tool, đây chính là bản sửa.
+
 ---
 
 ## Tiếp Theo
@@ -298,4 +302,4 @@ Khi context vẫn vượt ngân sách sau một lần nén (ví dụ: system pro
 - [Memory System](../../core-concepts/memory-system.md) — kiến trúc memory 3 tầng và pipeline consolidation
 - [Configuration Reference](/config-reference) — tham chiếu cấu hình agent đầy đủ
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

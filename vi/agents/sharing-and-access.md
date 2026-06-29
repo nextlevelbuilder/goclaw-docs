@@ -89,6 +89,16 @@ Khi bạn cố truy cập agent, GoClaw kiểm tra theo thứ tự:
 
 Predefined agent cũng có thể truy cập được qua `channel_instances`. Nếu một predefined agent có channel instance đang bật với danh sách `allow_from` chứa user ID của bạn, bạn có thể truy cập agent đó ngay cả khi không có share trực tiếp hay cờ default.
 
+## Quyền gateway operator cho agent đầu tiên khi setup
+
+Khi bạn tạo agent **đầu tiên** trong `goclaw setup`, wizard sẽ hỏi:
+
+```
+Grant this first agent local gateway operator access via the goclaw CLI? [mặc định: No]
+```
+
+Nếu bạn trả lời **yes**, agent đó được cấp **quyền SecureCLI có thể thu hồi** để chạy các lệnh gateway cục bộ (ví dụ `goclaw agent list`) qua goclaw CLI. Phản hồi tạo agent mang một block `gateway_operator_bootstrap` với trường `status` và một `warning` tùy chọn. Mặc định là **No** — chỉ bật khi bạn muốn agent đầu tiên tự vận hành gateway. Vì quyền được cấp dưới dạng grant SecureCLI, bạn có thể thu hồi sau này như mọi grant khác.
+
 ## Chia sẻ Agent qua HTTP API
 
 Dùng `POST /v1/agents/:id/shares` để chia sẻ agent. Chỉ owner (hoặc gateway owner-level user) mới có thể chia sẻ.
@@ -235,8 +245,9 @@ Cache được invalidate qua sự kiện pubsub:
 
 ## Tiếp theo
 
+- [Ma trận phân quyền — quyền cấu hình agent, phạm vi group/channel, và bảng đầy đủ các lớp phân quyền](/permission-matrix)
 - [User Overrides — Cho phép user tuỳ chỉnh LLM provider/model theo từng agent](/user-overrides)
 - [System Prompt Anatomy — Cách quyền hạn ảnh hưởng đến phần system prompt](/system-prompt-anatomy)
 - [Creating Agents — Tạo agent và chia sẻ ngay lập tức](/creating-agents)
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

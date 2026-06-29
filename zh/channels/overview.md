@@ -86,6 +86,21 @@ GoClaw 会从所有支持回复功能的 channel 中提取被回复消息的媒�
 
 `media_max_bytes` 配置字段对 agent 发送的出站媒体上传设置每个 channel 的限制。超出限制的文件将被跳过并记录日志。每个 channel 有自己的默认值（如 Telegram 为 20 MB，Feishu/Lark 为 30 MB），可按需为每个 channel 单独配置。
 
+### 多附件投递（批量）
+
+`send_file` 工具可以一次性投递多个已有的工作区文件。支持两种形式：
+
+- **单文件：** `path`（外加可选的 `caption`）。
+- **批量：** `attachments: [{ "path": "...", "caption": "..." }, ...]` — 文件顺序、MIME 类型、文件名和每个文件的 caption 都会被保留。
+
+每个 channel 如何对批量进行分组取决于平台支持的能力：
+
+| Channel | 分组方式 | 行为 |
+|---------|----------|------|
+| Telegram | 相册分块 | 兼容的媒体被分组为 `sendMediaGroup` 相册，每组 **2–10** 项。图片/视频可以共用一个分块；文档只与文档分组，音频只与音频分组。语音模式音频、单项分块、作为文档发送的超大图片，以及不兼容的序列会回退为有序的逐个发送。 |
+| Discord | 单条消息 | 多个文件（外加可选文本）在**一条**消息中投递，最多 10 个附件。 |
+| Slack 及其他支持媒体的 channel | 有序回退 | 除非 adapter 声明了更强的批量能力，否则文件按顺序逐个发送。 |
+
 ## 入站防抖
 
 当用户连续快速发送多条消息（或一次上传多个文件）时，GoClaw 会在运行 agent 前把它们合并为**一条**入站消息 — 回复一次，而不是每个片段回复一次。
@@ -105,6 +120,64 @@ GoClaw 会从所有支持回复功能的 channel 中提取被回复消息的媒�
 - **按 agent 覆盖：** agent 可在其 `agent_config` 中设置 `inbound_debounce_ms`，使用不同于 gateway 默认值的窗口。
 - **`/stop` 和 `/reset` 绕过防抖器** — 控制命令会被立即处理，绝不缓冲。
 - **媒体下限：** 携带媒体的消息不再绕过防抖。生效窗口为 `max(配置值, 媒体下限)`，因此即使文本防抖设为 `0`，一次多文件上传也总会合并为一条入站消息。（agent 设置的非零覆盖会被原样尊重 — operator 设 `500` 就保持 `500`，而非下限。）由工具/subagent 内部合成的消息免于该下限。
+
+## 拟人化投递
+
+GoClaw 可以让 channel 回复更具对话感 — 在长时间运行前先快速确认一下、工具执行时给出简短的进度提示，并把一条长的最终答案拆成几条自然的消息。这通过 `gateway.chat_behavior` 配置，且**默认禁用**。
+
+> 这些行为是**仅投递层面**的。确认消息、进度提示和拆分片段绝不会写入 session 历史，也不会作为对话回送给模型 — 它们只改变人在聊天中看到的内容。
+
+```json
+{
+  "gateway": {
+    "chat_behavior": {
+      "enabled": true,
+      "quick_ack": { "enabled": true, "mode": "sidecar_generated" },
+      "intermediate_replies": { "enabled": true },
+      "final_split": { "enabled": true }
+    }
+  }
+}
+```
+
+### 三个子行为
+
+| 子行为 | 作用 |
+|--------------|--------------|
+| `quick_ack` | 在较长的非流式运行前发送一条简短的回执，让用户知道 bot 正在工作。 |
+| `intermediate_replies` | 在 agent 运行工具期间发送简短的进度更新。独立于 `quick_ack`。 |
+| `final_split` | 把一条长的最终回复拆成少量段落大小的消息。 |
+
+**`quick_ack` 模式：**
+
+| 模式 | 行为 |
+|------|----------|
+| `sidecar_generated` | 一次有界的、独立的 LLM 调用生成一条简短的、感知上下文的确认消息。 |
+| `llm_generated` | 向后兼容的别名；这也是默认解析出的模式。 |
+| `fixed_template` | 发送 `templates` 中的第一个字符串（默认 `"Got it. Working on it..."`）。 |
+| `off` | 无确认消息。 |
+
+`quick_ack` 字段：`enabled`、`mode`、`min_delay_ms`（默认 1000）、`provider`、`model`、`timeout_ms`（默认 2500）、`max_tokens`（默认 40）、`max_chars`（默认 120）、`templates`。当 `provider`/`model` 未设置时，使用 agent 自身的 provider/model。
+
+**`intermediate_replies`** 模式为 `sidecar_generated`（默认）或 `off`。字段：`enabled`、`mode`、`provider`、`model`、`timeout_ms`（2500）、`max_tokens`（默认 60）、`max_chars`（默认 180）。该 sidecar 只接收有界的元数据（消息预览、locale、channel/peer、agent 标签、当前工具阶段）— **绝不**接收 session 历史、工具参数/输出、记忆或 system prompt。
+
+**`final_split`** 字段：`enabled`、`min_chars`（默认 1200）、`max_messages`（默认 3）、`delay_ms`（默认 500）。拆分是保守的 — 包含围栏代码、表格、列表、引用、JSON/XML 类块或仅含 URL 的段落的回复会保持为一条消息，媒体或流式投递绝不会被拆分。
+
+### 覆盖顺序
+
+`chat_behavior` 可在三个层级设置。解析顺序为 **Channel > Agent > Workspace**：
+
+1. **Workspace** — `gateway.chat_behavior`（基础）。
+2. **Agent** — `agents.other_config.delivery_behavior` 覆盖 workspace 基础。
+3. **Channel** — `channels.<type>.chat_behavior`（或某个 channel 实例的 `chat_behavior`）拥有最终决定权。
+
+每个层级只覆盖它所设置的字段，因此你可以按 channel 调一个旋钮、继承其余的。
+
+> **Legacy `block_reply`。** 当较新的字段未设置时，较旧的 `gateway.block_reply`（及按 channel 的 `block_reply`）标志仍会作为 `intermediate_replies.enabled` 的继承默认值被读取。
+
+### Channel 支持
+
+拟人化投递由采用 `ChatBehaviorChannel` 接口的 channel 实现：**Bitrix24、Discord、Feishu/Lark、Pancake、Slack、Telegram、WhatsApp、Zalo OA 和 Zalo Personal**。
 
 ## Channel 对比
 
@@ -177,6 +250,8 @@ GoClaw 跟踪每个 channel 实例的运行时健康状态，并在出现问题�
 - **`ReactionChannel`** — 状态 emoji 回应（思考中、完成、错误）
 - **`WebhookChannel`** — 可挂载到主 gateway mux 的 HTTP 处理器
 - **`BlockReplyChannel`** — 覆盖 gateway block_reply 设置
+- **`ChatBehaviorChannel`** — [拟人化投递](#human-like-delivery)（快速确认、进度提示、最终拆分）。由 Bitrix24、Discord、Feishu/Lark、Pancake、Slack、Telegram、WhatsApp、Zalo OA 和 Zalo Personal 实现。
+- **`ReasoningDeliveryChannel`** — 控制模型推理在聊天中如何呈现。目前仅由 Telegram 实现（参见 [Telegram › 推理投递](/channel-telegram#reasoning-delivery)）。
 
 ## 常用模式
 
@@ -217,4 +292,4 @@ Channel 可以对每个用户执行频率限制。通过 channel 设置配置或
 - [WebSocket](/channel-websocket) — 通过 WS 直连 agent API
 - [Browser Pairing](/channel-browser-pairing) — 8 位配对码流程
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

@@ -4,7 +4,7 @@
 
 ## Overview
 
-> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~308 REST endpoints.
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all REST endpoints.
 
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
@@ -567,6 +567,12 @@ Export and import custom skills as a tar.gz archive.
 | Param | Type | Description |
 |-------|------|-------------|
 | `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+| `format` | string | Archive format — `tar.gz` (default), `tgz` (alias for gzip tar), or `zip`. ZIP is export/download only; import still expects the skills bundle format |
+| `id` | string | Select one skill by ID. Repeat the param to select several |
+| `ids` | string | Select multiple skill IDs as a comma-separated list |
+| `include_system` | `bool` | Include system skills in a full export when no IDs are selected |
+
+> `GET /v1/skills/export` supports both **direct download** (the archive is streamed in the response) and the SSE token flow (`stream=true` → `download_url`). Without `id`/`ids`, the export stays backward-compatible and includes tenant custom skills by default.
 
 **Archive format** (`skills-YYYYMMDD.tar.gz`):
 
@@ -612,6 +618,63 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 | `POST` | `/v1/skills/install-deps` | Install all missing dependencies |
 | `POST` | `/v1/skills/install-dep` | Install a single dependency |
 | `GET` | `/v1/skills/runtimes` | Check runtime availability |
+
+---
+
+### Skill Self-Evolution & Metrics
+
+Skills can collect usage metrics and propose their own improvements. Self-evolution is tenant-scoped and **off by default per skill**. Usage metrics are written only by trusted runtime paths (e.g. the `use_skill` tool and slash-command activation) — there is no public usage-write endpoint.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/evolution` | Read self-evolution settings for a skill |
+| `PATCH` | `/v1/skills/{id}/evolution` | Update enabled state or mode (tenant-admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Aggregate usage metrics + status counts |
+| `GET` | `/v1/skills/{id}/activity` | Admin-only evolution activity log |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | List skill-scoped improvement suggestions |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` | Create a suggestion with evidence + draft patch (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` | Approve a suggestion (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` | Reject a suggestion (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` | Apply an approved suggestion → new skill version (tenant-admin) |
+
+**Evolution modes (`PATCH .../evolution`, field `mode`):**
+
+| Mode | Behavior |
+|------|----------|
+| `suggest_only` | Collect metrics and manage suggestions; no automatic patching |
+| `auto_analyze` | Reserved for analysis automation. **Patch application always requires explicit approval** |
+
+> Viewer/operator callers can read aggregate metrics. Raw activity, actor IDs, failure evidence, draft patches, and the apply action are admin-only. System skills can't be mutated; applying a custom-skill suggestion writes a new versioned directory and a `skill_versions` record.
+
+### Skill Access Control & Grants (batch)
+
+Read and manage who can use a skill. The plural `grants/agents` and `grants/users` routes accept **batch** sets; the singular routes documented under [Skill Grants](#skill-grants) remain available for single grants. All routes require **admin role**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/access` | Read access config (visibility + agent/user grants) |
+| `PATCH` | `/v1/skills/{id}/access` | Update access config (e.g. `visibility`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Effective access for this skill |
+| `GET` | `/v1/skills/access/effective` | Effective access across all skills |
+| `GET` | `/v1/skills/{id}/grants/agents` | List agent grants (batch view) |
+| `POST` | `/v1/skills/{id}/grants/agents` | Batch-set agent grants (`agent_id`, optional `version`/`pinned_version`, `can_manage`) |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` | Remove an agent grant |
+| `GET` | `/v1/skills/{id}/grants/users` | List user grants (batch view) |
+| `POST` | `/v1/skills/{id}/grants/users` | Batch-set user grants (`user_id`) |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` | Remove a user grant |
+
+**Effective-access response** includes `accessible`, `reason`, `can_manage`, and optional `pinned_version` per skill.
+
+### Skill Dependencies
+
+Inspect and resolve a skill's runtime dependencies. Requires **admin role**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/dependencies` | List the skill's dependencies and their status |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Re-scan declared dependencies and refresh status |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Check whether dependencies are satisfied |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Install missing dependencies for the skill |
 
 ---
 
@@ -833,12 +896,28 @@ Per-agent entity-relation graph.
 
 ### `GET /v1/traces`
 
-List LLM traces. Supports query params: `agentId`, `userId`, `status`, `limit`, `offset`.
+List LLM traces.
 
 ```bash
-curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
+curl "http://localhost:18790/v1/traces?agentId=UUID&q=timeout&min_input_tokens=1000&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `agentId` | string | Filter by agent |
+| `userId` | string | Filter by user |
+| `status` | string | Filter by status |
+| `channel` | string | Filter by channel |
+| `q` | string | Broad contains-search across trace/span fields |
+| `min_input_tokens` / `max_input_tokens` | integer | Filter by input-token range |
+| `min_output_tokens` / `max_output_tokens` | integer | Filter by output-token range |
+| `tool_name` | string | Filter traces that used a given tool |
+| `min_tool_calls` / `max_tool_calls` | integer | Filter by tool-call count range |
+| `limit` | integer | Page size |
+| `offset` | integer | Page offset |
 
 ### `GET /v1/traces/follow`
 
@@ -869,6 +948,10 @@ Get a single trace with all its spans.
 
 Export trace tree as gzipped JSON.
 
+### `GET /v1/runs/{runID}/timeline`
+
+Return the persisted, display-safe archive timeline for a single run — the same entries surfaced in the run/session timeline panel. Tool entries store bounded previews only; raw reasoning is not persisted. Non-admin callers are restricted to their own entries.
+
 ### Costs
 
 | Method | Path | Description |
@@ -884,8 +967,13 @@ Export trace tree as gzipped JSON.
 | `GET` | `/v1/usage/timeseries` | Time-series usage points |
 | `GET` | `/v1/usage/breakdown` | Breakdown by provider/model/channel |
 | `GET` | `/v1/usage/summary` | Summary with period comparison |
+| `GET` | `/v1/usage/events/timeseries` | Event-based time-series (computed from raw usage events) |
+| `GET` | `/v1/usage/events/breakdown` | Event-based breakdown by provider/model/channel |
+| `GET` | `/v1/usage/events/summary` | Event-based summary with period comparison |
 
 **Query params:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+> The `/v1/usage/events/*` variants compute the same shapes from the raw usage-event store rather than precomputed snapshots — useful for exact, up-to-the-event figures.
 
 ---
 
@@ -1242,6 +1330,44 @@ Delete a channel instance.
 
 `reason` is one of `writer`, `not_writer`, `no_writers_configured`, or `invalid_group`.
 
+### Passive Memory Extraction
+
+Per-channel-instance passive memory extraction — mine recent conversations into review-queued memory candidates, then approve them into episodic memory. Read endpoints are viewer-accessible; settings and item transitions require **tenant-admin**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | Config + latest run + pending count + recent items |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | Replace the normalized `passive_memory` config block |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | Trigger a manual extraction run |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | List review-queue items (optional `status` filter) |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | Write candidate to episodic memory + publish KG event |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | Reject candidate |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | Delete candidate (and any linked episodic summary) |
+
+**`passive_memory` config fields:** `enabled`, `review_mode`, `interval_minutes`, `message_cap`, `retention_hours`, `allowed_types`, `exclude_users`, `exclude_patterns`, `min_messages`, `group_only`. Defaults: disabled, review-mode on, group-only, 360-minute interval, 100-message cap, 168-hour retention, and durable types (people, projects, decisions, todos, preferences, events).
+
+### Context Capability Administration
+
+Manage per-context (per scope) tool access for a channel instance. A context is identified by `{scopeType}/{scopeKey}` (e.g. a group or DM). Grant/credential routes require **admin role**; list/capabilities reads are viewer-accessible.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/contexts` | List contexts for the instance |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` | List members of a context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` | Effective capabilities resolved for the context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` | List MCP server grants |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Set an MCP grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Remove an MCP grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` | List MCP credentials |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Set an MCP credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Remove an MCP credential |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` | List CLI binary grants |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Set a CLI grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Remove a CLI grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` | List CLI credentials |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Set a CLI credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Remove a CLI credential |
+
 ---
 
 ## Contacts
@@ -1373,6 +1499,17 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Get user-specific credentials |
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Set user-specific credentials |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Delete user-specific credentials |
+
+### Per-Agent CLI Credentials
+
+Agent-scoped credential storage for a CLI config — store the credential values an individual agent should use. This is **distinct from [CLI Credential Agent Grants](#cli-credential-agent-grants)** below: grants control *whether* an agent may use a binary (with arg/timeout restrictions), while these endpoints store the agent's actual credential payload.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` | List agent-scoped credentials for a CLI config |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Get agent credential metadata |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Create or replace an agent credential |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Delete an agent credential |
 
 ### CLI Credential Agent Grants
 
@@ -2146,4 +2283,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

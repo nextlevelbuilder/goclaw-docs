@@ -54,6 +54,8 @@ goclaw bitrix-portal create \
 
 The `--name` (e.g. `acme`) is the portal key your channel config references. The `--domain` is the bare host — no scheme, no trailing slash.
 
+> **Self-hosted portals are supported.** In addition to Bitrix24 cloud domains (`*.bitrix24.{com,eu,vn,...}` and `*.bitrix.info`), `--domain` accepts a **self-hosted Bitrix24 FQDN** such as `bx.mycompany.com` (an optional `:port` is allowed). Self-hosted domains pass an SSRF-safe validation step: the hostname is resolved and **every** returned IP is checked, loopback/private/metadata IP ranges are rejected, `localhost` / `.local` / `.localhost` names are blocked, and any port must be in the range 1–65535. Cloud domains skip this check (they are Bitrix-operated and trusted).
+
 > Set `GOCLAW_ENCRYPTION_KEY` before running this. Credentials and tokens are stored AES-256-GCM encrypted; without the key they are stored in plaintext (with a warning).
 
 You can also create portals from the dashboard, which returns the install URL directly.
@@ -112,6 +114,7 @@ Channel instance config fields:
 | `reaction_level` | string | `"minimal"` | `off`, `minimal`, `full` |
 | `history_limit` | int | -- | Pending group messages held as context |
 | `block_reply` | bool | -- | Override gateway `block_reply` (nil = inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `public_url` | string | -- | Per-instance public URL override (legacy; prefer the auto-captured portal URL) |
 | `mcp_server_name` | string | -- | MCP server name for per-user credential provisioning (see [MCP integration](#mcp-integration)) |
 | `mcp_base_url` | string | -- | MCP server base URL; must be set together with `mcp_server_name` |
@@ -207,6 +210,7 @@ Notes:
 | Open Channel bot silent to customers | `bot_type: "O"` needs `dm_policy: "open"`, and an admin must attach the bot to an Open Channel queue in the Bitrix24 UI. |
 | Event handler URL stale after redeploy | Set `BITRIX24_FORCE_REREGISTER=1` and restart to push the new URL into Bitrix24. |
 | Want to inspect raw events | Set `BITRIX24_LOG_RAW_EVENT=1` at process start (credentials are redacted). Leave off in production — it logs message text. |
+| Self-hosted domain rejected | The FQDN must resolve to a public IP. SSRF validation blocks loopback/private/metadata IP ranges and `localhost` / `.local` / `.localhost` names; ports must be 1–65535. |
 
 ## What's Next
 
@@ -215,4 +219,4 @@ Notes:
 - [Slack](/channel-slack) — Slack Socket Mode integration
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

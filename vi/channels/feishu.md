@@ -59,6 +59,7 @@ Tất cả các key cấu hình nằm trong `channels.feishu`:
 | `reaction_level` | string | `"off"` | `off`, `minimal` (chỉ ⏳), `full` |
 | `history_limit` | int | -- | Số tin nhắn tối đa tải từ lịch sử |
 | `block_reply` | bool | -- | Chặn ngữ cảnh reply-to-message |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `stt_proxy_url` | string | -- | URL proxy speech-to-text |
 | `stt_api_key` | string | -- | API key speech-to-text |
 | `stt_tenant_id` | string | -- | Tenant ID speech-to-text |
@@ -240,4 +241,4 @@ Tin nhắn thoại có thể được chuyển văn bản bằng cách cấu hì
 - [Telegram](/channel-telegram) — Cài đặt Telegram bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng ghép cặp trình duyệt
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

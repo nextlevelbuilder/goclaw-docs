@@ -199,6 +199,8 @@ reusable skill? Reply "save as skill" or "skip"._
 | `content` | string | create | 包含 YAML frontmatter 的完整 SKILL.md |
 | `find` | string | patch | 在当前 SKILL.md 中查找的精确文本 |
 | `replace` | string | patch | 替换文本 |
+| `files` | object | 可选（create、patch） | 按相对路径作为键的伴生文本文件（例如 `references/guide.md`）。每个文件限制为 **2 MB**；路径会被校验（不允许 `..`、绝对路径/Windows 路径、空字节、覆盖 `SKILL.md`、dotfile 或系统工件） |
+| `visibility` | string | 可选（patch） | 仅元数据级别的可见性变更（`private` 或 `public`）— 在没有 `content`/`files` 变更时，更新谁可以发现该 skill 而不创建新版本 |
 
 **示例 — 从对话创建 skill：**
 
@@ -226,6 +228,16 @@ skill_manage(
 skill_manage(action="delete", slug="deploy-checklist")
 ```
 
+**示例 — 创建带伴生 reference 文件的 skill：**
+
+```
+skill_manage(
+  action="create",
+  content="---\nname: Deploy Checklist\ndescription: Steps to deploy the app safely.\n---\n\n## Steps\nSee {baseDir}/references/runbook.md",
+  files={"references/runbook.md": "# Runbook\n1. Run tests\n2. Build image\n3. Push to registry"}
+)
+```
+
 ### publish_skill tool
 
 `publish_skill` 是将整个本地目录注册为 skill 的替代路径。它始终作为内置 tool 开关可用（不受 `skill_evolve` 门控）。
@@ -241,7 +253,7 @@ publish_skill(path="./skills/my-skill")
 | | `skill_manage` | `publish_skill` |
 |---|---|---|
 | 输入 | 内容字符串 | 目录路径 |
-| 文件 | 仅 SKILL.md（修补时复制伴生文件） | 整个目录（脚本、资源等） |
+| 文件 | SKILL.md 加上直接伴生文本文件（`files=...`）；修补时将现有伴生文件复制到新版本 | 整个目录（脚本、资源等） |
 | 门控方式 | `skill_evolve` 配置 | 内置 tool 开关（始终可用） |
 | 引导 | 通过 skill_evolve 提示注入 | 使用 `skill-creator` 核心 skill |
 | 自动授权 | 是 | 是 |
@@ -398,6 +410,68 @@ SuggestionEngine.Analyze() — 每日通过 cron 运行
 
 ---
 
+## Skill 自我进化（按 skill 的指标）
+
+这是一个**独立于**上述"v3 进化指标"的子系统。agent 级进化调整的是 *agent* 的参数，而 skill 自我进化跟踪每个**现有 skill** 随时间的表现，并为该 skill 本身提议改进。它也不同于 `skill_evolve` 学习循环 —— 后者教 agent *何时* 应创建或修补可复用 skill。
+
+### 运行时记录
+
+usage 会在 agent 使用 skill 时自动记录 —— **没有公开的 usage 端点**：
+
+- `use_skill` tool 调用以租户范围记录 usage，状态为 `succeeded` 或 `failed`，并附带 duration、session key、run/trace ID、agent ID 和 user 范围。
+- 斜杠命令激活（`/<slug>` 或 `/use <skill>`）在解析到某个 skill 时记录一个 `started` 事件。
+- usage 写入**仅限内部**。v1 有意不提供公开的 `POST /v1/skills/{id}/usage` 端点，因此客户端无法伪造成功率。
+
+### 持久化表
+
+| 表 | 用途 |
+|---|---|
+| `skill_evolution_settings` | 按租户、按 skill 的 `enabled` 标志和 `mode` |
+| `skill_usage_metrics` | 运行时 usage 事件和状态计数 |
+| `skill_improvement_suggestions` | 按 skill 的改进建议，附带证据和草稿补丁 |
+| `skill_versions` | 不可变的已应用版本记录，关联到已变更文件和来源建议 |
+
+### 模式与状态
+
+| 字段 | 取值 | 备注 |
+|---|---|---|
+| 设置 `mode` | `suggest_only`（默认）、`auto_analyze` | v1 不会自动 *修补* —— `auto_analyze` 仅自动生成建议 |
+| usage `status` | `started`、`succeeded`、`failed`、`abandoned` | 按每次 skill 调用记录 |
+| 建议 `status` | `pending`、`approved`、`rejected`、`applied` | 改进建议的生命周期 |
+
+### 应用建议
+
+建议由管理员审核并应用。将建议应用到**自定义** skill 时：
+
+1. 将当前 skill 目录复制到新版本。
+2. 校验目标路径（与 `skill_manage` 伴生文件规则相同）。
+3. 当 SKILL.md 变更时运行 SKILL.md 内容守卫扫描器。
+4. 更新当前活动 skill 并记录一条新的 `skill_versions` 行。
+5. 写入一条 activity 日志条目。
+
+**系统/内置 skill 的变更会被拒绝** —— 对任何 `is_system = true` 的 skill，应用路径在触及文件系统之前返回 `403`。
+
+### 需要管理员权限的界面
+
+查看界面经过脱敏。失败证据、草稿补丁、actor ID 和 activity 详情需要**管理员**可见性 —— 非管理员仅能看到汇总的、不敏感的数据。
+
+### HTTP API
+
+| 方法 | 路径 | 访问权限 |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/evolution` | 读取自我进化设置 |
+| `PATCH` | `/v1/skills/{id}/evolution` | 设置 `enabled` / `mode`（租户管理员） |
+| `GET` | `/v1/skills/{id}/metrics` | usage 指标（total / started / succeeded / failed / abandoned / 成功率） |
+| `GET` | `/v1/skills/{id}/activity` | 最近的自我进化 activity（仅管理员） |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | 列出该 skill 的建议 |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/approve` | 批准一条建议（租户管理员） |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/reject` | 拒绝一条建议（租户管理员） |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/apply` | 应用一条已批准的建议（租户管理员） |
+
+对应的 CLI 命令是 `goclaw skills evolve`、`goclaw skills metrics`、`goclaw skills suggestions` 和 `goclaw skills activity`。Dashboard 在 skill 详情的 **Evolution** 标签页中展示上述全部内容。
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -408,6 +482,9 @@ SuggestionEngine.Analyze() — 每日通过 cron 运行
 | 修补失败提示"not owner" | Agent 尝试修补其他 agent 的 skill | 每个 agent 只能修改自己创建的 skill |
 | 修补失败提示"system skill" | 尝试修改内置系统 skill | 系统 skill 始终为只读 |
 | Skill 内容被拒绝 | 内容匹配 guard.go 中的安全规则 | 移除标记的模式；参见上方第一层类别 |
+| 伴生文件被 `skill_manage` 拒绝 | 路径使用了 `..`、绝对路径/Windows 路径、dotfile 或系统工件；或文件超过 2 MB | 在 skill 根目录下使用干净的相对路径，并将每个文本文件保持在 2 MB 以下 |
+| 无法应用 skill 建议 | 目标是系统/内置 skill，或建议尚未处于 `approved` 状态 | 系统 skill 为只读；先批准建议再应用 |
+| Skill 指标无数据 | 尚未记录任何 `use_skill`/斜杠命令激活，或自我进化已禁用 | usage 会在 agent 使用 skill 时内部记录；在该 skill 的 Evolution 标签页启用自我进化 |
 
 ---
 
@@ -417,4 +494,4 @@ SuggestionEngine.Analyze() — 每日通过 cron 运行
 - [预定义 Agent](#predefined-agents) — 预定义 agent 与 open agent 的区别
 - [publish_skill](#skill-publishing) — 基于目录的 skill 发布
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

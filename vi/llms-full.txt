@@ -2182,7 +2182,7 @@ Setup (chạy một lần)
 Vòng lặp lặp lại (tối đa 20 lần mỗi lượt)
 ├─ ThinkStage   — xây dựng system prompt, lọc tool, gọi LLM
 ├─ PruneStage   — trim context khi cần, trigger memory flush
-├─ ToolStage    — thực thi tool call (song song khi có thể)
+├─ ToolStage    — thực thi tool call (batch read-only chạy song song có giới hạn; còn lại tuần tự)
 ├─ ObserveStage — xử lý kết quả tool, thêm vào message buffer
 └─ CheckpointStage — theo dõi vòng lặp, kiểm tra điều kiện thoát
 
@@ -2197,7 +2197,7 @@ Finalize (chạy một lần, tồn tại kể cả khi bị huỷ)
 | **ContextStage** | Setup | Inject context agent/user/workspace; giải quyết file per-user |
 | **ThinkStage** | Iteration | Xây dựng system prompt (15+ phần), gọi LLM, phát streaming chunk |
 | **PruneStage** | Iteration | Trim context khi ≥ 30% đầy (nhẹ) hoặc ≥ 50% đầy (mạnh); trigger memory flush |
-| **ToolStage** | Iteration | Thực thi tool call — goroutine song song cho nhiều call |
+| **ToolStage** | Iteration | Thực thi tool call. Chỉ tool **read-only** đã đăng ký mới chạy song song có giới hạn; tool gây thay đổi (mutating), async, MCP-bridge (`mcp_*`), `exec`/`bash`, `wait`, tool không xác định/chưa đăng ký, và batch vượt ngân sách đều chạy **tuần tự**. Batch hỗn hợp có bất kỳ call không đủ điều kiện nào sẽ chạy hoàn toàn tuần tự. Hook `PreToolUse` chạy trước mọi I/O song song, và kết quả được xử lý theo đúng thứ tự assistant ban đầu |
 | **ObserveStage** | Iteration | Xử lý kết quả tool; xử lý `NO_REPLY` silent completion |
 | **CheckpointStage** | Iteration | Tăng đếm vòng; thoát khi đạt max-iter hoặc context bị huỷ |
 | **FinalizeStage** | Finalize | Chạy 7 bước sanitize output; flush message nguyên tử; cập nhật session metadata |
@@ -2449,6 +2449,8 @@ GoClaw xây dựng system prompt theo hai chế độ:
 
 - **PromptFull** — dùng cho lần chạy agent chính. Bao gồm tất cả 19+ phần: skill, MCP tool, memory recall, user identity, messaging, silent-reply rule, và đầy đủ context file.
 - **PromptMinimal** — dùng cho subagent (spawn qua tool `spawn`) và cron job. Context thu gọn chỉ gồm các phần cần thiết (tooling, safety, workspace, bootstrap file). Giảm thời gian khởi động và token cho các thao tác nhẹ.
+
+Với phiên **group chat**, system prompt còn inject thêm context group chat — thông tin về người tham gia và nhóm — để agent biết mình là một trong nhiều người nói và có thể xưng hô với người tham gia phù hợp.
 
 ## NO_REPLY Suppression
 
@@ -2703,7 +2705,7 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Gửi tin nhắn; tạo topic forum Telegram |
 | **Tạo Media** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Tạo hình ảnh, audio, video, và text-to-speech; `image_generation` là native tool cho Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — xem [Media Generation](/vi/advanced/media-generation) |
 | **Browser** | browser | Điều hướng trang web, chụp ảnh màn hình, tương tác với element |
-| **Đọc Media** (`group:media_read`) | read_image, read_audio, read_document, read_video | Phân tích hình ảnh, chuyển ngữ audio, trích xuất tài liệu, phân tích video |
+| **Đọc Media** (`group:media_read`) | read_image, read_audio, read_document, read_video | Phân tích hình ảnh (file, đính kèm, hoặc URL), chuyển ngữ audio, trích xuất tài liệu (PDF, DOCX, ảnh; tùy chọn trích xuất local-first qua pdftotext/pandoc), phân tích video (file hoặc URL) — xem [Media Generation](/advanced/media-generation) |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Gọi và xuất bản skill |
 | **Workspace** | workspace_dir | Resolve workspace directory theo team/user context |
 | **AI** | openai_compat_call | Gọi endpoint tương thích OpenAI với định dạng request tùy chỉnh |
@@ -2787,6 +2789,32 @@ graph LR
 3. **Thực thi** — Tool chạy và tạo output
 4. **Scrub** — Credentials và dữ liệu nhạy cảm được xóa khỏi output
 5. **Trả về** — Kết quả sạch trả về LLM cho lần lặp tiếp theo
+
+### Lập lịch song song và tuần tự
+
+Khi LLM phát **nhiều** tool call trong một lượt, GoClaw quyết định có chạy đồng thời hay không. Chỉ tool **read-only** đã đăng ký mới đủ điều kiện chạy raw I/O song song có giới hạn. Tool gây thay đổi (mutating), async, MCP-bridge (`mcp_*`), `exec`/`bash`, `wait`, tool không xác định/chưa đăng ký, và các batch vượt ngân sách tool call đều chạy **tuần tự**. Batch hỗn hợp chứa bất kỳ call không đủ điều kiện nào sẽ chạy hoàn toàn tuần tự. Hook `PreToolUse` chạy trước mọi thực thi song song, và kết quả luôn được xử lý theo đúng thứ tự assistant ban đầu. Tính đủ điều kiện này dựa trên metadata khả năng (capability) của mỗi tool (lớp tác dụng phụ), nên custom tool mặc định chạy tuần tự trừ khi được đăng ký là read-only.
+
+### Trích xuất Local-First của `read_document`
+
+`read_document` phân tích PDF, DOCX, và ảnh tài liệu. Mặc định nó gửi file tới provider vision đám mây. Bạn có thể bật **trích xuất local-first** chạy `pdftotext` (PDF) và `pandoc --sandbox` (DOCX) trên host *trước* mọi lệnh gọi đám mây, cấu hình qua block `document_parser`:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Trường | Mặc định | Mô tả |
+|-------|---------|-------------|
+| `local_first` | `false` | Bật trích xuất local (opt-in). Yêu cầu `pdftotext`/`pandoc` trên PATH — có sẵn trong bản Docker `full` hoặc build với `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | Giới hạn số trang PDF; truyền vào `pdftotext -l` |
+| `timeout_sec` | `30` | Timeout mỗi lần trích xuất; process group bị kill khi timeout |
+| `min_text_len` | `16` | Số ký tự tối thiểu (sau khi trim) để coi là trích xuất thành công; output ngắn hơn sẽ kích hoạt fallback đám mây |
+
+Cấu hình được nạp lúc khởi động (không hot-reload), nhưng tính khả dụng của binary được kiểm tra lại mỗi lần gọi nên cài đặt lúc runtime được phát hiện mà không cần restart. Mọi trường hợp không trích xuất được — bị tắt, MIME không hỗ trợ, thiếu binary, timeout, hoặc quá ít văn bản (ví dụ PDF chỉ là ảnh scan) — đều fallback minh bạch về chuỗi vision đám mây mà không khác biệt với phía gọi.
 
 ## Tool Profile
 
@@ -3120,7 +3148,7 @@ graph TD
 | Tầng | Lưu trữ | Nội dung | Thời gian tồn tại | Tìm kiếm |
 |------|---------|---------|---------|--------|
 | **L0 Working** | `memory_documents` + `memory_embeddings` | Thông tin agent tự lưu, ghi chú auto-flush, kết quả dreaming | Vĩnh viễn cho đến khi xóa | Hybrid FTS + vector |
-| **L1 Episodic** | `episodic_summaries` | Tóm tắt session, key topic, L0 abstract | 90 ngày (có thể cấu hình) | FTS + HNSW vector |
+| **L1 Episodic** | `episodic_summaries` | Tóm tắt session, key topic, L0 abstract (cộng thêm [facts từ channel thụ động đã duyệt](#passive-channel-memory-extraction)) | 90 ngày (có thể cấu hình) | FTS + HNSW vector |
 | **L2 Semantic** | Bảng Knowledge Graph | Thực thể, quan hệ, cửa sổ hiệu lực temporal | Vĩnh viễn | Duyệt đồ thị |
 
 ### Ranh giới tầng và quy tắc thăng cấp
@@ -3254,6 +3282,41 @@ Không phải worker độc lập — là tiện ích được `episodic_worker`
 
 **Dọn dẹp định kỳ**: Một goroutine chạy mỗi 6 giờ để xóa các episodic summary đã qua `expires_at`.
 
+## Passive Channel Memory Extraction
+
+Phần lớn memory đến từ việc một session hoàn thành. **Passive channel memory extraction** thêm một nguồn thứ hai, theo dạng opt-in: nó định kỳ khai thác các tin nhắn đã được đệm từ một channel (Telegram, Discord, v.v.) để tìm các facts bền vững — mà không cần ai chạy session — và đưa các facts đã được duyệt vào cùng pipeline L1 → L2.
+
+Tính năng này **mặc định tắt** và **ưu tiên quyền riêng tư**: ở v1 nó chỉ xem các cuộc hội thoại **group**, các candidate được **xếp hàng để duyệt** thay vì tự động ghi, và **nội dung tin nhắn thô không bao giờ được lưu** — chỉ lưu các tóm tắt đã redact, topic/thực thể, độ tin cậy, và số đếm.
+
+### Cách hoạt động
+
+Một worker chạy nền định kỳ đọc các buffer group `channel_pending_messages` hiện có (scope theo tenant), redact nội dung nhạy cảm, và hỏi **background LLM provider** về các candidate facts bền vững. Các candidate rơi vào review queue (`channel_memory_extraction_runs` / `_items`). Việc trích xuất có thể chạy theo:
+
+- **manual trigger** — chạy ngay cả khi `enabled` là `false`;
+- **message cap** — buffer group đạt `message_cap`;
+- **interval** — đã trôi qua `interval_minutes` được cấu hình.
+
+Khi một item được **approve**, GoClaw ghi một dòng `episodic_summaries` với `source_type='channel'` và một `source_id` xác định. Từ đó các [consolidation workers](#consolidation-workers) hiện có (`semantic_worker`, `dreaming_worker`, …) thăng cấp nó lên knowledge graph và memory dài hạn như bất kỳ episodic entry nào khác. **Reject/delete** ngăn việc ghi sau này; delete cũng xóa dòng episodic liên kết (các node KG đã được thăng cấp không bị xóa đồng bộ ở v1).
+
+### Cấu hình
+
+Bật theo từng channel instance dưới `config.passive_memory` (xem [Channel Instances](/channel-instances#passive-channel-memory-passive_memory)):
+
+| Trường | Mặc định | Giới hạn / Ghi chú |
+|---|---|---|
+| `enabled` | `false` | Mặc định tắt. |
+| `review_mode` | `true` | Candidate được xếp hàng để duyệt, không tự động ghi. |
+| `interval_minutes` | `360` | Giới hạn 15–10080. |
+| `message_cap` | `100` | Giới hạn 10–1000. |
+| `retention_hours` | `168` | Giới hạn 1–720. |
+| `allowed_types` | people, projects, decisions, todos, preferences, events | Mục không hợp lệ bị bỏ; danh sách rỗng → dùng đầy đủ tập mặc định. |
+| `exclude_users` | — | ≤50 mục, mỗi mục ≤255 ký tự. |
+| `exclude_patterns` | — | ≤20 regex hợp lệ, mỗi cái ≤255 ký tự. |
+| `min_messages` | `5` | Giới hạn 2–100. |
+| `group_only` | `true` | **Bị ép `true` ở v1** (luôn được coerce). |
+
+> Các bảng trích xuất lưu metadata, tóm tắt, topic/thực thể, độ tin cậy, trạng thái, và số đếm redaction — **không** lưu nội dung tin nhắn thô.
+
 ## Auto-Injector
 
 **Auto-injector** tự động đưa các memory liên quan vào system prompt của agent ở đầu mỗi turn, trước khi gọi LLM.
@@ -3346,6 +3409,7 @@ Khi các agent làm việc theo [team](#agent-teams), thành viên có thể **�
 | Memory không liên quan xuất hiện | Memory tích lũy theo thời gian; cân nhắc xóa memory cũ qua API |
 | Episodic summary không được tạo | Xác minh consolidation worker đã đăng ký lúc khởi động; kiểm tra event bus đang chạy |
 | dreaming_worker không bao giờ promote | Kiểm tra ≥5 session đã hoàn thành cho cặp agent/user; xem log debounce |
+| Passive channel memory không trích xuất | `passive_memory.enabled` đang tắt, cuộc hội thoại không phải group (chỉ group ở v1), hoặc buffer có ít hơn `min_messages`. Các item đã approve cũng cần được duyệt trừ khi `review_mode` bị tắt. |
 
 ## Tiếp theo
 
@@ -4959,6 +5023,16 @@ Khi bạn cố truy cập agent, GoClaw kiểm tra theo thứ tự:
 
 Predefined agent cũng có thể truy cập được qua `channel_instances`. Nếu một predefined agent có channel instance đang bật với danh sách `allow_from` chứa user ID của bạn, bạn có thể truy cập agent đó ngay cả khi không có share trực tiếp hay cờ default.
 
+## Quyền gateway operator cho agent đầu tiên khi setup
+
+Khi bạn tạo agent **đầu tiên** trong `goclaw setup`, wizard sẽ hỏi:
+
+```
+Grant this first agent local gateway operator access via the goclaw CLI? [mặc định: No]
+```
+
+Nếu bạn trả lời **yes**, agent đó được cấp **quyền SecureCLI có thể thu hồi** để chạy các lệnh gateway cục bộ (ví dụ `goclaw agent list`) qua goclaw CLI. Phản hồi tạo agent mang một block `gateway_operator_bootstrap` với trường `status` và một `warning` tùy chọn. Mặc định là **No** — chỉ bật khi bạn muốn agent đầu tiên tự vận hành gateway. Vì quyền được cấp dưới dạng grant SecureCLI, bạn có thể thu hồi sau này như mọi grant khác.
+
 ## Chia sẻ Agent qua HTTP API
 
 Dùng `POST /v1/agents/:id/shares` để chia sẻ agent. Chỉ owner (hoặc gateway owner-level user) mới có thể chia sẻ.
@@ -5105,6 +5179,7 @@ Cache được invalidate qua sự kiện pubsub:
 
 ## Tiếp theo
 
+- [Ma trận phân quyền — quyền cấu hình agent, phạm vi group/channel, và bảng đầy đủ các lớp phân quyền](/permission-matrix)
 - [User Overrides — Cho phép user tuỳ chỉnh LLM provider/model theo từng agent](/user-overrides)
 - [System Prompt Anatomy — Cách quyền hạn ảnh hưởng đến phần system prompt](/system-prompt-anatomy)
 - [Creating Agents — Tạo agent và chia sẻ ngay lập tức](/creating-agents)
@@ -5455,6 +5530,8 @@ Các provider hỗ trợ extended thinking cũng triển khai thêm `SupportsThi
 | perplexity | `https://api.perplexity.ai` | `sonar-pro` |
 | ollama | `http://localhost:11434/v1` | `llama3.3` |
 | byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` |
+| bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
+| kimi_coding | `https://api.kimi.com/coding/v1` | `kimi-k2-turbo-preview` |
 
 ## Thêm Provider
 
@@ -5613,6 +5690,8 @@ Khi GoClaw kết nối MCP (Model Context Protocol) tools tới một provider, 
 - [DeepSeek](./deepseek.md) — DeepSeek với hỗ trợ reasoning_content
 - [Groq](./groq.md) — inference cực nhanh
 - [DashScope](./dashscope.md) — Alibaba Qwen model với hỗ trợ thinking
+- [Bailian](./bailian.md) — endpoint Bailian Coding của Alibaba Cloud (tách biệt với DashScope)
+- [Kimi Coding](./kimi.md) — Moonshot Kimi với User-Agent cố định và thinking phía máy chủ
 - [ACP](./acp.md) — điều phối subagent Claude Code, Codex CLI, Gemini CLI
 
 
@@ -5675,6 +5754,12 @@ Trong GoClaw dashboard, vào **Settings → Providers → Anthropic** và nhập
 
 Để ghi đè model mặc định cho một agent cụ thể, đặt `model` trong config của agent đó.
 
+## Tham số Sampling (Claude 4.6+)
+
+Các model Claude mới hơn từ chối tham số sampling vô điều kiện. Với **Claude Opus/Sonnet 4.6+ và Opus 4.7+** (bất kỳ `claude-opus-4-*` hoặc `claude-sonnet-4-*` có minor version từ 6 trở lên), GoClaw loại bỏ `temperature` — và theo cùng quy tắc là `top_p`/`top_k` — khỏi **mọi** request, dù extended thinking có được bật hay không. Các model này trả về `HTTP 400` nếu có tham số sampling.
+
+Điều này tách biệt với việc loại bỏ temperature theo đường thinking mô tả bên dưới (chỉ xóa `temperature` khi thinking đang hoạt động, cho mọi model Claude). Bạn không cần làm gì: GoClaw tự động bỏ các tham số này. Chỉ cần tránh hard-code giá trị sampling trong raw request đối với các model này.
+
 ## Extended Thinking
 
 Anthropic provider triển khai `SupportsThinking() bool` và trả về `true`. Khi `thinking_level` được đặt trong request, GoClaw tự động kích hoạt tính năng extended thinking của Anthropic.
@@ -5726,6 +5811,7 @@ Anthropic dùng định dạng tool schema khác OpenAI. GoClaw tự động chu
 |---|---|---|
 | `HTTP 401` | API key không hợp lệ | Kiểm tra key bắt đầu bằng `sk-ant-` |
 | `HTTP 400` khi dùng thinking | Đặt temperature song song với thinking | GoClaw tự xóa temperature; đừng hard-code nó trong raw request |
+| `HTTP 400` đề cập temperature trên model 4.6+ | Claude Opus/Sonnet 4.6+ / Opus 4.7+ từ chối tham số sampling | GoClaw tự loại bỏ `temperature`/`top_p`/`top_k`; đừng hard-code tham số sampling |
 | `HTTP 529` | Anthropic bị quá tải | Retry logic xử lý tự động; chờ và thử lại |
 | Thinking blocks không xuất hiện | Model không hỗ trợ thinking | Dùng claude-sonnet-4-5 hoặc claude-opus-4-5 |
 | Chi phí token cao | Cache không hit | Đảm bảo system prompt ổn định giữa các request |
@@ -6117,6 +6203,10 @@ Nếu một tool call cũ trong lịch sử hội thoại thiếu `thought_signa
 ### Xử lý content rỗng
 
 Gemini từ chối assistant message có `content` rỗng khi có tool calls. GoClaw bỏ qua field `content` trong trường hợp đó thay vì gửi string rỗng.
+
+### Nhập media bằng URL
+
+Ảnh và video được cung cấp bằng URL được xử lý mà bạn không cần tải xuống trước. URL ảnh được truyền thẳng vào request vision. Với video, GoClaw stream URL vào Gemini File API (upload → poll → `file_data`) qua HTTP client được ghim an toàn chống SSRF. Xem [Tạo Media](/media-generation) để biết tham chiếu đầy đủ về nhập/xuất multimodal.
 
 ## Thinking / Reasoning
 
@@ -6922,6 +7012,8 @@ DashScope là nền tảng phục vụ model của Alibaba, cung cấp bộ mode
 
 DashScope cũng hỗ trợ extended thinking qua `thinking_level`, GoClaw ánh xạ sang các tham số `enable_thinking` và `thinking_budget` đặc thù của DashScope.
 
+> **Lưu ý:** `dashscope` là loại provider khác với `bailian`. Endpoint Bailian Coding của Alibaba Cloud (`https://coding-intl.dashscope.aliyuncs.com/v1`, mặc định `qwen3.5-plus`) là một provider tương thích OpenAI tách biệt, với catalog cố định và **không** tiêm thinking. Nếu bạn cần endpoint Coding hoặc các model như `qwen3.7-plus`, xem [Bailian](/provider-bailian).
+
 ## Cài đặt
 
 Thêm DashScope API key vào `config.json`:
@@ -7040,6 +7132,7 @@ GoClaw ánh xạ `thinking_level` sang `thinking_budget` của DashScope:
 
 - [Claude CLI](/provider-claude-cli) — provider đặc biệt gọi CLI binary của Claude Code
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+- [Bailian](/provider-bailian) — endpoint Bailian Coding của Alibaba Cloud (tách biệt với DashScope)
 
 
 
@@ -7201,18 +7294,168 @@ Provider Vertex nói OpenAI ChatCompletions cùng code path với adapter `opena
 
 # Bailian
 
-> Kết nối với Alibaba Cloud Bailian (百炼).
-
-🚧 **Trang này đang được xây dựng.** Nội dung sẽ sớm được cập nhật.
+> Kết nối với các model Bailian (百炼) Coding của Alibaba Cloud qua endpoint tương thích OpenAI.
 
 ## Tổng quan
 
-Bailian là nền tảng mô hình AI của Alibaba Cloud. GoClaw kết nối sử dụng định dạng API tương thích OpenAI.
+Bailian là nền tảng mô hình AI của Alibaba Cloud. GoClaw kết nối tới endpoint **Coding** của Bailian bằng định dạng API tương thích OpenAI. Loại provider `bailian` **tách biệt với `dashscope`** — chúng là các endpoint khác nhau với base URL khác nhau và catalog model khác nhau. Đường tiêm `enable_thinking`/`thinking_budget` của DashScope **không** áp dụng cho Bailian; Bailian được xử lý như một provider tương thích OpenAI thuần túy.
+
+- **Loại provider:** `bailian`
+- **Model mặc định:** `qwen3.5-plus`
+- **API base mặc định:** `https://coding-intl.dashscope.aliyuncs.com/v1`
+
+## Cấu hình
+
+Thêm API key Bailian của bạn vào `config.json` trong block provider `bailian`:
+
+```json
+{
+  "providers": {
+    "bailian": {
+      "api_key": "$GOCLAW_BAILIAN_API_KEY"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "bailian",
+      "model": "qwen3.5-plus"
+    }
+  }
+}
+```
+
+Lưu key trong `.env.local`:
+
+```bash
+GOCLAW_BAILIAN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Trường `api_base` là tùy chọn — mặc định là `https://coding-intl.dashscope.aliyuncs.com/v1`. Bạn cũng có thể thêm Bailian từ dashboard (**Settings → Providers**); key được mã hóa AES-256-GCM khi lưu.
+
+## Models
+
+Nền tảng Bailian Coding **không** cung cấp endpoint `/v1/models` chuẩn, nên GoClaw đi kèm một **catalog cố định (hardcoded)**. Các model sau đây khả dụng:
+
+| Model | Ghi chú |
+|---|---|
+| `qwen3.7-plus` | Qwen 3.7 Plus — Sinh văn bản, Deep Thinking, Hiểu hình ảnh |
+| `qwen3.6-plus` | Qwen 3.6 Plus |
+| `qwen3.5-plus` | Qwen 3.5 Plus (mặc định) |
+| `kimi-k2.5` | Kimi K2.5 |
+| `GLM-5` | GLM-5 |
+| `MiniMax-M2.5` | MiniMax M2.5 |
+| `qwen3-max-2026-01-23` | Qwen 3 Max (2026-01-23) |
+| `qwen3-coder-next` | Qwen 3 Coder Next |
+| `qwen3-coder-plus` | Qwen 3 Coder Plus |
+| `glm-4.7` | GLM 4.7 |
+
+## Bailian vs DashScope
+
+Cả hai đều kết nối tới hạ tầng Alibaba, nhưng là các provider khác nhau:
+
+| | `bailian` | `dashscope` |
+|---|---|---|
+| Endpoint | `https://coding-intl.dashscope.aliyuncs.com/v1` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
+| Model mặc định | `qwen3.5-plus` | `qwen3-max` |
+| Liệt kê model | Catalog cố định (không có `/v1/models`) | Liệt kê trực tiếp |
+| Tiêm thinking | Không (tương thích OpenAI thuần túy) | `enable_thinking` + `thinking_budget` |
+
+Nếu bạn muốn extended thinking kiểu DashScope, hãy dùng provider [DashScope](/provider-dashscope) thay thế.
+
+## Lỗi thường gặp
+
+| Lỗi | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `401 Unauthorized` | API key không hợp lệ | Xác minh `GOCLAW_BAILIAN_API_KEY` trong `.env.local` |
+| Model không được liệt kê | Catalog là cố định | Dùng một model ID từ bảng trên; Coding API không có endpoint `/v1/models` |
+| Thinking không có tác dụng | Bailian là OpenAI-compatible thuần túy | Tiêm thinking của DashScope không áp dụng; dùng provider `dashscope` cho `enable_thinking` |
 
 ## Tiếp theo
 
 - [Tổng quan Provider](/providers-overview)
-- [DashScope (Qwen)](/provider-dashscope)
+- [DashScope (Qwen)](/provider-dashscope) — Alibaba Qwen model với hỗ trợ thinking
+- [Kimi Coding](/provider-kimi) — endpoint Moonshot Kimi Coding
+
+
+
+---
+
+> Bản dịch từ [English version](/provider-kimi)
+
+# Kimi Coding (Moonshot)
+
+> Kết nối GoClaw với các model Kimi Coding của Moonshot qua endpoint Coding tương thích OpenAI.
+
+## Tổng quan
+
+Kimi Coding là endpoint tập trung vào lập trình của Moonshot AI. GoClaw kết nối tới nó như một provider tương thích OpenAI (`provider_type: "kimi_coding"`), tái sử dụng `OpenAIProvider` chuẩn cùng ba điều chỉnh đặc thù của Kimi được nối tự động: một **header `User-Agent` cố định**, một **khóa temperature**, và **bắt buộc `reasoning_content`** trên các assistant message chứa tool call. Bạn không cần cấu hình bất kỳ thứ nào — GoClaw xử lý chúng để agent của bạn chạy được ngay.
+
+- **Loại provider:** `kimi_coding`
+- **Model mặc định:** `kimi-k2-turbo-preview`
+- **API base mặc định:** `https://api.kimi.com/coding/v1`
+
+## Cấu hình
+
+Kimi Coding được thêm từ **dashboard** (không có block provider tĩnh trong `config.json`). Trong GoClaw dashboard:
+
+1. Vào **Settings → Providers → Add**
+2. Chọn **"Kimi Coding (Moonshot)"** — API base được điền sẵn `https://api.kimi.com/coding/v1`
+3. Dán API key Kimi của bạn
+4. Lưu — key được mã hóa AES-256-GCM khi lưu, và thay đổi có hiệu lực ở request tiếp theo
+
+Sau đó trỏ một agent tới nó:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "provider": "kimi",
+      "model": "kimi-k2-turbo-preview"
+    }
+  }
+}
+```
+
+> Dùng **tên** bạn đặt cho provider khi tạo (ví dụ `kimi`) làm giá trị `provider` của agent. `provider_type` (`kimi_coding`) là loại bất biến được chọn từ dropdown.
+
+## Models
+
+| Model | Ghi chú |
+|---|---|
+| `kimi-k2-turbo-preview` | Mặc định — thinking phía máy chủ bật mặc định |
+
+API base mặc định là `https://api.kimi.com/coding/v1` nếu bạn để trống.
+
+## Hành vi Phi tiêu chuẩn
+
+Kimi Coding có ba điểm đặc thù mà upstream thực thi nghiêm ngặt. GoClaw xử lý tất cả cho bạn.
+
+### 1. `User-Agent` cố định
+
+Mọi request — bao gồm cả lệnh liệt kê model — được gửi với header cố định `User-Agent: claude-code/0.1.0`. Upstream từ chối các request không mang đúng User-Agent này. GoClaw tự tiêm nó qua extra header của provider; bạn không cần đặt.
+
+### 2. Khóa temperature
+
+Máy chủ Kimi khóa `temperature` ở `1` và từ chối mọi ghi đè. Do đó GoClaw **loại bỏ `temperature`** khỏi body request đối với provider `kimi_coding` (giống cách xử lý cho OpenAI `o1`/`o3`/`o4` và `gpt-5-mini`/`gpt-5-nano`). Truyền giá trị temperature tới raw API trả về `HTTP 400 invalid temperature: only 1 is allowed for this model`.
+
+### 3. `reasoning_content` bắt buộc trên tool call
+
+`kimi-k2-turbo-preview` bật thinking phía máy chủ theo mặc định. Khi một assistant message chứa `tool_calls` được replay trong history, nó **bắt buộc phải** mang trường `reasoning_content` — nếu không upstream trả về `HTTP 400 thinking is enabled but reasoning_content is missing in assistant tool call message at index N`. GoClaw giữ reasoning đã ghi lại khi có, và phát ra một **chuỗi `reasoning_content` rỗng** khi không có, để các vòng lặp tool nhiều turn vẫn hoạt động.
+
+## Lỗi thường gặp
+
+| Lỗi | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `HTTP 400 invalid temperature: only 1 is allowed for this model` | Một giá trị temperature đã được gửi | GoClaw tự loại bỏ `temperature` cho `kimi_coding`; đừng hard-code trong raw request |
+| `HTTP 400 thinking is enabled but reasoning_content is missing in assistant tool call message at index N` | Tool-call message replay thiếu `reasoning_content` | GoClaw tự phát ra `reasoning_content` rỗng; đảm bảo history assistant không bị tước trường này |
+| Request bị từ chối / 4xx ở mọi lần gọi | Thiếu hoặc thay đổi `User-Agent` | GoClaw gửi `claude-code/0.1.0` tự động; đừng ghi đè header User-Agent |
+| `401 Unauthorized` | API key không hợp lệ | Nhập lại key Kimi trong Settings → Providers |
+
+## Tiếp theo
+
+- [Tổng quan Provider](/providers-overview) — kiến trúc provider và retry logic
+- [Extended Thinking](/extended-thinking) — cách thinking và `reasoning_content` hoạt động giữa các provider
+- [DashScope (Qwen)](/provider-dashscope) — Alibaba Qwen model với hỗ trợ thinking
 
 
 
@@ -7762,6 +8005,22 @@ GET /v1/agents/{id}/codex-pool-activity
 Xem [REST API](/rest-api) để biết cấu trúc response.
 
 
+## Lỗi thường gặp
+
+| Vấn đề | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `401 Unauthorized` | Token hết hạn hoặc bị thu hồi | Xác thực lại qua Settings → Providers → ChatGPT |
+| OAuth callback thất bại | Port 1455 bị chặn | Đảm bảo không có gì khác đang lắng nghe port 1455 trong lúc xác thực |
+| `model not found` | Model không có trong subscription | Kiểm tra gói ChatGPT; một số model yêu cầu gói Pro |
+| Provider không khả dụng sau restart | Token không được persist | GoClaw tự load token từ DB khi khởi động; kiểm tra kết nối DB |
+| Field phase trong response | `gpt-5.5` và `gpt-5.3-codex` trả về phase `commentary` + `final_answer` | GoClaw xử lý tự động; cả hai phase đều được ghi lại |
+
+## Tiếp theo
+
+- [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
+- [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
+
+
 
 ---
 
@@ -7860,6 +8119,8 @@ Mỗi ACP subprocess duy trì một session ID được server gán. Vòng đờ
 3. **`session/cancel`** — gửi như notification khi caller hủy context
 
 Session ID được lưu per-process trong `ACPProcess.sessionID` và được đưa vào mọi prompt request. Điều này cho phép ACP agent duy trì lịch sử hội thoại và trạng thái file qua nhiều lượt trong cùng một process lifetime.
+
+> **Ghi chú vận hành:** Các thông báo `session/update` loại `tool_call` và `tool_call_update` của ACP được log ở mức **Info** (kèm session ID, tool call ID, tên/tiêu đề tool, kind, và status), nên người vận hành có thể quan sát hoạt động tool của ACP agent trong log gateway.
 
 ## Session Sequencing
 
@@ -8247,6 +8508,21 @@ GoClaw trích xuất file đính kèm media từ tin nhắn đang được reply
 
 Trường config `media_max_bytes` áp đặt giới hạn kích thước upload media ra ngoài do agent gửi, theo từng channel. File vượt giới hạn sẽ bị bỏ qua và ghi log. Mỗi channel có giá trị mặc định riêng (ví dụ: 20 MB cho Telegram, 30 MB cho Feishu/Lark). Cấu hình theo từng channel nếu cần.
 
+### Gửi nhiều file đính kèm (Batching)
+
+Tool `send_file` có thể gửi nhiều file workspace đã có cùng một lúc. Hai dạng được chấp nhận:
+
+- **Một file:** `path` (kèm `caption` tuỳ chọn).
+- **Theo lô:** `attachments: [{ "path": "...", "caption": "..." }, ...]` — thứ tự file, MIME type, tên file, và caption riêng cho từng file đều được giữ nguyên.
+
+Cách mỗi channel gom một lô phụ thuộc vào những gì nền tảng hỗ trợ:
+
+| Channel | Cách gom | Hành vi |
+|---------|----------|----------|
+| Telegram | Đoạn album | Media tương thích được gom thành album `sendMediaGroup` gồm **2–10** mục. Ảnh/video có thể chung một đoạn; document chỉ gom với document, audio chỉ gom với audio. Audio voice-mode, đoạn đơn lẻ, ảnh quá khổ gửi dưới dạng document, và các chuỗi không tương thích sẽ quay về gửi từng file theo thứ tự. |
+| Discord | Một tin nhắn | Nhiều file (kèm văn bản tuỳ chọn) được gửi trong **một** tin nhắn, tối đa 10 file đính kèm. |
+| Slack và các channel hỗ trợ media khác | Dự phòng theo thứ tự | File được gửi lần lượt theo thứ tự trừ khi adapter công bố khả năng batch mạnh hơn. |
+
 ## Inbound Debounce
 
 Khi người dùng gửi dồn dập nhiều tin nhắn (hoặc upload nhiều file cùng lúc), GoClaw gộp chúng thành **một** tin nhắn đến duy nhất trước khi chạy agent — trả lời một lần thay vì một lần cho mỗi mảnh.
@@ -8266,6 +8542,64 @@ Khi người dùng gửi dồn dập nhiều tin nhắn (hoặc upload nhiều f
 - **Ghi đè theo agent:** một agent có thể đặt `inbound_debounce_ms` trong `agent_config` của nó để dùng cửa sổ khác với mặc định của gateway.
 - **`/stop` và `/reset` bỏ qua debouncer** — lệnh điều khiển được xử lý ngay và không bao giờ bị buffer.
 - **Sàn media:** tin nhắn mang media không còn bỏ qua debounce. Cửa sổ hiệu lực là `max(giá trị cấu hình, sàn media)`, nên một lần upload nhiều file luôn gộp thành một tin đến kể cả khi debounce text đặt `0`. (Ghi đè khác 0 của agent được tôn trọng nguyên vẹn — operator đặt `500` thì giữ `500`, không phải sàn.) Tin nhắn do tool/subagent nội bộ tạo ra được miễn khỏi sàn này.
+
+## Gửi giống con người (Human-like Delivery)
+
+GoClaw có thể làm cho phản hồi trên channel mang cảm giác trò chuyện hơn — một lời xác nhận nhanh trước một lần chạy dài, các ghi chú tiến độ ngắn trong khi tool đang thực thi, và tách một câu trả lời cuối dài thành vài tin nhắn tự nhiên. Tính năng này được cấu hình dưới `gateway.chat_behavior` và **mặc định bị tắt**.
+
+> Các hành vi này **chỉ liên quan đến việc gửi (delivery-only)**. Lời xác nhận, ghi chú tiến độ, và các phần đã tách không bao giờ được ghi vào lịch sử session hay gửi ngược lại cho model như một phần cuộc trò chuyện — chúng chỉ thay đổi những gì con người thấy trong chat.
+
+```json
+{
+  "gateway": {
+    "chat_behavior": {
+      "enabled": true,
+      "quick_ack": { "enabled": true, "mode": "sidecar_generated" },
+      "intermediate_replies": { "enabled": true },
+      "final_split": { "enabled": true }
+    }
+  }
+}
+```
+
+### Ba hành vi con
+
+| Hành vi con | Chức năng |
+|--------------|--------------|
+| `quick_ack` | Gửi một biên nhận ngắn trước một lần chạy dài không streaming, để người dùng biết bot đang làm việc. |
+| `intermediate_replies` | Gửi các cập nhật tiến độ ngắn trong khi agent đang chạy tool. Độc lập với `quick_ack`. |
+| `final_split` | Tách một phản hồi cuối dài thành một số ít tin nhắn cỡ đoạn văn. |
+
+**Các mode của `quick_ack`:**
+
+| Mode | Hành vi |
+|------|----------|
+| `sidecar_generated` | Một lệnh gọi LLM riêng, có giới hạn, viết một lời xác nhận ngắn có nhận biết ngữ cảnh. |
+| `llm_generated` | Alias tương thích ngược; đây cũng là mode được phân giải mặc định. |
+| `fixed_template` | Gửi chuỗi đầu tiên từ `templates` (mặc định `"Got it. Working on it..."`). |
+| `off` | Không có lời xác nhận. |
+
+Các trường của `quick_ack`: `enabled`, `mode`, `min_delay_ms` (mặc định 1000), `provider`, `model`, `timeout_ms` (mặc định 2500), `max_tokens` (mặc định 40), `max_chars` (mặc định 120), `templates`. Khi `provider`/`model` không được đặt, provider/model của chính agent sẽ được dùng.
+
+**Các mode của `intermediate_replies`** là `sidecar_generated` (mặc định) hoặc `off`. Các trường: `enabled`, `mode`, `provider`, `model`, `timeout_ms` (2500), `max_tokens` (mặc định 60), `max_chars` (mặc định 180). Sidecar chỉ nhận metadata có giới hạn (xem trước tin nhắn, locale, channel/peer, nhãn agent, giai đoạn tool hiện tại) — **không bao giờ** nhận lịch sử session, tham số/output của tool, memory, hay system prompt.
+
+**Các trường của `final_split`**: `enabled`, `min_chars` (mặc định 1200), `max_messages` (mặc định 3), `delay_ms` (mặc định 500). Việc tách rất thận trọng — các phản hồi chứa code fenced, bảng, danh sách, trích dẫn, khối kiểu JSON/XML, hay đoạn chỉ chứa URL sẽ giữ nguyên thành một tin nhắn, và media hoặc các lần gửi streaming không bao giờ bị tách.
+
+### Thứ tự ghi đè
+
+`chat_behavior` có thể đặt ở ba cấp. Thứ tự phân giải là **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (nền tảng gốc).
+2. **Agent** — `agents.other_config.delivery_behavior` ghi đè nền tảng workspace.
+3. **Channel** — `channels.<type>.chat_behavior` (hoặc `chat_behavior` của một channel instance) có tiếng nói cuối cùng.
+
+Mỗi cấp chỉ ghi đè những trường mà nó đặt, nên bạn có thể tinh chỉnh một núm điều khiển cho mỗi channel và kế thừa phần còn lại.
+
+> **`block_reply` legacy.** Cờ `gateway.block_reply` cũ (và `block_reply` theo từng channel) vẫn được đọc làm giá trị mặc định kế thừa cho `intermediate_replies.enabled` khi trường mới chưa được đặt.
+
+### Hỗ trợ Channel
+
+Human-like delivery được triển khai bởi các channel áp dụng interface `ChatBehaviorChannel`: **Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, và Zalo Personal**.
 
 ## So sánh Channel
 
@@ -8372,8 +8706,10 @@ Tất cả config key nằm trong `channels.telegram`:
 | `dm_stream` | bool | false | Bật streaming cho DM (chỉnh sửa placeholder) |
 | `group_stream` | bool | false | Bật streaming cho nhóm (tin nhắn mới) |
 | `draft_transport` | bool | false | Dùng `sendMessageDraft` cho DM streaming (stealth preview, không thông báo mỗi lần edit) |
-| `reasoning_stream` | bool | true | Hiển thị reasoning token dưới dạng tin nhắn riêng trước câu trả lời |
+| `reasoning_delivery` | string | -- | Cách reasoning được hiển thị: `off`, `streaming_only`, `always_bubbles`. Xem [Reasoning Delivery](#reasoning-delivery). |
+| `reasoning_stream` | bool | true | **Legacy.** Hiển thị reasoning token dưới dạng tin nhắn riêng trước câu trả lời. Chỉ dùng khi `reasoning_delivery` chưa được đặt. |
 | `block_reply` | bool | -- | Ghi đè cài đặt `block_reply` của gateway cho channel này (nil = kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (chỉ ⏳), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Kích thước file media tối đa |
 | `link_preview` | bool | true | Hiển thị xem trước URL |
@@ -8553,6 +8889,8 @@ Khi user gửi voice message:
 3. Transcript được thêm vào đầu tin nhắn: `[audio: filename] Transcript: text`
 4. Định tuyến đến `voice_agent_id` nếu được cấu hình, ngược lại đến agent mặc định
 
+Transcription chạy qua chuỗi STT thống nhất của GoClaw, thử các provider theo thứ tự — `elevenlabs`, rồi `proxy`. (Đây là tên provider hiện tại; các bản phát hành cũ gọi chúng là `elevenlabs_scribe` và `proxy_stt`.) Telegram giữ nguyên MIME type gốc của voice khi chuyển audio vào chuỗi, và phần ghi đè bridge STT-proxy legacy được định khóa theo platform type `telegram`.
+
 ### Streaming
 
 Bật cập nhật phản hồi trực tiếp:
@@ -8560,11 +8898,27 @@ Bật cập nhật phản hồi trực tiếp:
 - **DM** (`dm_stream`): Edit placeholder "Thinking..." khi từng chunk đến. Mặc định dùng `sendMessage+editMessageText`; đặt `draft_transport: true` để dùng `sendMessageDraft` (stealth preview, không thông báo mỗi lần edit, nhưng có thể gây lỗi "reply to deleted message" trên một số client).
 - **Group** (`group_stream`): Gửi placeholder, edit với phản hồi đầy đủ
 
-Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), reasoning token hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
+Mặc định tắt.
+
+### Reasoning Delivery
+
+Khi model phát ra reasoning token ("thinking"), `reasoning_delivery` kiểm soát cách — hay liệu có — reasoning đó hiển thị trong chat:
+
+| `reasoning_delivery` | Hành vi |
+|----------------------|----------|
+| `streaming_only` | Reasoning chỉ xuất hiện trong làn streaming trực tiếp (hành vi legacy). |
+| `always_bubbles` | Buộc provider streaming nội bộ và gửi reasoning dưới dạng các tin nhắn "bubble" bình thường có giới hạn — kể cả khi `dm_stream` / `group_stream` đang tắt. Câu trả lời cuối vẫn được gửi không streaming. |
+| `off` | Reasoning bị ẩn trong channel. Traces và hạch toán usage không bị ảnh hưởng. |
+
+**Tương thích ngược.** Khi `reasoning_delivery` chưa được đặt, giá trị boolean legacy `reasoning_stream` được tôn trọng: `reasoning_stream: false` phân giải thành `off`, ngược lại thành `streaming_only`. Một giá trị `reasoning_delivery` rõ ràng luôn thắng giá trị boolean legacy.
+
+Reasoning bubble chỉ liên quan đến việc gửi — chúng không được thêm vào lịch sử assistant/session. Telegram hiện là channel duy nhất triển khai cơ chế kiểm soát này (`ReasoningDeliveryChannel`).
 
 ### Xử lý Media
 
 **Album / gộp nhiều file đính kèm.** Khi người dùng gửi một album (nhiều ảnh hoặc file gom lại trên client), Telegram giao nó dưới dạng N update riêng biệt cùng chung một `MediaGroupID`. GoClaw buffer các thành viên album ở tầng channel (cửa sổ im lặng 500 ms) và tổng hợp chúng thành **một** tin nhắn đến, nên agent trả lời một lần thay vì một lần cho mỗi file. Khóa buffer là `(chatID, MediaGroupID)`; người gửi được ghim từ thành viên đầu tiên, và một thành viên đến với người gửi không khớp sẽ bị loại bỏ như một biện pháp phòng vệ.
+
+**Gom album gửi ra ngoài.** Khi agent gửi nhiều file cùng lúc — qua dạng `attachments: [{path, caption?}, ...]` của tool `send_file` — Telegram gom media tương thích gửi ra thành các đoạn album `sendMediaGroup` gồm **2–10** mục. Ảnh và video có thể chung một đoạn; document chỉ gom với document và audio chỉ gom với audio. Audio voice-mode, đoạn đơn lẻ, ảnh quá khổ bị chuyển sang gửi dưới dạng document, và các chuỗi không tương thích khác sẽ thoái lui mượt mà về gửi từng file theo thứ tự. Thứ tự file, MIME type, tên file, và caption đều được giữ nguyên.
 
 **Giới hạn upload ra ngoài.** Media gửi ra được kiểm tra với ngưỡng upload trước khi gửi — file vượt giới hạn bị từ chối với lỗi rõ ràng "outbound media too large" thay vì hỏng giữa chừng. Ngưỡng là 50 MB trên Bot API chính thức và 200 MB khi cấu hình một Bot API server cục bộ (`api_server`) (hoặc cao hơn nếu `media_max_bytes` được nâng trên mức đó).
 
@@ -8595,6 +8949,8 @@ Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
 | stallHard | 😨 | Không hoạt động 30 giây |
 
 Mỗi status có emoji dự phòng trong trường hợp emoji chính bị hạn chế bởi reaction cho phép của chat. Các trạng thái trung gian (thinking, tool, v.v.) được debounce ở 700ms để tránh spam reaction.
+
+> **Không có văn bản tool-status placeholder.** Các cập nhật tool-status xác định chỉ được hiển thị qua reaction — chúng không còn phát ra một tin nhắn văn bản "tool" riêng trong channel. Reaction của nền tảng và việc gửi reasoning rõ ràng vẫn là các hành vi độc lập.
 
 ### Lệnh Bot
 
@@ -8733,6 +9089,8 @@ goclaw bitrix-portal create \
 
 `--name` (ví dụ `acme`) là khóa portal mà config channel sẽ tham chiếu. `--domain` là host trần — không có scheme, không có dấu `/` cuối.
 
+> **Hỗ trợ portal self-hosted.** Ngoài các domain cloud của Bitrix24 (`*.bitrix24.{com,eu,vn,...}` và `*.bitrix.info`), `--domain` còn chấp nhận một **FQDN Bitrix24 self-hosted** như `bx.mycompany.com` (cho phép `:port` tuỳ chọn). Domain self-hosted phải qua một bước kiểm tra an toàn chống SSRF: hostname được phân giải và **mọi** IP trả về đều được kiểm tra, các dải IP loopback/private/metadata bị từ chối, các tên `localhost` / `.local` / `.localhost` bị chặn, và mọi port phải nằm trong khoảng 1–65535. Domain cloud bỏ qua bước kiểm tra này (chúng do Bitrix vận hành và được tin cậy).
+
 > Đặt `GOCLAW_ENCRYPTION_KEY` trước khi chạy lệnh này. Credential và token được lưu mã hóa AES-256-GCM; nếu thiếu key chúng sẽ lưu dạng plaintext (kèm cảnh báo).
 
 Bạn cũng có thể tạo portal từ dashboard, nó sẽ trả về install URL trực tiếp.
@@ -8791,6 +9149,7 @@ Các trường config của channel instance:
 | `reaction_level` | string | `"minimal"` | `off`, `minimal`, `full` |
 | `history_limit` | int | -- | Số tin nhắn nhóm đang chờ giữ làm ngữ cảnh |
 | `block_reply` | bool | -- | Ghi đè `block_reply` của gateway (nil = kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `public_url` | string | -- | Ghi đè public URL theo instance (legacy; nên dùng URL portal tự ghi lại) |
 | `mcp_server_name` | string | -- | Tên MCP server cho việc cấp credential theo từng người dùng (xem [Tích hợp MCP](#tich-hop-mcp)) |
 | `mcp_base_url` | string | -- | Base URL của MCP server; phải đặt cùng với `mcp_server_name` |
@@ -8886,6 +9245,7 @@ Lưu ý:
 | Bot Open Channel im lặng với khách hàng | `bot_type: "O"` cần `dm_policy: "open"`, và admin phải gắn bot vào một Open Channel queue trong giao diện Bitrix24. |
 | URL event handler cũ sau khi redeploy | Đặt `BITRIX24_FORCE_REREGISTER=1` và khởi động lại để đẩy URL mới vào Bitrix24. |
 | Muốn xem sự kiện thô | Đặt `BITRIX24_LOG_RAW_EVENT=1` khi khởi động tiến trình (credential được che). Tắt trong production — nó ghi log nội dung tin nhắn. |
+| Domain self-hosted bị từ chối | FQDN phải phân giải về một IP public. Kiểm tra SSRF chặn các dải IP loopback/private/metadata và các tên `localhost` / `.local` / `.localhost`; port phải là 1–65535. |
 
 ## Tiếp theo
 
@@ -8949,6 +9309,7 @@ Tất cả config key nằm trong `channels.discord`:
 | `require_mention` | bool | true | Yêu cầu mention @bot trong server (channel) |
 | `history_limit` | int | 50 | Tin nhắn chờ tối đa mỗi channel (0=tắt) |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Tính năng
 
@@ -8987,6 +9348,20 @@ Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 gi
 ### Hỗ trợ Thread
 
 Bot tự động phát hiện và phản hồi trong Discord thread. Phản hồi ở lại trong cùng thread.
+
+### Backfill lịch sử Thread
+
+Khi bot được mention **bên trong một Discord thread**, GoClaw kéo về context thread gần đây trước khi trả lời — để một mention giữa thread không bị trả lời một cách mù mờ.
+
+- Lấy tối đa **25** tin nhắn thread trước đó (trước trigger) qua Discord REST API và thêm văn bản của chúng vào đầu làm context.
+- Tải xuống tối đa **15** file đính kèm trước đó vào pipeline media đến, giới hạn **5 MB mỗi file**.
+- Toàn bộ quá trình backfill bị giới hạn bởi timeout **30 giây**.
+
+Tính năng này **chỉ áp dụng trong thread**. Nếu bot thiếu permission `READ_MESSAGE_HISTORY` hoặc lệnh REST thất bại, GoClaw thoái lui mượt mà về chỉ dùng tin nhắn hiện tại.
+
+### Gửi nhiều file
+
+Discord gửi nhiều file (kèm văn bản tuỳ chọn) trong **một tin nhắn duy nhất**, tối đa 10 file đính kèm — nên một lệnh `send_file` theo lô sẽ hiện thành một tin nhắn gọn gàng thay vì một loạt tin. Xem [Gửi nhiều file đính kèm](/channels-overview#multi-attachment-delivery-batching) ở trang tổng quan.
 
 ### Media từ tin nhắn được reply
 
@@ -9037,6 +9412,7 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 | Chỉnh sửa placeholder thất bại | Đảm bảo bot có permission `Manage Messages`. Discord có thể thu hồi permission này trong quá trình setup. |
 | Tin nhắn bị tách sai | Phản hồi dài được tách tại xuống dòng. Kiểm soát độ dài tin nhắn qua `max_tokens` của model. |
 | Bot tự mention mình | Kiểm tra permissions Discord. Bot không nên có `@everyone` hoặc `@here` trong phản hồi. |
+| Thiếu context thread | Backfill lịch sử thread cần `READ_MESSAGE_HISTORY`. Cấp permission này; chỉ hoạt động bên trong thread. |
 
 ## Tiếp theo
 
@@ -9110,6 +9486,7 @@ Tất cả các key cấu hình nằm trong `channels.feishu`:
 | `reaction_level` | string | `"off"` | `off`, `minimal` (chỉ ⏳), `full` |
 | `history_limit` | int | -- | Số tin nhắn tối đa tải từ lịch sử |
 | `block_reply` | bool | -- | Chặn ngữ cảnh reply-to-message |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `stt_proxy_url` | string | -- | URL proxy speech-to-text |
 | `stt_api_key` | string | -- | API key speech-to-text |
 | `stt_tenant_id` | string | -- | Tenant ID speech-to-text |
@@ -9598,6 +9975,7 @@ Tất cả config key nằm trong `channels.zalo`:
 | `webhook_secret` | string | -- | Secret ký webhook tuỳ chọn |
 | `media_max_mb` | int | 5 | Kích thước file hình ảnh tối đa (MB) |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Tính năng
 
@@ -9731,6 +10109,7 @@ Tất cả config key nằm trong `channels.zalo_personal`:
 | `group_policy` | string | `"allowlist"` | `open`, `allowlist`, `disabled` (mặc định hạn chế) |
 | `require_mention` | bool | true | Yêu cầu mention bot trong nhóm |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Tính năng
 
@@ -9915,6 +10294,7 @@ Tất cả config key nằm trong `channels.slack`:
 | `native_stream` | bool | false | Dùng Slack ChatStreamer API nếu có |
 | `reaction_level` | string | `"off"` | `off`, `minimal`, `full` |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `debounce_delay` | int | 300 | Mili giây trước khi gửi các tin nhắn nhanh (0=tắt) |
 | `thread_ttl` | int | 24 | Giờ trước khi thread participation hết hạn (0=tắt) |
 | `media_max_bytes` | int | 20MB | Kích thước file tải tối đa |
@@ -10007,7 +10387,7 @@ Reaction được debounce 700ms để tránh spam API.
 
 **Nhận file:** File đính kèm được tải xuống với bảo vệ SSRF (danh sách host cho phép: `*.slack.com`, `*.slack-edge.com`, `*.slack-files.com`). Auth token bị xóa khi redirect. File vượt `media_max_bytes` (mặc định 20MB) bị bỏ qua.
 
-**Gửi file:** File từ agent được upload qua Slack file upload API. Upload thất bại hiển thị lỗi inline.
+**Gửi file:** File từ agent được upload qua Slack file upload API. Upload thất bại hiển thị lỗi inline. Khi agent gửi một batch (`send_file` với `attachments[]`), Slack dùng cơ chế dự phòng **ordered single-send** — các file được gửi lần lượt theo thứ tự. Xem [Multi-Attachment Delivery](/channels-overview#multi-attachment-delivery-batching).
 
 **Trích xuất tài liệu:** File tài liệu (PDF, text) được trích xuất nội dung và thêm vào tin nhắn để agent xử lý.
 
@@ -10097,6 +10477,7 @@ Tất cả config key nằm trong `channels.whatsapp` (file config) hoặc confi
 | `require_mention` | bool | `false` | Chỉ trả lời trong nhóm khi bot được @mention |
 | `history_limit` | int | `200` | Số tin nhắn nhóm tối đa cho ngữ cảnh (0=tắt) |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Kiến trúc
 
@@ -10334,6 +10715,7 @@ Dành cho channel dựa trên config file (thay vì DB instance):
 | `first_inbox_message` | string | mặc định | Nội dung DM tùy chỉnh gửi cho tính năng first inbox |
 | `post_context_cache_ttl` | string | `"15m"` | TTL cache nội dung bài đăng lấy cho context bình luận (ví dụ `"30m"`) |
 | `block_reply` | bool | -- | Ghi đè gateway block_reply (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `allow_from` | list | -- | Danh sách trắng User/Group ID |
 
 ## Kiến trúc
@@ -12809,6 +13191,10 @@ Kiểm tra được thực hiện trên **lệnh đã render đầy đủ** sau 
 }
 ```
 
+## Thứ tự thực thi
+
+Khi agent phát nhiều tool call trong một lượt, chỉ tool built-in **read-only** đã đăng ký mới chạy song song có giới hạn. Custom tool (chạy nền shell) không được đăng ký là read-only, nên luôn chạy **tuần tự** — và bất kỳ batch nào trộn custom tool với call khác đều chạy hoàn toàn tuần tự. Điều này giữ cho tác dụng phụ chạy nền shell có thứ tự và dễ đoán; đây không phải tùy chọn bạn cấu hình.
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Nguyên nhân | Giải pháp |
@@ -13328,6 +13714,76 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 **Idempotency dựa trên hash:** Endpoint upload dùng hash SHA-256 của nội dung `SKILL.md` để deduplication. Nếu cùng nội dung `SKILL.md` được upload lại (dù đóng gói trong ZIP khác), không có version mới nào được tạo — version hiện có được giữ nguyên. Chỉ khi nội dung `SKILL.md` thực sự thay đổi mới tạo version mới.
 
+> **File đi kèm inline qua `skill_manage`:** Agent có bật skill evolution cũng có thể tạo các file văn bản đi kèm nhỏ inline (không cần ZIP) bằng cách truyền object `files` cho tool `skill_manage` — khóa theo đường dẫn tương đối, ví dụ `references/guide.md`. Mỗi file văn bản inline bị giới hạn **2 MB**, và bộ xác thực đường dẫn từ chối đường dẫn tuyệt đối, đường dẫn ổ đĩa Windows (`C:\...`), null byte, traversal `..`, ghi đè `SKILL.md`, dotfile/dotdir, và system artifact (ví dụ `.git`). Xem [Agent Evolution](agent-evolution.md) để biết chi tiết.
+
+## Export & Tải Xuống Có Chọn Lọc
+
+Bạn có thể export skill thành archive ZIP — toàn bộ skill hoặc một tập con tự chọn — từ Dashboard hoặc API.
+
+**Xem trước trước khi build** — `GET /v1/skills/export/preview` trả về số lượng *sẽ* được export mà không build archive, để UI hiển thị "N skill, M sẽ được bao gồm" trước khi bạn xác nhận:
+
+```bash
+curl "http://localhost:8080/v1/skills/export/preview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Export skill đã chọn** — truyền các skill ID cụ thể để chỉ export những skill đó, cùng cờ tùy chọn `include_system` để bao gồm skill bundled/system:
+
+```bash
+# Export hai skill cụ thể, loại trừ system skill
+curl "http://localhost:8080/v1/skills/export?ids=SKILL_ID_1,SKILL_ID_2&include_system=false" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+Với export lớn, server có thể build archive bất đồng bộ và stream Server-Sent Events trong quá trình. Khi hoàn tất, server trả về `download_url` trỏ tới endpoint token dùng một lần:
+
+```
+event: complete
+data: {"download_url":"/v1/export/download/TOKEN"}
+```
+
+```bash
+# Tải archive đã build bằng token trả về
+curl "http://localhost:8080/v1/export/download/TOKEN" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+**Dashboard:** trang **Skills** có thanh công cụ chọn hàng loạt — tích các skill bạn muốn, rồi **Export selected** để chỉ tải những skill đó.
+
+## Access Mode & Effective Access
+
+Ngoài các mức visibility, mỗi skill còn có **access mode** kiểm soát mức độ tiếp cận rộng rãi. Admin đọc và thiết lập qua các endpoint access:
+
+| Method | Path | Mô tả |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/access` | Hiển thị access mode và grants của skill |
+| `PATCH` | `/v1/skills/{id}/access` | Thiết lập access mode (`private`, `internal`, hoặc `public`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Giải thích access hiệu lực cho một skill, theo agent và user |
+| `GET` | `/v1/skills/access/effective` | Giải thích access hiệu lực trên tất cả skill cho một agent và user |
+
+```bash
+# Đặt access mode của skill thành internal
+curl -X PATCH "http://localhost:8080/v1/skills/{id}/access" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_mode": "internal"}'
+
+# Giải thích vì sao một agent/user tiếp cận được hoặc không tiếp cận được skill
+curl "http://localhost:8080/v1/skills/{id}/access/effective?agent_id=AGENT_UUID&user_id=user@example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Endpoint Dependency Theo Từng Skill
+
+Ngoài rescan toàn gateway, bạn có thể kiểm tra và quản lý dependency cho từng skill riêng lẻ:
+
+| Method | Path | Mô tả |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/dependencies` | Trạng thái dependency hiện tại của skill |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Quét lại dependency đã khai báo và phát hiện |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Kiểm tra từng dependency có resolve được lúc runtime không |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Cài dependency thiếu (master tenant) |
+
 ## Môi trường Runtime
 
 Các skill dùng Python hoặc Node.js chạy trong Docker container với các package được cài sẵn.
@@ -13371,7 +13827,7 @@ Agent **không thể**: ghi vào system path, thực thi binary từ `/tmp`, ch�
 
 ## Skills Tích hợp Sẵn (Bundled Skills)
 
-GoClaw đóng gói sáu core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
+GoClaw đóng gói bảy core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
 
 | Skill | Mục đích |
 |---|---|
@@ -13381,6 +13837,7 @@ GoClaw đóng gói sáu core skill bên trong Docker image tại `/app/bundled-s
 | `pptx` | Đọc, tạo, chỉnh sửa presentation |
 | `skill-creator` | Tạo skill mới |
 | `workspace-organizing` | Giữ workspace của agent gọn gàng và dễ tìm — áp dụng quy ước thư mục theo mục đích và chạy khám phá memory/Vault/knowledge-graph trước khi ghi file để tránh trùng lặp |
+| `goclaw` | Vận hành, kiểm tra, quản trị và debug một GoClaw gateway qua `goclaw` CLI/runtime — khám phá CLI, chẩn đoán health/config gateway, agents, skills, MCP/tools, runtime packages, credentials, traces, sessions, channels, providers và cron/jobs. Luôn kiểm tra output `goclaw --help` trực tiếp trước vì lệnh khả dụng phụ thuộc phiên bản. |
 
 Bundled skill được seed vào PostgreSQL mỗi lần gateway khởi động (theo dõi hash, không re-import nếu không thay đổi). Chúng được đánh dấu `is_system = true` và `visibility = 'public'`.
 
@@ -13758,7 +14215,7 @@ goclaw cron delete <jobId>
 | `schedule.tz` | string | Múi giờ IANA — áp dụng cho **tất cả** loại schedule (`at`, `every`, `cron`), không chỉ biểu thức cron. Bỏ trống để dùng múi giờ mặc định của gateway |
 | `message` | string | Văn bản agent nhận làm đầu vào |
 | `stateless` | bool | Chạy không cần session history — tiết kiệm token cho các tác vụ định kỳ đơn giản. Mặc định `false` |
-| `deliver` | bool | `true` = giao kết quả đến channel; `false` = agent xử lý âm thầm. Tự động thành `true` khi job được tạo từ channel thực (Telegram, v.v.) |
+| `deliver` | bool | `true` = giao kết quả đến channel; `false` = agent xử lý âm thầm. Tự động thành `true` khi job được tạo từ channel thực (Telegram, v.v.). Việc giao hàng vẫn bị triệt tiêu nếu output chứa token `NO_REPLY` — xem [Triệt tiêu NO_REPLY](#triệt-tiêu-no_reply) |
 | `channel` | string | Channel đích: `telegram`, `discord`, v.v. Tự động điền từ context khi `deliver` là `true` |
 | `to` | string | Chat ID hoặc định danh người nhận. Tự động điền từ context khi `deliver` là `true` |
 | `deleteAfterRun` | bool | Tự động đặt `true` cho job `at`; có thể đặt thủ công cho bất kỳ job nào |
@@ -13851,6 +14308,28 @@ GoClaw quản lý cron qua các WebSocket RPC method:
 Scheduler kiểm tra job mỗi 1 giây. Job đến hạn được dispatch trong các goroutine song song. Run log được lưu vào bảng `cron_run_logs` trên PostgreSQL và truy cập được qua method `cron.runs`.
 
 Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job vẫn ở trạng thái enabled và sẽ thử lại vào lần tick tiếp theo (trừ khi là job một lần `at`).
+
+## Triệt tiêu NO_REPLY
+
+Ngay cả khi một job được cấu hình để giao hàng (`deliver: true` kèm `channel` và `to`), GoClaw sẽ **không** gửi kết quả đến channel nếu output của agent chứa token `NO_REPLY`.
+
+- So khớp theo **toàn từ** và **không phân biệt hoa thường** (`NO_REPLY`, `no_reply`, v.v.), nên token phải đứng độc lập — sẽ không khớp khi nằm bên trong một từ dài hơn.
+- Khi bị triệt tiêu, run vẫn hoàn thành và được ghi log; chỉ việc giao đến channel bị bỏ qua (một log mức info ghi lại rằng việc giao hàng đã bị triệt tiêu).
+
+Điều này cho phép một agent theo lịch tự quyết định tại runtime rằng không có gì đáng để gửi — ví dụ, một health check chỉ trả lời khi có sự cố:
+
+```json
+{
+  "name": "api-health-check",
+  "schedule": { "kind": "every", "everyMs": 300000 },
+  "message": "Check https://api.example.com/health. If it returns 200, reply with exactly NO_REPLY. Otherwise describe what is wrong.",
+  "deliver": true,
+  "channel": "telegram",
+  "to": "123456789"
+}
+```
+
+Token `NO_REPLY` tuân theo cùng quy ước được dùng xuyên suốt GoClaw — xem [Cách GoClaw hoạt động](../core-concepts/how-goclaw-works.md) và [Sessions & History](../core-concepts/sessions-and-history.md).
 
 ## Retry — Exponential Backoff
 
@@ -14710,6 +15189,76 @@ Cũng hỗ trợ định dạng phẳng cũ:
 ```
 
 Nếu không cấu hình chuỗi `read_image`, hình ảnh được đính kèm inline vào LLM chính như bình thường.
+
+### Tham số
+
+| Tham số | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------------|
+| `prompt` | string | bắt buộc | Bạn muốn biết gì về (các) hình ảnh |
+| `path` | string | — | Đường dẫn tùy chọn tới ảnh trong workspace (ảnh sinh ra hoặc đính kèm) |
+| `url` | string | — | URL tùy chọn tới ảnh được host trực tuyến |
+
+`path` và `url` **loại trừ lẫn nhau** — truyền cả hai sẽ trả về lỗi. Nếu không có cái nào, tool phân tích hình ảnh đã đính kèm trong hội thoại.
+
+> **Ghi chú provider:** Provider Anthropic và `claude-cli` không thể phân tích ảnh trực tiếp từ URL — chúng yêu cầu dữ liệu ảnh mã hóa base64. Nếu ảnh chỉ-có-URL được định tuyến tới một trong số đó, provider đó báo lỗi và chuỗi fallback sang provider kế tiếp. Gemini, OpenRouter, và DashScope chấp nhận URL ảnh trực tiếp. URL được kiểm tra SSRF trước khi fetch.
+
+---
+
+## Phân tích video (read_video)
+
+Công cụ `read_video` phân tích file video bằng chuỗi provider hỗ trợ video (mặc định Gemini → OpenRouter). Dùng khi hội thoại có thẻ `<media:video>`, hoặc trỏ tới file workspace hay URL được host.
+
+### Tham số
+
+| Tham số | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------------|
+| `prompt` | string | bắt buộc | Cần phân tích gì — ví dụ "Tóm tắt các cảnh chính", "Có chữ gì hiện trên màn hình?" |
+| `media_id` | string | — | `media_id` cụ thể tùy chọn từ thẻ `<media:video>`. Nếu bỏ trống, dùng video gần nhất |
+| `url` | string | — | URL tùy chọn tới file video được host trực tuyến |
+
+`media_id` và `url` **loại trừ lẫn nhau**. File video cục bộ bị giới hạn **100 MB**.
+
+> **Stream từ URL:** Với video URL, GoClaw pipe stream từ URL qua **Gemini File API** thay vì tải toàn bộ file về cục bộ trước. URL được kiểm tra SSRF và IP đã resolve được ghim (pin) cho lần upload. Ở tầng provider, phần image và video giờ là các kiểu media-content riêng biệt (`ImageContent` và `VideoContent`).
+
+Áp dụng cùng định dạng ghi đè chuỗi như `create_*` và `read_image` dưới `builtin_tools.settings.read_video`.
+
+---
+
+## Phân tích tài liệu (read_document)
+
+Công cụ `read_document` trích xuất và phân tích tài liệu — **PDF, DOCX, và ảnh tài liệu** — bằng chuỗi provider hỗ trợ tài liệu (mặc định Gemini → Anthropic → claude-cli → OpenRouter → DashScope).
+
+### Tham số
+
+| Tham số | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------------|
+| `prompt` | string | bắt buộc | Cần phân tích gì — ví dụ "Trích xuất tất cả bảng", "Trang 3 nói gì?" |
+| `media_id` | string | — | `media_id` cụ thể tùy chọn từ thẻ `<media:document>` |
+| `path` | string | — | Đường dẫn file tùy chọn từ thẻ `<media:document path="...">` |
+
+Khác với `read_image` và `read_video`, `read_document` **không có** tham số `url`. Các định dạng văn bản thuần (JSON, CSV, Markdown, HTML, v.v.) được trả về trực tiếp mà không cần gọi LLM. File bị giới hạn **20 MB**.
+
+### Trích xuất Local-First (opt-in)
+
+Mặc định, tài liệu đi thẳng tới chuỗi vision đám mây. Bạn có thể bật trích xuất local chạy `pdftotext` (PDF) và `pandoc --sandbox` (DOCX) trên host *trước* mọi lệnh gọi đám mây, qua block cấu hình `document_parser`:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Trường | Mặc định | Mô tả |
+|-------|---------|-------------|
+| `local_first` | `false` | Bật trích xuất local. Yêu cầu `pdftotext`/`pandoc` trên PATH — có sẵn trong bản Docker `full` hoặc build với `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | Giới hạn số trang PDF; truyền vào `pdftotext -l` |
+| `timeout_sec` | `30` | Timeout mỗi lần trích xuất; process group bị kill khi timeout |
+| `min_text_len` | `16` | Số ký tự tối thiểu (sau khi trim) để coi là trích xuất thành công; output ngắn hơn sẽ kích hoạt fallback đám mây |
+
+Cấu hình được nạp lúc khởi động (không hot-reload); tính khả dụng của binary được kiểm tra lại mỗi lần gọi, nên cài đặt lúc runtime được phát hiện mà không cần restart. Mọi trường hợp không trích xuất được — bị tắt, MIME không hỗ trợ, thiếu binary, timeout, hoặc quá ít văn bản (ví dụ PDF chỉ là ảnh scan) — đều fallback minh bạch về chuỗi vision đám mây. Trích xuất PDF dùng `pdftotext -l <max_pages>`; DOCX dùng `pandoc --sandbox` để một tài liệu không tin cậy không thể fetch tài nguyên từ xa trong lúc chuyển đổi.
 
 ---
 
@@ -16355,7 +16904,7 @@ Trả về:
 
 Extended thinking cho phép LLM được hỗ trợ suy luận qua một vấn đề trước khi tạo ra câu trả lời cuối cùng. Model tạo ra các token suy luận nội bộ không phải là một phần của phản hồi hiển thị nhưng cải thiện chất lượng phân tích phức tạp, lập kế hoạch nhiều bước, và ra quyết định.
 
-GoClaw hỗ trợ extended thinking trên bốn họ provider — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), và Codex (Alibaba AI Reasoning) — thông qua một cài đặt `thinking_level` thống nhất mỗi agent.
+GoClaw hỗ trợ extended thinking trên bốn họ provider — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), và Codex (OpenAI ChatGPT OAuth, Responses API) — thông qua một cài đặt `thinking_level` thống nhất mỗi agent.
 
 
 ## Ánh xạ Provider
@@ -16392,6 +16941,8 @@ Khi thinking hoạt động, GoClaw:
 - **Xóa tham số `temperature`** — Anthropic từ chối request thinking kèm temperature
 - Tự động điều chỉnh `max_tokens` thành `budget_tokens + 8,192` để phù hợp với overhead thinking
 
+> **Tham số sampling trên Claude 4.6+:** Với Claude Opus/Sonnet 4.6+ và Opus 4.7+, GoClaw loại bỏ `temperature` (và `top_p`/`top_k`) khỏi **mọi** request — độc lập với thinking. Các model này trả về `HTTP 400` nếu có tham số sampling. Điều này rộng hơn việc chỉ xóa khi thinking ở trên. Xem trang [provider Anthropic](/provider-anthropic).
+
 ### OpenAI-Compatible (OpenAI, Groq, DeepSeek, v.v.)
 
 Ánh xạ `thinking_level` trực tiếp sang `reasoning_effort`:
@@ -16401,6 +16952,10 @@ Khi thinking hoạt động, GoClaw:
 - `high` → `reasoning_effort: "high"`
 
 Nội dung suy luận đến trong `reasoning_content` trong quá trình streaming và không yêu cầu xử lý passback đặc biệt giữa các turn.
+
+> **Kimi Coding (`kimi_coding`):** Kimi tương thích OpenAI nhưng có **thinking phía máy chủ bật mặc định** cho `kimi-k2-turbo-preview`. Do đó, các assistant message chứa tool call khi replay trong history **bắt buộc phải mang** trường `reasoning_content` — GoClaw tự phát ra một chuỗi rỗng khi không có giá trị nào được ghi lại, nếu không upstream trả về `HTTP 400`. Xem trang [Kimi Coding](/provider-kimi).
+
+> **Bailian Coding (`bailian`):** Bailian là một endpoint Coding tương thích OpenAI tách biệt. Catalog cố định của nó bao gồm `qwen3.7-plus` (quảng bá có Deep Thinking và Hiểu hình ảnh), nhưng đường tiêm `enable_thinking`/`thinking_budget` của DashScope mô tả bên dưới **không** áp dụng cho Bailian — nó được xử lý như một provider tương thích OpenAI thuần túy. Xem [Bailian](/provider-bailian).
 
 ### DashScope (Alibaba Qwen)
 
@@ -16442,6 +16997,8 @@ flowchart TD
 | Codex | `OutputTokensDetails.ReasoningTokens` được theo dõi | Content tiêu chuẩn |
 
 Token thinking được ước tính là `character_count / 4` để theo dõi context window.
+
+> **Phân phối qua channel tách biệt với streaming của provider.** Việc một provider có stream reasoning hay không là một quyết định; việc một channel chat (ví dụ Telegram) có hiển thị reasoning đó cho người dùng cuối hay không là quyết định khác. Telegram cung cấp cài đặt `reasoning_delivery` cho việc này — xem tài liệu channel để biết các chế độ.
 
 ---
 
@@ -17053,6 +17610,8 @@ source .env.local
 
 GoClaw sử dụng **hệ thống phân quyền 5 lớp**. API key và vai trò nằm ở lớp 1 — xác thực gateway. Khi một yêu cầu đến, GoClaw kiểm tra header `Authorization: Bearer <token>`, ánh xạ token thành một vai trò, và áp dụng vai trò đó lên phương thức đang được gọi.
 
+> API key và RBAC theo tenant chỉ là lớp đầu tiên. Quyền cấu hình agent, phạm vi group/channel, và credential theo context channel được mô tả trong [Ma trận phân quyền](/permission-matrix).
+
 Ba vai trò tồn tại:
 
 | Vai trò | Cấp độ | Mô tả |
@@ -17277,10 +17836,139 @@ Khi một key được tạo hoặc thu hồi, sự kiện `cache.invalidate` đ
 
 ## Tiếp theo
 
+- [Ma trận phân quyền](/permission-matrix) — quyền cấu hình agent, phạm vi group/channel, và bảng đầy đủ các lớp phân quyền
 - [Authentication & OAuth](/authentication) — gateway token và luồng OAuth
 - [Exec Approval](/exec-approval) — yêu cầu scope `operator.approvals`
 - [Security Hardening](/deploy-security) — tổng quan đầy đủ 5 lớp phân quyền
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials vào CLI tool (gh, aws, gcloud) mà không để lộ secret cho agent
+
+
+
+---
+
+# Ma trận phân quyền Agent
+
+> Toàn bộ các lớp phân quyền quyết định một agent được làm gì trên các channel, group, và workspace — và cách các lớp đó kết hợp với nhau.
+
+## Tổng quan
+
+Một hành động đơn lẻ của agent (gửi reply, ghi file workspace, sửa file context) đi qua nhiều lớp phân quyền độc lập. Mỗi lớp có thể cho phép hoặc từ chối, và chúng xếp chồng: một hành động chỉ được phép khi mọi lớp áp dụng đều cho phép. Trang này lập bản đồ các lớp đó, các quy tắc quyền cấu hình agent mà bạn có thể cấp từ chat, ma trận theo từng channel, và những quy tắc hay gây bất ngờ nhất (ghi context Zalo và credential theo context channel).
+
+Nếu bạn chỉ cần vai trò gateway-token, xem [API Keys & RBAC](/api-keys-rbac) — đó là lớp 1. Trang này bao quát các lớp phía trên nó.
+
+## Các lớp phân quyền
+
+| Lớp | Phạm vi | Ghi chú |
+|-----|---------|---------|
+| Tenant RBAC | Dashboard, HTTP, WebSocket RPC | Viewer / operator / admin / owner. Các method chỉ-admin bao gồm `config.permissions.*`. |
+| Sở hữu / chia sẻ agent | Agent nào user thấy và quản lý được | Owner cộng các share rõ ràng; xem [Chia sẻ và Kiểm soát Truy cập](/sharing-and-access). |
+| Thành viên channel | Phân phối qua nền tảng | Nền tảng vẫn có thể từ chối phân phối outbound sau khi GoClaw đã cho phép hành động. |
+| Quyền cấu hình agent | Sửa cấu hình từ chat | Match theo `agent_id`, `scope`, `config_type`, và `user_id`, bao gồm cả row wildcard. |
+| Ranh giới file workspace | Truy cập filesystem | Ngăn thoát path và ghi không hợp lệ. |
+| Ranh giới file context | File định danh / context của agent | File được bảo vệ được định tuyến vào store và yêu cầu quyền writer của group trong context group. |
+| Năng lực context channel | Thực thi tool MCP + Secure CLI | Thứ tự ưu tiên credential: credential user > credential/grant context > grant agent > mặc định toàn cục. |
+
+## Row quyền cấu hình agent
+
+Agent có thể được sửa một phần cấu hình từ chat (ví dụ bật một file writer hay heartbeat). Mỗi quy tắc quyền là một row với bốn trường:
+
+| Trường | Ví dụ | Ý nghĩa |
+|--------|-------|---------|
+| `scope` | `agent`, `group:*`, `group:zalo:123`, `group:telegram:-100`, `*` | Nơi grant áp dụng. |
+| `config_type` | `file_writer`, `heartbeat`, `cron`, `context_files`, `*` | Họ hành động nào được grant bao phủ. |
+| `user_id` | `123456`, `zalo-user-id`, `*` | Grant áp dụng cho ai. `*` cấp cho mọi thành viên trong scope đã chọn. |
+| `permission` | `allow`, `deny` | Quyết định. Một deny có thể ghi đè một allow rộng hơn. |
+
+### Thứ tự ưu tiên hiệu lực
+
+Khi nhiều row match một yêu cầu, GoClaw resolve từ trên xuống và dừng ở cái đầu tiên áp dụng:
+
+1. Deny cá nhân.
+2. Allow cá nhân.
+3. Deny wildcard theo scope/user.
+4. Allow wildcard theo scope/user.
+5. Mặc định deny.
+
+Vì vậy một `deny` cụ thể cho một user luôn thắng một `allow` wildcard, và bất cứ thứ gì không match đều bị từ chối theo mặc định.
+
+## Ma trận channel
+
+Một agent được làm gì phụ thuộc vào nơi yêu cầu phát sinh. Bảng này tóm tắt các context channel phổ biến.
+
+| Context channel | Đọc output agent | Gửi reply | Ghi file workspace | Ghi file context được bảo vệ | Cấp cho mọi thành viên |
+|-----------------|------------------|-----------|--------------------|------------------------------|------------------------|
+| Dashboard | Theo RBAC | N/A | Đường admin/operator, rồi ranh giới workspace | Đường admin, rồi context interceptor | Dùng tab Permissions |
+| Direct message | Theo truy cập agent/session | Channel adapter | Cho phép theo ranh giới workspace | Cho phép theo quy tắc agent/context | Thường không cần |
+| Group Telegram | Scope group + sender ID | Channel adapter | Cần `file_writer` khi bị gate theo group | Cần `context_files` hoặc `file_writer` và sender thật | `scope=group:telegram:<chatId>`, `user_id=*` |
+| Group Zalo | Scope group + sender ID | Channel adapter, metadata thread group | Cần `file_writer` khi bị gate theo group | Cần `context_files` hoặc `file_writer` và sender thật | `scope=group:zalo:<chatId>`, `user_id=*` |
+| Guild/channel Discord | Scope guild + sender ID | Channel adapter | Cần `file_writer` khi bị gate theo guild | Cần `context_files` hoặc `file_writer` và sender thật | `scope=guild:<id>` hoặc scope group khớp, `user_id=*` |
+| Chạy theo lịch / proactive | Sender hệ thống | Channel adapter | Từ chối ghi bị gate theo group trừ khi context được nâng quyền | Từ chối ghi context group được bảo vệ | Cấu hình quy tắc rõ ràng, hoặc chạy từ context dashboard/admin |
+
+## Quy tắc ghi context Zalo
+
+Một lỗi group Zalo phổ biến là agent cố ghi một file context được bảo vệ — `SOUL.md`, `IDENTITY.md`, `AGENTS.md`, `USER.md`, `USER_PREDEFINED.md`, hoặc `CAPABILITIES.md` — từ một session group nơi sender đang thiếu. Ghi context được bảo vệ đi qua group permission gate, yêu cầu:
+
+- `sender_id` là **user nền tảng thật**, không rỗng hoặc tổng hợp.
+- `user_id` xác định scope group, ví dụ `group:zalo:<chatId>`.
+- Sender match một allow `context_files` (hoặc một allow `file_writer` cũ), bao gồm cả row wildcard như `user_id="*"`.
+- Thiếu tenant context hoặc lỗi permission-store sẽ **fail closed** — ghi bị từ chối thay vì được phép.
+
+Nếu một thao tác ghi group Zalo bị từ chối, hãy kiểm tra message có mang sender thật không và có một quy tắc `context_files` khớp cho scope group đó không.
+
+## Tab Permissions (UX)
+
+Tab Permissions trên dashboard là một trình soạn ma trận đầy đủ cho các row ở trên:
+
+| Điều khiển | Hành vi |
+|-----------|---------|
+| Bộ chọn user/contact | Chấp nhận user ID rõ ràng và kết quả tìm kiếm contact. |
+| Nút All members | Đặt `user_id="*"` cho quy tắc hiện tại. |
+| Bộ chọn config type | `file_writer`, `heartbeat`, `cron`, `context_files`, hoặc `*`. |
+| Bộ chọn scope | Group đã biết, `group:*`, `agent`, hoặc `*`. |
+| Check access | Gọi `config.permissions.check` và hiển thị quyết định allow/deny hiệu lực trước hoặc sau khi lưu. |
+
+Dùng **Check access** để xem trước quyết định hiệu lực cho một user và scope cụ thể mà không cần lưu — nó chạy cùng phép resolve thứ tự ưu tiên mà runtime dùng.
+
+## Năng lực context channel
+
+Channel instance phơi bày các context đã lưu trong dashboard và API. Context cơ sở là chính channel instance; context group đến từ channel contact đã lưu. Mỗi row năng lực kết hợp khả năng nhìn thấy MCP và Secure CLI cho context đó — nguồn, trạng thái bật, danh sách allow/deny tool, và liệu có credential hay không.
+
+Row credential context **không bao giờ trả về tài liệu bí mật**. Chúng chỉ project metadata như `has_api_key`, `has_env`, `credential_source`, và tên key nơi có sẵn. Thao tác ghi bị gate ở mức tenant-admin, và việc resolve runtime mang `ChannelContextScope` để grant và credential chỉ áp dụng cho scope channel/group khớp.
+
+### Thứ tự ưu tiên credential theo context channel
+
+Khi một tool chạy trong context channel, GoClaw resolve credential theo thứ tự — match đầu tiên thắng:
+
+1. Credential user.
+2. Credential / grant context.
+3. Grant agent.
+4. Mặc định toàn cục.
+
+Điều này phản chiếu thứ tự ưu tiên credential dạng typed mà adapter git dùng (xem [CLI Credentials](/cli-credentials)).
+
+## Lưu ý bảo mật
+
+- Wildcard `user_id="*"` nên dễ cấp nhưng luôn **hiển thị rõ ràng** — nó mở rộng truy cập cho mọi thành viên trong scope.
+- Sender tổng hợp vẫn bị từ chối ghi file/context group, nên một lượt hệ thống không bao giờ thừa hưởng quyền từ một user thật mà nó không phải.
+- Lỗi permission-store **fail closed** tại ranh giới mutation group.
+- Backend validation từ chối config type và permission không xác định trước khi ghi bất kỳ quy tắc nào.
+- Quyền gửi của nền tảng tách biệt với quyền GoClaw: một channel adapter vẫn có thể từ chối phân phối ngay cả khi GoClaw cho phép hành động của agent.
+
+## Các vấn đề thường gặp
+
+| Vấn đề | Giải pháp |
+|--------|-----------|
+| Ghi context group Zalo bị từ chối | Đảm bảo message có `sender_id` thật và một allow `context_files` (hoặc `file_writer`) khớp cho `group:zalo:<chatId>`. |
+| Allow wildcard không có hiệu lực | Một `deny` cá nhân thắng một `allow` wildcard. Bỏ deny hoặc thu hẹp scope của nó. |
+| Chạy theo lịch không ghi được file group | Lượt proactive/hệ thống bị từ chối ghi bị gate theo group — cấu hình một quy tắc rõ ràng hoặc chạy từ context dashboard/admin. |
+| Reply do GoClaw gửi không bao giờ tới | Channel adapter đã từ chối phân phối — quyền GoClaw và quyền gửi của nền tảng độc lập với nhau. |
+
+## Tiếp theo
+
+- [API Keys & RBAC](/api-keys-rbac) — lớp 1: vai trò và scope gateway-token
+- [Chia sẻ và Kiểm soát Truy cập](/sharing-and-access) — sở hữu và chia sẻ agent
+- [CLI Credentials](/cli-credentials) — credential dạng typed và thứ tự ưu tiên credential theo context channel
+- [Security Hardening](/deploy-security) — tổng quan bảo mật năm lớp đầy đủ
 
 
 
@@ -17538,7 +18226,7 @@ Các phần trên mô tả **mô hình paste env cũ** — bạn paste các bi�
 
 ### Các loại credential
 
-Mỗi dòng user credential mang một `credential_type` (migration `000073`):
+Mỗi dòng typed credential mang một `credential_type`:
 
 | `credential_type` | Ý nghĩa |
 |-------------------|---------|
@@ -17548,14 +18236,81 @@ Mỗi dòng user credential mang một `credential_type` (migration `000073`):
 
 Các dòng `NULL`/`env` không bao giờ bị migrate — credential cũ vẫn hoạt động nguyên vẹn. Typed adapter là tùy chọn opt-in theo từng credential.
 
-### User credential và binary/system credential
+### Agent credential (đường git mặc định)
 
-Typed adapter thao tác trên **user credential**, không phải env default cấp binary:
+Agent credential là đường **mặc định** cho auth git. Chúng tránh sự mơ hồ về ID user của channel: agent được chọn sở hữu credential, và bất kỳ ai được phép dùng agent đó đều có thể khiến nó chạy git với credential đã lưu.
 
-- **Binary/system credential** — định nghĩa binary + env var default của nó (và override từ agent grant) đã mô tả ở trên. Dùng chung cho mọi grant của binary.
-- **User credential** — secret typed theo từng user lưu trong `secure_cli_user_credentials`, scope tới một hostname duy nhất.
+Agent credential nằm trong bảng `secure_cli_agent_credentials` (migration `000077`), lưu tài liệu secret dạng typed **tách biệt** khỏi row policy `secure_cli_agent_grants`. Có một credential cho mỗi `(agent, binary)`.
 
-Quản lý user credential trong dashboard tại **Settings → CLI Credentials → User Credentials**. Nhấn **Add**, chọn user, chọn loại credential (`Personal Access Token` hoặc `SSH Private Key`), nhập **Host Scope**, và paste secret. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — sửa dòng đó sẽ hiển thị placeholder `••••••••`; để trống ô secret sẽ giữ giá trị đã lưu, gõ giá trị mới sẽ thay thế nó.
+**Thêm agent credential (UI):**
+
+1. Mở **Packages → CLI Credentials**.
+2. Chọn dòng `git` và mở **Agent Access**.
+3. Ở tab **Credential**, chọn agent.
+4. Chọn **Credential Type**: `Personal Access Token` hoặc `SSH Private Key`.
+5. Nhập **Host Scope** (bắt buộc cho PAT/SSH): hostname mà credential xác thực tới (vd `github.com`, `gitlab.example.com`, `gitea.internal:8443`).
+6. Paste token (PAT) hoặc body PEM chưa mã hóa (SSH).
+7. Lưu.
+
+Dialog **Agent Access** có hai tab:
+
+- **Credential** — chọn agent, loại credential, host scope, và secret (ở trên).
+- **Access policy** — đổi deny args, timeout, tips, hoặc env override cho agent đó (row `secure_cli_agent_grants`).
+
+Policy và lưu trữ secret tách biệt nội bộ, nhưng bạn quản lý chúng như một quyết định truy cập duy nhất trong dialog này. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — sửa dòng đó sẽ hiển thị placeholder `••••••••`.
+
+### Thứ tự ưu tiên credential hiệu lực
+
+Khi git chạy, GoClaw resolve typed credential nào để inject theo thứ tự này — match **đầu tiên** thắng:
+
+1. **User override** — một typed credential theo từng user (Advanced user overrides, bên dưới).
+2. **Credential channel/context** — một credential scope tới context channel hoặc group nơi lượt chạy phát sinh.
+3. **Agent credential** — row `secure_cli_agent_credentials` của chính agent. Đây là ranh giới tin cậy mặc định.
+4. **Env mặc định cấp binary** — env passthrough cũ trên định nghĩa binary.
+
+Cấp cho agent quyền truy cập git thực chất là cấp việc dùng credential git đã lưu của nó, nên agent credential là ranh giới mặc định trừ khi có một lớp cao hơn (user override hoặc credential channel/context).
+
+### Advanced user overrides
+
+User credential vẫn có sẵn cho override cá nhân và tương thích ngược. Chỉ dùng khi một tenant user ID ổn định là ranh giới credential mong muốn — chúng đứng **trên** agent credential trong thứ tự ưu tiên.
+
+Quản lý chúng trong dashboard tại **Packages → CLI Credentials → Advanced User Overrides → Add**: chọn user, chọn loại credential (`Personal Access Token` hoặc `SSH Private Key`), nhập **Host Scope**, và paste secret. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — để trống ô secret khi sửa sẽ giữ giá trị đã lưu, gõ giá trị mới sẽ thay thế nó.
+
+Các dòng này nằm trong bảng `secure_cli_user_credentials`.
+
+### REST API agent credential
+
+Các endpoint agent-credentials quản lý secret typed cho một cặp `(binary, agent)`. Chúng yêu cầu role `admin`.
+
+#### Liệt kê agent credential của binary
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials
+```
+
+Trả về các agent có credential lưu trữ cho binary này, chỉ với metadata (loại credential, host scope, có key hay không) — không bao giờ trả secret.
+
+#### Lấy credential của một agent
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+#### Set (tạo hoặc thay thế) credential của một agent
+
+```
+PUT /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Gửi `credential_type`, `host_scope`, và secret (`env_vars` cho `env`, hoặc body PAT/SSH key dạng typed). Secret được mã hóa khi lưu và không bao giờ được trả về.
+
+#### Xóa credential của một agent
+
+```
+DELETE /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Xóa secret đã lưu. Row policy `secure_cli_agent_grants` của agent (deny args, timeout, …) không bị ảnh hưởng — xóa grant riêng để thu hồi quyền truy cập.
 
 ### Adapter git
 
@@ -17572,10 +18327,12 @@ Bất kỳ subcommand nào khác (`status`, `log`, `diff`, `commit`, `branch`, �
 ```
 GIT_CONFIG_COUNT=1
 GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
-GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+GIT_CONFIG_VALUE_0=Authorization: Basic base64("x-access-token:<token>")
 ```
 
-Vì token nằm trong một env value (không phải flag dòng lệnh), nó không bao giờ xuất hiện trong `ps`, `/proc/<pid>/cmdline`, hay lịch sử shell. Các env var được inject chỉ giới hạn trong tiến trình `git` được spawn — môi trường của chính GoClaw và các lệnh exec khác không bao giờ thấy chúng.
+Giá trị header là HTTP Basic auth: username cố định `x-access-token` và token của bạn nối bằng dấu hai chấm, mã hóa base64. Vì token nằm trong một env value (không phải flag dòng lệnh), nó không bao giờ xuất hiện trong `ps`, `/proc/<pid>/cmdline`, hay lịch sử shell. Các env var được inject chỉ giới hạn trong tiến trình `git` được spawn — môi trường của chính GoClaw và các lệnh exec khác không bao giờ thấy chúng.
+
+Token thô, payload base64, **và** toàn bộ header `Authorization: Basic …` đều được đăng ký với output scrubber, nên không cái nào trong ba có thể lọt ngược về agent qua stdout, stderr, thông báo lỗi, hay audit log.
 
 **Luồng SSH.** Key PEM được ghi vào một tmpfile mode `0600` trong thư mục temp hệ thống (prefix `goclaw-gitkey-*`), và `GIT_SSH_COMMAND` được đặt thành:
 
@@ -17583,7 +18340,7 @@ Vì token nằm trong một env value (không phải flag dòng lệnh), nó kh�
 ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
 ```
 
-`StrictHostKeyChecking=accept-new` chấp nhận host key chưa biết ở **lần kết nối đầu (TOFU)**. Pre-seed `~/.ssh/known_hosts` để đóng cửa sổ này (xem [Security Hardening](/deploy-security)). Tmpfile bị xóa sau khi exec qua deferred cleanup. **SSH key có passphrase bị từ chối lúc lưu** — hãy export lại key không passphrase, hoặc dùng deploy key riêng.
+`BatchMode=yes` nghĩa là SSH không bao giờ hỏi và fail nhanh trong ngữ cảnh agent. `StrictHostKeyChecking=accept-new` chấp nhận host key chưa biết ở **lần kết nối đầu (TOFU)**. Pre-seed `~/.ssh/known_hosts` để đóng cửa sổ này (xem [Security Hardening](/deploy-security)). Tmpfile bị xóa sau khi exec qua deferred cleanup. **SSH private key được xác thực hai lần lúc lưu** — đầu tiên bằng parser SSH của Go, sau đó bằng OpenSSH (`ssh-keygen -y -f <tmpfile>`) khi có sẵn — để bắt các key lẽ ra sẽ lưu được nhưng sau đó lỗi với chẩn đoán OpenSSH. **SSH key có passphrase bị từ chối lúc lưu** — hãy export lại key không passphrase, hoặc dùng deploy key riêng.
 
 ### Host scope
 
@@ -17593,7 +18350,7 @@ Cả `pat` và `ssh_key` đều yêu cầu **`host_scope`** — chính xác `hos
 |---------------------|:---:|:---:|:---:|
 | `github.com` | ✓ | ✗ | ✗ |
 
-Nếu bạn chạy server self-hosted trên port mặc định của scheme (443 HTTPS, 22 SSH), bỏ port; nếu trên port không mặc định, thêm port vào (vd `gitea.internal:8443`). Khi không có credential lưu trữ nào khớp host của remote đã resolve, adapter rơi xuống đường không credential và remote sẽ từ chối thao tác nếu nó yêu cầu auth.
+Nếu bạn chạy server self-hosted trên port mặc định của scheme (443 HTTPS, 22 SSH), bỏ port; nếu trên port không mặc định, thêm port vào (vd `gitea.internal:8443`). Khi không có typed credential PAT/SSH nào được chọn, hoặc credential được chọn không thể khớp host của remote đã resolve, **các lệnh git remote do adapter quản lý sẽ fail closed kèm một chẩn đoán GoClaw**. `git` **không** được phép rơi xuống prompt username/password tương tác trong runtime của agent.
 
 ### Khả năng hiển thị env: nhạy cảm và không nhạy cảm
 
@@ -17608,10 +18365,11 @@ Các entry env lưu trữ giờ mang một `kind`. Khi dashboard hoặc admin AP
 
 ### Migrate từ credential env cũ
 
-Không có migration bắt buộc. Một dòng có `credential_type IS NULL` hoặc `= 'env'` vẫn phát ra env var của nó đúng như trước. Để nâng cấp một git credential, mở dialog user-credential, chọn **Personal Access Token** hoặc **SSH Private Key**, nhập host scope, paste secret, và lưu — dòng cũ được thay thế atomically.
+Không có migration bắt buộc. Một dòng có `credential_type IS NULL` hoặc `= 'env'` vẫn phát ra env var của nó đúng như trước. Để nâng cấp một git credential, tạo một **Agent Credential** khớp (hoặc, nếu một user ID ổn định là ranh giới mong muốn, một Advanced user override), nhập host scope, paste secret, và lưu. User override hiện có vẫn cao ưu tiên hơn agent credential, nên bạn có thể migrate dần và bỏ user override khi không còn cần.
 
 ### Giới hạn v1
 
+- **Một credential cho mỗi row `(agent, binary)`**, cộng một credential cũ cho mỗi override `(user, binary)`.
 - **Không có wildcard host** — một credential cho mỗi `host[:port]` chính xác; `*.github.com` không được hỗ trợ.
 - **Không có SSH key có passphrase** — bị từ chối lúc validation.
 - **Không propagate vào sandbox** — adapter mutate môi trường của tiến trình con đã fork, không tương thích với đường sandbox Docker bind-mount. Credentialed exec chỉ chạy trên host trong v1.
@@ -17673,9 +18431,11 @@ Cập nhật grant: `{"enabled": false}`. Binary vẫn dùng được với các
 | Agent không chạy được binary | Kiểm tra `is_global` của binary — nếu `false`, agent cần có grant tường minh |
 | Override của grant không được áp dụng | Kiểm tra grant `enabled = true` và các trường override khác null |
 | `403` ở endpoint grant | Cần role admin — kiểm tra scope của API key |
+| `git clone`/`push` lỗi không có credential | Không có typed credential nào khớp host remote — git fail closed (không prompt). Thêm một Agent Credential với `host_scope` chính xác. |
 
 ## Tiếp theo
 
+- [Ma trận phân quyền](/permission-matrix) — các lớp phân quyền đầy đủ, phạm vi group/channel, và credential theo context channel
 - [Database Schema → secure_cli_agent_grants](/database-schema)
 - [Exec Approval](/exec-approval)
 - [API Keys & RBAC](/api-keys-rbac)
@@ -17898,6 +18658,14 @@ Tất cả nhóm mặc định là `true` (bị chặn). Đặt một nhóm thà
 ```
 
 Deny group và luồng exec approval hoạt động độc lập — một lệnh có thể qua kiểm tra deny group nhưng vẫn bị giữ để con người phê duyệt tùy theo cài đặt `ask` của bạn.
+
+### Giữ trạng thái qua live-reload
+
+Thay đổi deny-group toàn cục có hiệu lực ngay mà không cần khởi động lại. Quá trình reload clone snapshot config trước khi áp dụng, nên việc **tắt được giữ đúng** qua reload — một group bạn tắt sẽ vẫn tắt cho đến khi bạn bật lại. Lần reload tương tự cũng làm mới các policy shell-deny cấp provider (Claude CLI / ACP), không chỉ exec tool toàn cục.
+
+### Ngoại lệ cho Python venv
+
+GoClaw chặn truy cập shell vào thư mục dữ liệu nội bộ `.goclaw/`. **Interpreter Python do GoClaw quản lý được miễn trừ**: gọi nó bằng đường dẫn tuyệt đối (`<home>/.goclaw/venv/bin/python3`) là được phép. GoClaw resolve đường dẫn đó (lần theo symlink) một lần khi khởi động và miễn trừ thư mục interpreter đã resolve; nếu không có venv thì im lặng bỏ qua. Đây là path duy nhất dưới `.goclaw/` mà lệnh shell của agent có thể chạm tới.
 
 ---
 
@@ -18191,6 +18959,10 @@ History ngắn nhận ngân sách nhỏ hơn (floor: 1024 token) và history dà
 
 Khi context vẫn vượt ngân sách sau một lần nén (ví dụ: system prompt và tool schema đã gần lấp đầy context window), GoClaw thực hiện một lượt khôi phục thứ cấp trước khi trả về lỗi. Cơ chế này (PR #958) giới hạn tối đa một lần thử lại và chỉ trả về lỗi `context overflow after compaction` khi lượt thứ hai cũng thất bại. Trên thực tế, điều này ngăn lỗi cứng đối với agent có tool schema hoặc system prompt lớn.
 
+### Bảo toàn message đang xử lý (Pending-Message Preservation)
+
+Nén có thể xảy ra **giữa vòng lặp**, giữa một message assistant yêu cầu tool call và các kết quả `tool` trả lời chúng. GoClaw giờ bảo toàn message `tool_calls` của assistant đang xử lý qua lượt nén giữa vòng lặp, nên request kế tiếp gửi tới provider không bao giờ gửi message kết quả `tool` mà thiếu message `tool_calls` đứng trước. Nếu không, provider sẽ từ chối request với lỗi **HTTP 400** (kết quả tool mồ côi). Nếu trước đây bạn từng gặp lỗi 400 lúc-được-lúc-không trong các lượt nhiều tool, đây chính là bản sửa.
+
 ---
 
 ## Tiếp Theo
@@ -18266,6 +19038,48 @@ Tất cả API response trả về đối tượng instance với credentials đ
 | `config` | object | Config theo từng channel (tùy chọn) |
 | `enabled` | bool | `false` tắt instance mà không xóa |
 | `is_default` | bool | `true` với instance seeded — không thể xóa |
+
+---
+
+## Tham chiếu `config` của instance
+
+Đối tượng `config` chứa các thiết lập riêng theo từng channel. Ngoài các key theo từng channel được tài liệu hóa trên mỗi trang channel, có hai vấn đề xuyên channel đáng được nhắc đến ở đây.
+
+### Ghi đè delivery (`chat_behavior`, `block_reply`)
+
+Channel instance có thể ghi đè hành vi [human-like delivery](/channels-overview#human-like-delivery) ở cấp workspace:
+
+| Key | Kiểu | Ghi chú |
+|---|---|---|
+| `chat_behavior` | object | Ghi đè `gateway.chat_behavior` cho instance này (bỏ trống = kế thừa). Chỉ đặt các trường bạn muốn thay đổi. |
+| `block_reply` | bool | **Legacy.** Được đọc như giá trị mặc định kế thừa cho `intermediate_replies.enabled` khi trường mới chưa được đặt. |
+
+Thứ tự phân giải là **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (cơ sở).
+2. **Agent** — `agents.other_config.delivery_behavior` ghi đè cơ sở workspace.
+3. **Channel** — `config.chat_behavior` của instance có tiếng nói cuối cùng.
+
+Mỗi cấp chỉ ghi đè các trường mà nó đặt, nên bạn có thể tinh chỉnh một thông số cho mỗi channel và kế thừa phần còn lại. Chỉ các channel triển khai interface `ChatBehaviorChannel` mới tôn trọng các ghi đè này (Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, Zalo Personal).
+
+### Passive channel memory (`passive_memory`)
+
+Một instance có thể bật [passive channel memory extraction](/memory-system#passive-channel-memory-extraction) bằng cách thêm khối `passive_memory` vào `config` của nó:
+
+```json
+{
+  "config": {
+    "passive_memory": {
+      "enabled": true,
+      "review_mode": true,
+      "interval_minutes": 360,
+      "min_messages": 5
+    }
+  }
+}
+```
+
+Mặc định tắt, chỉ áp dụng cho group ở v1, và phải qua review. Xem [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction) để biết bảng trường đầy đủ và hành vi.
 
 ---
 
@@ -18459,7 +19273,7 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 | Vấn đề | Nguyên nhân | Cách khắc phục |
 |---|---|---|
 | `403` khi xóa | Instance là instance mặc định/seeded | Instance mặc định không thể xóa; thay vào đó dùng `enabled: false` để tắt |
-| `400 invalid channel_type` | Lỗi đánh máy hoặc loại không được hỗ trợ | Dùng một trong: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu` |
+| `400 invalid channel_type` | Lỗi đánh máy hoặc loại không được hỗ trợ | Dùng một trong: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu`, `bitrix24`, `pancake`, `facebook` |
 | Tin nhắn không định tuyến đến agent | Instance bị tắt hoặc `agent_id` sai | Kiểm tra `enabled: true` và `agent_id` đúng |
 | Credentials không được lưu | `GOCLAW_ENCRYPTION_KEY` chưa được đặt | Đặt biến môi trường encryption key; credentials yêu cầu key này |
 | Cache cũ sau khi cập nhật | Cache trong bộ nhớ chưa được làm mới | GoClaw phát sự kiện cache-invalidate sau mỗi lần ghi; cache làm mới trong vài giây |
@@ -20236,6 +21050,8 @@ Khi `skill_evolve=false`, `skill_manage` tool hoàn toàn bị ẩn khỏi LLM �
 | `content` | string | create | Toàn bộ SKILL.md bao gồm YAML frontmatter |
 | `find` | string | patch | Văn bản cần tìm trong SKILL.md hiện tại |
 | `replace` | string | patch | Văn bản thay thế |
+| `files` | object | tùy chọn (create, patch) | File văn bản đi kèm, khóa theo đường dẫn tương đối (ví dụ `references/guide.md`). Mỗi file giới hạn **2 MB**; đường dẫn được xác thực (không cho `..`, đường dẫn tuyệt đối/Windows, null byte, ghi đè `SKILL.md`, dotfile, hoặc system artifact) |
+| `visibility` | string | tùy chọn (patch) | Thay đổi visibility chỉ ở mức metadata (`private` hoặc `public`) — cập nhật ai có thể khám phá skill mà không tạo version mới khi không có thay đổi `content`/`files` |
 
 **Ví dụ — tạo skill từ cuộc hội thoại:**
 
@@ -20263,6 +21079,16 @@ skill_manage(
 skill_manage(action="delete", slug="deploy-checklist")
 ```
 
+**Ví dụ — tạo skill kèm file reference đi kèm:**
+
+```
+skill_manage(
+  action="create",
+  content="---\nname: Deploy Checklist\ndescription: Steps to deploy the app safely.\n---\n\n## Steps\nSee {baseDir}/references/runbook.md",
+  files={"references/runbook.md": "# Runbook\n1. Run tests\n2. Build image\n3. Push to registry"}
+)
+```
+
 ### publish_skill tool
 
 `publish_skill` là con đường thay thế để đăng ký toàn bộ thư mục local thành một skill. Tool này luôn khả dụng dưới dạng built-in tool toggle (không bị kiểm soát bởi `skill_evolve`).
@@ -20278,7 +21104,7 @@ Thư mục phải chứa `SKILL.md` với `name` trong frontmatter. Skill bắt 
 | | `skill_manage` | `publish_skill` |
 |---|---|---|
 | Đầu vào | Chuỗi nội dung | Đường dẫn thư mục |
-| File | Chỉ SKILL.md (companion được sao chép khi patch) | Toàn bộ thư mục (scripts, assets, v.v.) |
+| File | SKILL.md cùng file văn bản đi kèm trực tiếp (`files=...`); patch sao chép companion hiện có sang version mới | Toàn bộ thư mục (scripts, assets, v.v.) |
 | Kiểm soát bởi | Config `skill_evolve` | Built-in tool toggle (luôn khả dụng) |
 | Hướng dẫn | Tiêm qua skill_evolve prompt | Dùng `skill-creator` core skill |
 | Auto-grant | Có | Có |
@@ -20435,6 +21261,68 @@ Admin xem xét → approve / reject / rollback
 
 ---
 
+## Skill Self-Evolution (metrics theo từng skill)
+
+Đây là một **hệ thống con riêng biệt** so với "v3 Metrics Tiến Hóa" ở trên. Trong khi tiến hóa cấp agent điều chỉnh tham số của *agent*, skill self-evolution theo dõi mỗi **skill hiện có** hoạt động ra sao theo thời gian và đề xuất cải tiến cho chính skill đó. Nó cũng khác với vòng lặp học `skill_evolve` vốn dạy agent *khi nào* nên tạo hoặc vá skill tái sử dụng.
+
+### Ghi nhận lúc runtime
+
+Usage được ghi nhận tự động khi agent dùng skill — **không có endpoint usage công khai**:
+
+- Tool call `use_skill` ghi nhận usage trong phạm vi tenant với trạng thái `succeeded` hoặc `failed`, kèm duration, session key, run/trace ID, agent ID, và phạm vi user.
+- Kích hoạt qua slash command (`/<slug>` hoặc `/use <skill>`) ghi nhận sự kiện `started` khi nó resolve về một skill.
+- Việc ghi usage là **nội bộ only**. v1 cố ý không có endpoint công khai `POST /v1/skills/{id}/usage`, nên client không thể giả mạo tỷ lệ thành công.
+
+### Các bảng lưu trữ
+
+| Bảng | Mục đích |
+|---|---|
+| `skill_evolution_settings` | Cờ `enabled` và `mode` theo từng tenant, từng skill |
+| `skill_usage_metrics` | Sự kiện usage lúc runtime và số đếm theo trạng thái |
+| `skill_improvement_suggestions` | Suggestion theo phạm vi skill, kèm evidence và draft patch |
+| `skill_versions` | Bản ghi version đã áp dụng bất biến, liên kết tới file đã thay đổi và suggestion gốc |
+
+### Mode và trạng thái
+
+| Trường | Giá trị | Ghi chú |
+|---|---|---|
+| Settings `mode` | `suggest_only` (mặc định), `auto_analyze` | v1 không tự động *patch* — `auto_analyze` chỉ tự động sinh suggestion |
+| Usage `status` | `started`, `succeeded`, `failed`, `abandoned` | Ghi nhận theo từng lần gọi skill |
+| Suggestion `status` | `pending`, `approved`, `rejected`, `applied` | Vòng đời của một suggestion cải tiến |
+
+### Áp dụng một suggestion
+
+Suggestion được admin xem xét và áp dụng. Áp dụng suggestion cho một skill **custom**:
+
+1. Sao chép thư mục skill hiện tại sang version mới.
+2. Xác thực đường dẫn đích (cùng quy tắc với file đi kèm `skill_manage`).
+3. Chạy bộ quét content guard của SKILL.md khi SKILL.md thay đổi.
+4. Cập nhật skill đang hoạt động và ghi một hàng `skill_versions` mới.
+5. Ghi một mục activity log.
+
+**Việc thay đổi system/bundled skill bị từ chối** — đường apply trả về `403` cho bất kỳ skill nào có `is_system = true`, trước khi chạm vào filesystem.
+
+### Các bề mặt yêu cầu quyền admin
+
+Các bề mặt xem được sanitize. Failure evidence, draft patch, actor ID, và chi tiết activity yêu cầu quyền **admin** — người không phải admin chỉ thấy dữ liệu tổng hợp, không nhạy cảm.
+
+### HTTP API
+
+| Method | Path | Quyền truy cập |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/evolution` | Đọc cài đặt self-evolution |
+| `PATCH` | `/v1/skills/{id}/evolution` | Thiết lập `enabled` / `mode` (tenant admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Metrics usage (total / started / succeeded / failed / abandoned / success rate) |
+| `GET` | `/v1/skills/{id}/activity` | Activity self-evolution gần đây (chỉ admin) |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | Liệt kê suggestion của skill |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/approve` | Approve một suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/reject` | Reject một suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/apply` | Apply một suggestion đã approve (tenant admin) |
+
+Các lệnh CLI tương ứng là `goclaw skills evolve`, `goclaw skills metrics`, `goclaw skills suggestions`, và `goclaw skills activity`. Dashboard hiển thị toàn bộ trong tab **Evolution** ở phần chi tiết skill.
+
+---
+
 ## Các Vấn Đề Thường Gặp
 
 | Vấn đề | Nguyên nhân | Cách khắc phục |
@@ -20445,6 +21333,9 @@ Admin xem xét → approve / reject / rollback
 | Patch thất bại với lỗi "not owner" | Agent cố patch skill của agent khác | Mỗi agent chỉ có thể sửa đổi skill do mình tạo |
 | Patch thất bại với lỗi "system skill" | Cố sửa đổi built-in system skill | System skills luôn ở chế độ chỉ đọc |
 | Nội dung skill bị từ chối | Nội dung khớp với quy tắc bảo mật trong guard.go | Xóa pattern vi phạm; xem danh mục Lớp 1 ở trên |
+| File đi kèm bị `skill_manage` từ chối | Đường dẫn dùng `..`, đường dẫn tuyệt đối/Windows, dotfile, hoặc system artifact; hoặc file vượt 2 MB | Dùng đường dẫn tương đối sạch dưới skill root và giữ mỗi file văn bản dưới 2 MB |
+| Không thể apply một skill suggestion | Đích là system/bundled skill, hoặc suggestion chưa ở trạng thái `approved` | System skill là chỉ đọc; approve suggestion trước rồi mới apply |
+| Skill metrics không có dữ liệu | Chưa có kích hoạt `use_skill`/slash command nào, hoặc self-evolution đang tắt | Usage được ghi nội bộ khi agent dùng skill; bật self-evolution trong tab Evolution của skill |
 
 ---
 
@@ -20969,9 +21860,9 @@ docker compose \
 
 > **Data hooks:** GoClaw theo dõi các Go transform sau migration trong bảng `data_migrations` riêng. Chạy `./goclaw upgrade --status` để xem cả phiên bản SQL migration và các data hook đang chờ.
 
-> Các migration `000045`–`000073` tiếp tục mở rộng schema: config model fallback, catalog REST endpoint, OAuth state của portal Bitrix24 (`bitrix_portals`), sync cookie browser phía server (`browser_cookies`), các bảng pricing và enforcement của usage-cap (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), bridge agent-budget, và credential secure-CLI có kiểu — xem [Database Schema → Migration History](/database-schema).
+> Các migration `000045`–`000080` tiếp tục mở rộng schema: config model fallback, catalog REST endpoint, OAuth state của portal Bitrix24 (`bitrix_portals`), sync cookie browser phía server (`browser_cookies`), các bảng pricing và enforcement của usage-cap (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), bridge agent-budget, credential secure-CLI có kiểu, timeline run lưu trữ (`run_timeline_items`), các capability context theo từng channel (grant và credential MCP/secure-CLI có phạm vi), trích xuất bộ nhớ channel thụ động, credential secure-CLI theo từng agent, skill self-evolution (`skill_usage_metrics`, `skill_improvement_suggestions`, `skill_versions`), và phân tích usage event (`usage_events`, `usage_event_rollups`) — xem [Database Schema → Migration History](/database-schema).
 
-Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **73**.
+Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **80**.
 
 ---
 
@@ -20981,7 +21872,7 @@ GoClaw v3 hỗ trợ hai backend database:
 
 | Tính năng | PostgreSQL | SQLite (desktop) |
 |-----------|-----------|-----------------|
-| Schema đầy đủ (73 migration) | Có | Có |
+| Schema đầy đủ (80 migration) | Có | Có |
 | Tìm kiếm vector similarity (HNSW) | Có — pgvector | Không |
 | Tìm kiếm vector episodic summaries | Có | Chỉ FTS |
 | Knowledge Vault tự động liên kết | Có — ngưỡng 0.7 | Không (chỉ tóm tắt) |
@@ -21219,7 +22110,7 @@ Bảo vệ khỏi command execution nguy hiểm, truy cập file trái phép, v�
 
 ### Global shell deny-groups — runtime toggle
 
-`config.tools.shellDenyGroups` là một `map[string]bool` cho phép bật hoặc tắt deny-group toàn cục mà không cần khởi động lại gateway. Thay đổi có hiệu lực ngay lập tức qua live-reload `bus.TopicConfigChanged`.
+`config.tools.shellDenyGroups` là một `map[string]bool` cho phép bật hoặc tắt deny-group toàn cục mà không cần khởi động lại gateway. Thay đổi có hiệu lực ngay lập tức qua live-reload `bus.TopicConfigChanged`. Quá trình reload clone snapshot config trước khi áp dụng, nên việc *tắt* group được giữ đúng qua reload, và nó cũng reload các policy shell-deny cấp provider (Claude CLI / ACP), không chỉ exec tool toàn cục.
 
 ```json
 {
@@ -21241,6 +22132,8 @@ Xem [`reference/config-reference.md`](../reference/config-reference.md) để bi
 `resolvePath()` áp dụng `filepath.Clean()` rồi `HasPrefix()` để đảm bảo tất cả file path nằm trong workspace của agent. Với `restrict_to_workspace: true` (mặc định trên agents), bất kỳ path nào ngoài workspace đều bị chặn.
 
 Bốn filesystem tool (`read_file`, `write_file`, `list_files`, `edit`) đều implement interface `PathDenyable`. Agent loop gọi `DenyPaths(".goclaw")` khi khởi động — agent không thể đọc thư mục internal của GoClaw. Tool `list_files` lọc bỏ hoàn toàn các path bị deny khỏi directory listing.
+
+**Ngoại lệ cho interpreter venv.** Interpreter Python do GoClaw quản lý được miễn trừ khỏi deny `.goclaw/` để agent có thể chạy trực tiếp. GoClaw resolve `<home>/.goclaw/venv/bin/python3` (lần theo symlink) một lần khi khởi động và miễn trừ thư mục interpreter đã *resolve*; nếu không có venv thì im lặng bỏ qua. Đây là path duy nhất dưới `.goclaw/` mà exec có thể chạm tới.
 
 ### Bảo vệ path traversal khi serve file
 
@@ -21529,7 +22422,7 @@ Format lưu: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Giá t
 
 > **Phải giống nhau trên tất cả replica.** Trong deployment cluster, mọi gateway instance phải dùng cùng `GOCLAW_ENCRYPTION_KEY`. Rotate key yêu cầu mã hóa lại toàn bộ secret đã lưu trước khi khởi động lại.
 
-Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_binaries`, `secure_cli_agent_grants`, và `secure_cli_user_credentials` đều lưu secret trong cột `encrypted_env`. Mỗi entry mang một `kind` hiển thị — entry `sensitive` bị che trong các response API/UI thông thường và chỉ trả về qua luồng `env:reveal` đã audit; entry `value` (vd tên region hoặc profile) được trả về cho admin để review vận hành.
+Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_binaries`, `secure_cli_agent_grants`, `secure_cli_user_credentials`, và `secure_cli_agent_credentials` đều lưu secret trong cột `encrypted_env`. Mỗi entry mang một `kind` hiển thị — entry `sensitive` bị che trong các response API/UI thông thường và chỉ trả về qua luồng `env:reveal` đã audit; entry `value` (vd tên region hoặc profile) được trả về cho admin để review vận hành.
 
 ---
 
@@ -21544,6 +22437,12 @@ Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_
 
 Gõ sai tên adapter sẽ rơi xuống passthrough (hành vi denylist-only cũ) — **không có bypass ngầm**.
 
+### Thứ tự ưu tiên credential
+
+Khi adapter quyết định inject credential nào, nó chọn match **đầu tiên** theo thứ tự: **user override → credential channel/context → agent credential → env mặc định cấp binary**. Agent credential (`secure_cli_agent_credentials`) là ranh giới tin cậy mặc định cho git; user override hoặc credential channel/context sẽ thắng khi có mặt. Trường audit `credential_source` ghi lại lớp nào đã được dùng.
+
+Với luồng PAT, adapter tổng hợp một entry config `http.<remote>.extraheader` với `Authorization: Basic base64("x-access-token:<token>")`. Token thô, payload base64, và toàn bộ header đều được đăng ký với scrubber. Khóa SSH riêng được xác thực **hai lần** khi lưu — đầu tiên bằng parser SSH của Go, sau đó bằng OpenSSH (`ssh-keygen -y -f`) khi có sẵn — nên các khóa lẽ ra sẽ lỗi sau này với chẩn đoán OpenSSH sẽ bị từ chối ngay từ đầu.
+
 ### Sự kiện audit: `security.system_env_injection`
 
 Mỗi lần adapter inject phát ra **đúng một** dòng `slog.Warn` có cấu trúc. Hostname dạng plaintext cố tình **không bao giờ được log** — giữ audit log an toàn PII bên trong các tenant bị quản lý.
@@ -21557,6 +22456,7 @@ Mỗi lần adapter inject phát ra **đúng một** dòng `slog.Warn` có cấu
 | `env_keys` | chỉ **tên** env var đã sort — không bao giờ là giá trị |
 | `argv_prefix_len` | số phần tử argv được prepend, không phải nội dung |
 | `host_scope_hash` | 8 ký tự hex đầu của `SHA-256(host_scope đã chuẩn hóa)`, hoặc `"none"` |
+| `credential_source` | lớp ưu tiên nào đã cung cấp credential: `user`, `context`, `agent`, hoặc rỗng khi không có row credential theo phạm vi nào được chọn |
 
 v1 **không có bảng audit chuyên dụng** — dòng này route qua `slog` ra stderr → systemd/journald hoặc Docker logs. Để grep hoạt động với một host cụ thể, tính trước hash của nó:
 
@@ -21862,19 +22762,44 @@ gunzip trace.json.gz
 | Method | Path | Mô tả |
 |--------|------|-------|
 | GET | `/v1/traces` | Liệt kê trace với phân trang và filter |
+| GET | `/v1/traces/follow` | Poll thay đổi trace cho một session hoặc agent |
 | GET | `/v1/traces/{id}` | Lấy chi tiết trace với tất cả span |
 | GET | `/v1/traces/{id}/export` | Export trace + sub-trace dạng gzip JSON |
+| GET | `/v1/runs/{runID}/timeline` | Lấy các mục timeline run-archive đã lưu |
 
 ### Bộ lọc truy vấn (GET /v1/traces)
 
 | Tham số | Kiểu | Mô tả |
 |---------|------|-------|
+| `q` | string | Tìm kiếm chứa-chuỗi trên trace ID, trace preview, nhãn session/channel, nhãn agent/channel, và span preview/tool name |
 | `agent_id` | UUID | Lọc theo agent |
 | `user_id` | string | Lọc theo user |
-| `status` | string | `running`, `success`, `error`, `cancelled` |
-| `from` / `to` | timestamp | Lọc theo khoảng ngày |
+| `session_key` | string | Lọc theo session key |
+| `status` | string | `running`, `completed`, `error`, `cancelled` |
+| `channel` | string | Lọc theo raw channel |
+| `agent` | string | Tìm kiếm chứa-chuỗi trên display name và key của agent |
+| `channel_query` | string | Tìm kiếm chứa-chuỗi trên nhãn channel instance theo tenant |
+| `tool_name` | string | Tìm kiếm chứa-chuỗi trên tool name của span |
+| `has_tool_calls` | boolean | Trace có (`true`) hoặc không có (`false`) tool call |
+| `from` / `to` | timestamp | Lọc khoảng `start_time` — `from` bao gồm, `to` loại trừ |
+| `min_input_tokens` / `max_input_tokens` | int | Khoảng input token |
+| `min_output_tokens` / `max_output_tokens` | int | Khoảng output token |
+| `min_tool_calls` / `max_tool_calls` | int | Khoảng số lượng tool call |
 | `limit` | int | Kích thước trang (mặc định 50) |
 | `offset` | int | Offset phân trang |
+
+> CLI vận hành `goclaw traces` bao bọc chính các endpoint này. Xem [CLI Commands](../reference/cli-commands.md) để tham khảo lệnh.
+
+### Trỏ lệnh vận hành đến một gateway
+
+Lệnh vận hành HTTP (và API của dashboard) phân giải base URL theo thứ tự:
+
+1. Flag `--server <url>` (ưu tiên cao nhất)
+2. Biến môi trường `GOCLAW_SERVER`
+3. Biến môi trường `GOCLAW_GATEWAY_URL` (dự phòng)
+4. Host/port gateway từ `config.json` (mặc định `http://127.0.0.1:18790`)
+
+`GOCLAW_GATEWAY_URL` giờ điều khiển **tất cả** lệnh vận hành HTTP, không chỉ riêng `auth`. Kết hợp với `--token` / `GOCLAW_GATEWAY_TOKEN` cho bearer token.
 
 ## OpenTelemetry Export
 
@@ -22395,7 +23320,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **73**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **80**.
 
 ```mermaid
 graph LR
@@ -22606,6 +23531,18 @@ Các migration `000058`–`000073` được áp dụng tự động ở lần kh
 - `000071_usage_cap_policies` — thêm các bảng enforcement usage-cap: `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`.
 - `000072_agent_budget_usage_cap_bridge` — thêm cột `source` vào `usage_cap_policies` và **backfill** một policy window `month` cho mỗi agent có `budget_monthly_cents` non-NULL (1 cent = 10.000 micros, `source = 'agent_budget_monthly_cents'`). Budget hàng tháng theo agent hiện có giờ được enforce qua engine usage-cap. Idempotent (`ON CONFLICT DO NOTHING`); không cần thao tác.
 - `000073_secure_cli_credential_type` — thêm `credential_type` + `host_scope` (nullable) vào `secure_cli_user_credentials` và `adapter_name` vào `secure_cli_binaries` cho framework credential-adapter có kiểu. Tất cả cột NULL mặc định để giữ hành vi passthrough legacy — không cần thao tác.
+
+#### Schema 73 → 80
+
+Các migration `000074`–`000080` được áp dụng tự động ở lần khởi động kế tiếp (`./goclaw upgrade` hoặc `GOCLAW_AUTO_UPGRADE=true`) — không cần thao tác thủ công. Tất cả đều là bảng mới; dữ liệu hiện có không bị động đến. Điểm nổi bật:
+
+- `000074_run_timeline_items` — thêm `run_timeline_items` cho một timeline lưu trữ, có thứ tự theo từng run (tin nhắn/lời gọi tool) dùng để phát lại các run; liên kết tới traces và spans.
+- `000075_channel_context_capabilities` — thêm `mcp_context_grants`, `mcp_context_credentials`, `secure_cli_context_grants` và `secure_cli_context_credentials` cho các grant MCP và secure-CLI có phạm vi theo từng channel-instance kèm credential được mã hóa.
+- `000076_channel_memory_extraction` — thêm `channel_memory_extraction_runs` và `channel_memory_extraction_items` cho việc trích xuất thụ động, theo lịch trình bộ nhớ bền vững từ lịch sử channel (chỉ tóm tắt, không lưu nội dung gốc) kèm hàng đợi duyệt.
+- `000077_secure_cli_agent_credentials` — thêm `secure_cli_agent_credentials` cho credential CLI có kiểu theo từng agent, tách biệt khỏi chính sách grant; dùng các FK tổ hợp `(binary_id, tenant_id)` và `(agent_id, tenant_id)`.
+- `000078_skill_user_grants_tenant_unique` — thay khóa unique của `skill_user_grants` bằng `(skill_id, user_id, tenant_id)` có phạm vi theo tenant. Không cần thao tác.
+- `000079_skill_self_evolution` — thêm `skill_evolution_settings`, `skill_usage_metrics`, `skill_improvement_suggestions` và `skill_versions` cho việc theo dõi sử dụng theo từng skill và các cải tiến được đề xuất/áp dụng. **Backfill** một dòng `skill_versions` cho mỗi skill chưa bị xóa hiện có. Idempotent (`ON CONFLICT DO NOTHING`).
+- `000080_usage_event_analytics` — thêm `usage_events` (phân tích thô theo từng sự kiện) và `usage_event_rollups` (rollup tổng hợp sẵn theo giờ) hỗ trợ dashboard phân tích mức sử dụng.
 
 **Upgrade do gateway kích hoạt (luồng host release-upgrade):** Khi một upgrade được kích hoạt qua dashboard/API trên host systemd, `goclaw-upgrade-release` giờ tự re-launch chính nó dưới dạng một unit `systemd-run` tạm thời, nên việc dừng `goclaw` trong lúc deploy không còn giết job upgrade. Các record status `running` cũ cũng được thay thế sau 30 phút, và vòng lặp chờ deploy chịu được lỗi `502` thoáng qua trong lúc restart. Không cần thay đổi config.
 
@@ -24025,6 +24962,8 @@ goclaw [global flags] <command> [subcommand] [flags] [args]
 |------|----------|-------|
 | `--config <path>` | `config.json` | Đường dẫn config file. Cũng đọc từ `$GOCLAW_CONFIG` |
 | `-v`, `--verbose` | false | Bật debug logging |
+| `--server <url>` | — | Ghi đè URL gateway server cho các lệnh dựa trên HTTP (traces, skills, v.v.). Fallback về `$GOCLAW_SERVER`, rồi `$GOCLAW_GATEWAY_URL` |
+| `--token <token>` | — | Ghi đè gateway bearer token. Fallback về `$GOCLAW_GATEWAY_TOKEN` |
 
 
 ## `version`
@@ -24339,6 +25278,118 @@ goclaw sessions reset "telegram:123456789"
 
 ---
 
+## `traces`
+
+Kiểm tra trace thực thi agent và run timeline qua gateway đang chạy. Tất cả subcommand `traces` đều dựa trên HTTP — chúng kết nối tới gateway được phân giải từ `--server` / `$GOCLAW_SERVER` / `$GOCLAW_GATEWAY_URL` và xác thực bằng `--token` / `$GOCLAW_GATEWAY_TOKEN`.
+
+| Persistent flag | Mặc định | Mô tả |
+|------|---------|-------------|
+| `-o`, `--output <table\|json>` | `table` | Định dạng output |
+
+```bash
+goclaw traces list --status error --limit 20
+goclaw traces get <trace-id> -o json
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces timeline <trace-id>
+# remote gateway:
+goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" traces get <trace-id> -o json
+```
+
+### `traces list`
+
+Liệt kê trace với bộ lọc và tìm kiếm full-text.
+
+```bash
+goclaw traces list
+goclaw traces list -q "payment" --has-tool-calls true --limit 50
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `-q`, `--query <text>` | Tìm kiếm nội dung trace, ID, label, và preview span |
+| `--agent-id <uuid>` | Lọc theo UUID agent |
+| `--user <id>` | Lọc theo user ID (người gọi admin) |
+| `--session <key>` | Lọc theo session key |
+| `--status <status>` | Lọc theo trạng thái trace (`running`, `completed`, `error`, `cancelled`) |
+| `--channel <channel>` | Lọc theo raw channel |
+| `--agent <text>` | Tìm kiếm display name hoặc key của agent |
+| `--channel-query <text>` | Tìm kiếm label của channel instance |
+| `--tool <name>` | Tìm kiếm tên tool của span |
+| `--from <rfc3339>` | Cận dưới thời điểm bắt đầu (bao gồm) |
+| `--to <rfc3339>` | Cận trên thời điểm bắt đầu (không bao gồm) |
+| `--since <rfc3339>` | Bí danh của `--from` |
+| `--until <rfc3339>` | Bí danh của `--to` |
+| `--has-tool-calls <true\|false>` | Chỉ trace có/không có tool call |
+| `--min-input-tokens <n>` | Số input token tối thiểu |
+| `--max-input-tokens <n>` | Số input token tối đa |
+| `--min-output-tokens <n>` | Số output token tối thiểu |
+| `--max-output-tokens <n>` | Số output token tối đa |
+| `--min-tool-calls <n>` | Số tool call tối thiểu |
+| `--max-tool-calls <n>` | Số tool call tối đa |
+| `--limit <n>` | Kích thước trang (tối đa 200) |
+| `--offset <n>` | Offset phân trang |
+
+### `traces get <trace-id>`
+
+Lấy chi tiết trace kèm span. Nhận đúng một trace ID.
+
+```bash
+goclaw traces get <trace-id>
+goclaw traces get <trace-id> -o json
+```
+
+### `traces export <trace-id>`
+
+Export cây trace dạng gzip. Nhận đúng một trace ID.
+
+```bash
+goclaw traces export <trace-id>                 # ghi trace-<short>-<YYYYMMDD>.json.gz
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces export <trace-id> --file -        # gzip ra stdout
+goclaw traces export <trace-id> -o json         # JSON đã giải nén ra stdout
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--file <path>` | Ghi bản export gzip ra file (dùng `-` cho stdout). Mặc định ghi `trace-<short>-<YYYYMMDD>.json.gz` |
+
+### `traces follow`
+
+Poll thay đổi trace cho một session hoặc agent. **Yêu cầu `--session` HOẶC `--agent-id`.**
+
+```bash
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces follow --agent-id <uuid> --include-spans
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--session <key>` | Lọc theo session key |
+| `--agent-id <uuid>` | Lọc theo UUID agent |
+| `--user <id>` | Lọc theo user ID (người gọi admin) |
+| `--status <status>` | Lọc theo trạng thái trace |
+| `--channel <channel>` | Lọc theo raw channel |
+| `--since <rfc3339>` | Cận dưới RFC3339 cho trace đã thay đổi |
+| `--limit <n>` | Kích thước trang (tối đa 200) |
+| `--include-spans` | Bao gồm span nhóm theo trace ID |
+
+### `traces timeline <trace-id>`
+
+Hiển thị run timeline đã lưu liên kết với một trace. Phân giải `run_id` của trace, rồi truy vấn run archive. Nhận đúng một trace ID.
+
+```bash
+goclaw traces timeline <trace-id>
+goclaw traces timeline <trace-id> --limit 100 --offset 0
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--limit <n>` | Kích thước trang (tối đa 500) |
+| `--offset <n>` | Offset phân trang |
+
+---
+
 ## `cron`
 
 Quản lý scheduled cron job. Cần gateway đang chạy.
@@ -24530,6 +25581,136 @@ Hiển thị nội dung và metadata cho một skill cụ thể.
 ```bash
 goclaw skills show sequential-thinking
 ```
+
+> Các subcommand dưới đây dựa trên HTTP (cần gateway đang chạy). Tham số `<skill>` chấp nhận skill ID, slug, hoặc name — nó được phân giải theo gateway.
+
+### `skills evolve`
+
+Quản lý cài đặt self-evolution cho từng skill.
+
+```bash
+goclaw skills evolve status <skill>
+goclaw skills evolve enable <skill>
+goclaw skills evolve disable <skill>
+goclaw skills evolve mode <skill> suggest_only
+goclaw skills evolve mode <skill> auto_analyze
+```
+
+| Lệnh | Args | Tác dụng |
+|---------|------|--------|
+| `skills evolve status <skill>` | 1 | Hiển thị cài đặt self-evolution |
+| `skills evolve enable <skill>` | 1 | Bật self-evolution |
+| `skills evolve disable <skill>` | 1 | Tắt self-evolution |
+| `skills evolve mode <skill> <suggest_only\|auto_analyze>` | 2 | Đặt chế độ evolution |
+
+### `skills metrics <skill>`
+
+Hiển thị usage metrics đã ghi của một skill (Total, Started, Succeeded, Failed, Abandoned, Success rate).
+
+```bash
+goclaw skills metrics <skill>
+goclaw skills metrics <skill> --json
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--json` | Output dạng JSON |
+
+### `skills activity <skill>`
+
+Hiển thị hoạt động self-evolution gần đây của một skill (chi tiết giới hạn cho admin).
+
+```bash
+goclaw skills activity <skill>
+goclaw skills activity <skill> --json
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--json` | Output dạng JSON |
+
+### `skills suggestions`
+
+Quản lý đề xuất cải thiện skill.
+
+```bash
+goclaw skills suggestions list <skill>
+goclaw skills suggestions approve <skill> <suggestion-id>
+goclaw skills suggestions reject <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id> --approve
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills suggestions list <skill>` | 1 | Liệt kê đề xuất cho một skill |
+| `skills suggestions approve <skill> <suggestion-id>` | 2 | Phê duyệt một đề xuất |
+| `skills suggestions reject <skill> <suggestion-id>` | 2 | Từ chối một đề xuất |
+| `skills suggestions apply <skill> <suggestion-id>` | 2, `--approve` | Áp dụng đề xuất đã phê duyệt (`--approve` phê duyệt đề xuất đang chờ trước) |
+
+### `skills deps`
+
+Quét, kiểm tra, và cài đặt dependency của skill. Tham số chấp nhận đường dẫn skill cục bộ hoặc gateway skill ID.
+
+```bash
+goclaw skills deps status <skill-id-or-path>
+goclaw skills deps scan <skill-id-or-path>
+goclaw skills deps check <skill-id-or-path>
+goclaw skills deps install <skill-id>
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills deps status <skill-id-or-path>` | 1, `--json` | Hiển thị trạng thái dependency |
+| `skills deps scan <skill-id-or-path>` | 1, `--json` | Quét khai báo dependency |
+| `skills deps check <skill-id-or-path>` | 1, `--json` | Kiểm tra tính khả dụng |
+| `skills deps install <skill-id>` | 1, `--json` | Cài đặt dependency còn thiếu (master tenant) |
+
+### `skills access`
+
+Quản lý chế độ access của skill và access hiệu lực.
+
+```bash
+goclaw skills access get <skill-id>
+goclaw skills access set <skill-id> --mode internal
+goclaw skills access effective <skill-id> --agent <agent-id> --user <user-id>
+goclaw skills access effective --agent <agent-id> --user <user-id>
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills access get <skill-id>` | 1, `--json` | Hiển thị chế độ access và grant |
+| `skills access set <skill-id> --mode <private\|internal\|public>` | 1, `--mode` (bắt buộc), `--json` | Đặt chế độ access |
+| `skills access effective [skill-id] --agent <id> --user <id>` | 0–1, `--agent`+`--user` (bắt buộc), `--json` | Kiểm tra access hiệu lực (theo từng skill khi có ID, ngược lại trên toàn bộ skills) |
+
+### `skills grant`
+
+Cấp quyền access skill cho một agent hoặc user.
+
+```bash
+goclaw skills grant agent <skill-id> <agent-id>
+goclaw skills grant agent <skill-id> <agent-id> --can-manage --pinned-version 3
+goclaw skills grant user <skill-id> <user-id>
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills grant agent <skill-id> <agent-id>` | 2, `--can-manage`, `--pinned-version <n>`, `--json` | Cấp một skill cho agent |
+| `skills grant user <skill-id> <user-id>` | 2, `--json` | Cấp một skill cho user |
+
+### `skills revoke`
+
+Thu hồi quyền access skill khỏi một agent hoặc user.
+
+```bash
+goclaw skills revoke agent <skill-id> <agent-id>
+goclaw skills revoke user <skill-id> <user-id>
+```
+
+| Lệnh | Args | Tác dụng |
+|---------|------|--------|
+| `skills revoke agent <skill-id> <agent-id>` | 2 | Thu hồi grant của agent |
+| `skills revoke user <skill-id> <user-id>` | 2 | Thu hồi grant của user |
 
 ---
 
@@ -24890,6 +26071,46 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `sessions.delete` | `{key}` | Xóa session |
 | `sessions.reset` | `{key}` | Xóa lịch sử session |
 | `sessions.compact` | `{key, keepLast?}` | Cắt history còn N message cuối (mặc định 4); bỏ qua nếu history < 6 |
+| `run.timeline.get` | `{runId?, sessionKey?, limit?, offset?}` | Lấy các mục timeline của run/session đã lưu trữ (display-safe) |
+
+#### `run.timeline.get`
+
+Lấy các mục timeline an toàn để hiển thị (display-safe) được ghi lại trong quá trình agent chạy. Truyền `runId` cho một run đơn lẻ, hoặc `sessionKey` cho panel archive của session — **cần ít nhất một trong hai**. `limit` mặc định `200` và giới hạn tối đa `500`; `offset` để phân trang. Vai trò viewer có thể đọc method này; caller không phải admin chỉ nhận các mục có `user_id` khớp với user đang kết nối.
+
+**Request:**
+
+```json
+{
+  "type": "req",
+  "id": "tl-1",
+  "method": "run.timeline.get",
+  "params": { "runId": "run-123", "sessionKey": "agent:demo:direct:user-1", "limit": 100, "offset": 0 }
+}
+```
+
+**Response payload:**
+
+```json
+{
+  "runId": "run-123",
+  "sessionKey": "agent:demo:direct:user-1",
+  "items": [{
+    "id": "019e...",
+    "run_id": "run-123",
+    "session_key": "agent:demo:direct:user-1",
+    "seq": 1,
+    "item_type": "assistant.message",
+    "status": "completed",
+    "title": "assistant",
+    "preview": "I will check that now.",
+    "created_at": "2026-05-29T10:00:00Z"
+  }],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+Các giá trị `item_type` của timeline gồm `activity`, `assistant.message`, `tool.call`, `tool.result`, và `run.status`. Các mục tool chỉ lưu preview giới hạn; raw reasoning/thinking không được lưu trữ.
 
 ### Config
 
@@ -25309,7 +26530,7 @@ ws.onmessage = (e) => {
 
 ## Tổng quan
 
-> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~308 REST endpoint.
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ REST endpoint.
 
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
@@ -25835,6 +27056,12 @@ Xuất và nhập custom skill dưới dạng archive tar.gz.
 | Param | Kiểu | Mô tả |
 |-------|------|-------|
 | `stream` | `bool` | Khi `true`, trả SSE progress rồi event `complete` kèm `download_url` |
+| `format` | string | Định dạng archive — `tar.gz` (mặc định), `tgz` (alias cho gzip tar), hoặc `zip`. ZIP chỉ dùng cho export/download; import vẫn yêu cầu định dạng skills bundle |
+| `id` | string | Chọn một skill theo ID. Lặp lại param để chọn nhiều skill |
+| `ids` | string | Chọn nhiều skill ID dưới dạng danh sách phân tách bằng dấu phẩy |
+| `include_system` | `bool` | Bao gồm system skill trong full export khi không chọn ID nào |
+
+> `GET /v1/skills/export` hỗ trợ cả **tải xuống trực tiếp** (archive được stream trong response) và luồng SSE token (`stream=true` → `download_url`). Nếu không có `id`/`ids`, export giữ tương thích ngược và mặc định bao gồm các custom skill của tenant.
 
 **Archive format** (`skills-YYYYMMDD.tar.gz`):
 
@@ -25880,6 +27107,63 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 | `POST` | `/v1/skills/install-deps` | Cài đặt tất cả dependency còn thiếu |
 | `POST` | `/v1/skills/install-dep` | Cài đặt một dependency đơn lẻ |
 | `GET` | `/v1/skills/runtimes` | Kiểm tra runtime có sẵn |
+
+---
+
+### Tự tiến hóa & Metrics của Skill
+
+Skill có thể thu thập metric sử dụng và tự đề xuất cải tiến cho chính nó. Tự tiến hóa được scope theo tenant và **mặc định tắt theo từng skill**. Metric sử dụng chỉ được ghi bởi các đường runtime đáng tin cậy (ví dụ tool `use_skill` và việc kích hoạt slash-command) — không có endpoint công khai để ghi metric sử dụng.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/{id}/evolution` | Đọc cấu hình tự tiến hóa của một skill |
+| `PATCH` | `/v1/skills/{id}/evolution` | Cập nhật trạng thái bật hoặc mode (tenant-admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Tổng hợp metric sử dụng + đếm theo status |
+| `GET` | `/v1/skills/{id}/activity` | Log hoạt động tiến hóa (chỉ admin) |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | Liệt kê đề xuất cải tiến scope theo skill |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` | Tạo đề xuất kèm bằng chứng + draft patch (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` | Duyệt một đề xuất (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` | Từ chối một đề xuất (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` | Áp dụng đề xuất đã duyệt → version skill mới (tenant-admin) |
+
+**Mode tiến hóa (`PATCH .../evolution`, field `mode`):**
+
+| Mode | Hành vi |
+|------|---------|
+| `suggest_only` | Thu thập metric và quản lý đề xuất; không tự động patch |
+| `auto_analyze` | Dành riêng cho automation phân tích. **Việc áp dụng patch luôn yêu cầu duyệt tường minh** |
+
+> Caller vai trò viewer/operator có thể đọc metric tổng hợp. Raw activity, actor ID, bằng chứng lỗi, draft patch, và hành động apply chỉ dành cho admin. Không thể thay đổi system skill; áp dụng một đề xuất cho custom skill sẽ ghi một thư mục version mới và một bản ghi `skill_versions`.
+
+### Kiểm soát truy cập & Grant của Skill (batch)
+
+Đọc và quản lý ai có thể dùng một skill. Các route số nhiều `grants/agents` và `grants/users` nhận tập **batch**; các route số ít đã mô tả ở [Skill Grants](#skill-grants) vẫn dùng được cho grant đơn lẻ. Tất cả route yêu cầu **vai trò admin**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/{id}/access` | Đọc cấu hình access (visibility + agent/user grants) |
+| `PATCH` | `/v1/skills/{id}/access` | Cập nhật cấu hình access (ví dụ `visibility`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Access hiệu lực cho skill này |
+| `GET` | `/v1/skills/access/effective` | Access hiệu lực trên tất cả skill |
+| `GET` | `/v1/skills/{id}/grants/agents` | Liệt kê agent grant (chế độ batch) |
+| `POST` | `/v1/skills/{id}/grants/agents` | Batch-set agent grant (`agent_id`, tùy chọn `version`/`pinned_version`, `can_manage`) |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` | Xóa một agent grant |
+| `GET` | `/v1/skills/{id}/grants/users` | Liệt kê user grant (chế độ batch) |
+| `POST` | `/v1/skills/{id}/grants/users` | Batch-set user grant (`user_id`) |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` | Xóa một user grant |
+
+**Response access-hiệu-lực** bao gồm `accessible`, `reason`, `can_manage`, và tùy chọn `pinned_version` cho mỗi skill.
+
+### Skill Dependencies
+
+Kiểm tra và giải quyết runtime dependency của một skill. Yêu cầu **vai trò admin**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/{id}/dependencies` | Liệt kê dependency của skill và trạng thái của chúng |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Quét lại các dependency khai báo và làm mới trạng thái |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Kiểm tra xem dependency đã được thỏa mãn chưa |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Cài đặt dependency còn thiếu cho skill |
 
 ---
 
@@ -26050,12 +27334,28 @@ Các cờ tính năng theo từng agent kiểm soát các hệ thống con v3.
 
 ### `GET /v1/traces`
 
-Liệt kê LLM traces. Hỗ trợ query params: `agentId`, `userId`, `status`, `limit`, `offset`.
+Liệt kê LLM traces.
 
 ```bash
-curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
+curl "http://localhost:18790/v1/traces?agentId=UUID&q=timeout&min_input_tokens=1000&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `agentId` | string | Lọc theo agent |
+| `userId` | string | Lọc theo user |
+| `status` | string | Lọc theo trạng thái |
+| `channel` | string | Lọc theo channel |
+| `q` | string | Tìm kiếm contains rộng trên các field của trace/span |
+| `min_input_tokens` / `max_input_tokens` | integer | Lọc theo khoảng input-token |
+| `min_output_tokens` / `max_output_tokens` | integer | Lọc theo khoảng output-token |
+| `tool_name` | string | Lọc các trace đã dùng một tool nhất định |
+| `min_tool_calls` / `max_tool_calls` | integer | Lọc theo khoảng số lượng tool-call |
+| `limit` | integer | Kích thước trang |
+| `offset` | integer | Offset trang |
 
 ### `GET /v1/traces/follow`
 
@@ -26086,6 +27386,10 @@ Lấy một trace cùng tất cả spans của nó.
 
 Xuất cây trace dưới dạng gzipped JSON.
 
+### `GET /v1/runs/{runID}/timeline`
+
+Trả về timeline archive đã lưu trữ, an toàn để hiển thị (display-safe) của một run đơn lẻ — chính là các mục được hiển thị trong panel timeline của run/session. Các mục tool chỉ lưu preview giới hạn; raw reasoning không được lưu trữ. Caller không phải admin chỉ được xem các mục của chính mình.
+
 ### Costs
 
 | Method | Path | Mô tả |
@@ -26101,8 +27405,13 @@ Xuất cây trace dưới dạng gzipped JSON.
 | `GET` | `/v1/usage/timeseries` | Điểm dữ liệu usage theo thời gian |
 | `GET` | `/v1/usage/breakdown` | Phân tích theo provider/model/channel |
 | `GET` | `/v1/usage/summary` | Tóm tắt với so sánh kỳ trước |
+| `GET` | `/v1/usage/events/timeseries` | Time-series dựa trên event (tính từ raw usage event) |
+| `GET` | `/v1/usage/events/breakdown` | Phân tích dựa trên event theo provider/model/channel |
+| `GET` | `/v1/usage/events/summary` | Tóm tắt dựa trên event với so sánh kỳ trước |
 
 **Query param:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+> Các biến thể `/v1/usage/events/*` tính cùng các shape từ kho raw usage-event thay vì snapshot đã tính sẵn — hữu ích cho số liệu chính xác, cập nhật đến từng event.
 
 ---
 
@@ -26459,6 +27768,44 @@ Xóa channel instance.
 
 `reason` là một trong `writer`, `not_writer`, `no_writers_configured`, hoặc `invalid_group`.
 
+### Passive Memory Extraction
+
+Trích xuất memory thụ động theo từng channel-instance — khai thác hội thoại gần đây thành các memory candidate được đưa vào hàng đợi review, rồi duyệt chúng vào episodic memory. Endpoint đọc cho phép viewer truy cập; cấu hình settings và chuyển trạng thái item yêu cầu **tenant-admin**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | Config + run gần nhất + số lượng pending + item gần đây |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | Thay thế khối config `passive_memory` đã chuẩn hóa |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | Kích hoạt một lần extraction thủ công |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | Liệt kê item trong hàng đợi review (tùy chọn lọc `status`) |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | Ghi candidate vào episodic memory + publish event KG |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | Từ chối candidate |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | Xóa candidate (và mọi episodic summary liên kết) |
+
+**Các field config `passive_memory`:** `enabled`, `review_mode`, `interval_minutes`, `message_cap`, `retention_hours`, `allowed_types`, `exclude_users`, `exclude_patterns`, `min_messages`, `group_only`. Mặc định: tắt, bật review-mode, chỉ group, interval 360 phút, cap 100 message, retention 168 giờ, và các loại bền vững (people, projects, decisions, todos, preferences, events).
+
+### Context Capability Administration
+
+Quản lý quyền truy cập tool theo từng context (theo scope) cho một channel instance. Một context được định danh bằng `{scopeType}/{scopeKey}` (ví dụ một group hoặc DM). Các route grant/credential yêu cầu **vai trò admin**; các thao tác đọc list/capabilities cho phép viewer truy cập.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/channels/instances/{id}/contexts` | Liệt kê context của instance |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` | Liệt kê thành viên của một context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` | Capability hiệu lực được giải quyết cho context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` | Liệt kê MCP server grant |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Đặt một MCP grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Xóa một MCP grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` | Liệt kê MCP credential |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Đặt một MCP credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Xóa một MCP credential |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` | Liệt kê CLI binary grant |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Đặt một CLI grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Xóa một CLI grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` | Liệt kê CLI credential |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Đặt một CLI credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Xóa một CLI credential |
+
 ---
 
 ## Contacts
@@ -26590,6 +27937,17 @@ Yêu cầu **admin role** (full gateway token hoặc gateway token rỗng ở ch
 | `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Lấy credential của user cụ thể |
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Đặt credential của user cụ thể |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Xóa credential của user cụ thể |
+
+### Per-Agent CLI Credentials
+
+Lưu trữ credential theo từng agent cho một CLI config — lưu các giá trị credential mà một agent cụ thể nên dùng. Đây là phần **khác biệt với [CLI Credential Agent Grants](#cli-credential-agent-grants)** bên dưới: grant kiểm soát *liệu* một agent có được phép dùng một binary hay không (kèm giới hạn arg/timeout), còn các endpoint này lưu payload credential thực tế của agent.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` | Liệt kê credential theo agent cho một CLI config |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Lấy metadata credential của agent |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Tạo hoặc thay thế credential của một agent |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Xóa credential của một agent |
 
 ### CLI Credential Agent Grants
 
@@ -27316,7 +28674,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 308 — generated from goclaw `d85bf171` on `2026-06-07`.
+**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
 
 ## Cách sử dụng trang này
 
@@ -27333,14 +28691,6 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 |---|---|
 | `GET` | `/v1/activity` |
 | `GET` | `/v1/activity/aggregate` |
-
-### Browser Cookies (`internal/http/browser_cookies.go`)
-
-| Method | Path |
-|---|---|
-| `GET` | `/v1/browser/cookies` |
-| `DELETE` | `/v1/browser/cookies` |
-| `POST` | `/v1/browser/cookies/sync` |
 
 ### Agents (`internal/http/agents.go`)
 
@@ -27401,6 +28751,14 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `GET` | `/v1/system/backup/s3/list` |
 | `POST` | `/v1/system/backup/s3/upload` |
 
+### Browser Cookies (`internal/http/browser_cookies.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/browser/cookies` |
+| `GET` | `/v1/browser/cookies` |
+| `POST` | `/v1/browser/cookies/sync` |
+
 ### Builtin Tools (`internal/http/builtin_tools.go`)
 
 | Method | Path |
@@ -27421,11 +28779,33 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `DELETE` | `/v1/channels/instances/{id}` |
 | `GET` | `/v1/channels/instances/{id}` |
 | `PUT` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}/contexts` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` |
 | `GET` | `/v1/channels/instances/{id}/writers` |
 | `POST` | `/v1/channels/instances/{id}/writers` |
-| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
 | `GET` | `/v1/channels/instances/{id}/writers/groups` |
+| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `GET` | `/v1/contacts` |
 | `POST` | `/v1/contacts/merge` |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` |
@@ -27553,16 +28933,6 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `POST` | `/v1/agents/{agentID}/memory/search` |
 | `GET` | `/v1/memory/documents` |
 
-### Model Pricing (`internal/http/usage_caps.go`)
-
-| Method | Path |
-|---|---|
-| `GET` | `/v1/model-pricing` |
-| `GET` | `/v1/model-pricing/overrides` |
-| `PUT` | `/v1/model-pricing/overrides` |
-| `DELETE` | `/v1/model-pricing/overrides/{id}` |
-| `POST` | `/v1/model-pricing/sync-openrouter` |
-
 ### OAuth (`internal/http/oauth.go`)
 
 | Method | Path |
@@ -27648,6 +29018,10 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `DELETE` | `/v1/cli-credentials/{id}` |
 | `GET` | `/v1/cli-credentials/{id}` |
 | `PUT` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
 | `GET` | `/v1/cli-credentials/{id}/agent-grants` |
 | `POST` | `/v1/cli-credentials/{id}/agent-grants` |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
@@ -27666,9 +29040,9 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 | Method | Path |
 |---|---|
-| `GET` | `/v1/sessions` |
 | `POST` | `/v1/chat/sessions/{key}/branch` |
 | `GET` | `/v1/chat/sessions/{key}/history/follow` |
+| `GET` | `/v1/sessions` |
 
 ### Skills (`internal/http/skills.go`)
 
@@ -27679,17 +29053,40 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `DELETE` | `/v1/skills/{id}` |
 | `GET` | `/v1/skills/{id}` |
 | `PUT` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}/access` |
+| `PATCH` | `/v1/skills/{id}/access` |
+| `GET` | `/v1/skills/{id}/access/effective` |
+| `GET` | `/v1/skills/{id}/activity` |
+| `GET` | `/v1/skills/{id}/dependencies` |
+| `POST` | `/v1/skills/{id}/dependencies/check` |
+| `POST` | `/v1/skills/{id}/dependencies/install` |
+| `POST` | `/v1/skills/{id}/dependencies/scan` |
+| `GET` | `/v1/skills/{id}/evolution` |
+| `PATCH` | `/v1/skills/{id}/evolution` |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` |
 | `GET` | `/v1/skills/{id}/files` |
 | `GET` | `/v1/skills/{id}/files/{path...}` |
 | `GET` | `/v1/skills/{id}/grants/agent` |
 | `POST` | `/v1/skills/{id}/grants/agent` |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
+| `GET` | `/v1/skills/{id}/grants/agents` |
+| `POST` | `/v1/skills/{id}/grants/agents` |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` |
 | `POST` | `/v1/skills/{id}/grants/user` |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` |
+| `GET` | `/v1/skills/{id}/grants/users` |
+| `POST` | `/v1/skills/{id}/grants/users` |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` |
+| `GET` | `/v1/skills/{id}/metrics` |
 | `DELETE` | `/v1/skills/{id}/tenant-config` |
 | `PUT` | `/v1/skills/{id}/tenant-config` |
 | `POST` | `/v1/skills/{id}/toggle` |
 | `GET` | `/v1/skills/{id}/versions` |
+| `GET` | `/v1/skills/access/effective` |
 | `GET` | `/v1/skills/export` |
 | `GET` | `/v1/skills/export/preview` |
 | `POST` | `/v1/skills/import` |
@@ -27752,10 +29149,11 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | Method | Path |
 |---|---|
 | `GET` | `/v1/costs/summary` |
+| `GET` | `/v1/runs/{runID}/timeline` |
 | `GET` | `/v1/traces` |
-| `GET` | `/v1/traces/follow` |
 | `GET` | `/v1/traces/{traceID}` |
 | `GET` | `/v1/traces/{traceID}/export` |
+| `GET` | `/v1/traces/follow` |
 
 ### TTS (`internal/http/tts.go`)
 
@@ -27774,6 +29172,9 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | Method | Path |
 |---|---|
 | `GET` | `/v1/usage/breakdown` |
+| `GET` | `/v1/usage/events/breakdown` |
+| `GET` | `/v1/usage/events/summary` |
+| `GET` | `/v1/usage/events/timeseries` |
 | `GET` | `/v1/usage/summary` |
 | `GET` | `/v1/usage/timeseries` |
 
@@ -27781,12 +29182,17 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 
 | Method | Path |
 |---|---|
+| `GET` | `/v1/model-pricing` |
+| `GET` | `/v1/model-pricing/overrides` |
+| `PUT` | `/v1/model-pricing/overrides` |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` |
+| `POST` | `/v1/model-pricing/sync-openrouter` |
+| `GET` | `/v1/usage-caps/events` |
 | `GET` | `/v1/usage-caps/policies` |
 | `POST` | `/v1/usage-caps/policies` |
-| `PATCH` | `/v1/usage-caps/policies/{id}` |
 | `DELETE` | `/v1/usage-caps/policies/{id}` |
+| `PATCH` | `/v1/usage-caps/policies/{id}` |
 | `GET` | `/v1/usage-caps/utilization` |
-| `GET` | `/v1/usage-caps/events` |
 
 ### Vault (`internal/http/vault_graph_handler.go`)
 
@@ -27825,7 +29231,7 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 |---|---|
 | `POST` | `/v1/agents/{id}/wake` |
 
-### Webhooks (`internal/http/webhooks_admin.go`, `webhooks_llm.go`, `webhooks_message.go`)
+### Webhooks Admin (`internal/http/webhooks_admin.go`)
 
 | Method | Path |
 |---|---|
@@ -27835,7 +29241,17 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `GET` | `/v1/webhooks/{id}` |
 | `PATCH` | `/v1/webhooks/{id}` |
 | `POST` | `/v1/webhooks/{id}/rotate` |
+
+### Webhooks Llm (`internal/http/webhooks_llm.go`)
+
+| Method | Path |
+|---|---|
 | `POST` | `/v1/webhooks/llm` |
+
+### Webhooks Message (`internal/http/webhooks_message.go`)
+
+| Method | Path |
+|---|---|
 | `POST` | `/v1/webhooks/message` |
 
 ### Workspace (`internal/http/workspace_upload.go`)
@@ -27846,8 +29262,6 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 | `POST` | `/v1/teams/{teamId}/workspace/upload` |
 
 ### Workstations (`internal/http/workstations.go`)
-
-> Chỉ bản Standard edition — gateway trả `403` trên Lite.
 
 | Method | Path |
 |---|---|
@@ -28865,7 +30279,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **73**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **80**.
 
 ### Thống nhất Store v3
 
@@ -29122,7 +30536,7 @@ Skill package được upload với BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants. `skill_agent_grants` còn có cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants. `skill_agent_grants` còn có cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant. Từ migration 078, `skill_user_grants` có khóa unique là `(skill_id, user_id, tenant_id)` (theo phạm vi tenant), nên cùng một user có thể được cấp cùng một skill ở các tenant khác nhau.
 
 ---
 
@@ -29849,6 +31263,19 @@ Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback v�
 | 65 | `agent_model_fallback` — thêm cột `model_fallback JSONB NOT NULL DEFAULT '{}'` vào `agents`; mảng thứ tự model fallback được thử khi primary model thất bại. |
 | 66 | `skill_agent_manage_grants` — thêm cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` vào `skill_agent_grants`; cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant. |
 | 67 | `skill_agent_grants_scope_cleanup` — migration chỉ thao tác data; xóa các row `skill_agent_grants` có `tenant_id` không khớp với tenant của agent hoặc skill, đảm bảo tenant-scope isolation trên skill grants. Không thay đổi schema. |
+| 68 | `bitrix_portals` — registry portal Bitrix24 với credential OAuth được mã hóa, seed trước luồng cài đặt. |
+| 69 | `browser_cookies` — lưu trữ cookie browser theo từng agent được mã hóa cho browser automation. |
+| 70 | `usage_pricing_catalog` / `usage_pricing_overrides` — catalog pricing theo provider/model và override theo từng tenant. |
+| 71 | `usage_cap_policies` / `usage_cap_counters` / `usage_cap_reservations` / `usage_cap_events` — engine policy usage-cap với counter, reservation và audit log quyết định. |
+| 72 | Bridge agent budget ↔ usage-cap — liên kết budget theo từng agent vào engine policy usage-cap. |
+| 73 | `secure_cli_credential_type` — thêm cột `credential_type` / `host_scope` vào các bảng credential secure-CLI. |
+| 74 | `run_timeline_items` — timeline lưu trữ có thứ tự theo từng run để phát lại run; FK tới traces/spans. |
+| 75 | Channel context capabilities — `mcp_context_grants` / `mcp_context_credentials` / `secure_cli_context_grants` / `secure_cli_context_credentials`; grant MCP và secure-CLI có phạm vi theo từng channel-instance kèm credential được mã hóa. |
+| 76 | Channel memory extraction — `channel_memory_extraction_runs` / `channel_memory_extraction_items`; trích xuất thụ động, theo lịch trình bộ nhớ bền vững (chỉ tóm tắt, không lưu nội dung gốc) kèm hàng đợi duyệt. |
+| 77 | `secure_cli_agent_credentials` — credential CLI có kiểu theo từng agent, tách biệt khỏi chính sách grant; FK tổ hợp `(binary_id, tenant_id)` và `(agent_id, tenant_id)`. |
+| 78 | `skill_user_grants_tenant_unique` — thay khóa unique của `skill_user_grants` bằng `(skill_id, user_id, tenant_id)` (theo phạm vi tenant). |
+| 79 | Skill self-evolution — `skill_evolution_settings` / `skill_usage_metrics` / `skill_improvement_suggestions` / `skill_versions`; theo dõi sử dụng theo từng skill và các cải tiến được đề xuất/áp dụng (backfill một dòng `skill_versions` cho mỗi skill hiện có). |
+| 80 | Usage event analytics — `usage_events` / `usage_event_rollups`; phân tích thô theo từng sự kiện và rollup tổng hợp sẵn theo giờ cho dashboard usage. |
 
 ---
 
@@ -30497,6 +31924,236 @@ Audit log các quyết định cap (allow/deny) và lý do. (migration 071)
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 **Index:** `(tenant_id, created_at DESC)`
+
+---
+
+### `run_timeline_items`
+
+Timeline có thứ tự theo từng run gồm các item (tin nhắn, lời gọi tool, v.v.) dùng để phát lại các run đã lưu trữ. (migration 074)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `run_id` | TEXT | NOT NULL | Định danh run |
+| `session_key` | VARCHAR(500) | NOT NULL | Session mà run này thuộc về |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Agent tạo ra run |
+| `user_id` | VARCHAR(255) | | Phạm vi user |
+| `channel` | VARCHAR(50) | | Channel |
+| `chat_id` | VARCHAR(255) | | Chat ID |
+| `seq` | INT | NOT NULL | Thứ tự trong run |
+| `item_type` | VARCHAR(40) | NOT NULL | Loại item (message, tool call, v.v.) |
+| `status` | VARCHAR(40) | | Trạng thái item |
+| `title` | TEXT | | Tiêu đề item |
+| `preview` | TEXT | | Preview ngắn |
+| `content` | TEXT | NOT NULL DEFAULT '' | Nội dung đầy đủ của item |
+| `tool_name` | VARCHAR(255) | | Tên tool, khi áp dụng |
+| `tool_call_id` | VARCHAR(255) | | Tool call ID |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | Trace liên kết |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | Span liên kết |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, seq)`
+**Index:** `(tenant_id, run_id, seq)`; `(tenant_id, session_key, created_at DESC)`; `(tenant_id, trace_id) WHERE trace_id IS NOT NULL`
+
+---
+
+### Channel context capabilities
+
+Grant MCP và secure-CLI có phạm vi theo từng channel-instance cùng credential được mã hóa. Cả bốn bảng dùng chung một mô hình scope: `scope_type VARCHAR(32)` + `scope_key VARCHAR(255) DEFAULT ''` cho phép một grant áp dụng cho toàn bộ channel-instance hoặc thu hẹp về một scope cụ thể (ví dụ một chat hoặc user). (migration 075)
+
+**`mcp_context_grants`** — bật một MCP server cho một scope channel-instance.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `scope_type` | VARCHAR(32) | NOT NULL | Loại scope |
+| `scope_key` | VARCHAR(255) | NOT NULL DEFAULT '' | Giá trị scope |
+| `server_id` | UUID FK → mcp_servers | NOT NULL ON DELETE CASCADE | MCP server được cấp |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `tool_allow` / `tool_deny` / `config_overrides` | JSONB | | Bộ lọc tool và override theo từng scope |
+| `granted_by` | VARCHAR(255) | NOT NULL | Actor đã cấp |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, server_id)` · **Index:** scope, `server_id`
+
+**`mcp_context_credentials`** — credential được mã hóa cho MCP server có phạm vi. Cùng scope key như trên cộng thêm `api_key TEXT`, `headers BYTEA`, `env BYTEA`, `created_by VARCHAR(255) NOT NULL`, các timestamp. Cùng khóa unique và index.
+
+**`secure_cli_context_grants`** — bật một binary secure-CLI cho một scope channel-instance. Cùng scope key cộng thêm `binary_id UUID FK → secure_cli_binaries ON DELETE CASCADE`, `deny_args`/`deny_verbose JSONB`, `timeout_seconds INTEGER`, `tips TEXT`, `encrypted_env BYTEA`, `enabled BOOLEAN NOT NULL DEFAULT true`, `granted_by VARCHAR(255) NOT NULL`, các timestamp. **Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, binary_id)` · **Index:** scope, `binary_id`.
+
+**`secure_cli_context_credentials`** — credential được mã hóa cho binary secure-CLI có phạm vi. Cùng scope key cộng thêm `binary_id`, `encrypted_env BYTEA NOT NULL`, `metadata JSONB NOT NULL DEFAULT '{}'`, `credential_type TEXT`, `host_scope TEXT`, `created_by VARCHAR(255) NOT NULL`, các timestamp. Cùng khóa unique và index như bảng grants.
+
+---
+
+### Channel memory extraction
+
+Trích xuất thụ động, theo lịch trình bộ nhớ bền vững từ lịch sử channel. Không lưu nội dung tin nhắn gốc — chỉ tóm tắt chờ duyệt. (migration 076)
+
+**`channel_memory_extraction_runs`** — một lượt trích xuất trên một lát của lịch sử channel.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `channel_name` | VARCHAR(255) | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `history_key` | VARCHAR(255) | NOT NULL | Key của bucket lịch sử |
+| `trigger` | VARCHAR(32) | NOT NULL DEFAULT 'scheduled' | Cái gì khởi động run |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending' | Trạng thái run |
+| `source_start_id` / `source_end_id` | VARCHAR(255) | NOT NULL DEFAULT '' | Khoảng message nguồn |
+| `source_start_at` / `source_end_at` | TIMESTAMPTZ | | Khoảng thời gian nguồn |
+| `message_count` / `redaction_count` / `item_count` | INTEGER | NOT NULL DEFAULT 0 | Bộ đếm |
+| `redaction_types` | JSONB | NOT NULL DEFAULT `[]` | Các loại redaction đã áp dụng |
+| `error_message` | TEXT | NOT NULL DEFAULT '' | |
+| `started_at` / `completed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)` · **Index:** channel, status
+
+**`channel_memory_extraction_items`** — hàng đợi duyệt các item bộ nhớ ứng viên.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `run_id` | UUID FK → channel_memory_extraction_runs | NOT NULL ON DELETE CASCADE | Run cha |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `item_hash` | VARCHAR(128) | NOT NULL | Hash dedup |
+| `item_type` | VARCHAR(64) | NOT NULL | |
+| `summary` | TEXT | NOT NULL | Tóm tắt đã trích xuất (không có nội dung gốc) |
+| `topics` / `entities` | JSONB | NOT NULL DEFAULT `[]` | |
+| `confidence` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `source_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending_review' | Trạng thái duyệt |
+| `approved_by` / `rejected_by` | VARCHAR(255) | NOT NULL DEFAULT '' | Actor duyệt |
+| `approved_at` / `rejected_at` / `deleted_at` / `written_at` | TIMESTAMPTZ | | Timestamp duyệt/vòng đời |
+| `episodic_id` | VARCHAR(64) | NOT NULL DEFAULT '' | ID bộ nhớ episodic đã ghi |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, item_hash)` · **Index:** channel+status, run
+
+---
+
+### `secure_cli_agent_credentials`
+
+Credential có kiểu theo từng agent cho các binary secure-CLI, lưu tách biệt khỏi chính sách `secure_cli_agent_grants`. Thứ tự resolve khi chạy là user → context → agent → mặc định của binary. (migration 077)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID | NOT NULL | Binary CLI (FK tổ hợp với `tenant_id`) |
+| `agent_id` | UUID | NOT NULL | Agent (FK tổ hợp với `tenant_id`) |
+| `encrypted_env` | BYTEA | NOT NULL | Env mã hóa AES-256-GCM |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Tenant sở hữu |
+| `credential_type` | TEXT | NULL | Loại credential tùy chọn |
+| `host_scope` | TEXT | NULL | Host scope tùy chọn |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(binary_id, agent_id, tenant_id)`
+**FK tổ hợp:** `(binary_id, tenant_id)` → `secure_cli_binaries(id, tenant_id)` CASCADE; `(agent_id, tenant_id)` → `agents(id, tenant_id)` CASCADE (được hỗ trợ bởi các unique index mới `idx_secure_cli_binaries_id_tenant` và `idx_agents_id_tenant`)
+**Index:** tenant, binary, agent
+
+---
+
+### Skill self-evolution
+
+Theo dõi hiệu năng của mỗi skill hiện có theo thời gian và ghi lại các cải tiến được đề xuất, đã áp dụng. Khác với metric evolution ở cấp agent. (migration 079)
+
+**`skill_evolution_settings`** — toggle và mode theo từng tenant/từng skill.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Phần PK |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | Phần PK |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | |
+| `mode` | VARCHAR(32) | NOT NULL DEFAULT 'suggest_only', CHECK in (`suggest_only`, `auto_analyze`) | |
+| `last_analyzed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Primary key:** `(tenant_id, skill_id)` · **Index:** `skill_id`
+
+**`skill_usage_metrics`** — một dòng cho mỗi lần gọi skill được ghi nhận.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `skill_version` | INT | NOT NULL DEFAULT 1 | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `user_id` | VARCHAR(255) | | |
+| `session_key` / `trace_id` / `invocation_id` | TEXT | | Liên kết |
+| `invocation_source` | VARCHAR(32) | NOT NULL DEFAULT 'runtime' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'started', CHECK in (`started`, `succeeded`, `failed`, `abandoned`) | |
+| `failure_reason` | TEXT | | |
+| `tool_calls_count` | INT | NOT NULL DEFAULT 0 | |
+| `duration_ms` | BIGINT | NOT NULL DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(skill_id, created_at DESC)`; `(tenant_id, created_at DESC)`; `(skill_id, status, created_at DESC)`; partial trên `invocation_id`
+
+**`skill_improvement_suggestions`** — các patch được đề xuất kèm bằng chứng.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `suggestion_type` | VARCHAR(64) | NOT NULL | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending', CHECK in (`pending`, `approved`, `rejected`, `applied`) | |
+| `reason` | TEXT | NOT NULL DEFAULT '' | |
+| `evidence` / `draft_patch` | JSONB | NOT NULL DEFAULT `{}` | Bằng chứng hỗ trợ + patch đề xuất |
+| `target_file` | TEXT | NOT NULL DEFAULT '' | |
+| `created_by_actor_type` / `created_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_by_actor_type` / `reviewed_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_at` | TIMESTAMPTZ | | |
+| `applied_version` | INT | | Version tạo ra nếu được áp dụng |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(skill_id, status, created_at DESC)`; `(tenant_id, created_at DESC)`
+
+**`skill_versions`** — bản ghi version bất biến cho các thay đổi đã áp dụng. `id UUID PK`, `tenant_id`/`skill_id` FK CASCADE, `version INT NOT NULL`, `content_hash VARCHAR(64)`, `changed_files JSONB`, các cột actor created-by, `created_from_suggestion_id UUID FK → skill_improvement_suggestions ON DELETE SET NULL`, `created_at`. **Unique:** `(skill_id, version)` · **Index:** `(tenant_id, skill_id, version DESC)`. Migration backfill một dòng cho mỗi skill chưa bị xóa hiện có.
+
+---
+
+### Usage event analytics
+
+Phân tích thô theo từng sự kiện cộng với rollup tổng hợp sẵn theo giờ hỗ trợ dashboard phân tích usage. Khác với `usage_snapshots` (migration 016) và họ `usage_cap_*` / `usage_pricing_*`. (migration 080)
+
+**`usage_events`** — một dòng cho mỗi sự kiện tính phí/đo lường được.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `event_time` / `bucket_hour` | TIMESTAMPTZ | NOT NULL | Thời điểm sự kiện và bucket theo giờ |
+| `event_type` / `resource_type` / `resource_name` | TEXT | NOT NULL | Các chiều của sự kiện |
+| `resource_id` / `source` | TEXT | NOT NULL DEFAULT '' | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `team_id` | UUID | | |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | |
+| `run_id` / `session_key` / `channel` / `provider` / `model` / `status` | TEXT | NOT NULL DEFAULT '' | |
+| `input_tokens` / `output_tokens` / `total_tokens` | BIGINT | NOT NULL DEFAULT 0 | |
+| `cost_usd` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `duration_ms` / `call_count` / `error_count` | INTEGER | NOT NULL DEFAULT 0 / 1 / 0 | |
+| `metadata` | JSONB | | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** tenant+time; tenant+resource+time; tenant+type+time; tenant+agent+time; partial tenant+channel+time `WHERE channel != ''`; **unique partial** `(trace_id, span_id, event_type, source) WHERE trace_id IS NOT NULL AND span_id IS NOT NULL` (ingest idempotent)
+
+**`usage_event_rollups`** — rollup tổng hợp sẵn theo giờ trên cùng các chiều (`bucket_hour`, `event_type`, `resource_type`, `resource_name`, `source`, `agent_id`, `channel`, `provider`, `model`, `status`) với count/token/cost được cộng tổng. **Unique** trên toàn bộ tuple chiều dùng `COALESCE(agent_id, '00000000-0000-0000-0000-000000000000')`. **Index:** `(tenant_id, bucket_hour DESC)`; `(tenant_id, resource_type, resource_name, bucket_hour DESC)`.
 
 ---
 
@@ -31924,6 +33581,26 @@ Xác thực qua GoClaw UI (Channels > WhatsApp > Re-authenticate).
 
 ---
 
+## Bitrix24
+
+| Vấn đề | Nguyên nhân | Cách xử lý |
+|--------|-------------|------------|
+| Domain self-hosted bị từ chối | Validation an toàn SSRF | FQDN của portal phải phân giải về một IP public. Các dải IP loopback/private/metadata và tên `localhost` / `.local` / `.localhost` bị chặn; port bất kỳ phải nằm trong khoảng 1–65535. Domain cloud `*.bitrix24.*` bỏ qua kiểm tra này. |
+
+---
+
+## Human-like Delivery & Passive Memory
+
+Các tính năng này **mặc định tắt**. Nếu bạn mong đợi chúng nhưng không thấy gì, hãy kiểm tra config.
+
+| Vấn đề | Nguyên nhân | Cách xử lý |
+|--------|-------------|------------|
+| Quick-ack / progress reply không xuất hiện | `gateway.chat_behavior` đang tắt (mặc định) | Bật `chat_behavior` (và các khối con `quick_ack` / `intermediate_replies`); xác minh `provider`/`model` của sidecar phân giải được. Xem [Human-like Delivery](/channels-overview#human-like-delivery). |
+| Hành vi khác nhau theo channel | Phân giải override | Thứ tự là **Channel > Agent > Workspace** — `chat_behavior` cấp channel thắng so với cơ sở agent và workspace. |
+| Passive channel memory không trích xuất | `passive_memory.enabled` tắt, không phải group, hoặc chưa đạt `min_messages` | Bật `passive_memory`; lưu ý chỉ áp dụng cho group ở v1. Xem [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction). |
+
+---
+
 ## Trạng Thái Channel Health
 
 GoClaw v3 theo dõi trạng thái runtime của từng channel. Dashboard và RPC `channels.status` phản ánh các trạng thái sau:
@@ -32216,7 +33893,7 @@ Tool được đăng ký với tên `{prefix}__{tool_name}`. Prefix mặc địn
 
 ## Tổng quan
 
-GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` và `pgcrypto`. Kết nối database được cấu hình duy nhất qua `GOCLAW_POSTGRES_DSN` (không bao giờ lưu trong `config.json`). Migration được quản lý bởi `golang-migrate` và chạy qua `./goclaw migrate up`. Phiên bản schema hiện tại: **44**.
+GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` và `pgcrypto`. Kết nối database được cấu hình duy nhất qua `GOCLAW_POSTGRES_DSN` (không bao giờ lưu trong `config.json`). Migration được quản lý bởi `golang-migrate` và chạy qua `./goclaw migrate up`. Phiên bản schema hiện tại: **80**.
 
 ## Lỗi Kết Nối
 
@@ -32385,6 +34062,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
 
 ## Lỗi migration v3 (037–044)
+
+> Schema hiện đã mở rộng tới **080**. Các bước khắc phục bên dưới bao quát loạt v3 (037–044), vốn là các migration dễ lỗi nhất khi nâng cấp từ những bản v3 cũ; các migration sau (045–080) chỉ bổ sung và hiếm khi cần can thiệp thủ công. Xem [Database Schema → Migration History](/database-schema) để biết danh sách đầy đủ.
 
 Migrations 037–044 là loạt migration v3. Nếu gặp lỗi:
 

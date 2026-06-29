@@ -37,7 +37,7 @@ Setup (chạy một lần)
 Vòng lặp lặp lại (tối đa 20 lần mỗi lượt)
 ├─ ThinkStage   — xây dựng system prompt, lọc tool, gọi LLM
 ├─ PruneStage   — trim context khi cần, trigger memory flush
-├─ ToolStage    — thực thi tool call (song song khi có thể)
+├─ ToolStage    — thực thi tool call (batch read-only chạy song song có giới hạn; còn lại tuần tự)
 ├─ ObserveStage — xử lý kết quả tool, thêm vào message buffer
 └─ CheckpointStage — theo dõi vòng lặp, kiểm tra điều kiện thoát
 
@@ -52,7 +52,7 @@ Finalize (chạy một lần, tồn tại kể cả khi bị huỷ)
 | **ContextStage** | Setup | Inject context agent/user/workspace; giải quyết file per-user |
 | **ThinkStage** | Iteration | Xây dựng system prompt (15+ phần), gọi LLM, phát streaming chunk |
 | **PruneStage** | Iteration | Trim context khi ≥ 30% đầy (nhẹ) hoặc ≥ 50% đầy (mạnh); trigger memory flush |
-| **ToolStage** | Iteration | Thực thi tool call — goroutine song song cho nhiều call |
+| **ToolStage** | Iteration | Thực thi tool call. Chỉ tool **read-only** đã đăng ký mới chạy song song có giới hạn; tool gây thay đổi (mutating), async, MCP-bridge (`mcp_*`), `exec`/`bash`, `wait`, tool không xác định/chưa đăng ký, và batch vượt ngân sách đều chạy **tuần tự**. Batch hỗn hợp có bất kỳ call không đủ điều kiện nào sẽ chạy hoàn toàn tuần tự. Hook `PreToolUse` chạy trước mọi I/O song song, và kết quả được xử lý theo đúng thứ tự assistant ban đầu |
 | **ObserveStage** | Iteration | Xử lý kết quả tool; xử lý `NO_REPLY` silent completion |
 | **CheckpointStage** | Iteration | Tăng đếm vòng; thoát khi đạt max-iter hoặc context bị huỷ |
 | **FinalizeStage** | Finalize | Chạy 7 bước sanitize output; flush message nguyên tử; cập nhật session metadata |
@@ -128,4 +128,4 @@ GoClaw v3 đi kèm năm hệ thống mới — mỗi hệ thống có trang riê
 - [Tools Overview](/tools-overview) — Danh mục tool đầy đủ
 - [Sessions and History](./sessions-and-history.md) — Cách cuộc hội thoại được lưu trữ
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-17 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

@@ -216,6 +216,76 @@ Also supports the legacy flat format:
 
 If no `read_image` chain is configured, images are attached inline to the main LLM as usual.
 
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | required | What you want to know about the image(s) |
+| `path` | string | — | Optional path to an image in the workspace (generated images or attachments) |
+| `url` | string | — | Optional URL to an image hosted online |
+
+`path` and `url` are **mutually exclusive** — passing both returns an error. If neither is given, the tool analyzes images already attached to the conversation.
+
+> **Provider note:** Anthropic and `claude-cli` providers cannot analyze images directly from a URL — they require base64-encoded image data. If a URL-only image is routed to one of them, that provider errors and the chain falls back to the next provider. Gemini, OpenRouter, and DashScope accept image URLs directly. URLs are SSRF-validated before any fetch.
+
+---
+
+## Video Analysis (read_video)
+
+The `read_video` tool analyzes video files using a video-capable provider chain (Gemini → OpenRouter by default). Use it when the conversation contains `<media:video>` tags, or point it at a workspace file or a hosted URL.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | required | What to analyze — e.g. "Summarize the key scenes", "What text appears on screen?" |
+| `media_id` | string | — | Optional specific `media_id` from a `<media:video>` tag. If omitted, uses the most recent video |
+| `url` | string | — | Optional URL to a video file hosted online |
+
+`media_id` and `url` are **mutually exclusive**. Local video files are capped at **100 MB**.
+
+> **URL streaming:** For video URLs, GoClaw pipes the stream from the URL through the **Gemini File API** rather than downloading the whole file locally first. URLs are SSRF-validated and the resolved IP is pinned for the upload. At the provider layer, image and video parts are now distinct media-content types (`ImageContent` vs `VideoContent`).
+
+The same chain-override format as `create_*` and `read_image` applies under `builtin_tools.settings.read_video`.
+
+---
+
+## Document Analysis (read_document)
+
+The `read_document` tool extracts and analyzes documents — **PDF, DOCX, and images of documents** — using a document-capable provider chain (Gemini → Anthropic → claude-cli → OpenRouter → DashScope by default).
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | required | What to analyze — e.g. "Extract all tables", "What does page 3 say?" |
+| `media_id` | string | — | Optional specific `media_id` from a `<media:document>` tag |
+| `path` | string | — | Optional file path from a `<media:document path="...">` tag |
+
+Unlike `read_image` and `read_video`, `read_document` has **no** `url` parameter. Plain-text formats (JSON, CSV, Markdown, HTML, etc.) are returned directly without an LLM call. Files are capped at **20 MB**.
+
+### Local-First Extraction (opt-in)
+
+By default, documents go straight to the cloud vision chain. You can opt into local extraction that runs `pdftotext` (PDF) and `pandoc --sandbox` (DOCX) on the host *before* any cloud call, via the `document_parser` config block:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `local_first` | `false` | Enable local extraction. Requires `pdftotext`/`pandoc` on PATH — present in the `full` Docker variant or builds with `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | PDF page limit; passed to `pdftotext -l` |
+| `timeout_sec` | `30` | Per-extraction timeout; the process group is killed on timeout |
+| `min_text_len` | `16` | Minimum characters (after trim) for a successful extraction; shorter output triggers cloud fallback |
+
+Config is captured at startup (not hot-reloaded); binary availability is re-checked per call, so a runtime install is detected without a restart. Any miss — disabled, unsupported MIME, missing binary, timeout, or too-little text (e.g. a scanned image-only PDF) — falls back transparently to the cloud vision chain. PDF extraction uses `pdftotext -l <max_pages>`; DOCX uses `pandoc --sandbox` so an untrusted document cannot fetch remote resources during conversion.
+
 ---
 
 ## Required API Keys
@@ -245,4 +315,4 @@ Downloaded media files are capped at **200 MB**. Files exceeding this limit will
 - [Custom Tools](/custom-tools) — Build your own tools
 - [Provider Overview](/providers-overview) — Configure API keys
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

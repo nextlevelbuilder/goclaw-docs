@@ -16,6 +16,8 @@ goclaw [global flags] <command> [subcommand] [flags] [args]
 |------|---------|-------------|
 | `--config <path>` | `config.json` | Config file path. Also read from `$GOCLAW_CONFIG` |
 | `-v`, `--verbose` | false | Enable debug logging |
+| `--server <url>` | — | Gateway server URL override for HTTP-backed commands (traces, skills, etc.). Falls back to `$GOCLAW_SERVER`, then `$GOCLAW_GATEWAY_URL` |
+| `--token <token>` | — | Gateway bearer token override. Falls back to `$GOCLAW_GATEWAY_TOKEN` |
 
 ---
 
@@ -358,6 +360,118 @@ goclaw sessions reset "telegram:123456789"
 
 ---
 
+## `traces`
+
+Inspect agent execution traces and run timelines through the running gateway. All `traces` subcommands are HTTP-backed — they connect to the gateway resolved from `--server` / `$GOCLAW_SERVER` / `$GOCLAW_GATEWAY_URL` and authenticate with `--token` / `$GOCLAW_GATEWAY_TOKEN`.
+
+| Persistent flag | Default | Description |
+|------|---------|-------------|
+| `-o`, `--output <table\|json>` | `table` | Output format |
+
+```bash
+goclaw traces list --status error --limit 20
+goclaw traces get <trace-id> -o json
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces timeline <trace-id>
+# remote gateway:
+goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" traces get <trace-id> -o json
+```
+
+### `traces list`
+
+List traces with filtering and full-text search.
+
+```bash
+goclaw traces list
+goclaw traces list -q "payment" --has-tool-calls true --limit 50
+```
+
+| Flag | Description |
+|------|-------------|
+| `-q`, `--query <text>` | Search trace text, IDs, labels, and span previews |
+| `--agent-id <uuid>` | Filter by agent UUID |
+| `--user <id>` | Filter by user ID (admin callers) |
+| `--session <key>` | Filter by session key |
+| `--status <status>` | Filter by trace status (`running`, `completed`, `error`, `cancelled`) |
+| `--channel <channel>` | Filter by raw channel |
+| `--agent <text>` | Search agent display name or key |
+| `--channel-query <text>` | Search channel instance labels |
+| `--tool <name>` | Search span tool names |
+| `--from <rfc3339>` | Start-time lower bound (inclusive) |
+| `--to <rfc3339>` | Start-time upper bound (exclusive) |
+| `--since <rfc3339>` | Alias for `--from` |
+| `--until <rfc3339>` | Alias for `--to` |
+| `--has-tool-calls <true\|false>` | Only traces with/without tool calls |
+| `--min-input-tokens <n>` | Minimum input tokens |
+| `--max-input-tokens <n>` | Maximum input tokens |
+| `--min-output-tokens <n>` | Minimum output tokens |
+| `--max-output-tokens <n>` | Maximum output tokens |
+| `--min-tool-calls <n>` | Minimum tool-call count |
+| `--max-tool-calls <n>` | Maximum tool-call count |
+| `--limit <n>` | Page size (max 200) |
+| `--offset <n>` | Pagination offset |
+
+### `traces get <trace-id>`
+
+Get trace details with spans. Takes exactly one trace ID.
+
+```bash
+goclaw traces get <trace-id>
+goclaw traces get <trace-id> -o json
+```
+
+### `traces export <trace-id>`
+
+Export a gzipped trace tree. Takes exactly one trace ID.
+
+```bash
+goclaw traces export <trace-id>                 # writes trace-<short>-<YYYYMMDD>.json.gz
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces export <trace-id> --file -        # gzip to stdout
+goclaw traces export <trace-id> -o json         # decompressed JSON to stdout
+```
+
+| Flag | Description |
+|------|-------------|
+| `--file <path>` | Write gzip export to file (use `-` for stdout). Default writes `trace-<short>-<YYYYMMDD>.json.gz` |
+
+### `traces follow`
+
+Poll trace changes for one session or agent. **Requires `--session` OR `--agent-id`.**
+
+```bash
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces follow --agent-id <uuid> --include-spans
+```
+
+| Flag | Description |
+|------|-------------|
+| `--session <key>` | Filter by session key |
+| `--agent-id <uuid>` | Filter by agent UUID |
+| `--user <id>` | Filter by user ID (admin callers) |
+| `--status <status>` | Filter by trace status |
+| `--channel <channel>` | Filter by raw channel |
+| `--since <rfc3339>` | RFC3339 lower bound for changed traces |
+| `--limit <n>` | Page size (max 200) |
+| `--include-spans` | Include spans grouped by trace ID |
+
+### `traces timeline <trace-id>`
+
+Show the persisted run timeline linked to a trace. Resolves the trace's `run_id`, then queries the run archive. Takes exactly one trace ID.
+
+```bash
+goclaw traces timeline <trace-id>
+goclaw traces timeline <trace-id> --limit 100 --offset 0
+```
+
+| Flag | Description |
+|------|-------------|
+| `--limit <n>` | Page size (max 500) |
+| `--offset <n>` | Pagination offset |
+
+---
+
 ## `cron`
 
 Manage scheduled cron jobs. Requires gateway to be running.
@@ -550,6 +664,136 @@ Show content and metadata for a specific skill.
 goclaw skills show sequential-thinking
 ```
 
+> The subcommands below are HTTP-backed (require a running gateway). The `<skill>` argument accepts a skill ID, slug, or name — it is resolved against the gateway.
+
+### `skills evolve`
+
+Manage per-skill self-evolution settings.
+
+```bash
+goclaw skills evolve status <skill>
+goclaw skills evolve enable <skill>
+goclaw skills evolve disable <skill>
+goclaw skills evolve mode <skill> suggest_only
+goclaw skills evolve mode <skill> auto_analyze
+```
+
+| Command | Args | Effect |
+|---------|------|--------|
+| `skills evolve status <skill>` | 1 | Show self-evolution settings |
+| `skills evolve enable <skill>` | 1 | Enable self-evolution |
+| `skills evolve disable <skill>` | 1 | Disable self-evolution |
+| `skills evolve mode <skill> <suggest_only\|auto_analyze>` | 2 | Set the evolution mode |
+
+### `skills metrics <skill>`
+
+Show recorded usage metrics for a skill (Total, Started, Succeeded, Failed, Abandoned, Success rate).
+
+```bash
+goclaw skills metrics <skill>
+goclaw skills metrics <skill> --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+### `skills activity <skill>`
+
+Show recent self-evolution activity for a skill (admin-gated detail).
+
+```bash
+goclaw skills activity <skill>
+goclaw skills activity <skill> --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+### `skills suggestions`
+
+Manage skill improvement suggestions.
+
+```bash
+goclaw skills suggestions list <skill>
+goclaw skills suggestions approve <skill> <suggestion-id>
+goclaw skills suggestions reject <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id> --approve
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills suggestions list <skill>` | 1 | List suggestions for a skill |
+| `skills suggestions approve <skill> <suggestion-id>` | 2 | Approve a suggestion |
+| `skills suggestions reject <skill> <suggestion-id>` | 2 | Reject a suggestion |
+| `skills suggestions apply <skill> <suggestion-id>` | 2, `--approve` | Apply an approved suggestion (`--approve` approves a pending one first) |
+
+### `skills deps`
+
+Scan, check, and install skill dependencies. The argument accepts a local skill path or a gateway skill ID.
+
+```bash
+goclaw skills deps status <skill-id-or-path>
+goclaw skills deps scan <skill-id-or-path>
+goclaw skills deps check <skill-id-or-path>
+goclaw skills deps install <skill-id>
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills deps status <skill-id-or-path>` | 1, `--json` | Show dependency status |
+| `skills deps scan <skill-id-or-path>` | 1, `--json` | Scan dependency declarations |
+| `skills deps check <skill-id-or-path>` | 1, `--json` | Check availability |
+| `skills deps install <skill-id>` | 1, `--json` | Install missing dependencies (master tenant) |
+
+### `skills access`
+
+Manage skill access mode and effective access.
+
+```bash
+goclaw skills access get <skill-id>
+goclaw skills access set <skill-id> --mode internal
+goclaw skills access effective <skill-id> --agent <agent-id> --user <user-id>
+goclaw skills access effective --agent <agent-id> --user <user-id>
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills access get <skill-id>` | 1, `--json` | Show access mode and grants |
+| `skills access set <skill-id> --mode <private\|internal\|public>` | 1, `--mode` (required), `--json` | Set the access mode |
+| `skills access effective [skill-id] --agent <id> --user <id>` | 0–1, `--agent`+`--user` (required), `--json` | Inspect effective access (per-skill when an ID is given, else across skills) |
+
+### `skills grant`
+
+Grant skill access to an agent or user.
+
+```bash
+goclaw skills grant agent <skill-id> <agent-id>
+goclaw skills grant agent <skill-id> <agent-id> --can-manage --pinned-version 3
+goclaw skills grant user <skill-id> <user-id>
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills grant agent <skill-id> <agent-id>` | 2, `--can-manage`, `--pinned-version <n>`, `--json` | Grant a skill to an agent |
+| `skills grant user <skill-id> <user-id>` | 2, `--json` | Grant a skill to a user |
+
+### `skills revoke`
+
+Revoke skill access from an agent or user.
+
+```bash
+goclaw skills revoke agent <skill-id> <agent-id>
+goclaw skills revoke user <skill-id> <user-id>
+```
+
+| Command | Args | Effect |
+|---------|------|--------|
+| `skills revoke agent <skill-id> <agent-id>` | 2 | Revoke an agent grant |
+| `skills revoke user <skill-id> <user-id>` | 2 | Revoke a user grant |
+
 ---
 
 ## `models`
@@ -728,4 +972,4 @@ goclaw bitrix-portal set-public-url \
 - [REST API](/rest-api) — HTTP API endpoint listing
 - [Config Reference](/config-reference) — full `config.json` schema
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

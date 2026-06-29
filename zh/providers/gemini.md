@@ -54,6 +54,10 @@ Gemini 2.5+ 在工具调用中返回 `thought_signature`。GoClaw 将其存储�
 
 当工具调用存在时，Gemini 拒绝 `content` 为空的 assistant 消息。GoClaw 在这种情况下省略 `content` 字段，而不是发送空字符串。
 
+### 通过 URL 输入媒体
+
+通过 URL 提供的图片和视频输入无需你先行下载即可处理。图片 URL 直接透传到视觉请求。对于视频，GoClaw 通过一个 SSRF 安全的固定 HTTP 客户端将 URL 流式传入 Gemini File API（上传 → 轮询 → `file_data`）。完整的多模态输入/输出参考见 [媒体生成](/media-generation)。
+
 ## 思考 / 推理
 
 Gemini 2.5 模型支持扩展思考。在 agent 选项中设置 `thinking_level`：
@@ -84,4 +88,4 @@ GoClaw 将其映射到请求中的 `reasoning_effort`。思考 token 用量追�
 - [OpenRouter](/provider-openrouter) — 通过一个 key 访问 Gemini 和 100+ 其他模型
 - [概览](/providers-overview) — provider 架构和重试逻辑
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

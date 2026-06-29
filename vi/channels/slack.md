@@ -106,6 +106,7 @@ Tất cả config key nằm trong `channels.slack`:
 | `native_stream` | bool | false | Dùng Slack ChatStreamer API nếu có |
 | `reaction_level` | string | `"off"` | `off`, `minimal`, `full` |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `debounce_delay` | int | 300 | Mili giây trước khi gửi các tin nhắn nhanh (0=tắt) |
 | `thread_ttl` | int | 24 | Giờ trước khi thread participation hết hạn (0=tắt) |
 | `media_max_bytes` | int | 20MB | Kích thước file tải tối đa |
@@ -198,7 +199,7 @@ Reaction được debounce 700ms để tránh spam API.
 
 **Nhận file:** File đính kèm được tải xuống với bảo vệ SSRF (danh sách host cho phép: `*.slack.com`, `*.slack-edge.com`, `*.slack-files.com`). Auth token bị xóa khi redirect. File vượt `media_max_bytes` (mặc định 20MB) bị bỏ qua.
 
-**Gửi file:** File từ agent được upload qua Slack file upload API. Upload thất bại hiển thị lỗi inline.
+**Gửi file:** File từ agent được upload qua Slack file upload API. Upload thất bại hiển thị lỗi inline. Khi agent gửi một batch (`send_file` với `attachments[]`), Slack dùng cơ chế dự phòng **ordered single-send** — các file được gửi lần lượt theo thứ tự. Xem [Multi-Attachment Delivery](/channels-overview#multi-attachment-delivery-batching).
 
 **Trích xuất tài liệu:** File tài liệu (PDF, text) được trích xuất nội dung và thêm vào tin nhắn để agent xử lý.
 
@@ -240,4 +241,4 @@ Danh sách `allow_from` hỗ trợ cả user ID và Slack channel ID cho allowli
 - [Discord](/channel-discord) — Thiết lập Discord bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

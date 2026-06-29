@@ -24,7 +24,7 @@
 | **消息传递** (`group:messaging`) | message, create_forum_topic | 发送消息；创建 Telegram 论坛话题 |
 | **媒体生成** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | 生成图片、音频、视频和文字转语音；`image_generation` 是 Codex/OpenAI-compat 的原生工具（三级开关：provider 能力 + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`）——参见[媒体生成](/zh/advanced/media-generation) |
 | **浏览器** | browser | 导航网页、截图、与元素交互 |
-| **媒体读取** (`group:media_read`) | read_image, read_audio, read_document, read_video | 分析图片、转录音频、提取文档、分析视频 |
+| **媒体读取** (`group:media_read`) | read_image, read_audio, read_document, read_video | 分析图片（文件、附件或 URL）、转录音频、提取文档（PDF、DOCX、图片；可选通过 pdftotext/pandoc 的 local-first 提取）、分析视频（文件或 URL）— 参见 [Media Generation](/advanced/media-generation) |
 | **Skills** (`group:skills`) | use_skill, publish_skill | 调用和发布 skills |
 | **工作空间** | workspace_dir | 解析团队/用户上下文的工作空间目录 |
 | **AI** | openai_compat_call | 以自定义请求格式调用 OpenAI 兼容端点 |
@@ -108,6 +108,32 @@ graph LR
 3. **执行** — 工具运行并产生输出
 4. **清除** — 从输出中移除凭证和敏感数据
 5. **返回** — 干净的结果返回给 LLM 进行下一次迭代
+
+### 并行与串行调度
+
+当 LLM 在一个回合内发出**多个**工具调用时，GoClaw 决定是否并发运行它们。只有已注册的**只读**工具才有资格进行有界并行原始 I/O。变更类（mutating）、async、MCP 桥接（`mcp_*`）、`exec`/`bash`、`wait`、未知/未注册工具，以及超出工具调用预算的批次均**串行**执行。包含任一不合格调用的混合批次将整体串行执行。`PreToolUse` hook 在任何并行执行之前运行，结果始终按原始 assistant 顺序处理。该资格判定由每个工具的能力（capability）元数据（副作用类别）驱动，因此自定义工具默认串行，除非注册为只读。
+
+### `read_document` Local-First 提取
+
+`read_document` 分析 PDF、DOCX 和文档图片。默认情况下，它将文件发送给云端视觉 provider。你可以选择启用 **local-first 提取**，在任何云端调用*之前*在主机上运行 `pdftotext`（PDF）和 `pandoc --sandbox`（DOCX），通过 `document_parser` 块配置：
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| 字段 | 默认值 | 说明 |
+|-------|---------|-------------|
+| `local_first` | `false` | 启用本地提取（opt-in）。需要 PATH 上有 `pdftotext`/`pandoc` — `full` Docker 变体或使用 `ENABLE_FULL_SKILLS=true` 的构建中已包含 |
+| `max_pages` | `200` | PDF 页数限制；传给 `pdftotext -l` |
+| `timeout_sec` | `30` | 每次提取的超时；超时时进程组被 kill |
+| `min_text_len` | `16` | 提取成功所需的最少字符数（trim 后）；更短的输出会触发云端回退 |
+
+配置在启动时捕获（不热重载），但每次调用都会重新检查二进制可用性，因此运行时安装可被检测到而无需重启。任何提取未命中——已禁用、不支持的 MIME、缺少二进制、超时，或文本太少（例如扫描的纯图片 PDF）——都会透明回退到云端视觉链，对调用方无任何差异。
 
 ## 工具 Profile
 
@@ -406,4 +432,4 @@ GoClaw 追踪每个 session 中每个工具的执行时间。如果工具调用�
 - [多租户](/multi-tenancy) — 每用户工具访问和隔离
 - [自定义工具](/custom-tools) — 构建你自己的工具
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

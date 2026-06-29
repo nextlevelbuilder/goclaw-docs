@@ -84,6 +84,21 @@ GoClaw extracts media attachments from the message being replied to across all c
 
 The `media_max_bytes` config field enforces a per-channel limit on outbound media uploads sent by the agent. Files exceeding this limit are skipped with a log entry. Each channel sets its own default (e.g., 20 MB for Telegram, 30 MB for Feishu/Lark). Configure per channel if needed.
 
+### Multi-Attachment Delivery (Batching)
+
+The `send_file` tool can deliver several existing workspace files in one go. Two forms are accepted:
+
+- **Single file:** `path` (plus an optional `caption`).
+- **Batch:** `attachments: [{ "path": "...", "caption": "..." }, ...]` — file order, MIME type, filename, and per-file captions are preserved.
+
+How each channel groups a batch depends on what the platform supports:
+
+| Channel | Grouping | Behavior |
+|---------|----------|----------|
+| Telegram | Album chunks | Compatible media are grouped into `sendMediaGroup` albums of **2–10** items. Photos/videos can share a chunk; documents group only with documents, audio only with audio. Voice-mode audio, singleton chunks, oversized images sent as documents, and incompatible runs fall back to ordered single-send. |
+| Discord | Single message | Multiple files (plus optional text) are delivered in **one** message, up to 10 attachments. |
+| Slack and other media-capable channels | Ordered fallback | Files are sent one after another in order unless the adapter advertises a stronger batch capability. |
+
 ## Inbound Debounce
 
 When a user fires several messages in quick succession (or uploads multiple files at once), GoClaw merges them into a **single** inbound message before running the agent — one reply instead of one per fragment.
@@ -103,6 +118,64 @@ Set the silence window with `gateway.inbound_debounce_ms` (milliseconds):
 - **Per-agent override:** an agent can set `inbound_debounce_ms` in its `agent_config` to use a different window than the gateway default.
 - **`/stop` and `/reset` bypass the debouncer** — control commands are handled immediately and never buffered.
 - **Media floor:** media-bearing messages no longer bypass debouncing. The effective window is `max(configured, media floor)`, so a multi-file upload always coalesces into one inbound even when text debouncing is set to `0`. (A non-zero agent override is honored verbatim — operators who set, say, `500` keep `500`, not the floor.) Messages synthesized internally by tools/subagents are exempt from the floor.
+
+## Human-like Delivery
+
+GoClaw can make channel replies feel more conversational — a quick acknowledgement before a long run, short progress notes while tools execute, and splitting a long final answer into a few natural messages. This is configured under `gateway.chat_behavior` and is **disabled by default**.
+
+> These behaviors are **delivery-only**. Acknowledgements, progress notes, and split parts are never written to session history or sent back to the model as conversation — they only change what the human sees in the chat.
+
+```json
+{
+  "gateway": {
+    "chat_behavior": {
+      "enabled": true,
+      "quick_ack": { "enabled": true, "mode": "sidecar_generated" },
+      "intermediate_replies": { "enabled": true },
+      "final_split": { "enabled": true }
+    }
+  }
+}
+```
+
+### The three sub-behaviors
+
+| Sub-behavior | What it does |
+|--------------|--------------|
+| `quick_ack` | Sends one short receipt before a longer non-streaming run, so the user knows the bot is working. |
+| `intermediate_replies` | Sends short progress updates while the agent is running tools. Independent from `quick_ack`. |
+| `final_split` | Splits a long final reply into a small number of paragraph-sized messages. |
+
+**`quick_ack` modes:**
+
+| Mode | Behavior |
+|------|----------|
+| `sidecar_generated` | A bounded, separate LLM call writes a short, context-aware acknowledgement. |
+| `llm_generated` | Backward-compatible alias; this is also the default resolved mode. |
+| `fixed_template` | Sends the first string from `templates` (default `"Got it. Working on it..."`). |
+| `off` | No acknowledgement. |
+
+`quick_ack` fields: `enabled`, `mode`, `min_delay_ms` (default 1000), `provider`, `model`, `timeout_ms` (default 2500), `max_tokens` (default 40), `max_chars` (default 120), `templates`. When `provider`/`model` are unset, the agent's own provider/model are used.
+
+**`intermediate_replies`** modes are `sidecar_generated` (default) or `off`. Fields: `enabled`, `mode`, `provider`, `model`, `timeout_ms` (2500), `max_tokens` (default 60), `max_chars` (default 180). The sidecar only receives bounded metadata (message preview, locale, channel/peer, agent label, current tool phase) — **never** session history, tool arguments/output, memory, or system prompts.
+
+**`final_split`** fields: `enabled`, `min_chars` (default 1200), `max_messages` (default 3), `delay_ms` (default 500). Splitting is conservative — replies containing fenced code, tables, lists, quotes, JSON/XML-like blocks, or URL-only paragraphs stay as one message, and media or streaming deliveries are never split.
+
+### Override order
+
+`chat_behavior` can be set at three levels. The resolution order is **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (the base).
+2. **Agent** — `agents.other_config.delivery_behavior` overrides the workspace base.
+3. **Channel** — `channels.<type>.chat_behavior` (or a channel instance's `chat_behavior`) has the final say.
+
+Each level only overrides the fields it sets, so you can tune one knob per channel and inherit the rest.
+
+> **Legacy `block_reply`.** The older `gateway.block_reply` (and per-channel `block_reply`) flags are still read as the inherited default for `intermediate_replies.enabled` when the newer field is unset.
+
+### Channel support
+
+Human-like delivery is implemented by channels that adopt the `ChatBehaviorChannel` interface: **Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, and Zalo Personal**.
 
 ## Channel Comparison
 
@@ -175,6 +248,8 @@ Optional interfaces:
 - **`ReactionChannel`** — Status emoji reactions (thinking, done, error)
 - **`WebhookChannel`** — HTTP handler mountable on main gateway mux
 - **`BlockReplyChannel`** — Override gateway block_reply setting
+- **`ChatBehaviorChannel`** — [Human-like delivery](#human-like-delivery) (quick-ack, progress notes, final split). Implemented by Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, and Zalo Personal.
+- **`ReasoningDeliveryChannel`** — Control how model reasoning is surfaced in the chat. Currently implemented by Telegram only (see [Telegram › Reasoning Delivery](/channel-telegram#reasoning-delivery)).
 
 ## Common Patterns
 
@@ -216,4 +291,4 @@ Channels may enforce per-user rate limits. Configure via channel settings or imp
 - [WebSocket](/channel-websocket) — Direct agent API via WS
 - [Browser Pairing](/channel-browser-pairing) — 8-char code pairing flow
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

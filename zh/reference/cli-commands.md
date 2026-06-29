@@ -18,6 +18,8 @@ goclaw [global flags] <command> [subcommand] [flags] [args]
 |------|--------|------|
 | `--config <path>` | `config.json` | 配置文件路径，也可从 `$GOCLAW_CONFIG` 读取 |
 | `-v`, `--verbose` | false | 启用调试日志 |
+| `--server <url>` | — | HTTP 类命令（traces、skills 等）的网关服务器 URL 覆盖。回退到 `$GOCLAW_SERVER`，再回退到 `$GOCLAW_GATEWAY_URL` |
+| `--token <token>` | — | 网关 bearer token 覆盖。回退到 `$GOCLAW_GATEWAY_TOKEN` |
 
 ---
 
@@ -360,6 +362,118 @@ goclaw sessions reset "telegram:123456789"
 
 ---
 
+## `traces`
+
+通过运行中的网关检查 agent 执行 trace 和运行时间线。所有 `traces` 子命令均为 HTTP 类——它们连接由 `--server` / `$GOCLAW_SERVER` / `$GOCLAW_GATEWAY_URL` 解析出的网关，并用 `--token` / `$GOCLAW_GATEWAY_TOKEN` 进行认证。
+
+| 持久标志 | 默认值 | 说明 |
+|------|--------|------|
+| `-o`, `--output <table\|json>` | `table` | 输出格式 |
+
+```bash
+goclaw traces list --status error --limit 20
+goclaw traces get <trace-id> -o json
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces timeline <trace-id>
+# 远程网关：
+goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" traces get <trace-id> -o json
+```
+
+### `traces list`
+
+带过滤和全文搜索列出 trace。
+
+```bash
+goclaw traces list
+goclaw traces list -q "payment" --has-tool-calls true --limit 50
+```
+
+| 标志 | 说明 |
+|------|------|
+| `-q`, `--query <text>` | 搜索 trace 文本、ID、标签和 span 预览 |
+| `--agent-id <uuid>` | 按 agent UUID 过滤 |
+| `--user <id>` | 按用户 ID 过滤（管理员调用方） |
+| `--session <key>` | 按 session key 过滤 |
+| `--status <status>` | 按 trace 状态过滤（`running`、`completed`、`error`、`cancelled`） |
+| `--channel <channel>` | 按原始 channel 过滤 |
+| `--agent <text>` | 搜索 agent 显示名称或 key |
+| `--channel-query <text>` | 搜索 channel 实例标签 |
+| `--tool <name>` | 搜索 span 工具名称 |
+| `--from <rfc3339>` | 开始时间下界（含） |
+| `--to <rfc3339>` | 开始时间上界（不含） |
+| `--since <rfc3339>` | `--from` 的别名 |
+| `--until <rfc3339>` | `--to` 的别名 |
+| `--has-tool-calls <true\|false>` | 仅显示有/无工具调用的 trace |
+| `--min-input-tokens <n>` | 最小输入 token 数 |
+| `--max-input-tokens <n>` | 最大输入 token 数 |
+| `--min-output-tokens <n>` | 最小输出 token 数 |
+| `--max-output-tokens <n>` | 最大输出 token 数 |
+| `--min-tool-calls <n>` | 最小工具调用次数 |
+| `--max-tool-calls <n>` | 最大工具调用次数 |
+| `--limit <n>` | 每页大小（最大 200） |
+| `--offset <n>` | 分页偏移量 |
+
+### `traces get <trace-id>`
+
+获取带 span 的 trace 详情。只接受一个 trace ID。
+
+```bash
+goclaw traces get <trace-id>
+goclaw traces get <trace-id> -o json
+```
+
+### `traces export <trace-id>`
+
+导出 gzip 压缩的 trace 树。只接受一个 trace ID。
+
+```bash
+goclaw traces export <trace-id>                 # 写入 trace-<short>-<YYYYMMDD>.json.gz
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces export <trace-id> --file -        # gzip 输出到 stdout
+goclaw traces export <trace-id> -o json         # 解压后的 JSON 输出到 stdout
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--file <path>` | 将 gzip 导出写入文件（使用 `-` 表示 stdout）。默认写入 `trace-<short>-<YYYYMMDD>.json.gz` |
+
+### `traces follow`
+
+轮询单个 session 或 agent 的 trace 变更。**需要 `--session` 或 `--agent-id`。**
+
+```bash
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces follow --agent-id <uuid> --include-spans
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--session <key>` | 按 session key 过滤 |
+| `--agent-id <uuid>` | 按 agent UUID 过滤 |
+| `--user <id>` | 按用户 ID 过滤（管理员调用方） |
+| `--status <status>` | 按 trace 状态过滤 |
+| `--channel <channel>` | 按原始 channel 过滤 |
+| `--since <rfc3339>` | 变更 trace 的 RFC3339 下界 |
+| `--limit <n>` | 每页大小（最大 200） |
+| `--include-spans` | 包含按 trace ID 分组的 span |
+
+### `traces timeline <trace-id>`
+
+显示与 trace 关联的已持久化运行时间线。解析 trace 的 `run_id`，然后查询运行归档。只接受一个 trace ID。
+
+```bash
+goclaw traces timeline <trace-id>
+goclaw traces timeline <trace-id> --limit 100 --offset 0
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--limit <n>` | 每页大小（最大 500） |
+| `--offset <n>` | 分页偏移量 |
+
+---
+
 ## `cron`
 
 管理定时 cron 任务。需要网关运行中。
@@ -552,6 +666,136 @@ goclaw skills list --json
 goclaw skills show sequential-thinking
 ```
 
+> 以下子命令为 HTTP 类（需要网关运行中）。`<skill>` 参数接受技能 ID、slug 或名称——由网关进行解析。
+
+### `skills evolve`
+
+管理每个技能的自演化设置。
+
+```bash
+goclaw skills evolve status <skill>
+goclaw skills evolve enable <skill>
+goclaw skills evolve disable <skill>
+goclaw skills evolve mode <skill> suggest_only
+goclaw skills evolve mode <skill> auto_analyze
+```
+
+| 命令 | 参数 | 效果 |
+|------|------|------|
+| `skills evolve status <skill>` | 1 | 显示自演化设置 |
+| `skills evolve enable <skill>` | 1 | 启用自演化 |
+| `skills evolve disable <skill>` | 1 | 禁用自演化 |
+| `skills evolve mode <skill> <suggest_only\|auto_analyze>` | 2 | 设置演化模式 |
+
+### `skills metrics <skill>`
+
+显示技能记录的使用指标（Total、Started、Succeeded、Failed、Abandoned、Success rate）。
+
+```bash
+goclaw skills metrics <skill>
+goclaw skills metrics <skill> --json
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--json` | 以 JSON 格式输出 |
+
+### `skills activity <skill>`
+
+显示技能近期的自演化活动（管理员限定的详情）。
+
+```bash
+goclaw skills activity <skill>
+goclaw skills activity <skill> --json
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--json` | 以 JSON 格式输出 |
+
+### `skills suggestions`
+
+管理技能改进建议。
+
+```bash
+goclaw skills suggestions list <skill>
+goclaw skills suggestions approve <skill> <suggestion-id>
+goclaw skills suggestions reject <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id> --approve
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills suggestions list <skill>` | 1 | 列出技能的建议 |
+| `skills suggestions approve <skill> <suggestion-id>` | 2 | 批准建议 |
+| `skills suggestions reject <skill> <suggestion-id>` | 2 | 拒绝建议 |
+| `skills suggestions apply <skill> <suggestion-id>` | 2, `--approve` | 应用已批准的建议（`--approve` 会先批准待处理的建议） |
+
+### `skills deps`
+
+扫描、检查和安装技能依赖。参数接受本地技能路径或网关技能 ID。
+
+```bash
+goclaw skills deps status <skill-id-or-path>
+goclaw skills deps scan <skill-id-or-path>
+goclaw skills deps check <skill-id-or-path>
+goclaw skills deps install <skill-id>
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills deps status <skill-id-or-path>` | 1, `--json` | 显示依赖状态 |
+| `skills deps scan <skill-id-or-path>` | 1, `--json` | 扫描依赖声明 |
+| `skills deps check <skill-id-or-path>` | 1, `--json` | 检查可用性 |
+| `skills deps install <skill-id>` | 1, `--json` | 安装缺失的依赖（master 租户） |
+
+### `skills access`
+
+管理技能访问模式和有效访问权限。
+
+```bash
+goclaw skills access get <skill-id>
+goclaw skills access set <skill-id> --mode internal
+goclaw skills access effective <skill-id> --agent <agent-id> --user <user-id>
+goclaw skills access effective --agent <agent-id> --user <user-id>
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills access get <skill-id>` | 1, `--json` | 显示访问模式和授权 |
+| `skills access set <skill-id> --mode <private\|internal\|public>` | 1, `--mode`（必填）, `--json` | 设置访问模式 |
+| `skills access effective [skill-id] --agent <id> --user <id>` | 0–1, `--agent`+`--user`（必填）, `--json` | 检查有效访问权限（提供 ID 时为单个技能，否则跨技能） |
+
+### `skills grant`
+
+向 agent 或用户授予技能访问权限。
+
+```bash
+goclaw skills grant agent <skill-id> <agent-id>
+goclaw skills grant agent <skill-id> <agent-id> --can-manage --pinned-version 3
+goclaw skills grant user <skill-id> <user-id>
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills grant agent <skill-id> <agent-id>` | 2, `--can-manage`, `--pinned-version <n>`, `--json` | 向 agent 授予技能 |
+| `skills grant user <skill-id> <user-id>` | 2, `--json` | 向用户授予技能 |
+
+### `skills revoke`
+
+从 agent 或用户撤销技能访问权限。
+
+```bash
+goclaw skills revoke agent <skill-id> <agent-id>
+goclaw skills revoke user <skill-id> <user-id>
+```
+
+| 命令 | 参数 | 效果 |
+|------|------|------|
+| `skills revoke agent <skill-id> <agent-id>` | 2 | 撤销 agent 授权 |
+| `skills revoke user <skill-id> <user-id>` | 2 | 撤销用户授权 |
+
 ---
 
 ## `models`
@@ -728,4 +972,4 @@ goclaw bitrix-portal set-public-url \
 - [REST API](/rest-api) — HTTP API 端点列表
 - [配置参考](/config-reference) — 完整 `config.json` schema
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

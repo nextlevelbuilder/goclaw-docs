@@ -11,7 +11,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **73**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **80**。
 
 ```mermaid
 graph LR
@@ -223,6 +223,18 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 - `000072_agent_budget_usage_cap_bridge` — 为 `usage_cap_policies` 添加 `source` 列，并为每个 `budget_monthly_cents` 非 NULL 的 agent **回填**一条 `month` 窗口 policy（1 美分 = 10,000 micros，`source = 'agent_budget_monthly_cents'`）。现有的 per-agent 月度预算现在通过 usage-cap 引擎执行。幂等（`ON CONFLICT DO NOTHING`）；无需操作。
 - `000073_secure_cli_credential_type` — 为 `secure_cli_user_credentials` 添加可空的 `credential_type` + `host_scope`，为 `secure_cli_binaries` 添加 `adapter_name`，用于带类型的 credential-adapter 框架。所有列默认 NULL 以保留旧版 passthrough 行为——无需操作。
 
+#### Schema 73 → 80
+
+迁移 `000074`–`000080` 在下次启动时自动应用（`./goclaw upgrade` 或 `GOCLAW_AUTO_UPGRADE=true`）——无需手动操作。全部为新表；现有数据不受影响。亮点：
+
+- `000074_run_timeline_items` — 添加 `run_timeline_items`，提供归档的、按 run 排序的时间线（消息/工具调用），用于回放 run；关联到 traces 和 spans。
+- `000075_channel_context_capabilities` — 添加 `mcp_context_grants`、`mcp_context_credentials`、`secure_cli_context_grants` 和 `secure_cli_context_credentials`，用于按 channel-instance 限定范围的 MCP 与 secure-CLI 授权及加密凭据。
+- `000076_channel_memory_extraction` — 添加 `channel_memory_extraction_runs` 和 `channel_memory_extraction_items`，用于从 channel 历史中被动、按计划地提取持久记忆（仅摘要，不含原始内容），并带审核队列。
+- `000077_secure_cli_agent_credentials` — 添加 `secure_cli_agent_credentials`，用于按 agent 的带类型 CLI 凭据，独立于授权策略；使用复合 FK `(binary_id, tenant_id)` 和 `(agent_id, tenant_id)`。
+- `000078_skill_user_grants_tenant_unique` — 将 `skill_user_grants` 的唯一键替换为按 tenant 限定的 `(skill_id, user_id, tenant_id)`。无需操作。
+- `000079_skill_self_evolution` — 添加 `skill_evolution_settings`、`skill_usage_metrics`、`skill_improvement_suggestions` 和 `skill_versions`，用于按 skill 的使用追踪以及建议/已应用的改进。**回填**为每个现有未删除的 skill 各添加一行 `skill_versions`。幂等（`ON CONFLICT DO NOTHING`）。
+- `000080_usage_event_analytics` — 添加 `usage_events`（原始的逐事件分析）和 `usage_event_rollups`（预聚合的小时级 rollup），支撑用量分析 dashboard。
+
 **gateway 触发的升级（host release-upgrade 流程）：** 当在 systemd 主机上通过 dashboard/API 触发升级时，`goclaw-upgrade-release` 现在会先将自身以临时 `systemd-run` 单元重新启动，因此 deploy 期间停止 `goclaw` 不再杀死升级任务。陈旧的 `running` 状态记录在 30 分钟后被取代，部署等待循环也能容忍 restart 期间的瞬时 `502`。无需更改配置。
 
 #### v3.11.3
@@ -386,4 +398,4 @@ GoClaw v2.x 包含自动版本检查器。启动后，gateway 在后台轮询 Gi
 - [数据库设置](/deploy-database) — PostgreSQL 和 pgvector 设置
 - [可观测性](/deploy-observability) — 升级后监控你的 gateway
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-29 -->

@@ -53,6 +53,7 @@ All config keys are in `channels.zalo_personal`:
 | `group_policy` | string | `"allowlist"` | `open`, `allowlist`, `disabled` (restrictive default) |
 | `require_mention` | bool | true | Require bot mention in groups |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Features
 
@@ -125,4 +126,4 @@ On connection failure:
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

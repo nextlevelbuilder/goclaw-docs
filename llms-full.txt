@@ -2168,7 +2168,7 @@ Setup (runs once)
 Iteration loop (up to 20 × per turn)
 ├─ ThinkStage   — build system prompt, filter tools, call LLM
 ├─ PruneStage   — soft/hard trim context, trigger memory flush if needed
-├─ ToolStage    — execute tool calls (parallel where possible)
+├─ ToolStage    — execute tool calls (read-only batches in bounded parallel; others sequential)
 ├─ ObserveStage — process tool results, append to message buffer
 └─ CheckpointStage — track iterations, check exit conditions
 
@@ -2183,7 +2183,7 @@ Finalize (runs once, survives cancellation)
 | **ContextStage** | Setup | Injects agent/user/workspace context; resolves per-user files |
 | **ThinkStage** | Iteration | Builds system prompt (15+ sections), calls LLM, emits streaming chunks |
 | **PruneStage** | Iteration | Trims context when ≥ 30% full (soft) or ≥ 50% full (hard); triggers memory flush |
-| **ToolStage** | Iteration | Executes tool calls — parallel goroutines for multiple calls |
+| **ToolStage** | Iteration | Executes tool calls. Only registered **read-only** tools run in bounded parallel; mutating, async, MCP-bridged (`mcp_*`), `exec`/`bash`, `wait`, unknown/unregistered tools, and over-budget batches run **sequentially**. A mixed batch with any ineligible call runs entirely sequentially. `PreToolUse` hooks run before any parallel I/O, and results are processed in original assistant order |
 | **ObserveStage** | Iteration | Processes tool results; handles `NO_REPLY` silent completion |
 | **CheckpointStage** | Iteration | Increments counter; breaks loop on max-iter or context cancellation |
 | **FinalizeStage** | Finalize | Runs 7-step output sanitization; atomically flushes messages; updates session metadata |
@@ -2434,6 +2434,8 @@ GoClaw builds the system prompt in two modes:
 - **PromptFull** — used for main agent runs. Includes all 19+ sections: skills, MCP tools, memory recall, user identity, messaging, silent-reply rules, and full context files.
 - **PromptMinimal** — used for subagents (spawned via `spawn` tool) and cron jobs. Stripped-down context with only the essential sections (tooling, safety, workspace, bootstrap files). Reduces startup time and token usage for lightweight operations.
 
+For **group chat** sessions, the system prompt additionally injects group-chat context — participant and group information — so the agent knows it is one of several speakers and can address participants appropriately.
+
 ## NO_REPLY Suppression
 
 Agents can signal `NO_REPLY` in their final response to suppress sending a visible reply to the user. GoClaw detects this string during response finalization and skips message delivery entirely — a "silent completion." This is used internally by the memory flush agent when it has nothing to store, and can be used in custom agent instructions for similar silent-operation scenarios.
@@ -2683,7 +2685,7 @@ Tools are how agents interact with the world beyond generating text. An agent ca
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Send messages; create Telegram forum topics |
 | **Media Generation** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Generate images, audio, video, and text-to-speech; `image_generation` is a native tool for Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — see [Media Generation](/advanced/media-generation) |
 | **Browser** | browser | Navigate web pages, take screenshots, interact with elements |
-| **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images, transcribe audio, extract documents, analyze video |
+| **Media Reading** (`group:media_read`) | read_image, read_audio, read_document, read_video | Analyze images (file, attachment, or URL), transcribe audio, extract documents (PDF, DOCX, images; optional local-first extraction via pdftotext/pandoc), analyze video (file or URL) — see [Media Generation](/advanced/media-generation) |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Invoke and publish skills |
 | **Workspace** | workspace_dir | Resolve workspace directory for team/user context |
 | **AI** | openai_compat_call | Call OpenAI-compatible endpoints with custom request formats |
@@ -2749,6 +2751,28 @@ The minimum and maximum bounds can be tuned per-deployment via the tool's runtim
 
 > **Not the same as `spawn(action=wait)`:** `wait` is a top-level built-in tool that pauses **the calling agent** for `timeMs` milliseconds. The `spawn(action=wait)` pattern (also called **WaitAll**, see below) is a delegation primitive that blocks the parent **until previously spawned subagents finish**. Use `wait` for time-based pauses; use `spawn(action=wait)` for fan-out/fan-in delegation.
 
+### `read_document` Local-First Extraction
+
+`read_document` analyzes PDF, DOCX, and images of documents. By default it sends the file to a cloud vision provider. You can opt into **local-first extraction** that runs `pdftotext` (PDF) and `pandoc --sandbox` (DOCX) on the host *before* any cloud call, configured via the `document_parser` block:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `local_first` | `false` | Enable local extraction (opt-in). Requires `pdftotext`/`pandoc` on PATH — present in the `full` Docker variant or builds with `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | PDF page limit; passed to `pdftotext -l` |
+| `timeout_sec` | `30` | Per-extraction timeout; the process group is killed on timeout |
+| `min_text_len` | `16` | Minimum characters (after trim) for a successful extraction; shorter output triggers cloud fallback |
+
+Config is captured at startup (not hot-reloaded), but binary availability is re-checked per call so a runtime install is detected without a restart. Any extraction miss — disabled, unsupported MIME, missing binary, timeout, or too-little text (e.g. a scanned image-only PDF) — transparently falls back to the cloud vision chain with no caller-visible difference.
+
 ## Tool Execution Flow
 
 When an agent calls a tool:
@@ -2767,6 +2791,10 @@ graph LR
 3. **Execute** — The tool runs and produces output
 4. **Scrub** — Credentials and sensitive data are removed from output
 5. **Return** — Clean result goes back to the LLM for the next iteration
+
+### Parallel vs Sequential Scheduling
+
+When the LLM emits **multiple** tool calls in one turn, GoClaw decides whether to run them concurrently. Only registered **read-only** tools are eligible for bounded-parallel raw I/O. Mutating, async, MCP-bridged (`mcp_*`), `exec`/`bash`, `wait`, unknown/unregistered tools, and batches that exceed the tool-call budget run **sequentially**. A mixed batch containing any ineligible call runs entirely sequentially. `PreToolUse` hooks run before any parallel execution, and results are always processed in the original assistant order. This eligibility is driven by each tool's capability metadata (the side-effect class), so custom tools default to sequential unless registered read-only.
 
 ## Tool Profiles
 
@@ -3098,7 +3126,7 @@ graph TD
 | Tier | Storage | Content | Lifespan | Search |
 |------|---------|---------|---------|--------|
 | **L0 Working** | `memory_documents` + `memory_embeddings` | Agent-curated facts, auto-flush notes, dreaming output | Permanent until deleted | FTS + vector hybrid |
-| **L1 Episodic** | `episodic_summaries` | Session summaries, key topics, L0 abstracts | 90 days (configurable) | FTS + HNSW vector |
+| **L1 Episodic** | `episodic_summaries` | Session summaries, key topics, L0 abstracts (plus approved [passive channel facts](#passive-channel-memory-extraction)) | 90 days (configurable) | FTS + HNSW vector |
 | **L2 Semantic** | Knowledge Graph tables | Entities, relations, temporal validity windows | Permanent | Graph traversal |
 
 ### Tier Boundaries and Promotion Rules
@@ -3232,6 +3260,41 @@ Not a standalone worker — a utility called by `episodic_worker` to produce a b
 
 **Periodic pruning**: A goroutine runs every 6 hours to delete episodic summaries past their `expires_at` date.
 
+## Passive Channel Memory Extraction
+
+Most memory comes from a session completing. **Passive channel memory extraction** adds a second, opt-in source: it periodically mines the buffered messages from a channel (Telegram, Discord, etc.) for durable facts — without anyone running a session — and feeds approved facts into the same L1 → L2 pipeline.
+
+It is **off by default** and **privacy-first**: in v1 it only looks at **group** conversations, candidates are **queued for review** rather than auto-written, and **raw message bodies are never stored** — only redacted summaries, topics/entities, confidence, and counts.
+
+### How it works
+
+A background worker periodically reads the existing tenant-scoped `channel_pending_messages` group buffers, redacts sensitive content, and asks the **background LLM provider** for durable fact candidates. Candidates land in a review queue (`channel_memory_extraction_runs` / `_items`). Extraction can run by:
+
+- **manual trigger** — runs even when `enabled` is `false`;
+- **message cap** — the group buffer reaches `message_cap`;
+- **interval** — the configured `interval_minutes` has elapsed.
+
+When an item is **approved**, GoClaw writes an `episodic_summaries` row with `source_type='channel'` and a deterministic `source_id`. From there the existing [consolidation workers](#consolidation-workers) (`semantic_worker`, `dreaming_worker`, …) promote it to the knowledge graph and long-term memory like any other episodic entry. **Reject/delete** prevents a later write; delete also removes the linked episodic row (KG nodes already promoted are not synchronously deleted in v1).
+
+### Configuration
+
+Enable it per channel instance under `config.passive_memory` (see [Channel Instances](/channel-instances#passive-channel-memory-passive_memory)):
+
+| Field | Default | Clamp / Notes |
+|---|---|---|
+| `enabled` | `false` | Disabled by default. |
+| `review_mode` | `true` | Candidates are queued for review, not auto-written. |
+| `interval_minutes` | `360` | Clamped to 15–10080. |
+| `message_cap` | `100` | Clamped to 10–1000. |
+| `retention_hours` | `168` | Clamped to 1–720. |
+| `allowed_types` | people, projects, decisions, todos, preferences, events | Invalid entries dropped; empty list → full default set. |
+| `exclude_users` | — | ≤50 entries, ≤255 chars each. |
+| `exclude_patterns` | — | ≤20 valid regexes, ≤255 chars each. |
+| `min_messages` | `5` | Clamped to 2–100. |
+| `group_only` | `true` | **Forced `true` in v1** (always coerced). |
+
+> Extraction tables store metadata, summaries, topics/entities, confidence, status, and redaction counts — **not** raw message bodies.
+
 ## Auto-Injector
 
 The **auto-injector** automatically surfaces relevant memories into the agent's system prompt at the start of each turn, before the LLM call.
@@ -3324,6 +3387,7 @@ This allows knowledge sharing within a team without duplication. The leader accu
 | Irrelevant memories surfacing | Memory accumulates over time; consider clearing old memories via the API |
 | Episodic summaries not created | Verify consolidation workers are registered at startup; check event bus is running |
 | Dreaming worker never promotes | Check that ≥5 sessions have completed for the agent/user pair; review debounce logs |
+| Passive channel memory not extracting | `passive_memory.enabled` is off, the conversation is not a group (group-only in v1), or the buffer has fewer than `min_messages`. Approved items also require review unless `review_mode` is disabled. |
 
 ## What's Next
 
@@ -4934,6 +4998,16 @@ When you try to access an agent, GoClaw checks in this order:
 
 Predefined agents can also be accessible through `channel_instances`. If a predefined agent has an enabled channel instance whose `allow_from` list includes your user ID, you can access that agent even without a direct share or default flag.
 
+## First-Setup-Agent Gateway Operator Access
+
+When you create the **first** agent during `goclaw setup`, the wizard asks:
+
+```
+Grant this first agent local gateway operator access via the goclaw CLI? [default: No]
+```
+
+If you answer **yes**, that agent is granted **revocable SecureCLI access** to run local gateway commands (for example `goclaw agent list`) through the goclaw CLI. The create response carries a `gateway_operator_bootstrap` block with a `status` field and an optional `warning`. The default is **No** — only opt in when you want the first agent to operate the gateway itself. Because the access is granted as a SecureCLI grant, you can revoke it later like any other grant.
+
 ## Sharing an Agent via HTTP API
 
 Use `POST /v1/agents/:id/shares` to share an agent. Only the owner (or a gateway owner-level user) can share.
@@ -5080,6 +5154,7 @@ The cache is invalidated via pubsub events:
 
 ## What's Next
 
+- [Permission Matrix — agent-config permissions, group/channel scopes, and the full authorization-layer table](/permission-matrix)
 - [User Overrides — Let users customize LLM provider/model per-agent](/user-overrides)
 - [System Prompt Anatomy — How permissions affect system prompt sections](/system-prompt-anatomy)
 - [Creating Agents — Create an agent and immediately share it](/creating-agents)
@@ -5439,6 +5514,8 @@ Providers that support extended thinking also implement `SupportsThinking() bool
 | perplexity | `https://api.perplexity.ai` | `sonar-pro` |
 | ollama | `http://localhost:11434/v1` | `llama3.3` |
 | byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` |
+| bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
+| kimi_coding | `https://api.kimi.com/coding/v1` | `kimi-k2-turbo-preview` |
 
 ## Adding a Provider
 
@@ -5597,6 +5674,8 @@ When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schem
 - [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
 - [Groq](/provider-groq) — ultra-fast inference
 - [DashScope](/provider-dashscope) — Alibaba Qwen models with thinking support
+- [Bailian](/provider-bailian) — Alibaba Cloud Bailian Coding endpoint (separate from DashScope)
+- [Kimi Coding](/provider-kimi) — Moonshot Kimi with fixed User-Agent and server-side thinking
 - [ACP](/provider-acp) — Claude Code, Codex CLI, Gemini CLI subagent orchestration
 
 
@@ -5657,6 +5736,12 @@ In the GoClaw dashboard go to **Settings → Providers → Anthropic** and enter
 
 To override the default model for a specific agent, set `model` in the agent's config.
 
+## Sampling Parameters (Claude 4.6+)
+
+Newer Claude models reject sampling parameters unconditionally. For **Claude Opus/Sonnet 4.6+ and Opus 4.7+** (any `claude-opus-4-*` or `claude-sonnet-4-*` with a minor version of 6 or higher), GoClaw omits `temperature` — and per the same rule `top_p`/`top_k` — from **every** request, whether or not extended thinking is enabled. These models return `HTTP 400` if a sampling parameter is included.
+
+This is separate from the thinking-path temperature strip described below (which removes `temperature` only while thinking is active, for all Claude models). You don't need to do anything: GoClaw drops the parameters automatically. Just avoid hard-coding sampling values in raw requests against these models.
+
 ## Extended Thinking
 
 The Anthropic provider implements `SupportsThinking() bool` and returns `true`. When `thinking_level` is set on a request, GoClaw activates Anthropic's extended thinking feature automatically.
@@ -5708,6 +5793,7 @@ Anthropic uses a different tool schema format than OpenAI. GoClaw translates aut
 |---|---|---|
 | `HTTP 401` | Invalid API key | Check key starts with `sk-ant-` |
 | `HTTP 400` with thinking | temperature set alongside thinking | GoClaw removes temperature automatically; don't hard-code it in raw requests |
+| `HTTP 400` mentioning temperature on a 4.6+ model | Claude Opus/Sonnet 4.6+ / Opus 4.7+ reject sampling params | GoClaw omits `temperature`/`top_p`/`top_k` automatically; don't hard-code sampling params |
 | `HTTP 529` | Anthropic overloaded | Retry logic handles this; wait and retry |
 | Thinking blocks not appearing | Model doesn't support thinking | Use claude-sonnet-4-5 or claude-opus-4-5 |
 | High token costs | Cache not hitting | Ensure system prompt is stable across requests |
@@ -6093,6 +6179,10 @@ If a previous tool call in conversation history lacks a `thought_signature` (e.g
 ### Empty content handling
 
 Gemini rejects assistant messages with empty `content` when tool calls are present. GoClaw omits the `content` field in that case rather than sending an empty string.
+
+### Media input by URL
+
+Image and video inputs supplied by URL are handled without you downloading them first. Image URLs are passed through directly to the vision request. For video, GoClaw streams the URL into the Gemini File API (upload → poll → `file_data`) over an SSRF-safe pinned HTTP client. See [Media Generation](/media-generation) for the full multimodal input/output reference.
 
 ## Thinking / Reasoning
 
@@ -6878,6 +6968,8 @@ DashScope is Alibaba's model serving platform, offering the Qwen family of model
 
 DashScope also supports extended thinking via `thinking_level`, which GoClaw maps to DashScope-specific `enable_thinking` and `thinking_budget` parameters.
 
+> **Note:** `dashscope` is a different provider type from `bailian`. Alibaba Cloud's Bailian Coding endpoint (`https://coding-intl.dashscope.aliyuncs.com/v1`, default `qwen3.5-plus`) is a separate OpenAI-compatible provider with a hardcoded catalog and **no** thinking injection. If you need the Coding endpoint or models like `qwen3.7-plus`, see [Bailian](/provider-bailian).
+
 ## Setup
 
 Add your DashScope API key to `config.json`:
@@ -6996,6 +7088,7 @@ GoClaw maps `thinking_level` to DashScope's `thinking_budget`:
 
 - [Claude CLI](/provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
+- [Bailian](/provider-bailian) — Alibaba Cloud Bailian Coding endpoint (separate from DashScope)
 
 
 
@@ -7155,18 +7248,166 @@ The Vertex provider speaks OpenAI ChatCompletions through the same code path as 
 
 # Bailian
 
-> Connect to Alibaba Cloud Bailian (百炼) models.
-
-🚧 **This page is under construction.** Content coming soon.
+> Connect to Alibaba Cloud Bailian (百炼) Coding models via the OpenAI-compatible endpoint.
 
 ## Overview
 
-Bailian is Alibaba Cloud's AI model platform. GoClaw connects to it using the OpenAI-compatible API format.
+Bailian is Alibaba Cloud's AI model platform. GoClaw connects to its **Coding** endpoint using the OpenAI-compatible API format. The `bailian` provider type is **distinct from `dashscope`** — they are separate endpoints with different base URLs and different model catalogs. The DashScope `enable_thinking`/`thinking_budget` injection path does **not** apply to Bailian; Bailian is treated as a plain OpenAI-compatible provider.
+
+- **Provider type:** `bailian`
+- **Default model:** `qwen3.5-plus`
+- **Default API base:** `https://coding-intl.dashscope.aliyuncs.com/v1`
+
+## Setup
+
+Add your Bailian API key to `config.json` under the `bailian` provider block:
+
+```json
+{
+  "providers": {
+    "bailian": {
+      "api_key": "$GOCLAW_BAILIAN_API_KEY"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "bailian",
+      "model": "qwen3.5-plus"
+    }
+  }
+}
+```
+
+Store your key in `.env.local`:
+
+```bash
+GOCLAW_BAILIAN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+The `api_base` field is optional — it defaults to `https://coding-intl.dashscope.aliyuncs.com/v1`. You can also add Bailian from the dashboard (**Settings → Providers**); keys are encrypted with AES-256-GCM at rest.
+
+## Models
+
+The Bailian Coding platform does **not** expose a standard `/v1/models` endpoint, so GoClaw ships a **hardcoded catalog**. The following models are available:
+
+| Model | Notes |
+|---|---|
+| `qwen3.7-plus` | Qwen 3.7 Plus — Text Generation, Deep Thinking, Visual Understanding |
+| `qwen3.6-plus` | Qwen 3.6 Plus |
+| `qwen3.5-plus` | Qwen 3.5 Plus (default) |
+| `kimi-k2.5` | Kimi K2.5 |
+| `GLM-5` | GLM-5 |
+| `MiniMax-M2.5` | MiniMax M2.5 |
+| `qwen3-max-2026-01-23` | Qwen 3 Max (2026-01-23) |
+| `qwen3-coder-next` | Qwen 3 Coder Next |
+| `qwen3-coder-plus` | Qwen 3 Coder Plus |
+| `glm-4.7` | GLM 4.7 |
+
+## Bailian vs DashScope
+
+Both connect to Alibaba infrastructure, but they are different providers:
+
+| | `bailian` | `dashscope` |
+|---|---|---|
+| Endpoint | `https://coding-intl.dashscope.aliyuncs.com/v1` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
+| Default model | `qwen3.5-plus` | `qwen3-max` |
+| Model listing | Hardcoded catalog (no `/v1/models`) | Live listing |
+| Thinking injection | None (plain OpenAI-compatible) | `enable_thinking` + `thinking_budget` |
+
+If you want DashScope-style extended thinking, use the [DashScope](/provider-dashscope) provider instead.
+
+## Common Issues
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `401 Unauthorized` | Invalid API key | Verify `GOCLAW_BAILIAN_API_KEY` in `.env.local` |
+| Model not listed | Catalog is hardcoded | Use a model ID from the table above; the Coding API has no `/v1/models` endpoint |
+| Thinking has no effect | Bailian is plain OpenAI-compatible | DashScope thinking injection does not apply; use the `dashscope` provider for `enable_thinking` |
 
 ## What's Next
 
 - [Provider Overview](/providers-overview)
-- [DashScope (Qwen)](/provider-dashscope)
+- [DashScope (Qwen)](/provider-dashscope) — Alibaba Qwen models with thinking support
+- [Kimi Coding](/provider-kimi) — Moonshot Kimi Coding endpoint
+
+
+
+---
+
+# Kimi Coding (Moonshot)
+
+> Connect GoClaw to Moonshot's Kimi Coding models via the OpenAI-compatible Coding endpoint.
+
+## Overview
+
+Kimi Coding is Moonshot AI's coding-focused endpoint. GoClaw connects to it as an OpenAI-compatible provider (`provider_type: "kimi_coding"`), reusing the standard `OpenAIProvider` with three Kimi-specific adjustments wired in automatically: a **fixed `User-Agent` header**, a **temperature lock**, and **mandatory `reasoning_content`** on assistant tool-call messages. You don't configure any of these — GoClaw handles them so your agent works out of the box.
+
+- **Provider type:** `kimi_coding`
+- **Default model:** `kimi-k2-turbo-preview`
+- **Default API base:** `https://api.kimi.com/coding/v1`
+
+## Setup
+
+Kimi Coding is added from the **dashboard** (it has no static `config.json` provider block). In the GoClaw dashboard:
+
+1. Go to **Settings → Providers → Add**
+2. Choose **"Kimi Coding (Moonshot)"** — the API base is pre-filled with `https://api.kimi.com/coding/v1`
+3. Paste your Kimi API key
+4. Save — the key is encrypted with AES-256-GCM at rest, and changes take effect on the next request
+
+Then point an agent at it:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "provider": "kimi",
+      "model": "kimi-k2-turbo-preview"
+    }
+  }
+}
+```
+
+> Use the **name** you gave the provider when you created it (e.g. `kimi`) as the agent's `provider` value. The `provider_type` (`kimi_coding`) is the immutable type selected from the dropdown.
+
+## Models
+
+| Model | Notes |
+|---|---|
+| `kimi-k2-turbo-preview` | Default — server-side thinking is on by default |
+
+The API base defaults to `https://api.kimi.com/coding/v1` if you leave it blank.
+
+## Non-Standard Behaviors
+
+Kimi Coding has three quirks that upstream enforces strictly. GoClaw handles all of them for you.
+
+### 1. Fixed `User-Agent`
+
+Every request — including the model-listing call — is sent with a fixed header `User-Agent: claude-code/0.1.0`. Upstream rejects requests that don't carry this exact User-Agent. GoClaw injects it automatically via the provider's extra headers; you don't set it.
+
+### 2. Temperature lock
+
+The Kimi server locks `temperature` to `1` and rejects any override. GoClaw therefore **omits `temperature`** from the request body for `kimi_coding` providers (the same treatment given to OpenAI `o1`/`o3`/`o4` and `gpt-5-mini`/`gpt-5-nano`). Passing a temperature value to the raw API returns `HTTP 400 invalid temperature: only 1 is allowed for this model`.
+
+### 3. `reasoning_content` required on tool calls
+
+`kimi-k2-turbo-preview` has server-side thinking enabled by default. When an assistant message that contains `tool_calls` is replayed in conversation history, it **must** carry a `reasoning_content` field — otherwise upstream returns `HTTP 400 thinking is enabled but reasoning_content is missing in assistant tool call message at index N`. GoClaw preserves captured reasoning when it has it, and emits an **empty `reasoning_content` string** when none was captured, so multi-turn tool loops keep working.
+
+## Common Issues
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `HTTP 400 invalid temperature: only 1 is allowed for this model` | A temperature override was sent | GoClaw omits `temperature` for `kimi_coding` automatically; don't hard-code it in raw requests |
+| `HTTP 400 thinking is enabled but reasoning_content is missing in assistant tool call message at index N` | Replayed tool-call message lacks `reasoning_content` | GoClaw auto-emits an empty `reasoning_content`; ensure assistant history isn't stripped of the field |
+| Requests rejected / 4xx on every call | Missing or altered `User-Agent` | GoClaw sends `claude-code/0.1.0` automatically; don't override the User-Agent header |
+| `401 Unauthorized` | Invalid API key | Re-enter the Kimi key in Settings → Providers |
+
+## What's Next
+
+- [Provider Overview](/providers-overview) — provider architecture and retry logic
+- [Extended Thinking](/extended-thinking) — how thinking and `reasoning_content` work across providers
+- [DashScope (Qwen)](/provider-dashscope) — Alibaba Qwen models with thinking support
 
 
 
@@ -7706,6 +7947,22 @@ GET /v1/agents/{id}/codex-pool-activity
 See [REST API](/rest-api) for the response shape.
 
 
+## Common Issues
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `401 Unauthorized` | Token expired or revoked | Re-authenticate via Settings → Providers → ChatGPT |
+| OAuth callback fails | Port 1455 blocked | Ensure nothing else is listening on port 1455 during auth |
+| `model not found` | Model not in your subscription | Check your ChatGPT plan; some models require Pro |
+| Provider not available after restart | Token not persisted | GoClaw auto-loads the token from DB on startup; check DB connectivity |
+| Phase field in response | `gpt-5.5` and `gpt-5.3-codex` return `commentary` + `final_answer` phases | GoClaw handles this automatically; both phases are captured |
+
+## What's Next
+
+- [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
+- [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
+
+
 
 ---
 
@@ -7802,6 +8059,8 @@ Each ACP subprocess maintains a server-assigned session ID. The session lifecycl
 3. **`session/cancel`** — sent as a notification when the caller cancels context
 
 The session ID is stored per-process in `ACPProcess.sessionID` and included in every prompt request. This allows the ACP agent to maintain conversation history and file state across multiple turns within the same process lifetime.
+
+> **Operator note:** ACP `session/update` `tool_call` and `tool_call_update` notifications are logged at **Info** level (with session ID, tool call ID, tool name/title, kind, and status), so operators can observe the ACP agent's tool activity in the gateway logs.
 
 ## Session Sequencing
 
@@ -8185,6 +8444,21 @@ GoClaw extracts media attachments from the message being replied to across all c
 
 The `media_max_bytes` config field enforces a per-channel limit on outbound media uploads sent by the agent. Files exceeding this limit are skipped with a log entry. Each channel sets its own default (e.g., 20 MB for Telegram, 30 MB for Feishu/Lark). Configure per channel if needed.
 
+### Multi-Attachment Delivery (Batching)
+
+The `send_file` tool can deliver several existing workspace files in one go. Two forms are accepted:
+
+- **Single file:** `path` (plus an optional `caption`).
+- **Batch:** `attachments: [{ "path": "...", "caption": "..." }, ...]` — file order, MIME type, filename, and per-file captions are preserved.
+
+How each channel groups a batch depends on what the platform supports:
+
+| Channel | Grouping | Behavior |
+|---------|----------|----------|
+| Telegram | Album chunks | Compatible media are grouped into `sendMediaGroup` albums of **2–10** items. Photos/videos can share a chunk; documents group only with documents, audio only with audio. Voice-mode audio, singleton chunks, oversized images sent as documents, and incompatible runs fall back to ordered single-send. |
+| Discord | Single message | Multiple files (plus optional text) are delivered in **one** message, up to 10 attachments. |
+| Slack and other media-capable channels | Ordered fallback | Files are sent one after another in order unless the adapter advertises a stronger batch capability. |
+
 ## Inbound Debounce
 
 When a user fires several messages in quick succession (or uploads multiple files at once), GoClaw merges them into a **single** inbound message before running the agent — one reply instead of one per fragment.
@@ -8204,6 +8478,64 @@ Set the silence window with `gateway.inbound_debounce_ms` (milliseconds):
 - **Per-agent override:** an agent can set `inbound_debounce_ms` in its `agent_config` to use a different window than the gateway default.
 - **`/stop` and `/reset` bypass the debouncer** — control commands are handled immediately and never buffered.
 - **Media floor:** media-bearing messages no longer bypass debouncing. The effective window is `max(configured, media floor)`, so a multi-file upload always coalesces into one inbound even when text debouncing is set to `0`. (A non-zero agent override is honored verbatim — operators who set, say, `500` keep `500`, not the floor.) Messages synthesized internally by tools/subagents are exempt from the floor.
+
+## Human-like Delivery
+
+GoClaw can make channel replies feel more conversational — a quick acknowledgement before a long run, short progress notes while tools execute, and splitting a long final answer into a few natural messages. This is configured under `gateway.chat_behavior` and is **disabled by default**.
+
+> These behaviors are **delivery-only**. Acknowledgements, progress notes, and split parts are never written to session history or sent back to the model as conversation — they only change what the human sees in the chat.
+
+```json
+{
+  "gateway": {
+    "chat_behavior": {
+      "enabled": true,
+      "quick_ack": { "enabled": true, "mode": "sidecar_generated" },
+      "intermediate_replies": { "enabled": true },
+      "final_split": { "enabled": true }
+    }
+  }
+}
+```
+
+### The three sub-behaviors
+
+| Sub-behavior | What it does |
+|--------------|--------------|
+| `quick_ack` | Sends one short receipt before a longer non-streaming run, so the user knows the bot is working. |
+| `intermediate_replies` | Sends short progress updates while the agent is running tools. Independent from `quick_ack`. |
+| `final_split` | Splits a long final reply into a small number of paragraph-sized messages. |
+
+**`quick_ack` modes:**
+
+| Mode | Behavior |
+|------|----------|
+| `sidecar_generated` | A bounded, separate LLM call writes a short, context-aware acknowledgement. |
+| `llm_generated` | Backward-compatible alias; this is also the default resolved mode. |
+| `fixed_template` | Sends the first string from `templates` (default `"Got it. Working on it..."`). |
+| `off` | No acknowledgement. |
+
+`quick_ack` fields: `enabled`, `mode`, `min_delay_ms` (default 1000), `provider`, `model`, `timeout_ms` (default 2500), `max_tokens` (default 40), `max_chars` (default 120), `templates`. When `provider`/`model` are unset, the agent's own provider/model are used.
+
+**`intermediate_replies`** modes are `sidecar_generated` (default) or `off`. Fields: `enabled`, `mode`, `provider`, `model`, `timeout_ms` (2500), `max_tokens` (default 60), `max_chars` (default 180). The sidecar only receives bounded metadata (message preview, locale, channel/peer, agent label, current tool phase) — **never** session history, tool arguments/output, memory, or system prompts.
+
+**`final_split`** fields: `enabled`, `min_chars` (default 1200), `max_messages` (default 3), `delay_ms` (default 500). Splitting is conservative — replies containing fenced code, tables, lists, quotes, JSON/XML-like blocks, or URL-only paragraphs stay as one message, and media or streaming deliveries are never split.
+
+### Override order
+
+`chat_behavior` can be set at three levels. The resolution order is **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (the base).
+2. **Agent** — `agents.other_config.delivery_behavior` overrides the workspace base.
+3. **Channel** — `channels.<type>.chat_behavior` (or a channel instance's `chat_behavior`) has the final say.
+
+Each level only overrides the fields it sets, so you can tune one knob per channel and inherit the rest.
+
+> **Legacy `block_reply`.** The older `gateway.block_reply` (and per-channel `block_reply`) flags are still read as the inherited default for `intermediate_replies.enabled` when the newer field is unset.
+
+### Channel support
+
+Human-like delivery is implemented by channels that adopt the `ChatBehaviorChannel` interface: **Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, and Zalo Personal**.
 
 ## Channel Comparison
 
@@ -8308,8 +8640,10 @@ All config keys are in `channels.telegram`:
 | `dm_stream` | bool | false | Enable streaming for DMs (edits placeholder) |
 | `group_stream` | bool | false | Enable streaming for groups (new message) |
 | `draft_transport` | bool | false | Use `sendMessageDraft` for DM streaming (stealth preview, no per-edit notifications) |
-| `reasoning_stream` | bool | true | Show reasoning tokens as a separate message before the answer |
+| `reasoning_delivery` | string | -- | How reasoning is surfaced: `off`, `streaming_only`, `always_bubbles`. See [Reasoning Delivery](#reasoning-delivery). |
+| `reasoning_stream` | bool | true | **Legacy.** Show reasoning tokens as a separate message before the answer. Used only when `reasoning_delivery` is unset. |
 | `block_reply` | bool | -- | Override gateway `block_reply` setting for this channel (nil = inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (⏳ only), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Max media file size |
 | `link_preview` | bool | true | Show URL previews |
@@ -8489,6 +8823,8 @@ When a user sends a voice message:
 3. Transcript prepended to message: `[audio: filename] Transcript: text`
 4. Routed to `voice_agent_id` if configured, else default agent
 
+Transcription runs through GoClaw's unified STT chain, which tries providers in order — `elevenlabs`, then `proxy`. (These are the current provider names; older releases called them `elevenlabs_scribe` and `proxy_stt`.) Telegram preserves the original voice MIME type when forwarding audio to the chain, and the legacy STT-proxy bridge override is keyed by the platform type `telegram`.
+
 ### Streaming
 
 Enable live response updates:
@@ -8496,11 +8832,27 @@ Enable live response updates:
 - **DMs** (`dm_stream`): Edits the "Thinking..." placeholder as chunks arrive. Uses `sendMessage+editMessageText` by default; set `draft_transport: true` to use `sendMessageDraft` (stealth preview, no per-edit notifications, but may cause "reply to deleted message" artifacts on some clients).
 - **Groups** (`group_stream`): Sends placeholder, edits with full response
 
-Disabled by default. When enabled with `reasoning_stream: true` (default), reasoning tokens appear as a separate message before the final answer.
+Disabled by default.
+
+### Reasoning Delivery
+
+When the model emits reasoning ("thinking") tokens, `reasoning_delivery` controls how — or whether — that reasoning shows up in the chat:
+
+| `reasoning_delivery` | Behavior |
+|----------------------|----------|
+| `streaming_only` | Reasoning appears only in the live streaming lane (the legacy behavior). |
+| `always_bubbles` | Forces provider streaming internally and sends reasoning as bounded normal "bubble" messages — even when `dm_stream` / `group_stream` are off. The final answer is still delivered non-streaming. |
+| `off` | Reasoning is suppressed in the channel. Traces and usage accounting are unaffected. |
+
+**Backward compatibility.** When `reasoning_delivery` is unset, the legacy `reasoning_stream` boolean is honored: `reasoning_stream: false` resolves to `off`, otherwise to `streaming_only`. An explicit `reasoning_delivery` value always wins over the legacy boolean.
+
+Reasoning bubbles are delivery-only — they are not added to assistant/session history. Telegram is currently the only channel that implements this control (`ReasoningDeliveryChannel`).
 
 ### Media Handling
 
 **Albums / multi-attachment coalescing.** When a user sends an album (several photos or files grouped on the client), Telegram delivers it as N separate updates that share one `MediaGroupID`. GoClaw buffers album members at the channel layer (500 ms silence window) and synthesizes them into **one** inbound message, so the agent replies once instead of once per attachment. The buffer key is `(chatID, MediaGroupID)`; the sender is pinned on the first member, and a member arriving with a mismatched sender is dropped as a defensive measure.
+
+**Outbound album batching.** When the agent sends several files at once — via the `send_file` tool's `attachments: [{path, caption?}, ...]` form — Telegram groups compatible outbound media into `sendMediaGroup` album chunks of **2–10** items. Photos and videos can share a chunk; documents group only with documents and audio only with audio. Voice-mode audio, singleton chunks, oversized images that fall back to being sent as documents, and otherwise-incompatible runs degrade gracefully to ordered single-send. File order, MIME type, filename, and captions are preserved.
 
 **Outbound upload limit.** Outbound media is validated against the upload ceiling before sending — files over the limit are rejected with a clear "outbound media too large" error rather than failing mid-upload. The ceiling is 50 MB on the official Bot API and 200 MB when a local Bot API server (`api_server`) is configured (or higher if `media_max_bytes` is raised above that).
 
@@ -8529,6 +8881,8 @@ Show emoji status on user messages. Set `reaction_level`:
 | stallHard | 😨 | No activity for 30s |
 
 Each status has fallback emoji variants in case the primary emoji is restricted by the chat's allowed reactions. Intermediate states (thinking, tool, etc.) are debounced at 700ms to avoid reaction spam.
+
+> **No placeholder tool-status text.** Deterministic tool-status updates are surfaced through reactions only — they no longer emit a separate "tool" text message in the channel. Platform reactions and explicit reasoning delivery remain independent behaviors.
 
 ### Bot Commands
 
@@ -8665,6 +9019,8 @@ goclaw bitrix-portal create \
 
 The `--name` (e.g. `acme`) is the portal key your channel config references. The `--domain` is the bare host — no scheme, no trailing slash.
 
+> **Self-hosted portals are supported.** In addition to Bitrix24 cloud domains (`*.bitrix24.{com,eu,vn,...}` and `*.bitrix.info`), `--domain` accepts a **self-hosted Bitrix24 FQDN** such as `bx.mycompany.com` (an optional `:port` is allowed). Self-hosted domains pass an SSRF-safe validation step: the hostname is resolved and **every** returned IP is checked, loopback/private/metadata IP ranges are rejected, `localhost` / `.local` / `.localhost` names are blocked, and any port must be in the range 1–65535. Cloud domains skip this check (they are Bitrix-operated and trusted).
+
 > Set `GOCLAW_ENCRYPTION_KEY` before running this. Credentials and tokens are stored AES-256-GCM encrypted; without the key they are stored in plaintext (with a warning).
 
 You can also create portals from the dashboard, which returns the install URL directly.
@@ -8723,6 +9079,7 @@ Channel instance config fields:
 | `reaction_level` | string | `"minimal"` | `off`, `minimal`, `full` |
 | `history_limit` | int | -- | Pending group messages held as context |
 | `block_reply` | bool | -- | Override gateway `block_reply` (nil = inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `public_url` | string | -- | Per-instance public URL override (legacy; prefer the auto-captured portal URL) |
 | `mcp_server_name` | string | -- | MCP server name for per-user credential provisioning (see [MCP integration](#mcp-integration)) |
 | `mcp_base_url` | string | -- | MCP server base URL; must be set together with `mcp_server_name` |
@@ -8818,6 +9175,7 @@ Notes:
 | Open Channel bot silent to customers | `bot_type: "O"` needs `dm_policy: "open"`, and an admin must attach the bot to an Open Channel queue in the Bitrix24 UI. |
 | Event handler URL stale after redeploy | Set `BITRIX24_FORCE_REREGISTER=1` and restart to push the new URL into Bitrix24. |
 | Want to inspect raw events | Set `BITRIX24_LOG_RAW_EVENT=1` at process start (credentials are redacted). Leave off in production — it logs message text. |
+| Self-hosted domain rejected | The FQDN must resolve to a public IP. SSRF validation blocks loopback/private/metadata IP ranges and `localhost` / `.local` / `.localhost` names; ports must be 1–65535. |
 
 ## What's Next
 
@@ -8879,6 +9237,7 @@ All config keys are in `channels.discord`:
 | `require_mention` | bool | true | Require @bot mention in servers (channels) |
 | `history_limit` | int | 50 | Pending messages per channel (0=disabled) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Features
 
@@ -8917,6 +9276,20 @@ While the agent processes, a typing indicator is shown (9-second keepalive). The
 ### Thread Support
 
 The bot automatically detects and responds in Discord threads. Responses stay in the same thread.
+
+### Thread History Backfill
+
+When the bot is mentioned **inside a Discord thread**, GoClaw pulls in the recent thread context before answering — so a mid-thread mention isn't answered blind.
+
+- Fetches up to **25** prior thread messages (before the trigger) via the Discord REST API and prepends their text as context.
+- Downloads up to **15** prior attachments into the inbound media pipeline, bounded to **5 MB per file**.
+- The whole backfill is bounded by a **30-second** timeout.
+
+This is **thread-only**. If the bot is missing the `READ_MESSAGE_HISTORY` permission or the REST call fails, GoClaw falls back gracefully to just the current message.
+
+### Multi-File Delivery
+
+Discord delivers multiple files (plus optional text) in a **single message**, up to 10 attachments — so a batch `send_file` lands as one tidy message rather than a flood. See [Multi-Attachment Delivery](/channels-overview#multi-attachment-delivery-batching) in the overview.
 
 ### Media from Replied-to Messages
 
@@ -8967,6 +9340,7 @@ Per-guild/channel overrides are not yet supported in the Discord channel impleme
 | Placeholder editing fails | Ensure bot has `Manage Messages` permission. Discord may revoke this during setup. |
 | Message split incorrectly | Long responses are split at newlines. Control message length via model `max_tokens`. |
 | Bot mentions itself | Check Discord permissions. Bot should not have `@everyone` or `@here` in responses. |
+| Thread context missing | Thread history backfill needs `READ_MESSAGE_HISTORY`. Grant the permission; only works inside threads. |
 
 ## What's Next
 
@@ -9040,6 +9414,7 @@ All config keys are in `channels.feishu`:
 | `reaction_level` | string | `"off"` | `off`, `minimal` (⏳ only), `full` |
 | `history_limit` | int | -- | Max messages to load from history |
 | `block_reply` | bool | -- | Block reply-to-message context |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `stt_proxy_url` | string | -- | Speech-to-text proxy URL |
 | `stt_api_key` | string | -- | Speech-to-text API key |
 | `stt_tenant_id` | string | -- | Speech-to-text tenant ID |
@@ -9524,6 +9899,7 @@ All config keys are in `channels.zalo`:
 | `webhook_secret` | string | -- | Optional webhook signature secret |
 | `media_max_mb` | int | 5 | Max image file size (MB) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Features
 
@@ -9655,6 +10031,7 @@ All config keys are in `channels.zalo_personal`:
 | `group_policy` | string | `"allowlist"` | `open`, `allowlist`, `disabled` (restrictive default) |
 | `require_mention` | bool | true | Require bot mention in groups |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Features
 
@@ -9837,6 +10214,7 @@ All config keys are in `channels.slack`:
 | `native_stream` | bool | false | Use Slack ChatStreamer API if available |
 | `reaction_level` | string | `"off"` | `off`, `minimal`, `full` |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `debounce_delay` | int | 300 | Milliseconds before dispatching rapid messages (0=disabled) |
 | `thread_ttl` | int | 24 | Hours before thread participation expires (0=disabled) |
 | `media_max_bytes` | int | 20MB | Max file download size in bytes |
@@ -9929,7 +10307,7 @@ Reactions are debounced at 700ms to prevent API spam.
 
 **Receiving files:** Files attached to messages are downloaded with SSRF protection (hostname allowlist: `*.slack.com`, `*.slack-edge.com`, `*.slack-files.com`). Auth tokens are stripped on redirect. Files exceeding `media_max_bytes` (default 20MB) are skipped.
 
-**Sending files:** Agent-generated files are uploaded via Slack's file upload API. Failed uploads show an inline error message.
+**Sending files:** Agent-generated files are uploaded via Slack's file upload API. Failed uploads show an inline error message. When the agent sends a batch (`send_file` with `attachments[]`), Slack uses an **ordered single-send** fallback — files are delivered one after another in order. See [Multi-Attachment Delivery](/channels-overview#multi-attachment-delivery-batching).
 
 **Document extraction:** Document files (PDFs, text files) have their content extracted and appended to the message for the agent to process.
 
@@ -10017,6 +10395,7 @@ All config keys are in `channels.whatsapp` (config file) or the instance config 
 | `require_mention` | bool | `false` | Only respond in groups when bot is @mentioned |
 | `history_limit` | int | `200` | Max pending group messages for context (0=disabled) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Architecture
 
@@ -10252,6 +10631,7 @@ For config-file-based channels (instead of DB instances):
 | `first_inbox_message` | string | built-in | Custom DM text sent for first-inbox feature |
 | `post_context_cache_ttl` | string | `"15m"` | Cache TTL for post content fetched for comment context (e.g. `"30m"`) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `allow_from` | list | -- | User/group ID allowlist |
 
 ## Architecture
@@ -12711,6 +13091,10 @@ The check runs on the **fully rendered command** after all `{{.param}}` substitu
 }
 ```
 
+## Execution Ordering
+
+When an agent emits several tool calls in one turn, only registered **read-only** built-in tools run in bounded parallel. Custom (shell-backed) tools are not registered as read-only, so they always execute **sequentially** — and any batch that mixes a custom tool with other calls runs entirely sequentially. This keeps shell-backed side effects predictable and ordered; it is not a setting you configure.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -13226,6 +13610,76 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 **Hash-based idempotency:** The upload endpoint uses a SHA-256 hash of the `SKILL.md` content for deduplication. If the same `SKILL.md` content is uploaded again (even packaged in a different ZIP), no new version is created — the existing version is kept unchanged. Only changes to the actual `SKILL.md` content trigger a new version.
 
+> **Inline companion files via `skill_manage`:** Agents with skill evolution enabled can also create small text companion files inline (no ZIP) by passing a `files` object to the `skill_manage` tool — keyed by relative path, e.g. `references/guide.md`. Each inline text file is capped at **2 MB**, and the path validator rejects absolute paths, Windows drive paths (`C:\...`), null bytes, `..` traversal, `SKILL.md` overwrites, dotfiles/dotdirs, and system artifacts (e.g. `.git`). See [Agent Evolution](agent-evolution.md) for details.
+
+## Selective Export & Download
+
+You can export skills as a ZIP archive — either all skills or a hand-picked subset — from the Dashboard or the API.
+
+**Preview before building** — `GET /v1/skills/export/preview` returns the counts that *would* be exported without building the archive, so the UI can show "N skills, M will be included" before you commit:
+
+```bash
+curl "http://localhost:8080/v1/skills/export/preview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Export selected skills** — pass specific skill IDs to export only those, plus an optional `include_system` flag to include bundled/system skills:
+
+```bash
+# Export two specific skills, excluding system skills
+curl "http://localhost:8080/v1/skills/export?ids=SKILL_ID_1,SKILL_ID_2&include_system=false" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+For large exports, the server can build the archive asynchronously and stream Server-Sent Events as it works. On completion it returns a `download_url` pointing at a one-time token endpoint:
+
+```
+event: complete
+data: {"download_url":"/v1/export/download/TOKEN"}
+```
+
+```bash
+# Fetch the built archive with the returned token
+curl "http://localhost:8080/v1/export/download/TOKEN" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+**Dashboard:** the **Skills** page has a bulk-select toolbar — check the skills you want, then **Export selected** to download just those.
+
+## Access Mode & Effective Access
+
+Beyond visibility levels, each skill has an **access mode** that controls how broadly it is reachable. Admins read and set it via the access endpoints:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/access` | Show the skill's access mode and grants |
+| `PATCH` | `/v1/skills/{id}/access` | Set access mode (`private`, `internal`, or `public`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Explain effective access for one skill, given an agent and user |
+| `GET` | `/v1/skills/access/effective` | Explain effective access across all skills for an agent and user |
+
+```bash
+# Set a skill's access mode to internal
+curl -X PATCH "http://localhost:8080/v1/skills/{id}/access" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_mode": "internal"}'
+
+# Explain why an agent/user can or cannot reach a skill
+curl "http://localhost:8080/v1/skills/{id}/access/effective?agent_id=AGENT_UUID&user_id=user@example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Per-Skill Dependency Endpoints
+
+In addition to the gateway-wide rescan, you can inspect and manage dependencies for a single skill:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/dependencies` | Current dependency status for the skill |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Re-scan declared and detected dependencies |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Check whether each dependency resolves at runtime |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Install missing dependencies (master tenant) |
+
 ## Runtime Environment
 
 Skills that use Python or Node.js run inside a Docker container with pre-installed packages.
@@ -13269,7 +13723,7 @@ Agents **cannot**: write to system paths, execute binaries from `/tmp`, run bloc
 
 ## Bundled Skills
 
-GoClaw ships six core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
+GoClaw ships seven core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
 
 | Skill | Purpose |
 |---|---|
@@ -13279,6 +13733,7 @@ GoClaw ships six core skills bundled inside the Docker image at `/app/bundled-sk
 | `pptx` | Read, create, edit presentations |
 | `skill-creator` | Create new skills |
 | `workspace-organizing` | Keep agent workspaces tidy and discoverable — enforces a purpose-based folder convention and runs memory/Vault/knowledge-graph discovery before writing files to avoid duplicates |
+| `goclaw` | Operate, inspect, administer, and debug a GoClaw gateway through the `goclaw` CLI/runtime — CLI discovery, gateway health/config diagnostics, agents, skills, MCP/tools, runtime packages, credentials, traces, sessions, channels, providers, and cron/jobs. Always inspects the live `goclaw --help` output first because command availability is version-dependent. |
 
 Bundled skills are seeded into PostgreSQL on every gateway startup (hash-tracked, no re-import if unchanged). They are tagged `is_system = true` and `visibility = 'public'`.
 
@@ -13654,7 +14109,7 @@ goclaw cron delete <jobId>
 | `schedule.tz` | string | IANA timezone — applies to **all** schedule kinds (`at`, `every`, `cron`), not just cron expressions. Omit to use the gateway default timezone |
 | `message` | string | Text the agent receives as its input |
 | `stateless` | bool | Run without session history — saves tokens for simple scheduled tasks. Default `false` |
-| `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.) |
+| `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.). Delivery is still suppressed if the output contains the `NO_REPLY` token — see [NO_REPLY suppression](#no_reply-suppression) |
 | `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
 | `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
 | `deleteAfterRun` | bool | Auto-set to `true` for `at` jobs; can be set manually on any job |
@@ -13747,6 +14202,28 @@ GoClaw exposes cron management via WebSocket RPC methods. The available methods 
 The scheduler checks jobs every 1 second. Due jobs are dispatched in parallel goroutines. Run logs are persisted to the `cron_run_logs` PostgreSQL table and accessible via the `cron.runs` method.
 
 Failed jobs record `lastStatus: "error"` and `lastError` with the message. The job stays enabled and will retry on its next scheduled tick (unless it was a one-time `at` job).
+
+## NO_REPLY suppression
+
+Even when a job is configured to deliver (`deliver: true` with a `channel` and `to`), GoClaw will **not** send the result to the channel if the agent's output contains the `NO_REPLY` token.
+
+- The match is **whole-word** and **case-insensitive** (`NO_REPLY`, `no_reply`, etc.), so the token must stand on its own — it won't match when embedded inside a longer word.
+- When suppressed, the run still completes and is logged; only the channel delivery is skipped (an info-level log records that delivery was suppressed).
+
+This lets a scheduled agent decide at runtime that there is nothing worth sending — for example, a health check that only replies when something is wrong:
+
+```json
+{
+  "name": "api-health-check",
+  "schedule": { "kind": "every", "everyMs": 300000 },
+  "message": "Check https://api.example.com/health. If it returns 200, reply with exactly NO_REPLY. Otherwise describe what is wrong.",
+  "deliver": true,
+  "channel": "telegram",
+  "to": "123456789"
+}
+```
+
+The `NO_REPLY` token follows the same convention used across GoClaw — see [How GoClaw Works](../core-concepts/how-goclaw-works.md) and [Sessions & History](../core-concepts/sessions-and-history.md).
 
 ## Retry — Exponential Backoff
 
@@ -14600,6 +15077,76 @@ Also supports the legacy flat format:
 ```
 
 If no `read_image` chain is configured, images are attached inline to the main LLM as usual.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | required | What you want to know about the image(s) |
+| `path` | string | — | Optional path to an image in the workspace (generated images or attachments) |
+| `url` | string | — | Optional URL to an image hosted online |
+
+`path` and `url` are **mutually exclusive** — passing both returns an error. If neither is given, the tool analyzes images already attached to the conversation.
+
+> **Provider note:** Anthropic and `claude-cli` providers cannot analyze images directly from a URL — they require base64-encoded image data. If a URL-only image is routed to one of them, that provider errors and the chain falls back to the next provider. Gemini, OpenRouter, and DashScope accept image URLs directly. URLs are SSRF-validated before any fetch.
+
+---
+
+## Video Analysis (read_video)
+
+The `read_video` tool analyzes video files using a video-capable provider chain (Gemini → OpenRouter by default). Use it when the conversation contains `<media:video>` tags, or point it at a workspace file or a hosted URL.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | required | What to analyze — e.g. "Summarize the key scenes", "What text appears on screen?" |
+| `media_id` | string | — | Optional specific `media_id` from a `<media:video>` tag. If omitted, uses the most recent video |
+| `url` | string | — | Optional URL to a video file hosted online |
+
+`media_id` and `url` are **mutually exclusive**. Local video files are capped at **100 MB**.
+
+> **URL streaming:** For video URLs, GoClaw pipes the stream from the URL through the **Gemini File API** rather than downloading the whole file locally first. URLs are SSRF-validated and the resolved IP is pinned for the upload. At the provider layer, image and video parts are now distinct media-content types (`ImageContent` vs `VideoContent`).
+
+The same chain-override format as `create_*` and `read_image` applies under `builtin_tools.settings.read_video`.
+
+---
+
+## Document Analysis (read_document)
+
+The `read_document` tool extracts and analyzes documents — **PDF, DOCX, and images of documents** — using a document-capable provider chain (Gemini → Anthropic → claude-cli → OpenRouter → DashScope by default).
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | required | What to analyze — e.g. "Extract all tables", "What does page 3 say?" |
+| `media_id` | string | — | Optional specific `media_id` from a `<media:document>` tag |
+| `path` | string | — | Optional file path from a `<media:document path="...">` tag |
+
+Unlike `read_image` and `read_video`, `read_document` has **no** `url` parameter. Plain-text formats (JSON, CSV, Markdown, HTML, etc.) are returned directly without an LLM call. Files are capped at **20 MB**.
+
+### Local-First Extraction (opt-in)
+
+By default, documents go straight to the cloud vision chain. You can opt into local extraction that runs `pdftotext` (PDF) and `pandoc --sandbox` (DOCX) on the host *before* any cloud call, via the `document_parser` config block:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `local_first` | `false` | Enable local extraction. Requires `pdftotext`/`pandoc` on PATH — present in the `full` Docker variant or builds with `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | PDF page limit; passed to `pdftotext -l` |
+| `timeout_sec` | `30` | Per-extraction timeout; the process group is killed on timeout |
+| `min_text_len` | `16` | Minimum characters (after trim) for a successful extraction; shorter output triggers cloud fallback |
+
+Config is captured at startup (not hot-reloaded); binary availability is re-checked per call, so a runtime install is detected without a restart. Any miss — disabled, unsupported MIME, missing binary, timeout, or too-little text (e.g. a scanned image-only PDF) — falls back transparently to the cloud vision chain. PDF extraction uses `pdftotext -l <max_pages>`; DOCX uses `pandoc --sandbox` so an untrusted document cannot fetch remote resources during conversion.
 
 ---
 
@@ -16341,7 +16888,7 @@ Returns:
 
 Extended thinking lets a supported LLM reason through a problem before producing its final reply. The model generates internal reasoning tokens that are not part of the visible response but improve the quality of complex analysis, multi-step planning, and decision-making.
 
-GoClaw supports extended thinking across four provider families — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), and Codex (Alibaba AI Reasoning) — through a single unified `thinking_level` setting per agent.
+GoClaw supports extended thinking across four provider families — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), and Codex (OpenAI ChatGPT OAuth, Responses API) — through a single unified `thinking_level` setting per agent.
 
 
 ## Provider Mapping
@@ -16378,6 +16925,8 @@ When thinking is active, GoClaw:
 - **Strips the `temperature` parameter** — Anthropic rejects thinking requests that include temperature
 - Auto-adjusts `max_tokens` to `budget_tokens + 8,192` to accommodate thinking overhead
 
+> **Sampling params on Claude 4.6+:** For Claude Opus/Sonnet 4.6+ and Opus 4.7+, GoClaw omits `temperature` (and `top_p`/`top_k`) from **every** request — independent of thinking. These models return `HTTP 400` if sampling params are included. This is broader than the thinking-only strip above. See the [Anthropic provider](/provider-anthropic) page.
+
 ### OpenAI-Compatible (OpenAI, Groq, DeepSeek, etc.)
 
 Maps `thinking_level` directly to `reasoning_effort`:
@@ -16387,6 +16936,10 @@ Maps `thinking_level` directly to `reasoning_effort`:
 - `high` → `reasoning_effort: "high"`
 
 Reasoning content arrives in `reasoning_content` during streaming and does not require special passback handling between turns.
+
+> **Kimi Coding (`kimi_coding`):** Kimi is OpenAI-compatible but has **server-side thinking on by default** for `kimi-k2-turbo-preview`. As a result, assistant tool-call messages replayed in history **must carry** a `reasoning_content` field — GoClaw auto-emits an empty string when none was captured, otherwise upstream returns `HTTP 400`. See the [Kimi Coding](/provider-kimi) page.
+
+> **Bailian Coding (`bailian`):** Bailian is a separate OpenAI-compatible Coding endpoint. Its hardcoded catalog includes `qwen3.7-plus` (advertised with Deep Thinking and Visual Understanding), but the DashScope `enable_thinking`/`thinking_budget` injection path described below does **not** apply to Bailian — it is treated as a plain OpenAI-compatible provider. See [Bailian](/provider-bailian).
 
 ### DashScope (Alibaba Qwen)
 
@@ -16428,6 +16981,8 @@ flowchart TD
 | Codex | `OutputTokensDetails.ReasoningTokens` tracked | Standard content |
 
 Thinking tokens are estimated as `character_count / 4` for context window tracking.
+
+> **Channel delivery is separate from provider streaming.** Whether a provider streams reasoning is one decision; whether a chat channel (e.g. Telegram) shows that reasoning to end users is another. Telegram exposes a `reasoning_delivery` setting for this — see the channel documentation for its modes.
 
 ---
 
@@ -17035,6 +17590,8 @@ source .env.local
 
 GoClaw uses a **5-layer permission system**. API keys and roles sit at layer 1 — gateway authentication. When a request arrives, GoClaw checks the `Authorization: Bearer <token>` header, resolves the token to a role, and enforces that role against the method being called.
 
+> API keys and tenant RBAC are only the first layer. Agent-config permissions, group/channel scopes, and channel-context credentials are documented in the [Permission Matrix](/permission-matrix).
+
 Three roles exist:
 
 | Role | Level | Description |
@@ -17259,10 +17816,139 @@ When a key is created or revoked, a `cache.invalidate` event is broadcast on the
 
 ## What's Next
 
+- [Permission Matrix](/permission-matrix) — agent-config permissions, group/channel scopes, and the full authorization-layer table
 - [Authentication & OAuth](/authentication) — gateway token and OAuth flow
 - [Exec Approval](/exec-approval) — require `operator.approvals` scope
 - [Security Hardening](/deploy-security) — full 5-layer permission overview
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials into CLI tools (gh, aws, gcloud) without exposing secrets to the agent
+
+
+
+---
+
+# Agent Permission Matrix
+
+> The full set of authorization layers that decide what an agent can do across channels, groups, and workspaces — and how those layers combine.
+
+## Overview
+
+A single agent action (sending a reply, writing a workspace file, editing a context file) passes through several independent permission layers. Each layer can allow or deny, and they stack: an action is only permitted when every applicable layer allows it. This page maps those layers, the agent-config permission rules you can grant from chat, the per-channel matrix, and the rules that most often surprise people (Zalo context writes and channel-context credentials).
+
+If you only need gateway-token roles, see [API Keys & RBAC](/api-keys-rbac) — that is layer 1. This page covers the layers above it.
+
+## Permission Layers
+
+| Layer | Scope | Notes |
+|-------|-------|-------|
+| Tenant RBAC | Dashboard, HTTP, WebSocket RPC | Viewer / operator / admin / owner. Admin-only methods include `config.permissions.*`. |
+| Agent ownership / share | Which agents a user can see and manage | Owner plus explicit shares; see [Sharing & Access Control](/sharing-and-access). |
+| Channel membership | Platform delivery | The platform can still reject outbound delivery after GoClaw allows the action. |
+| Agent config permissions | Config mutations driven from chat | Matched by `agent_id`, `scope`, `config_type`, and `user_id`, including wildcard rows. |
+| Workspace file boundary | Filesystem access | Prevents path escape and unsupported writes. |
+| Context file boundary | Agent identity / context files | Protected files are routed to the store and require group writer permission in group contexts. |
+| Channel context capabilities | MCP + Secure CLI tool execution | Credential precedence: user credentials > context credentials/grants > agent grants > global defaults. |
+
+## Agent Config Permission Rows
+
+Agents can have parts of their configuration changed from chat (for example, enabling a file writer or a heartbeat). Each permission rule is a row with four fields:
+
+| Field | Examples | Meaning |
+|-------|----------|---------|
+| `scope` | `agent`, `group:*`, `group:zalo:123`, `group:telegram:-100`, `*` | Where the grant applies. |
+| `config_type` | `file_writer`, `heartbeat`, `cron`, `context_files`, `*` | Which family of actions the grant covers. |
+| `user_id` | `123456`, `zalo-user-id`, `*` | Who the grant covers. `*` grants every member in the selected scope. |
+| `permission` | `allow`, `deny` | The decision. A deny can override a broader allow. |
+
+### Effective precedence
+
+When several rows match a request, GoClaw resolves them top-down and stops at the first that applies:
+
+1. Individual deny.
+2. Individual allow.
+3. Scope/user wildcard deny.
+4. Scope/user wildcard allow.
+5. Default deny.
+
+So a specific `deny` for one user always beats a wildcard `allow`, and anything not matched is denied by default.
+
+## Channel Matrix
+
+What an agent can do depends on where the request came from. This table summarizes the common channel contexts.
+
+| Channel context | Read agent output | Send reply | Write workspace file | Write protected context file | Grant all members |
+|-----------------|-------------------|------------|----------------------|------------------------------|-------------------|
+| Dashboard | RBAC controlled | N/A | Admin/operator path, then workspace boundary | Admin path, then context interceptor | Use the Permissions tab |
+| Direct message | Agent/session access | Channel adapter | Allowed by workspace boundary | Allowed by agent/context rules | Usually not needed |
+| Telegram group | Group scope + sender ID | Channel adapter | Requires `file_writer` when group-gated | Requires `context_files` or `file_writer` and a real sender | `scope=group:telegram:<chatId>`, `user_id=*` |
+| Zalo group | Group scope + sender ID | Channel adapter, group thread metadata | Requires `file_writer` when group-gated | Requires `context_files` or `file_writer` and a real sender | `scope=group:zalo:<chatId>`, `user_id=*` |
+| Discord guild/channel | Guild scope + sender ID | Channel adapter | Requires `file_writer` when guild-gated | Requires `context_files` or `file_writer` and a real sender | `scope=guild:<id>` or matching group scope, `user_id=*` |
+| Scheduled / proactive run | System sender | Channel adapter | Denied for group-gated writes unless elevated context | Denied for protected group context writes | Configure explicit rules, or run from a dashboard/admin context |
+
+## Zalo Context-Write Rule
+
+A common Zalo group failure is an agent trying to write a protected context file — `SOUL.md`, `IDENTITY.md`, `AGENTS.md`, `USER.md`, `USER_PREDEFINED.md`, or `CAPABILITIES.md` — from a group session where the acting sender is missing. Protected context writes go through the group permission gate, which requires:
+
+- `sender_id` is a **real platform user**, not empty or synthetic.
+- `user_id` identifies the group scope, for example `group:zalo:<chatId>`.
+- The sender matches a `context_files` allow (or a legacy `file_writer` allow), including wildcard rows such as `user_id="*"`.
+- Missing tenant context or permission-store errors **fail closed** — the write is denied rather than allowed.
+
+If a Zalo group write is being rejected, check that the message carries a real sender and that a matching `context_files` rule exists for that group scope.
+
+## Permissions Tab (UX)
+
+The dashboard Permissions tab is a full matrix editor for the rows above:
+
+| Control | Behavior |
+|---------|----------|
+| User/contact picker | Accepts explicit user IDs and contact search results. |
+| All members button | Sets `user_id="*"` for the current rule. |
+| Config type selector | `file_writer`, `heartbeat`, `cron`, `context_files`, or `*`. |
+| Scope selector | Known groups, `group:*`, `agent`, or `*`. |
+| Check access | Calls `config.permissions.check` and shows the effective allow/deny decision before or after saving. |
+
+Use **Check access** to preview the effective decision for a specific user and scope without saving — it runs the same precedence resolution the runtime uses.
+
+## Channel Context Capabilities
+
+Channel instances expose stored contexts in the dashboard and API. The base context is the channel instance itself; group contexts come from stored channel contacts. Each capability row combines MCP and Secure CLI visibility for that context — source, enabled state, tool allow/deny lists, and whether a credential is present.
+
+Context credential rows **never return secret material**. They project only metadata such as `has_api_key`, `has_env`, `credential_source`, and key names where available. Writes are tenant-admin gated, and runtime resolution carries a `ChannelContextScope` so grants and credentials apply only to the matching channel/group scope.
+
+### Channel-context credential precedence
+
+When a tool runs in a channel context, GoClaw resolves credentials in this order — first match wins:
+
+1. User credentials.
+2. Context credentials / grants.
+3. Agent grants.
+4. Global defaults.
+
+This mirrors the typed-credential precedence used by the git adapter (see [CLI Credentials](/cli-credentials)).
+
+## Security Notes
+
+- A wildcard `user_id="*"` should be easy to grant but always **visually explicit** — it expands access to every member in scope.
+- Synthetic senders stay denied for group file/context writes, so a system turn never inherits permissions from a real user it isn't.
+- Permission-store errors **fail closed** at group mutation boundaries.
+- Backend validation rejects unknown config types and permissions before any rule is written.
+- Platform send permissions are separate from GoClaw permissions: a channel adapter may still reject delivery even when GoClaw allows the agent action.
+
+## Common Issues
+
+| Problem | Solution |
+|---------|----------|
+| Zalo group context write rejected | Ensure the message has a real `sender_id` and a matching `context_files` (or `file_writer`) allow for `group:zalo:<chatId>`. |
+| Wildcard allow not taking effect | An individual `deny` beats a wildcard `allow`. Remove the deny or scope it more narrowly. |
+| Scheduled run can't write a group file | Proactive/system runs are denied for group-gated writes — configure an explicit rule or run from a dashboard/admin context. |
+| Reply sent by GoClaw never arrives | The channel adapter rejected delivery — GoClaw permissions and platform send permissions are independent. |
+
+## What's Next
+
+- [API Keys & RBAC](/api-keys-rbac) — layer 1: gateway-token roles and scopes
+- [Sharing & Access Control](/sharing-and-access) — agent ownership and shares
+- [CLI Credentials](/cli-credentials) — typed credentials and channel-context credential precedence
+- [Security Hardening](/deploy-security) — the full five-layer security overview
 
 
 
@@ -17525,7 +18211,7 @@ The sections above describe the **legacy env-paste model** — you paste arbitra
 
 ### Credential types
 
-A user credential row carries a `credential_type` (migration `000073`):
+A typed credential row carries a `credential_type`:
 
 | `credential_type` | Meaning |
 |-------------------|---------|
@@ -17535,14 +18221,81 @@ A user credential row carries a `credential_type` (migration `000073`):
 
 `NULL`/`env` rows are never migrated — existing legacy credentials keep working unchanged. Typed adapters are opt-in per credential.
 
-### User credentials vs binary/system credentials
+### Agent credentials (default git path)
 
-Typed adapters operate on **user credentials**, not the binary-level env defaults:
+Agent credentials are the **default** path for git auth. They avoid channel-user ID ambiguity: the selected agent owns the credential, and anyone allowed to use that agent can cause it to run git with the stored credential.
 
-- **Binary/system credentials** — the binary definition + its default env vars (and agent-grant overrides) described above. Shared across the binary's grants.
-- **User credentials** — per-user typed secrets stored in `secure_cli_user_credentials`, scoped to a single hostname.
+Agent credentials live in the `secure_cli_agent_credentials` table (migration `000077`), which stores the typed secret material **separately** from the `secure_cli_agent_grants` policy row. There is one credential per `(agent, binary)`.
 
-Manage user credentials in the dashboard under **Settings → CLI Credentials → User Credentials**. Click **Add**, select the user, choose the credential type (`Personal Access Token` or `SSH Private Key`), enter the **Host Scope**, and paste the secret. The stored secret is AES-256-GCM encrypted and can never be read back — editing the row shows a `••••••••` placeholder; leaving the secret field blank preserves the stored value, typing a new value replaces it.
+**Add an agent credential (UI):**
+
+1. Open **Packages → CLI Credentials**.
+2. Pick the `git` row and open **Agent Access**.
+3. On the **Credential** tab, select the agent.
+4. Choose **Credential Type**: `Personal Access Token` or `SSH Private Key`.
+5. Enter the **Host Scope** (required for PAT/SSH): the hostname the credential authenticates to (e.g. `github.com`, `gitlab.example.com`, `gitea.internal:8443`).
+6. Paste the token (PAT) or the unencrypted PEM body (SSH).
+7. Save.
+
+The **Agent Access** dialog has two tabs:
+
+- **Credential** — pick the agent, credential type, host scope, and secret (above).
+- **Access policy** — change deny args, timeout, tips, or env overrides for that agent (the `secure_cli_agent_grants` row).
+
+Policy and secret storage stay separate internally, but you manage them as one access decision in this single dialog. The stored secret is AES-256-GCM encrypted and can never be read back — editing the row shows a `••••••••` placeholder.
+
+### Effective credential precedence
+
+When git runs, GoClaw resolves which typed credential to inject in this order — the **first** match wins:
+
+1. **User override** — a per-user typed credential (Advanced user overrides, below).
+2. **Channel/context credential** — a credential scoped to the channel or group context the run originated from.
+3. **Agent credential** — the agent's own `secure_cli_agent_credentials` row. This is the default trust boundary.
+4. **Binary-level env defaults** — the legacy passthrough env on the binary definition.
+
+Granting an agent access to git effectively grants use of its stored git credential, so the agent credential is the default boundary unless a higher layer (user override or channel/context credential) is present.
+
+### Advanced user overrides
+
+Per-user credentials remain available for personal overrides and backward compatibility. Use them only when a stable tenant user ID is the intended credential boundary — they sit **above** agent credentials in the precedence order.
+
+Manage them in the dashboard under **Packages → CLI Credentials → Advanced User Overrides → Add**: select the user, choose the credential type (`Personal Access Token` or `SSH Private Key`), enter the **Host Scope**, and paste the secret. The stored secret is AES-256-GCM encrypted and can never be read back — leaving the secret field blank on edit preserves the stored value, typing a new value replaces it.
+
+These rows live in the `secure_cli_user_credentials` table.
+
+### Agent credentials REST API
+
+The agent-credentials endpoints manage the typed secret for one `(binary, agent)` pair. They require the `admin` role.
+
+#### List agent credentials for a binary
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials
+```
+
+Returns the agents that have a stored credential for this binary, with metadata only (credential type, host scope, key presence) — never the secret.
+
+#### Get one agent's credential
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+#### Set (create or replace) an agent's credential
+
+```
+PUT /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Send `credential_type`, `host_scope`, and the secret (`env_vars` for `env`, or the typed PAT/SSH key body). The secret is encrypted at rest and never returned.
+
+#### Delete an agent's credential
+
+```
+DELETE /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Removes the stored secret. The agent's `secure_cli_agent_grants` policy row (deny args, timeout, etc.) is unaffected — delete the grant separately to revoke access.
 
 ### The git adapter
 
@@ -17559,10 +18312,12 @@ Any other subcommand (`status`, `log`, `diff`, `commit`, `branch`, …) is a loc
 ```
 GIT_CONFIG_COUNT=1
 GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
-GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+GIT_CONFIG_VALUE_0=Authorization: Basic base64("x-access-token:<token>")
 ```
 
-Because the token lives in an env value (not a command-line flag), it never appears in `ps`, `/proc/<pid>/cmdline`, or shell history. The injected vars are scoped to the spawned `git` process only — GoClaw's own environment and sibling exec calls never see them.
+The header value is HTTP Basic auth: the literal username `x-access-token` and your token joined by a colon, base64-encoded. Because the token lives in an env value (not a command-line flag), it never appears in `ps`, `/proc/<pid>/cmdline`, or shell history. The injected vars are scoped to the spawned `git` process only — GoClaw's own environment and sibling exec calls never see them.
+
+The raw token, the base64 payload, **and** the full `Authorization: Basic …` header are all registered with the output scrubber, so none of the three can leak back to the agent through stdout, stderr, error messages, or the audit log.
 
 **SSH flow.** The PEM key is written to a `0600`-mode tmpfile in the system temp dir (prefix `goclaw-gitkey-*`), and `GIT_SSH_COMMAND` is set to:
 
@@ -17570,7 +18325,7 @@ Because the token lives in an env value (not a command-line flag), it never appe
 ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
 ```
 
-`StrictHostKeyChecking=accept-new` accepts unknown host keys on **first contact (TOFU)**. Pre-seed `~/.ssh/known_hosts` to close the window (see [Security Hardening](/deploy-security)). The tmpfile is removed after exec via a deferred cleanup. **Passphrase-protected SSH keys are rejected at save time** — re-export your key without a passphrase, or use a dedicated deploy key.
+`BatchMode=yes` means SSH never prompts and fails fast in the agent context. `StrictHostKeyChecking=accept-new` accepts unknown host keys on **first contact (TOFU)**. Pre-seed `~/.ssh/known_hosts` to close the window (see [Security Hardening](/deploy-security)). The tmpfile is removed after exec via a deferred cleanup. **SSH private keys are validated twice at save time** — first with Go's SSH parser, then with OpenSSH (`ssh-keygen -y -f <tmpfile>`) when `ssh-keygen` is available — to catch keys that would save but later fail with OpenSSH diagnostics. **Passphrase-protected SSH keys are rejected at save time** — re-export your key without a passphrase, or use a dedicated deploy key.
 
 ### Host scope
 
@@ -17580,7 +18335,7 @@ Both `pat` and `ssh_key` require a **`host_scope`** — the exact ASCII `host` o
 |---------------------|:---:|:---:|:---:|
 | `github.com` | ✓ | ✗ | ✗ |
 
-If you run a self-hosted server on the scheme's default port (443 HTTPS, 22 SSH), omit the port; if on a non-default port, include it (e.g. `gitea.internal:8443`). When no stored credential matches the resolved remote host, the adapter falls through to the uncredentialed path and the remote rejects the operation if it requires auth.
+If you run a self-hosted server on the scheme's default port (443 HTTPS, 22 SSH), omit the port; if on a non-default port, include it (e.g. `gitea.internal:8443`). When no typed PAT/SSH credential is selected, or the selected credential cannot match the resolved remote host, **adapter-managed remote git commands fail closed with a GoClaw diagnostic**. `git` is **not** allowed to fall through to an interactive username/password prompt in agent runtime.
 
 ### Env visibility: sensitive vs non-sensitive
 
@@ -17595,10 +18350,11 @@ This lets operators see non-secret context (e.g. `AWS_DEFAULT_REGION=us-west-2`)
 
 ### Migrating from legacy env credentials
 
-There is no forced migration. A row with `credential_type IS NULL` or `= 'env'` keeps emitting its env vars exactly as before. To upgrade a git credential, open the user-credentials dialog, pick **Personal Access Token** or **SSH Private Key**, enter the host scope, paste the secret, and save — the legacy row is replaced atomically.
+There is no forced migration. A row with `credential_type IS NULL` or `= 'env'` keeps emitting its env vars exactly as before. To upgrade a git credential, create a matching **Agent Credential** (or, if a stable user ID is the intended boundary, an Advanced user override), enter the host scope, paste the secret, and save. Existing user overrides remain higher precedence than agent credentials, so you can migrate gradually and remove the user override when it is no longer needed.
 
 ### v1 limitations
 
+- **One credential per `(agent, binary)` row**, plus a legacy one credential per `(user, binary)` override.
 - **No wildcard hosts** — one credential per exact `host[:port]`; `*.github.com` is not supported.
 - **No passphrase-protected SSH keys** — rejected at validation time.
 - **No sandbox propagation** — the adapter mutates the forked child's environment, which is incompatible with the bind-mount Docker sandbox path. Credentialed exec runs on the host only in v1.
@@ -17660,9 +18416,11 @@ Update the grant: `{"enabled": false}`. The binary remains accessible to other a
 | Agent cannot run a binary | Check `is_global` on the binary — if `false`, the agent needs an explicit grant |
 | Grant overrides not applied | Verify the grant `enabled = true` and that override fields are non-null |
 | `403` on grant endpoints | Requires admin role — check API key scopes |
+| `git clone`/`push` fails with no credential | No typed credential matched the remote host — git fails closed (no prompt). Add an Agent Credential with the exact `host_scope`. |
 
 ## What's Next
 
+- [Permission Matrix](/permission-matrix) — full authorization layers, channel/group scopes, and channel-context credentials
 - [Database Schema → secure_cli_agent_grants](/database-schema)
 - [Exec Approval](/exec-approval)
 - [API Keys & RBAC](/api-keys-rbac)
@@ -17883,6 +18641,14 @@ All groups default to `true` (denied). Explicitly set a group to `false` to allo
 ```
 
 Deny groups and the exec approval flow operate independently — a command can pass the deny-group check but still be held for human approval based on your `ask` mode setting.
+
+### Live-reload persistence
+
+Global deny-group changes apply immediately without a restart. The reload clones the config snapshot before applying it, so **disables persist correctly** across reload — a group you turned off stays off until you turn it back on. The same reload also refreshes provider-level shell-deny policies (Claude CLI / ACP), not just the global exec tool.
+
+### venv Python exemption
+
+GoClaw blocks shell access to its internal `.goclaw/` data directory. The **GoClaw-managed Python interpreter is exempt**: invoking it by its absolute path (`<home>/.goclaw/venv/bin/python3`) is allowed. GoClaw resolves that path (following symlinks) once at startup and exempts the resolved interpreter directory; if no venv is present it falls back silently. This is the only path under `.goclaw/` an agent's shell commands can reach.
 
 ---
 
@@ -18174,6 +18940,10 @@ Short histories get a smaller budget (floor: 1024 tokens) and long histories get
 
 When the context remains over budget even after a compaction sweep (for example, the system prompt and tool schemas alone nearly fill the window), GoClaw performs a secondary recovery sweep before surfacing an error. This overflow recovery path (PR #958) caps retries at one attempt and returns a `context overflow after compaction` error only when the second sweep also fails. In practice this prevents hard failures for agents with large tool schemas or system prompts.
 
+### Pending-Message Preservation
+
+Compaction can trigger **mid-loop**, between an assistant message that requests tool calls and the `tool` results that answer them. GoClaw now preserves the in-flight assistant `tool_calls` message across a mid-loop compaction sweep, so the next provider request never sends `tool` result messages without their preceding `tool_calls` message. Without this, the provider would reject the request with an **HTTP 400** (orphaned tool results). If you previously saw intermittent 400 errors on long tool-heavy turns, this is the fix.
+
 ---
 
 ## What's Next
@@ -18249,6 +19019,48 @@ All API responses return an instance object with credentials masked:
 | `config` | object | Channel-specific config (optional) |
 | `enabled` | bool | `false` disables the instance without deleting it |
 | `is_default` | bool | `true` for seeded instances — cannot be deleted |
+
+---
+
+## Instance `config` reference
+
+The `config` object holds channel-specific settings. Beyond the per-channel keys documented on each channel page, two cross-channel concerns are worth calling out here.
+
+### Delivery overrides (`chat_behavior`, `block_reply`)
+
+Channel instances can override the workspace-level [human-like delivery](/channels-overview#human-like-delivery) behavior:
+
+| Key | Type | Notes |
+|---|---|---|
+| `chat_behavior` | object | Override `gateway.chat_behavior` for this instance (omit = inherit). Set only the fields you want to change. |
+| `block_reply` | bool | **Legacy.** Read as the inherited default for `intermediate_replies.enabled` when the newer field is unset. |
+
+Resolution order is **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (the base).
+2. **Agent** — `agents.other_config.delivery_behavior` overrides the workspace base.
+3. **Channel** — the instance's `config.chat_behavior` has the final say.
+
+Each level only overrides the fields it sets, so you can tune one knob per channel and inherit the rest. Only channels that implement the `ChatBehaviorChannel` interface honor these overrides (Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, Zalo Personal).
+
+### Passive channel memory (`passive_memory`)
+
+An instance can opt into [passive channel memory extraction](/memory-system#passive-channel-memory-extraction) by adding a `passive_memory` block to its `config`:
+
+```json
+{
+  "config": {
+    "passive_memory": {
+      "enabled": true,
+      "review_mode": true,
+      "interval_minutes": 360,
+      "min_messages": 5
+    }
+  }
+}
+```
+
+Disabled by default, group-only in v1, and review-gated. See [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction) for the full field table and behavior.
 
 ---
 
@@ -18442,7 +19254,7 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 | Issue | Cause | Fix |
 |---|---|---|
 | `403` on delete | Instance is a default/seeded instance | Default instances cannot be deleted; disable them with `enabled: false` instead |
-| `400 invalid channel_type` | Typo or unsupported type | Use one of: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu` |
+| `400 invalid channel_type` | Typo or unsupported type | Use one of: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu`, `bitrix24`, `pancake`, `facebook` |
 | Messages not routing to agent | Instance is disabled or `agent_id` is wrong | Verify `enabled: true` and the correct `agent_id` |
 | Credentials not persisted | `GOCLAW_ENCRYPTION_KEY` not set | Set the encryption key env var; credentials require it |
 | Cache stale after update | In-memory cache not yet refreshed | GoClaw broadcasts a cache-invalidate event on every write; cache refreshes within seconds |
@@ -20225,6 +21037,8 @@ The `skill_manage` tool is available to agents when `skill_evolve=true`. It supp
 | `content` | string | create | Full SKILL.md including YAML frontmatter |
 | `find` | string | patch | Exact text to find in current SKILL.md |
 | `replace` | string | patch | Replacement text |
+| `files` | object | optional (create, patch) | Companion text files keyed by relative path (e.g. `references/guide.md`). Each file is capped at **2 MB**; paths are validated (no `..`, absolute/Windows paths, null bytes, `SKILL.md` overwrite, dotfiles, or system artifacts) |
+| `visibility` | string | optional (patch) | Metadata-only visibility change (`private` or `public`) — updates who can discover the skill without creating a new version when no `content`/`files` change |
 
 **Example — creating a skill from conversation:**
 
@@ -20252,6 +21066,16 @@ skill_manage(
 skill_manage(action="delete", slug="deploy-checklist")
 ```
 
+**Example — creating a skill with a companion reference file:**
+
+```
+skill_manage(
+  action="create",
+  content="---\nname: Deploy Checklist\ndescription: Steps to deploy the app safely.\n---\n\n## Steps\nSee {baseDir}/references/runbook.md",
+  files={"references/runbook.md": "# Runbook\n1. Run tests\n2. Build image\n3. Push to registry"}
+)
+```
+
 ### publish_skill tool
 
 `publish_skill` is an alternative path that registers an entire local directory as a skill. It is always available as a built-in tool toggle (not gated by `skill_evolve`).
@@ -20267,7 +21091,7 @@ The directory must contain a `SKILL.md` with a `name` in frontmatter. The skill 
 | | `skill_manage` | `publish_skill` |
 |---|---|---|
 | Input | Content string | Directory path |
-| Files | SKILL.md only (companions copied on patch) | Entire directory (scripts, assets, etc.) |
+| Files | SKILL.md plus direct text companion files (`files=...`); patch copies existing companions forward | Entire directory (scripts, assets, etc.) |
 | Gated by | `skill_evolve` config | Built-in tool toggle (always available) |
 | Guidance | Injected via skill_evolve prompt | Uses `skill-creator` core skill |
 | Auto-grant | Yes | Yes |
@@ -20438,6 +21262,68 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 
 ---
 
+## Skill Self-Evolution (per-skill metrics)
+
+This is a **separate subsystem** from the agent-level "v3 Evolution Metrics" above. Where agent-level evolution tunes an *agent's* parameters, skill self-evolution tracks how each **existing skill** performs over time and proposes improvements to that skill. It is also distinct from the `skill_evolve` learning loop, which teaches an agent *when* to create or patch reusable skills.
+
+### Runtime recording
+
+Usage is recorded automatically as agents use skills — there is **no public usage endpoint**:
+
+- `use_skill` tool calls record tenant-scoped usage with status `succeeded` or `failed`, plus duration, session key, run/trace ID, agent ID, and user scope.
+- Slash-command activation (`/<slug>` or `/use <skill>`) records a `started` event when it resolves to a skill.
+- Usage writes are **internal only**. v1 intentionally has no public `POST /v1/skills/{id}/usage` endpoint, so clients cannot forge success rates.
+
+### Persistent tables
+
+| Table | Purpose |
+|---|---|
+| `skill_evolution_settings` | Per-tenant, per-skill `enabled` flag and `mode` |
+| `skill_usage_metrics` | Runtime usage events and status counts |
+| `skill_improvement_suggestions` | Skill-scoped suggestions with evidence and draft patches |
+| `skill_versions` | Immutable applied-version records linked to changed files and the originating suggestion |
+
+### Modes and statuses
+
+| Field | Values | Notes |
+|---|---|---|
+| Settings `mode` | `suggest_only` (default), `auto_analyze` | No automatic *patching* happens in v1 — `auto_analyze` only generates suggestions automatically |
+| Usage `status` | `started`, `succeeded`, `failed`, `abandoned` | Recorded per skill invocation |
+| Suggestion `status` | `pending`, `approved`, `rejected`, `applied` | Lifecycle of an improvement suggestion |
+
+### Applying a suggestion
+
+Suggestions are reviewed and applied by admins. Applying a suggestion to a **custom** skill:
+
+1. Copies the current skill directory forward to the next version.
+2. Validates the target path (same rules as `skill_manage` companion files).
+3. Runs the SKILL.md content guard scanner when SKILL.md changes.
+4. Updates the active skill and records a new `skill_versions` row.
+5. Writes an activity log entry.
+
+**System/bundled skill mutation is refused** — the apply path returns `403` for any skill with `is_system = true`, before touching the filesystem.
+
+### Admin-gated surfaces
+
+Viewer surfaces are sanitized. Failure evidence, draft patches, actor IDs, and activity details require **admin** visibility — non-admins see only aggregate, non-sensitive data.
+
+### HTTP API
+
+| Method | Path | Access |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/evolution` | Read self-evolution settings |
+| `PATCH` | `/v1/skills/{id}/evolution` | Set `enabled` / `mode` (tenant admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Usage metrics (total / started / succeeded / failed / abandoned / success rate) |
+| `GET` | `/v1/skills/{id}/activity` | Recent self-evolution activity (admin only) |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | List suggestions for the skill |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/approve` | Approve a suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/reject` | Reject a suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/apply` | Apply an approved suggestion (tenant admin) |
+
+The matching CLI commands are `goclaw skills evolve`, `goclaw skills metrics`, `goclaw skills suggestions`, and `goclaw skills activity`. The Dashboard surfaces all of this in the skill detail's **Evolution** tab.
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -20448,6 +21334,9 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 | Patch fails with "not owner" | Agent trying to patch another agent's skill | Each agent can only modify skills it created |
 | Patch fails with "system skill" | Attempting to modify a built-in system skill | System skills are always read-only |
 | Skill content rejected | Content matched a security rule in guard.go | Remove the flagged pattern; see Layer 1 categories above |
+| Companion file rejected by `skill_manage` | Path uses `..`, an absolute/Windows path, a dotfile, or a system artifact; or the file exceeds 2 MB | Use a clean relative path under the skill root and keep each text file under 2 MB |
+| Cannot apply a skill suggestion | Target is a system/bundled skill, or the suggestion is not yet `approved` | System skills are read-only; approve the suggestion first, then apply |
+| Skill metrics show no data | No `use_skill`/slash-command activations recorded yet, or self-evolution disabled | Usage is recorded internally as agents use the skill; enable self-evolution in the skill's Evolution tab |
 
 ---
 
@@ -20968,9 +21857,9 @@ docker compose \
 
 > **Data hooks:** GoClaw tracks post-migration Go transforms in a separate `data_migrations` table. Run `./goclaw upgrade --status` to see both SQL migration version and pending data hooks.
 
-> Migrations `000045`–`000073` continue the schema: model fallback config, REST endpoint catalog, Bitrix24 portal OAuth state (`bitrix_portals`), server-side browser cookie sync (`browser_cookies`), the usage-cap pricing and enforcement tables (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), the agent-budget bridge, and typed secure-CLI credentials — see [Database Schema → Migration History](/database-schema).
+> Migrations `000045`–`000080` continue the schema: model fallback config, REST endpoint catalog, Bitrix24 portal OAuth state (`bitrix_portals`), server-side browser cookie sync (`browser_cookies`), the usage-cap pricing and enforcement tables (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), the agent-budget bridge, typed secure-CLI credentials, archived run timelines (`run_timeline_items`), per-channel context capabilities (scoped MCP/secure-CLI grants and credentials), passive channel memory extraction, per-agent secure-CLI credentials, skill self-evolution (`skill_usage_metrics`, `skill_improvement_suggestions`, `skill_versions`), and usage event analytics (`usage_events`, `usage_event_rollups`) — see [Database Schema → Migration History](/database-schema).
 
-Run `./goclaw migrate status` after deployment to confirm the current schema is version **73**.
+Run `./goclaw migrate status` after deployment to confirm the current schema is version **80**.
 
 ---
 
@@ -20980,7 +21869,7 @@ GoClaw v3 supports two database backends:
 
 | Feature | PostgreSQL | SQLite (desktop) |
 |---------|-----------|-----------------|
-| Full schema (all 73 migrations) | Yes | Yes |
+| Full schema (all 80 migrations) | Yes | Yes |
 | Vector similarity search (HNSW) | Yes — pgvector | No |
 | Episodic summaries vector search | Yes | Keyword (FTS) only |
 | Knowledge Vault auto-linking | Yes — similarity threshold 0.7 | No (summarise only) |
@@ -21216,7 +22105,7 @@ To allow a specific group for one agent, set it to `false` in the agent's config
 
 ### Global shell deny-groups — runtime toggle
 
-`config.tools.shellDenyGroups` is a `map[string]bool` that lets you enable or disable deny-groups globally without restarting the gateway. Changes take effect immediately via `bus.TopicConfigChanged` live-reload.
+`config.tools.shellDenyGroups` is a `map[string]bool` that lets you enable or disable deny-groups globally without restarting the gateway. Changes take effect immediately via `bus.TopicConfigChanged` live-reload. The reload clones the config snapshot before applying it, so group *disables* persist correctly across reload, and it also reloads provider-level shell-deny policies (Claude CLI / ACP), not just the global exec tool.
 
 ```json
 {
@@ -21238,6 +22127,8 @@ See [`reference/config-reference.md`](../reference/config-reference.md) for the 
 `resolvePath()` applies `filepath.Clean()` then `HasPrefix()` to ensure all file paths stay within the agent's workspace. With `restrict_to_workspace: true` (the default on agents), any path outside the workspace is blocked.
 
 All four filesystem tools (`read_file`, `write_file`, `list_files`, `edit`) implement the `PathDenyable` interface. The agent loop calls `DenyPaths(".goclaw")` at startup — agents cannot read GoClaw's internal data directory. The `list_files` tool filters denied paths from directory listings entirely, so agents never see them.
+
+**venv interpreter exemption.** The GoClaw-managed Python interpreter is exempt from the `.goclaw/` deny so agents can run it directly. GoClaw resolves `<home>/.goclaw/venv/bin/python3` (following symlinks) once at startup and exempts the *resolved* interpreter directory; if no venv is present it falls back silently. This is the only path under `.goclaw/` that exec can reach.
 
 ### File serving path traversal protection
 
@@ -21526,7 +22417,7 @@ Format stored: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Valu
 
 > **Must match across replicas.** In a clustered deployment, every gateway instance must use the same `GOCLAW_ENCRYPTION_KEY`. Rotating the key requires re-encrypting all stored secrets before restarting.
 
-Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`, `secure_cli_agent_grants`, and `secure_cli_user_credentials` all store secrets in an `encrypted_env` column. Each entry carries a visibility `kind` — `sensitive` entries are masked in normal API/UI responses and only returned via the audited `env:reveal` flow; `value` entries (e.g. region or profile names) are returned to admins for operational review.
+Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`, `secure_cli_agent_grants`, `secure_cli_user_credentials`, and `secure_cli_agent_credentials` all store secrets in an `encrypted_env` column. Each entry carries a visibility `kind` — `sensitive` entries are masked in normal API/UI responses and only returned via the audited `env:reveal` flow; `value` entries (e.g. region or profile names) are returned to admins for operational review.
 
 ---
 
@@ -21541,6 +22432,12 @@ Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`,
 
 A typo in the adapter name falls back to passthrough (the legacy denylist-only behavior) — there is **no silent bypass**.
 
+### Effective credential precedence
+
+When an adapter resolves which credential to inject, it picks the **first** match in this order: **user override → channel/context credential → agent credential → binary-level env defaults**. Agent credentials (`secure_cli_agent_credentials`) are the default trust boundary for git; a user override or a channel/context credential takes precedence when present. The `credential_source` audit field records which layer was used.
+
+For the PAT path, the adapter synthesizes an `http.<remote>.extraheader` config entry with `Authorization: Basic base64("x-access-token:<token>")`. The raw token, the base64 payload, and the full header are all registered with the scrubber. SSH private keys are validated **twice** at save time — first with Go's SSH parser, then with OpenSSH (`ssh-keygen -y -f`) when available — so keys that would fail later with OpenSSH diagnostics are rejected up front.
+
 ### Audit event: `security.system_env_injection`
 
 Every adapter injection emits **exactly one** structured `slog.Warn` line. The plaintext hostname is intentionally **never logged** — keeping audit logs PII-safe inside regulated tenants.
@@ -21554,6 +22451,7 @@ Every adapter injection emits **exactly one** structured `slog.Warn` line. The p
 | `env_keys` | sorted env-var **names** only — never values |
 | `argv_prefix_len` | number of argv elements prepended, not their content |
 | `host_scope_hash` | first 8 hex chars of `SHA-256(normalized host_scope)`, or `"none"` |
+| `credential_source` | which precedence layer supplied the credential: `user`, `context`, `agent`, or empty when no scoped credential row was selected |
 
 There is **no dedicated audit table** in v1 — the line routes through `slog` to stderr → systemd/journald or Docker logs. To grep for activity against a specific host, pre-compute its hash:
 
@@ -21857,19 +22755,44 @@ gunzip trace.json.gz
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/traces` | List traces with pagination and filters |
+| GET | `/v1/traces/follow` | Poll trace changes for one session or agent |
 | GET | `/v1/traces/{id}` | Get trace details with all spans |
 | GET | `/v1/traces/{id}/export` | Export trace + sub-traces as gzip JSON |
+| GET | `/v1/runs/{runID}/timeline` | Get persisted run-archive timeline items |
 
 ### Query Filters (GET /v1/traces)
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `q` | string | Contains-search across trace ID, trace previews, session/channel labels, agent/channel labels, and span previews/tool names |
 | `agent_id` | UUID | Filter by agent |
 | `user_id` | string | Filter by user |
-| `status` | string | `running`, `success`, `error`, `cancelled` |
-| `from` / `to` | timestamp | Date range filter |
+| `session_key` | string | Filter by session key |
+| `status` | string | `running`, `completed`, `error`, `cancelled` |
+| `channel` | string | Filter by raw channel |
+| `agent` | string | Contains-search over agent display name and key |
+| `channel_query` | string | Contains-search over tenant-scoped channel instance labels |
+| `tool_name` | string | Contains-search over span tool names |
+| `has_tool_calls` | boolean | Traces with (`true`) or without (`false`) tool calls |
+| `from` / `to` | timestamp | `start_time` range filter — `from` inclusive, `to` exclusive |
+| `min_input_tokens` / `max_input_tokens` | int | Input token range |
+| `min_output_tokens` / `max_output_tokens` | int | Output token range |
+| `min_tool_calls` / `max_tool_calls` | int | Tool-call count range |
 | `limit` | int | Page size (default 50) |
 | `offset` | int | Pagination offset |
+
+> The `goclaw traces` operator CLI wraps these same endpoints. See [CLI Commands](../reference/cli-commands.md) for the command reference.
+
+### Pointing operator commands at a gateway
+
+HTTP operator commands (and the dashboard's API) resolve their base URL in this order:
+
+1. `--server <url>` flag (highest priority)
+2. `GOCLAW_SERVER` environment variable
+3. `GOCLAW_GATEWAY_URL` environment variable (fallback)
+4. The gateway host/port from `config.json` (defaults to `http://127.0.0.1:18790`)
+
+`GOCLAW_GATEWAY_URL` now drives **all** HTTP operator commands, not just `auth`. Pair it with `--token` / `GOCLAW_GATEWAY_TOKEN` for the bearer token.
 
 ## OpenTelemetry Export
 
@@ -22384,7 +23307,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **73**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **80**.
 
 ```mermaid
 graph LR
@@ -22595,6 +23518,18 @@ Migrations `000058`–`000073` are applied automatically on next startup (`./goc
 - `000071_usage_cap_policies` — adds the usage-cap enforcement tables: `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`.
 - `000072_agent_budget_usage_cap_bridge` — adds a `source` column to `usage_cap_policies` and **backfills** one `month`-window policy per agent that has a non-NULL `budget_monthly_cents` (1 cent = 10,000 micros, `source = 'agent_budget_monthly_cents'`). Existing per-agent monthly budgets are now enforced through the usage-cap engine. Idempotent (`ON CONFLICT DO NOTHING`); no action required.
 - `000073_secure_cli_credential_type` — adds nullable `credential_type` + `host_scope` to `secure_cli_user_credentials` and `adapter_name` to `secure_cli_binaries` for the typed credential-adapter framework. All columns NULL-by-default to preserve legacy passthrough behavior — no action required.
+
+#### Schema 73 → 80
+
+Migrations `000074`–`000080` are applied automatically on next startup (`./goclaw upgrade` or `GOCLAW_AUTO_UPGRADE=true`) — no manual steps required. All new tables; existing data is untouched. Highlights:
+
+- `000074_run_timeline_items` — adds `run_timeline_items` for an archived, ordered per-run timeline (messages/tool calls) used to replay runs; links to traces and spans.
+- `000075_channel_context_capabilities` — adds `mcp_context_grants`, `mcp_context_credentials`, `secure_cli_context_grants`, and `secure_cli_context_credentials` for per-channel-instance scoped MCP and secure-CLI grants with encrypted credentials.
+- `000076_channel_memory_extraction` — adds `channel_memory_extraction_runs` and `channel_memory_extraction_items` for passive, scheduled extraction of durable memory from channel history (summaries only, no raw bodies) with a review queue.
+- `000077_secure_cli_agent_credentials` — adds `secure_cli_agent_credentials` for per-agent typed CLI credentials, separate from the grants policy; uses composite FKs `(binary_id, tenant_id)` and `(agent_id, tenant_id)`.
+- `000078_skill_user_grants_tenant_unique` — replaces the `skill_user_grants` unique key with tenant-scoped `(skill_id, user_id, tenant_id)`. No action required.
+- `000079_skill_self_evolution` — adds `skill_evolution_settings`, `skill_usage_metrics`, `skill_improvement_suggestions`, and `skill_versions` for per-skill usage tracking and suggested/applied improvements. **Backfills** one `skill_versions` row per existing non-deleted skill. Idempotent (`ON CONFLICT DO NOTHING`).
+- `000080_usage_event_analytics` — adds `usage_events` (raw per-event analytics) and `usage_event_rollups` (pre-aggregated hourly rollups) backing the usage analytics dashboard.
 
 **Gateway-triggered upgrades (host release-upgrade flow):** When a dashboard/API-triggered upgrade is run on a systemd host, `goclaw-upgrade-release` now re-launches itself as a transient `systemd-run` unit so stopping `goclaw` during deploy no longer kills the upgrade job. Stale `running` status records are also superseded after 30 minutes, and the deploy wait loop tolerates transient `502`s during restart. No configuration change required.
 
@@ -24000,6 +24935,8 @@ goclaw [global flags] <command> [subcommand] [flags] [args]
 |------|---------|-------------|
 | `--config <path>` | `config.json` | Config file path. Also read from `$GOCLAW_CONFIG` |
 | `-v`, `--verbose` | false | Enable debug logging |
+| `--server <url>` | — | Gateway server URL override for HTTP-backed commands (traces, skills, etc.). Falls back to `$GOCLAW_SERVER`, then `$GOCLAW_GATEWAY_URL` |
+| `--token <token>` | — | Gateway bearer token override. Falls back to `$GOCLAW_GATEWAY_TOKEN` |
 
 
 ## `version`
@@ -24314,6 +25251,118 @@ goclaw sessions reset "telegram:123456789"
 
 ---
 
+## `traces`
+
+Inspect agent execution traces and run timelines through the running gateway. All `traces` subcommands are HTTP-backed — they connect to the gateway resolved from `--server` / `$GOCLAW_SERVER` / `$GOCLAW_GATEWAY_URL` and authenticate with `--token` / `$GOCLAW_GATEWAY_TOKEN`.
+
+| Persistent flag | Default | Description |
+|------|---------|-------------|
+| `-o`, `--output <table\|json>` | `table` | Output format |
+
+```bash
+goclaw traces list --status error --limit 20
+goclaw traces get <trace-id> -o json
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces timeline <trace-id>
+# remote gateway:
+goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" traces get <trace-id> -o json
+```
+
+### `traces list`
+
+List traces with filtering and full-text search.
+
+```bash
+goclaw traces list
+goclaw traces list -q "payment" --has-tool-calls true --limit 50
+```
+
+| Flag | Description |
+|------|-------------|
+| `-q`, `--query <text>` | Search trace text, IDs, labels, and span previews |
+| `--agent-id <uuid>` | Filter by agent UUID |
+| `--user <id>` | Filter by user ID (admin callers) |
+| `--session <key>` | Filter by session key |
+| `--status <status>` | Filter by trace status (`running`, `completed`, `error`, `cancelled`) |
+| `--channel <channel>` | Filter by raw channel |
+| `--agent <text>` | Search agent display name or key |
+| `--channel-query <text>` | Search channel instance labels |
+| `--tool <name>` | Search span tool names |
+| `--from <rfc3339>` | Start-time lower bound (inclusive) |
+| `--to <rfc3339>` | Start-time upper bound (exclusive) |
+| `--since <rfc3339>` | Alias for `--from` |
+| `--until <rfc3339>` | Alias for `--to` |
+| `--has-tool-calls <true\|false>` | Only traces with/without tool calls |
+| `--min-input-tokens <n>` | Minimum input tokens |
+| `--max-input-tokens <n>` | Maximum input tokens |
+| `--min-output-tokens <n>` | Minimum output tokens |
+| `--max-output-tokens <n>` | Maximum output tokens |
+| `--min-tool-calls <n>` | Minimum tool-call count |
+| `--max-tool-calls <n>` | Maximum tool-call count |
+| `--limit <n>` | Page size (max 200) |
+| `--offset <n>` | Pagination offset |
+
+### `traces get <trace-id>`
+
+Get trace details with spans. Takes exactly one trace ID.
+
+```bash
+goclaw traces get <trace-id>
+goclaw traces get <trace-id> -o json
+```
+
+### `traces export <trace-id>`
+
+Export a gzipped trace tree. Takes exactly one trace ID.
+
+```bash
+goclaw traces export <trace-id>                 # writes trace-<short>-<YYYYMMDD>.json.gz
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces export <trace-id> --file -        # gzip to stdout
+goclaw traces export <trace-id> -o json         # decompressed JSON to stdout
+```
+
+| Flag | Description |
+|------|-------------|
+| `--file <path>` | Write gzip export to file (use `-` for stdout). Default writes `trace-<short>-<YYYYMMDD>.json.gz` |
+
+### `traces follow`
+
+Poll trace changes for one session or agent. **Requires `--session` OR `--agent-id`.**
+
+```bash
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces follow --agent-id <uuid> --include-spans
+```
+
+| Flag | Description |
+|------|-------------|
+| `--session <key>` | Filter by session key |
+| `--agent-id <uuid>` | Filter by agent UUID |
+| `--user <id>` | Filter by user ID (admin callers) |
+| `--status <status>` | Filter by trace status |
+| `--channel <channel>` | Filter by raw channel |
+| `--since <rfc3339>` | RFC3339 lower bound for changed traces |
+| `--limit <n>` | Page size (max 200) |
+| `--include-spans` | Include spans grouped by trace ID |
+
+### `traces timeline <trace-id>`
+
+Show the persisted run timeline linked to a trace. Resolves the trace's `run_id`, then queries the run archive. Takes exactly one trace ID.
+
+```bash
+goclaw traces timeline <trace-id>
+goclaw traces timeline <trace-id> --limit 100 --offset 0
+```
+
+| Flag | Description |
+|------|-------------|
+| `--limit <n>` | Page size (max 500) |
+| `--offset <n>` | Pagination offset |
+
+---
+
 ## `cron`
 
 Manage scheduled cron jobs. Requires gateway to be running.
@@ -24505,6 +25554,136 @@ Show content and metadata for a specific skill.
 ```bash
 goclaw skills show sequential-thinking
 ```
+
+> The subcommands below are HTTP-backed (require a running gateway). The `<skill>` argument accepts a skill ID, slug, or name — it is resolved against the gateway.
+
+### `skills evolve`
+
+Manage per-skill self-evolution settings.
+
+```bash
+goclaw skills evolve status <skill>
+goclaw skills evolve enable <skill>
+goclaw skills evolve disable <skill>
+goclaw skills evolve mode <skill> suggest_only
+goclaw skills evolve mode <skill> auto_analyze
+```
+
+| Command | Args | Effect |
+|---------|------|--------|
+| `skills evolve status <skill>` | 1 | Show self-evolution settings |
+| `skills evolve enable <skill>` | 1 | Enable self-evolution |
+| `skills evolve disable <skill>` | 1 | Disable self-evolution |
+| `skills evolve mode <skill> <suggest_only\|auto_analyze>` | 2 | Set the evolution mode |
+
+### `skills metrics <skill>`
+
+Show recorded usage metrics for a skill (Total, Started, Succeeded, Failed, Abandoned, Success rate).
+
+```bash
+goclaw skills metrics <skill>
+goclaw skills metrics <skill> --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+### `skills activity <skill>`
+
+Show recent self-evolution activity for a skill (admin-gated detail).
+
+```bash
+goclaw skills activity <skill>
+goclaw skills activity <skill> --json
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+### `skills suggestions`
+
+Manage skill improvement suggestions.
+
+```bash
+goclaw skills suggestions list <skill>
+goclaw skills suggestions approve <skill> <suggestion-id>
+goclaw skills suggestions reject <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id> --approve
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills suggestions list <skill>` | 1 | List suggestions for a skill |
+| `skills suggestions approve <skill> <suggestion-id>` | 2 | Approve a suggestion |
+| `skills suggestions reject <skill> <suggestion-id>` | 2 | Reject a suggestion |
+| `skills suggestions apply <skill> <suggestion-id>` | 2, `--approve` | Apply an approved suggestion (`--approve` approves a pending one first) |
+
+### `skills deps`
+
+Scan, check, and install skill dependencies. The argument accepts a local skill path or a gateway skill ID.
+
+```bash
+goclaw skills deps status <skill-id-or-path>
+goclaw skills deps scan <skill-id-or-path>
+goclaw skills deps check <skill-id-or-path>
+goclaw skills deps install <skill-id>
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills deps status <skill-id-or-path>` | 1, `--json` | Show dependency status |
+| `skills deps scan <skill-id-or-path>` | 1, `--json` | Scan dependency declarations |
+| `skills deps check <skill-id-or-path>` | 1, `--json` | Check availability |
+| `skills deps install <skill-id>` | 1, `--json` | Install missing dependencies (master tenant) |
+
+### `skills access`
+
+Manage skill access mode and effective access.
+
+```bash
+goclaw skills access get <skill-id>
+goclaw skills access set <skill-id> --mode internal
+goclaw skills access effective <skill-id> --agent <agent-id> --user <user-id>
+goclaw skills access effective --agent <agent-id> --user <user-id>
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills access get <skill-id>` | 1, `--json` | Show access mode and grants |
+| `skills access set <skill-id> --mode <private\|internal\|public>` | 1, `--mode` (required), `--json` | Set the access mode |
+| `skills access effective [skill-id] --agent <id> --user <id>` | 0–1, `--agent`+`--user` (required), `--json` | Inspect effective access (per-skill when an ID is given, else across skills) |
+
+### `skills grant`
+
+Grant skill access to an agent or user.
+
+```bash
+goclaw skills grant agent <skill-id> <agent-id>
+goclaw skills grant agent <skill-id> <agent-id> --can-manage --pinned-version 3
+goclaw skills grant user <skill-id> <user-id>
+```
+
+| Command | Args / Flags | Effect |
+|---------|--------------|--------|
+| `skills grant agent <skill-id> <agent-id>` | 2, `--can-manage`, `--pinned-version <n>`, `--json` | Grant a skill to an agent |
+| `skills grant user <skill-id> <user-id>` | 2, `--json` | Grant a skill to a user |
+
+### `skills revoke`
+
+Revoke skill access from an agent or user.
+
+```bash
+goclaw skills revoke agent <skill-id> <agent-id>
+goclaw skills revoke user <skill-id> <user-id>
+```
+
+| Command | Args | Effect |
+|---------|------|--------|
+| `skills revoke agent <skill-id> <agent-id>` | 2 | Revoke an agent grant |
+| `skills revoke user <skill-id> <user-id>` | 2 | Revoke a user grant |
 
 ---
 
@@ -24868,6 +26047,46 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `sessions.delete` | `{key}` | Delete a session |
 | `sessions.reset` | `{key}` | Clear session history |
 | `sessions.compact` | `{key, keepLast?}` | Truncate history to last N messages (default 4); no-op if history < 6 |
+| `run.timeline.get` | `{runId?, sessionKey?, limit?, offset?}` | Fetch display-safe archived run/session timeline items |
+
+#### `run.timeline.get`
+
+Fetch display-safe timeline entries captured during agent runs. Pass `runId` for a single run, or `sessionKey` for the session archive panel — **at least one is required**. `limit` defaults to `200` and is capped at `500`; `offset` paginates. Viewer role can read this method; non-admin callers only receive entries whose `user_id` matches their connected user.
+
+**Request:**
+
+```json
+{
+  "type": "req",
+  "id": "tl-1",
+  "method": "run.timeline.get",
+  "params": { "runId": "run-123", "sessionKey": "agent:demo:direct:user-1", "limit": 100, "offset": 0 }
+}
+```
+
+**Response payload:**
+
+```json
+{
+  "runId": "run-123",
+  "sessionKey": "agent:demo:direct:user-1",
+  "items": [{
+    "id": "019e...",
+    "run_id": "run-123",
+    "session_key": "agent:demo:direct:user-1",
+    "seq": 1,
+    "item_type": "assistant.message",
+    "status": "completed",
+    "title": "assistant",
+    "preview": "I will check that now.",
+    "created_at": "2026-05-29T10:00:00Z"
+  }],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+Timeline `item_type` values include `activity`, `assistant.message`, `tool.call`, `tool.result`, and `run.status`. Tool entries store bounded previews only; raw reasoning/thinking is not persisted.
 
 ### Config
 
@@ -25303,7 +26522,7 @@ ws.onmessage = (e) => {
 
 ## Overview
 
-> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all ~308 REST endpoints.
+> **Looking for a complete index?** See [API Endpoint Catalog](api-endpoints-catalog.md) for an auto-generated list of all REST endpoints.
 
 GoClaw's HTTP API is served on the same port as the WebSocket gateway. All endpoints require a `Bearer` token in the `Authorization` header matching `GOCLAW_GATEWAY_TOKEN`.
 
@@ -25829,6 +27048,12 @@ Export and import custom skills as a tar.gz archive.
 | Param | Type | Description |
 |-------|------|-------------|
 | `stream` | `bool` | When `true`, returns SSE progress events then a `complete` event with `download_url` |
+| `format` | string | Archive format — `tar.gz` (default), `tgz` (alias for gzip tar), or `zip`. ZIP is export/download only; import still expects the skills bundle format |
+| `id` | string | Select one skill by ID. Repeat the param to select several |
+| `ids` | string | Select multiple skill IDs as a comma-separated list |
+| `include_system` | `bool` | Include system skills in a full export when no IDs are selected |
+
+> `GET /v1/skills/export` supports both **direct download** (the archive is streamed in the response) and the SSE token flow (`stream=true` → `download_url`). Without `id`/`ids`, the export stays backward-compatible and includes tenant custom skills by default.
 
 **Archive format** (`skills-YYYYMMDD.tar.gz`):
 
@@ -25874,6 +27099,63 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 | `POST` | `/v1/skills/install-deps` | Install all missing dependencies |
 | `POST` | `/v1/skills/install-dep` | Install a single dependency |
 | `GET` | `/v1/skills/runtimes` | Check runtime availability |
+
+---
+
+### Skill Self-Evolution & Metrics
+
+Skills can collect usage metrics and propose their own improvements. Self-evolution is tenant-scoped and **off by default per skill**. Usage metrics are written only by trusted runtime paths (e.g. the `use_skill` tool and slash-command activation) — there is no public usage-write endpoint.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/evolution` | Read self-evolution settings for a skill |
+| `PATCH` | `/v1/skills/{id}/evolution` | Update enabled state or mode (tenant-admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Aggregate usage metrics + status counts |
+| `GET` | `/v1/skills/{id}/activity` | Admin-only evolution activity log |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | List skill-scoped improvement suggestions |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` | Create a suggestion with evidence + draft patch (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` | Approve a suggestion (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` | Reject a suggestion (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` | Apply an approved suggestion → new skill version (tenant-admin) |
+
+**Evolution modes (`PATCH .../evolution`, field `mode`):**
+
+| Mode | Behavior |
+|------|----------|
+| `suggest_only` | Collect metrics and manage suggestions; no automatic patching |
+| `auto_analyze` | Reserved for analysis automation. **Patch application always requires explicit approval** |
+
+> Viewer/operator callers can read aggregate metrics. Raw activity, actor IDs, failure evidence, draft patches, and the apply action are admin-only. System skills can't be mutated; applying a custom-skill suggestion writes a new versioned directory and a `skill_versions` record.
+
+### Skill Access Control & Grants (batch)
+
+Read and manage who can use a skill. The plural `grants/agents` and `grants/users` routes accept **batch** sets; the singular routes documented under [Skill Grants](#skill-grants) remain available for single grants. All routes require **admin role**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/access` | Read access config (visibility + agent/user grants) |
+| `PATCH` | `/v1/skills/{id}/access` | Update access config (e.g. `visibility`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Effective access for this skill |
+| `GET` | `/v1/skills/access/effective` | Effective access across all skills |
+| `GET` | `/v1/skills/{id}/grants/agents` | List agent grants (batch view) |
+| `POST` | `/v1/skills/{id}/grants/agents` | Batch-set agent grants (`agent_id`, optional `version`/`pinned_version`, `can_manage`) |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` | Remove an agent grant |
+| `GET` | `/v1/skills/{id}/grants/users` | List user grants (batch view) |
+| `POST` | `/v1/skills/{id}/grants/users` | Batch-set user grants (`user_id`) |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` | Remove a user grant |
+
+**Effective-access response** includes `accessible`, `reason`, `can_manage`, and optional `pinned_version` per skill.
+
+### Skill Dependencies
+
+Inspect and resolve a skill's runtime dependencies. Requires **admin role**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/dependencies` | List the skill's dependencies and their status |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Re-scan declared dependencies and refresh status |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Check whether dependencies are satisfied |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Install missing dependencies for the skill |
 
 ---
 
@@ -26095,12 +27377,28 @@ Per-agent entity-relation graph.
 
 ### `GET /v1/traces`
 
-List LLM traces. Supports query params: `agentId`, `userId`, `status`, `limit`, `offset`.
+List LLM traces.
 
 ```bash
-curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
+curl "http://localhost:18790/v1/traces?agentId=UUID&q=timeout&min_input_tokens=1000&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `agentId` | string | Filter by agent |
+| `userId` | string | Filter by user |
+| `status` | string | Filter by status |
+| `channel` | string | Filter by channel |
+| `q` | string | Broad contains-search across trace/span fields |
+| `min_input_tokens` / `max_input_tokens` | integer | Filter by input-token range |
+| `min_output_tokens` / `max_output_tokens` | integer | Filter by output-token range |
+| `tool_name` | string | Filter traces that used a given tool |
+| `min_tool_calls` / `max_tool_calls` | integer | Filter by tool-call count range |
+| `limit` | integer | Page size |
+| `offset` | integer | Page offset |
 
 ### `GET /v1/traces/follow`
 
@@ -26131,6 +27429,10 @@ Get a single trace with all its spans.
 
 Export trace tree as gzipped JSON.
 
+### `GET /v1/runs/{runID}/timeline`
+
+Return the persisted, display-safe archive timeline for a single run — the same entries surfaced in the run/session timeline panel. Tool entries store bounded previews only; raw reasoning is not persisted. Non-admin callers are restricted to their own entries.
+
 ### Costs
 
 | Method | Path | Description |
@@ -26146,8 +27448,13 @@ Export trace tree as gzipped JSON.
 | `GET` | `/v1/usage/timeseries` | Time-series usage points |
 | `GET` | `/v1/usage/breakdown` | Breakdown by provider/model/channel |
 | `GET` | `/v1/usage/summary` | Summary with period comparison |
+| `GET` | `/v1/usage/events/timeseries` | Event-based time-series (computed from raw usage events) |
+| `GET` | `/v1/usage/events/breakdown` | Event-based breakdown by provider/model/channel |
+| `GET` | `/v1/usage/events/summary` | Event-based summary with period comparison |
 
 **Query params:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+> The `/v1/usage/events/*` variants compute the same shapes from the raw usage-event store rather than precomputed snapshots — useful for exact, up-to-the-event figures.
 
 ---
 
@@ -26504,6 +27811,44 @@ Delete a channel instance.
 
 `reason` is one of `writer`, `not_writer`, `no_writers_configured`, or `invalid_group`.
 
+### Passive Memory Extraction
+
+Per-channel-instance passive memory extraction — mine recent conversations into review-queued memory candidates, then approve them into episodic memory. Read endpoints are viewer-accessible; settings and item transitions require **tenant-admin**.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | Config + latest run + pending count + recent items |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | Replace the normalized `passive_memory` config block |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | Trigger a manual extraction run |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | List review-queue items (optional `status` filter) |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | Write candidate to episodic memory + publish KG event |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | Reject candidate |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | Delete candidate (and any linked episodic summary) |
+
+**`passive_memory` config fields:** `enabled`, `review_mode`, `interval_minutes`, `message_cap`, `retention_hours`, `allowed_types`, `exclude_users`, `exclude_patterns`, `min_messages`, `group_only`. Defaults: disabled, review-mode on, group-only, 360-minute interval, 100-message cap, 168-hour retention, and durable types (people, projects, decisions, todos, preferences, events).
+
+### Context Capability Administration
+
+Manage per-context (per scope) tool access for a channel instance. A context is identified by `{scopeType}/{scopeKey}` (e.g. a group or DM). Grant/credential routes require **admin role**; list/capabilities reads are viewer-accessible.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/contexts` | List contexts for the instance |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` | List members of a context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` | Effective capabilities resolved for the context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` | List MCP server grants |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Set an MCP grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Remove an MCP grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` | List MCP credentials |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Set an MCP credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Remove an MCP credential |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` | List CLI binary grants |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Set a CLI grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Remove a CLI grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` | List CLI credentials |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Set a CLI credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Remove a CLI credential |
+
 ---
 
 ## Contacts
@@ -26635,6 +27980,17 @@ Requires **admin role** (full gateway token or empty gateway token in dev/single
 | `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Get user-specific credentials |
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Set user-specific credentials |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Delete user-specific credentials |
+
+### Per-Agent CLI Credentials
+
+Agent-scoped credential storage for a CLI config — store the credential values an individual agent should use. This is **distinct from [CLI Credential Agent Grants](#cli-credential-agent-grants)** below: grants control *whether* an agent may use a binary (with arg/timeout restrictions), while these endpoints store the agent's actual credential payload.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` | List agent-scoped credentials for a CLI config |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Get agent credential metadata |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Create or replace an agent credential |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Delete an agent credential |
 
 ### CLI Credential Agent Grants
 
@@ -27416,7 +28772,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 
 > Auto-generated complete index of all REST endpoints. For request/response details, examples, and authentication, see [REST API Reference](rest-api.md).
 
-**Total endpoints:** 308 — generated from goclaw `d85bf171` on `2026-06-07`.
+**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
 
 ## How to use this page
 
@@ -27433,14 +28789,6 @@ The following are **only available via WebSocket RPC**, not HTTP:
 |---|---|
 | `GET` | `/v1/activity` |
 | `GET` | `/v1/activity/aggregate` |
-
-### Browser Cookies (`internal/http/browser_cookies.go`)
-
-| Method | Path |
-|---|---|
-| `GET` | `/v1/browser/cookies` |
-| `DELETE` | `/v1/browser/cookies` |
-| `POST` | `/v1/browser/cookies/sync` |
 
 ### Agents (`internal/http/agents.go`)
 
@@ -27501,6 +28849,14 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `GET` | `/v1/system/backup/s3/list` |
 | `POST` | `/v1/system/backup/s3/upload` |
 
+### Browser Cookies (`internal/http/browser_cookies.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/browser/cookies` |
+| `GET` | `/v1/browser/cookies` |
+| `POST` | `/v1/browser/cookies/sync` |
+
 ### Builtin Tools (`internal/http/builtin_tools.go`)
 
 | Method | Path |
@@ -27521,11 +28877,33 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `DELETE` | `/v1/channels/instances/{id}` |
 | `GET` | `/v1/channels/instances/{id}` |
 | `PUT` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}/contexts` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` |
 | `GET` | `/v1/channels/instances/{id}/writers` |
 | `POST` | `/v1/channels/instances/{id}/writers` |
-| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
 | `GET` | `/v1/channels/instances/{id}/writers/groups` |
+| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `GET` | `/v1/contacts` |
 | `POST` | `/v1/contacts/merge` |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` |
@@ -27653,16 +29031,6 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `POST` | `/v1/agents/{agentID}/memory/search` |
 | `GET` | `/v1/memory/documents` |
 
-### Model Pricing (`internal/http/usage_caps.go`)
-
-| Method | Path |
-|---|---|
-| `GET` | `/v1/model-pricing` |
-| `GET` | `/v1/model-pricing/overrides` |
-| `PUT` | `/v1/model-pricing/overrides` |
-| `DELETE` | `/v1/model-pricing/overrides/{id}` |
-| `POST` | `/v1/model-pricing/sync-openrouter` |
-
 ### OAuth (`internal/http/oauth.go`)
 
 | Method | Path |
@@ -27748,6 +29116,10 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `DELETE` | `/v1/cli-credentials/{id}` |
 | `GET` | `/v1/cli-credentials/{id}` |
 | `PUT` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
 | `GET` | `/v1/cli-credentials/{id}/agent-grants` |
 | `POST` | `/v1/cli-credentials/{id}/agent-grants` |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
@@ -27766,9 +29138,9 @@ The following are **only available via WebSocket RPC**, not HTTP:
 
 | Method | Path |
 |---|---|
-| `GET` | `/v1/sessions` |
 | `POST` | `/v1/chat/sessions/{key}/branch` |
 | `GET` | `/v1/chat/sessions/{key}/history/follow` |
+| `GET` | `/v1/sessions` |
 
 ### Skills (`internal/http/skills.go`)
 
@@ -27779,17 +29151,40 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `DELETE` | `/v1/skills/{id}` |
 | `GET` | `/v1/skills/{id}` |
 | `PUT` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}/access` |
+| `PATCH` | `/v1/skills/{id}/access` |
+| `GET` | `/v1/skills/{id}/access/effective` |
+| `GET` | `/v1/skills/{id}/activity` |
+| `GET` | `/v1/skills/{id}/dependencies` |
+| `POST` | `/v1/skills/{id}/dependencies/check` |
+| `POST` | `/v1/skills/{id}/dependencies/install` |
+| `POST` | `/v1/skills/{id}/dependencies/scan` |
+| `GET` | `/v1/skills/{id}/evolution` |
+| `PATCH` | `/v1/skills/{id}/evolution` |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` |
 | `GET` | `/v1/skills/{id}/files` |
 | `GET` | `/v1/skills/{id}/files/{path...}` |
 | `GET` | `/v1/skills/{id}/grants/agent` |
 | `POST` | `/v1/skills/{id}/grants/agent` |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
+| `GET` | `/v1/skills/{id}/grants/agents` |
+| `POST` | `/v1/skills/{id}/grants/agents` |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` |
 | `POST` | `/v1/skills/{id}/grants/user` |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` |
+| `GET` | `/v1/skills/{id}/grants/users` |
+| `POST` | `/v1/skills/{id}/grants/users` |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` |
+| `GET` | `/v1/skills/{id}/metrics` |
 | `DELETE` | `/v1/skills/{id}/tenant-config` |
 | `PUT` | `/v1/skills/{id}/tenant-config` |
 | `POST` | `/v1/skills/{id}/toggle` |
 | `GET` | `/v1/skills/{id}/versions` |
+| `GET` | `/v1/skills/access/effective` |
 | `GET` | `/v1/skills/export` |
 | `GET` | `/v1/skills/export/preview` |
 | `POST` | `/v1/skills/import` |
@@ -27852,10 +29247,11 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | Method | Path |
 |---|---|
 | `GET` | `/v1/costs/summary` |
+| `GET` | `/v1/runs/{runID}/timeline` |
 | `GET` | `/v1/traces` |
-| `GET` | `/v1/traces/follow` |
 | `GET` | `/v1/traces/{traceID}` |
 | `GET` | `/v1/traces/{traceID}/export` |
+| `GET` | `/v1/traces/follow` |
 
 ### TTS (`internal/http/tts.go`)
 
@@ -27874,6 +29270,9 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | Method | Path |
 |---|---|
 | `GET` | `/v1/usage/breakdown` |
+| `GET` | `/v1/usage/events/breakdown` |
+| `GET` | `/v1/usage/events/summary` |
+| `GET` | `/v1/usage/events/timeseries` |
 | `GET` | `/v1/usage/summary` |
 | `GET` | `/v1/usage/timeseries` |
 
@@ -27881,12 +29280,17 @@ The following are **only available via WebSocket RPC**, not HTTP:
 
 | Method | Path |
 |---|---|
+| `GET` | `/v1/model-pricing` |
+| `GET` | `/v1/model-pricing/overrides` |
+| `PUT` | `/v1/model-pricing/overrides` |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` |
+| `POST` | `/v1/model-pricing/sync-openrouter` |
+| `GET` | `/v1/usage-caps/events` |
 | `GET` | `/v1/usage-caps/policies` |
 | `POST` | `/v1/usage-caps/policies` |
-| `PATCH` | `/v1/usage-caps/policies/{id}` |
 | `DELETE` | `/v1/usage-caps/policies/{id}` |
+| `PATCH` | `/v1/usage-caps/policies/{id}` |
 | `GET` | `/v1/usage-caps/utilization` |
-| `GET` | `/v1/usage-caps/events` |
 
 ### Vault (`internal/http/vault_graph_handler.go`)
 
@@ -27925,7 +29329,7 @@ The following are **only available via WebSocket RPC**, not HTTP:
 |---|---|
 | `POST` | `/v1/agents/{id}/wake` |
 
-### Webhooks (`internal/http/webhooks_admin.go`, `webhooks_llm.go`, `webhooks_message.go`)
+### Webhooks Admin (`internal/http/webhooks_admin.go`)
 
 | Method | Path |
 |---|---|
@@ -27935,7 +29339,17 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `GET` | `/v1/webhooks/{id}` |
 | `PATCH` | `/v1/webhooks/{id}` |
 | `POST` | `/v1/webhooks/{id}/rotate` |
+
+### Webhooks Llm (`internal/http/webhooks_llm.go`)
+
+| Method | Path |
+|---|---|
 | `POST` | `/v1/webhooks/llm` |
+
+### Webhooks Message (`internal/http/webhooks_message.go`)
+
+| Method | Path |
+|---|---|
 | `POST` | `/v1/webhooks/message` |
 
 ### Workspace (`internal/http/workspace_upload.go`)
@@ -27946,8 +29360,6 @@ The following are **only available via WebSocket RPC**, not HTTP:
 | `POST` | `/v1/teams/{teamId}/workspace/upload` |
 
 ### Workstations (`internal/http/workstations.go`)
-
-> Standard edition only — gateway returns `403` on Lite.
 
 | Method | Path |
 |---|---|
@@ -28959,7 +30371,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **73**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **80**.
 
 ### v3 Store Unification
 
@@ -29218,7 +30630,7 @@ Uploaded skill packages with BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control for skills, same pattern as MCP grants. `skill_agent_grants` also has `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — grants the agent permission to manage (publish, update, delete) the skill.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control for skills, same pattern as MCP grants. `skill_agent_grants` also has `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — grants the agent permission to manage (publish, update, delete) the skill. As of migration 078, `skill_user_grants` is uniquely keyed on `(skill_id, user_id, tenant_id)` (tenant-scoped), so the same user can be granted the same skill in different tenants.
 
 ---
 
@@ -29947,6 +31359,19 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 65 | `agent_model_fallback` — adds `model_fallback JSONB NOT NULL DEFAULT '{}'` to `agents`; ordered array of fallback model identifiers tried when the primary model fails. |
 | 66 | `skill_agent_manage_grants` — adds `can_manage BOOLEAN NOT NULL DEFAULT FALSE` to `skill_agent_grants`; grants the agent permission to manage (publish, update, delete) the skill at tenant scope. |
 | 67 | `skill_agent_grants_scope_cleanup` — data-only migration; deletes `skill_agent_grants` rows where `tenant_id` mismatches agent or skill tenant, enforcing tenant-scope isolation on skill grants. No schema changes. |
+| 68 | `bitrix_portals` — Bitrix24 portal registry with encrypted OAuth credentials, seeded before the install flow. |
+| 69 | `browser_cookies` — encrypted per-agent browser cookie storage for browser automation. |
+| 70 | `usage_pricing_catalog` / `usage_pricing_overrides` — provider/model pricing catalog and per-tenant overrides. |
+| 71 | `usage_cap_policies` / `usage_cap_counters` / `usage_cap_reservations` / `usage_cap_events` — usage cap policy engine with counters, reservations, and a decision audit log. |
+| 72 | Agent budget ↔ usage-cap bridge — links per-agent budgets into the usage-cap policy engine. |
+| 73 | `secure_cli_credential_type` — adds `credential_type` / `host_scope` columns to secure-CLI credential tables. |
+| 74 | `run_timeline_items` — archived per-run ordered timeline for replaying runs; FK to traces/spans. |
+| 75 | Channel context capabilities — `mcp_context_grants` / `mcp_context_credentials` / `secure_cli_context_grants` / `secure_cli_context_credentials`; per-channel-instance scoped MCP and secure-CLI grants with encrypted credentials. |
+| 76 | Channel memory extraction — `channel_memory_extraction_runs` / `channel_memory_extraction_items`; passive scheduled extraction of durable memory (summaries only, no raw bodies) with a review queue. |
+| 77 | `secure_cli_agent_credentials` — per-agent typed CLI credentials separate from grants policy; composite FKs `(binary_id, tenant_id)` and `(agent_id, tenant_id)`. |
+| 78 | `skill_user_grants_tenant_unique` — replaces the `skill_user_grants` unique key with `(skill_id, user_id, tenant_id)` (tenant-scoped). |
+| 79 | Skill self-evolution — `skill_evolution_settings` / `skill_usage_metrics` / `skill_improvement_suggestions` / `skill_versions`; per-skill usage tracking and suggested/applied improvements (backfills one `skill_versions` row per existing skill). |
+| 80 | Usage event analytics — `usage_events` / `usage_event_rollups`; raw per-event analytics and pre-aggregated hourly rollups for the usage dashboard. |
 
 ---
 
@@ -30603,6 +32028,236 @@ Audit log of cap decisions (allow/deny) and their reasons. (migration 071)
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 **Index:** `(tenant_id, created_at DESC)`
+
+---
+
+### `run_timeline_items`
+
+Per-run ordered timeline of items (messages, tool calls, etc.) used to replay archived runs. (migration 074)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `run_id` | TEXT | NOT NULL | Run identifier |
+| `session_key` | VARCHAR(500) | NOT NULL | Session this run belongs to |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Agent that produced the run |
+| `user_id` | VARCHAR(255) | | User scope |
+| `channel` | VARCHAR(50) | | Channel |
+| `chat_id` | VARCHAR(255) | | Chat ID |
+| `seq` | INT | NOT NULL | Ordering within the run |
+| `item_type` | VARCHAR(40) | NOT NULL | Item kind (message, tool call, etc.) |
+| `status` | VARCHAR(40) | | Item status |
+| `title` | TEXT | | Item title |
+| `preview` | TEXT | | Short preview |
+| `content` | TEXT | NOT NULL DEFAULT '' | Full item content |
+| `tool_name` | VARCHAR(255) | | Tool name, when applicable |
+| `tool_call_id` | VARCHAR(255) | | Tool call ID |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | Linked trace |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | Linked span |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, seq)`
+**Indexes:** `(tenant_id, run_id, seq)`; `(tenant_id, session_key, created_at DESC)`; `(tenant_id, trace_id) WHERE trace_id IS NOT NULL`
+
+---
+
+### Channel context capabilities
+
+Per-channel-instance, scoped MCP and secure-CLI grants plus encrypted credentials. All four tables share a scope model: `scope_type VARCHAR(32)` + `scope_key VARCHAR(255) DEFAULT ''` let a grant apply to the whole channel instance or narrow to a specific scope (e.g. a chat or user). (migration 075)
+
+**`mcp_context_grants`** — enables an MCP server for a channel-instance scope.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `scope_type` | VARCHAR(32) | NOT NULL | Scope kind |
+| `scope_key` | VARCHAR(255) | NOT NULL DEFAULT '' | Scope value |
+| `server_id` | UUID FK → mcp_servers | NOT NULL ON DELETE CASCADE | MCP server granted |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `tool_allow` / `tool_deny` / `config_overrides` | JSONB | | Per-scope tool filters and overrides |
+| `granted_by` | VARCHAR(255) | NOT NULL | Actor who granted |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, server_id)` · **Indexes:** scope, `server_id`
+
+**`mcp_context_credentials`** — encrypted credentials for the scoped MCP server. Same scope key as above plus `api_key TEXT`, `headers BYTEA`, `env BYTEA`, `created_by VARCHAR(255) NOT NULL`, timestamps. Same unique key and indexes.
+
+**`secure_cli_context_grants`** — enables a secure-CLI binary for a channel-instance scope. Same scope key plus `binary_id UUID FK → secure_cli_binaries ON DELETE CASCADE`, `deny_args`/`deny_verbose JSONB`, `timeout_seconds INTEGER`, `tips TEXT`, `encrypted_env BYTEA`, `enabled BOOLEAN NOT NULL DEFAULT true`, `granted_by VARCHAR(255) NOT NULL`, timestamps. **Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, binary_id)` · **Indexes:** scope, `binary_id`.
+
+**`secure_cli_context_credentials`** — encrypted credentials for the scoped secure-CLI binary. Same scope key plus `binary_id`, `encrypted_env BYTEA NOT NULL`, `metadata JSONB NOT NULL DEFAULT '{}'`, `credential_type TEXT`, `host_scope TEXT`, `created_by VARCHAR(255) NOT NULL`, timestamps. Same unique key and indexes as the grants table.
+
+---
+
+### Channel memory extraction
+
+Passive, scheduled extraction of durable memory from channel history. Stores no raw message bodies — only summaries pending review. (migration 076)
+
+**`channel_memory_extraction_runs`** — one extraction pass over a slice of channel history.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `channel_name` | VARCHAR(255) | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `history_key` | VARCHAR(255) | NOT NULL | History bucket key |
+| `trigger` | VARCHAR(32) | NOT NULL DEFAULT 'scheduled' | What started the run |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending' | Run status |
+| `source_start_id` / `source_end_id` | VARCHAR(255) | NOT NULL DEFAULT '' | Source message range |
+| `source_start_at` / `source_end_at` | TIMESTAMPTZ | | Source time range |
+| `message_count` / `redaction_count` / `item_count` | INTEGER | NOT NULL DEFAULT 0 | Counters |
+| `redaction_types` | JSONB | NOT NULL DEFAULT `[]` | Redaction categories applied |
+| `error_message` | TEXT | NOT NULL DEFAULT '' | |
+| `started_at` / `completed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)` · **Indexes:** channel, status
+
+**`channel_memory_extraction_items`** — review queue of candidate memory items.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `run_id` | UUID FK → channel_memory_extraction_runs | NOT NULL ON DELETE CASCADE | Parent run |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `item_hash` | VARCHAR(128) | NOT NULL | Dedup hash |
+| `item_type` | VARCHAR(64) | NOT NULL | |
+| `summary` | TEXT | NOT NULL | Extracted summary (no raw body) |
+| `topics` / `entities` | JSONB | NOT NULL DEFAULT `[]` | |
+| `confidence` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `source_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending_review' | Review status |
+| `approved_by` / `rejected_by` | VARCHAR(255) | NOT NULL DEFAULT '' | Review actors |
+| `approved_at` / `rejected_at` / `deleted_at` / `written_at` | TIMESTAMPTZ | | Review/lifecycle timestamps |
+| `episodic_id` | VARCHAR(64) | NOT NULL DEFAULT '' | Written episodic memory ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, item_hash)` · **Indexes:** channel+status, run
+
+---
+
+### `secure_cli_agent_credentials`
+
+Per-agent typed credentials for secure-CLI binaries, stored separately from the `secure_cli_agent_grants` policy. Runtime resolution order is user → context → agent → binary defaults. (migration 077)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID | NOT NULL | CLI binary (composite FK with `tenant_id`) |
+| `agent_id` | UUID | NOT NULL | Agent (composite FK with `tenant_id`) |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM encrypted env |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `credential_type` | TEXT | NULL | Optional credential type |
+| `host_scope` | TEXT | NULL | Optional host scope |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(binary_id, agent_id, tenant_id)`
+**Composite FKs:** `(binary_id, tenant_id)` → `secure_cli_binaries(id, tenant_id)` CASCADE; `(agent_id, tenant_id)` → `agents(id, tenant_id)` CASCADE (backed by new unique indexes `idx_secure_cli_binaries_id_tenant` and `idx_agents_id_tenant`)
+**Indexes:** tenant, binary, agent
+
+---
+
+### Skill self-evolution
+
+Tracks how each existing skill performs over time and records suggested, applied improvements. Distinct from agent-level evolution metrics. (migration 079)
+
+**`skill_evolution_settings`** — per-tenant/per-skill toggle and mode.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | PK part |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | PK part |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | |
+| `mode` | VARCHAR(32) | NOT NULL DEFAULT 'suggest_only', CHECK in (`suggest_only`, `auto_analyze`) | |
+| `last_analyzed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Primary key:** `(tenant_id, skill_id)` · **Index:** `skill_id`
+
+**`skill_usage_metrics`** — one row per recorded skill invocation.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `skill_version` | INT | NOT NULL DEFAULT 1 | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `user_id` | VARCHAR(255) | | |
+| `session_key` / `trace_id` / `invocation_id` | TEXT | | Linkage |
+| `invocation_source` | VARCHAR(32) | NOT NULL DEFAULT 'runtime' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'started', CHECK in (`started`, `succeeded`, `failed`, `abandoned`) | |
+| `failure_reason` | TEXT | | |
+| `tool_calls_count` | INT | NOT NULL DEFAULT 0 | |
+| `duration_ms` | BIGINT | NOT NULL DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:** `(skill_id, created_at DESC)`; `(tenant_id, created_at DESC)`; `(skill_id, status, created_at DESC)`; partial on `invocation_id`
+
+**`skill_improvement_suggestions`** — suggested patches with evidence.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `suggestion_type` | VARCHAR(64) | NOT NULL | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending', CHECK in (`pending`, `approved`, `rejected`, `applied`) | |
+| `reason` | TEXT | NOT NULL DEFAULT '' | |
+| `evidence` / `draft_patch` | JSONB | NOT NULL DEFAULT `{}` | Supporting evidence + proposed patch |
+| `target_file` | TEXT | NOT NULL DEFAULT '' | |
+| `created_by_actor_type` / `created_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_by_actor_type` / `reviewed_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_at` | TIMESTAMPTZ | | |
+| `applied_version` | INT | | Version produced if applied |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:** `(skill_id, status, created_at DESC)`; `(tenant_id, created_at DESC)`
+
+**`skill_versions`** — immutable version records for applied changes. `id UUID PK`, `tenant_id`/`skill_id` FK CASCADE, `version INT NOT NULL`, `content_hash VARCHAR(64)`, `changed_files JSONB`, created-by actor columns, `created_from_suggestion_id UUID FK → skill_improvement_suggestions ON DELETE SET NULL`, `created_at`. **Unique:** `(skill_id, version)` · **Index:** `(tenant_id, skill_id, version DESC)`. The migration backfills one row per existing non-deleted skill.
+
+---
+
+### Usage event analytics
+
+Raw per-event analytics plus pre-aggregated hourly rollups backing the usage analytics dashboard. Distinct from `usage_snapshots` (migration 016) and the `usage_cap_*` / `usage_pricing_*` family. (migration 080)
+
+**`usage_events`** — one row per billable/measurable event.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `event_time` / `bucket_hour` | TIMESTAMPTZ | NOT NULL | Event time and hourly bucket |
+| `event_type` / `resource_type` / `resource_name` | TEXT | NOT NULL | Event dimensions |
+| `resource_id` / `source` | TEXT | NOT NULL DEFAULT '' | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `team_id` | UUID | | |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | |
+| `run_id` / `session_key` / `channel` / `provider` / `model` / `status` | TEXT | NOT NULL DEFAULT '' | |
+| `input_tokens` / `output_tokens` / `total_tokens` | BIGINT | NOT NULL DEFAULT 0 | |
+| `cost_usd` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `duration_ms` / `call_count` / `error_count` | INTEGER | NOT NULL DEFAULT 0 / 1 / 0 | |
+| `metadata` | JSONB | | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:** tenant+time; tenant+resource+time; tenant+type+time; tenant+agent+time; partial tenant+channel+time `WHERE channel != ''`; **unique partial** `(trace_id, span_id, event_type, source) WHERE trace_id IS NOT NULL AND span_id IS NOT NULL` (idempotent ingest)
+
+**`usage_event_rollups`** — pre-aggregated hourly rollups over the same dimensions (`bucket_hour`, `event_type`, `resource_type`, `resource_name`, `source`, `agent_id`, `channel`, `provider`, `model`, `status`) with summed counts/tokens/cost. **Unique** on the full dimension tuple using `COALESCE(agent_id, '00000000-0000-0000-0000-000000000000')`. **Indexes:** `(tenant_id, bucket_hour DESC)`; `(tenant_id, resource_type, resource_name, bucket_hour DESC)`.
 
 ---
 
@@ -32072,6 +33727,26 @@ Authentication is done via QR scan in the GoClaw UI (Channels > WhatsApp > Re-au
 
 ---
 
+## Bitrix24
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Self-hosted domain rejected | SSRF-safe validation | The portal FQDN must resolve to a public IP. Loopback/private/metadata IP ranges and `localhost` / `.local` / `.localhost` names are blocked; any port must be in the range 1–65535. Cloud `*.bitrix24.*` domains skip this check. |
+
+---
+
+## Human-like Delivery & Passive Memory
+
+These features are **disabled by default**. If you expect them but see nothing, check the config.
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Quick-ack / progress replies not appearing | `gateway.chat_behavior` disabled (default) | Enable `chat_behavior` (and its `quick_ack` / `intermediate_replies` sub-blocks); verify the sidecar `provider`/`model` resolve. See [Human-like Delivery](/channels-overview#human-like-delivery). |
+| Behavior differs per channel | Override resolution | Order is **Channel > Agent > Workspace** — a channel-level `chat_behavior` wins over the agent and workspace base. |
+| Passive channel memory not extracting | `passive_memory.enabled` off, not a group, or `min_messages` not met | Enable `passive_memory`; note it is group-only in v1. See [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction). |
+
+---
+
 ## Channel Health States
 
 GoClaw v3 tracks each channel's runtime state. The dashboard and `channels.status` RPC reflect these states:
@@ -32360,7 +34035,7 @@ Tools are registered under the name `{prefix}__{tool_name}`. The prefix defaults
 
 ## Overview
 
-GoClaw requires PostgreSQL 15+ with the `pgvector` and `pgcrypto` extensions. The database connection is configured exclusively via `GOCLAW_POSTGRES_DSN` (never stored in `config.json`). Migrations are managed with `golang-migrate` and run via `./goclaw migrate up`. Current schema version: **44**.
+GoClaw requires PostgreSQL 15+ with the `pgvector` and `pgcrypto` extensions. The database connection is configured exclusively via `GOCLAW_POSTGRES_DSN` (never stored in `config.json`). Migrations are managed with `golang-migrate` and run via `./goclaw migrate up`. Current schema version: **80**.
 
 ## Connection Failures
 
@@ -32529,6 +34204,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
 
 ## v3 Migration Failures (037–044)
+
+> The schema now extends through **080**. The recovery steps below cover the v3 batch (037–044), which are the migrations most prone to failure on upgrades from older v3 installs; later migrations (045–080) are additive and rarely need manual intervention. See [Database Schema → Migration History](/database-schema) for the full list.
 
 Migrations 037–044 are the v3 batch. If any fails:
 

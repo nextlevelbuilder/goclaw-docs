@@ -56,6 +56,8 @@ goclaw bitrix-portal create \
 
 `--name` (ví dụ `acme`) là khóa portal mà config channel sẽ tham chiếu. `--domain` là host trần — không có scheme, không có dấu `/` cuối.
 
+> **Hỗ trợ portal self-hosted.** Ngoài các domain cloud của Bitrix24 (`*.bitrix24.{com,eu,vn,...}` và `*.bitrix.info`), `--domain` còn chấp nhận một **FQDN Bitrix24 self-hosted** như `bx.mycompany.com` (cho phép `:port` tuỳ chọn). Domain self-hosted phải qua một bước kiểm tra an toàn chống SSRF: hostname được phân giải và **mọi** IP trả về đều được kiểm tra, các dải IP loopback/private/metadata bị từ chối, các tên `localhost` / `.local` / `.localhost` bị chặn, và mọi port phải nằm trong khoảng 1–65535. Domain cloud bỏ qua bước kiểm tra này (chúng do Bitrix vận hành và được tin cậy).
+
 > Đặt `GOCLAW_ENCRYPTION_KEY` trước khi chạy lệnh này. Credential và token được lưu mã hóa AES-256-GCM; nếu thiếu key chúng sẽ lưu dạng plaintext (kèm cảnh báo).
 
 Bạn cũng có thể tạo portal từ dashboard, nó sẽ trả về install URL trực tiếp.
@@ -114,6 +116,7 @@ Các trường config của channel instance:
 | `reaction_level` | string | `"minimal"` | `off`, `minimal`, `full` |
 | `history_limit` | int | -- | Số tin nhắn nhóm đang chờ giữ làm ngữ cảnh |
 | `block_reply` | bool | -- | Ghi đè `block_reply` của gateway (nil = kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `public_url` | string | -- | Ghi đè public URL theo instance (legacy; nên dùng URL portal tự ghi lại) |
 | `mcp_server_name` | string | -- | Tên MCP server cho việc cấp credential theo từng người dùng (xem [Tích hợp MCP](#tich-hop-mcp)) |
 | `mcp_base_url` | string | -- | Base URL của MCP server; phải đặt cùng với `mcp_server_name` |
@@ -209,6 +212,7 @@ Lưu ý:
 | Bot Open Channel im lặng với khách hàng | `bot_type: "O"` cần `dm_policy: "open"`, và admin phải gắn bot vào một Open Channel queue trong giao diện Bitrix24. |
 | URL event handler cũ sau khi redeploy | Đặt `BITRIX24_FORCE_REREGISTER=1` và khởi động lại để đẩy URL mới vào Bitrix24. |
 | Muốn xem sự kiện thô | Đặt `BITRIX24_LOG_RAW_EVENT=1` khi khởi động tiến trình (credential được che). Tắt trong production — nó ghi log nội dung tin nhắn. |
+| Domain self-hosted bị từ chối | FQDN phải phân giải về một IP public. Kiểm tra SSRF chặn các dải IP loopback/private/metadata và các tên `localhost` / `.local` / `.localhost`; port phải là 1–65535. |
 
 ## Tiếp theo
 
@@ -217,4 +221,4 @@ Lưu ý:
 - [Slack](/channel-slack) — Tích hợp Slack Socket Mode
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

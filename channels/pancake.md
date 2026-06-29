@@ -103,6 +103,7 @@ For config-file-based channels (instead of DB instances):
 | `first_inbox_message` | string | built-in | Custom DM text sent for first-inbox feature |
 | `post_context_cache_ttl` | string | `"15m"` | Cache TTL for post content fetched for comment context (e.g. `"30m"`) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `allow_from` | list | -- | User/group ID allowlist |
 
 ## Architecture
@@ -345,4 +346,4 @@ Application-level failures (HTTP 200 with `success: false` in JSON body) are als
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Multi-Channel Setup](/recipe-multi-channel) — Configure multiple channels
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

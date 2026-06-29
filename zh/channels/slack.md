@@ -106,6 +106,7 @@ GOCLAW_SLACK_APP_TOKEN=xapp-...
 | `native_stream` | bool | false | 若可用则使用 Slack ChatStreamer API |
 | `reaction_level` | string | `"off"` | `off`、`minimal`、`full` |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `debounce_delay` | int | 300 | 快速消息分发前的等待毫秒数（0=禁用） |
 | `thread_ttl` | int | 24 | 线程参与过期前的小时数（0=禁用） |
 | `media_max_bytes` | int | 20MB | 最大文件下载大小（字节） |
@@ -198,7 +199,7 @@ _italic_  → _italic_
 
 **接收文件：** 消息附件的文件通过 SSRF 保护下载（hostname 白名单：`*.slack.com`、`*.slack-edge.com`、`*.slack-files.com`）。重定向时剥离认证 token。超过 `media_max_bytes`（默认 20MB）的文件被跳过。
 
-**发送文件：** Agent 生成的文件通过 Slack 文件上传 API 上传。上传失败显示内联错误消息。
+**发送文件：** Agent 生成的文件通过 Slack 文件上传 API 上传。上传失败显示内联错误消息。当 agent 发送一批文件（带 `attachments[]` 的 `send_file`）时，Slack 使用**有序单发**回退方式——文件按顺序逐个投递。参见[多附件投递](/channels-overview#multi-attachment-delivery-batching)。
 
 **文档提取：** 文档文件（PDF、文本文件）的内容被提取并附加到消息中供 agent 处理。
 
@@ -240,4 +241,4 @@ Slack 支持群组级别的配对。当 `group_policy: "pairing"` 时：
 - [Discord](/channel-discord) — Discord bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

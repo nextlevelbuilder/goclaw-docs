@@ -288,6 +288,10 @@ Short histories get a smaller budget (floor: 1024 tokens) and long histories get
 
 When the context remains over budget even after a compaction sweep (for example, the system prompt and tool schemas alone nearly fill the window), GoClaw performs a secondary recovery sweep before surfacing an error. This overflow recovery path (PR #958) caps retries at one attempt and returns a `context overflow after compaction` error only when the second sweep also fails. In practice this prevents hard failures for agents with large tool schemas or system prompts.
 
+### Pending-Message Preservation
+
+Compaction can trigger **mid-loop**, between an assistant message that requests tool calls and the `tool` results that answer them. GoClaw now preserves the in-flight assistant `tool_calls` message across a mid-loop compaction sweep, so the next provider request never sends `tool` result messages without their preceding `tool_calls` message. Without this, the provider would reject the request with an **HTTP 400** (orphaned tool results). If you previously saw intermittent 400 errors on long tool-heavy turns, this is the fix.
+
 ---
 
 ## What's Next
@@ -296,4 +300,4 @@ When the context remains over budget even after a compaction sweep (for example,
 - [Memory System](../core-concepts/memory-system.md) — 3-tier memory architecture and consolidation pipeline
 - [Configuration Reference](/config-reference) — full agent config reference
 
-<!-- goclaw-source: 29457bb3 | updated: 2026-04-25 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

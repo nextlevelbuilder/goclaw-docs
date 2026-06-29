@@ -25,7 +25,7 @@ graph TD
 | 层级 | 存储 | 内容 | 生命周期 | 搜索 |
 |------|------|------|---------|------|
 | **L0 Working** | `memory_documents` + `memory_embeddings` | Agent 整理的事实、auto-flush 笔记、dreaming 输出 | 永久（直到删除） | FTS + 向量混合 |
-| **L1 Episodic** | `episodic_summaries` | Session 摘要、关键主题、L0 摘要 | 90 天（可配置） | FTS + HNSW 向量 |
+| **L1 Episodic** | `episodic_summaries` | Session 摘要、关键主题、L0 摘要（外加经审核的[被动 channel 事实](#passive-channel-memory-extraction)） | 90 天（可配置） | FTS + HNSW 向量 |
 | **L2 Semantic** | 知识图谱表 | 实体、关系、时态有效期窗口 | 永久 | 图遍历 |
 
 ### 层级边界与晋升规则
@@ -159,6 +159,41 @@ sequenceDiagram
 
 **定期清理**：一个 goroutine 每 6 小时运行一次，删除超过 `expires_at` 的 episodic 摘要。
 
+## 被动 Channel 记忆提取
+
+大多数记忆来自 session 的完成。**被动 channel 记忆提取**增加了第二个可选来源：它定期从 channel（Telegram、Discord 等）的缓冲消息中挖掘持久事实——无需任何人运行 session——并将经审核的事实送入同一套 L1 → L2 pipeline。
+
+它**默认关闭**且**隐私优先**：在 v1 中它仅查看**群组**对话，候选项会**排队等待审核**而非自动写入，且**绝不存储原始消息正文**——只存储脱敏后的摘要、主题/实体、置信度和计数。
+
+### 工作原理
+
+后台 worker 定期读取现有的租户范围 `channel_pending_messages` 群组缓冲区，对敏感内容脱敏，并向**后台 LLM provider** 请求持久事实候选项。候选项进入审核队列（`channel_memory_extraction_runs` / `_items`）。提取可通过以下方式运行：
+
+- **手动触发** — 即使 `enabled` 为 `false` 也会运行；
+- **消息上限** — 群组缓冲区达到 `message_cap`；
+- **时间间隔** — 已过配置的 `interval_minutes`。
+
+当某项被**批准**时，GoClaw 写入一行 `episodic_summaries`，其 `source_type='channel'` 并带确定性的 `source_id`。从此之后，现有的[整合 worker](#consolidation-workers)（`semantic_worker`、`dreaming_worker` 等）会像处理其他任何 episodic 条目一样将其晋升到知识图谱和长期记忆。**拒绝/删除**可阻止后续写入；删除还会移除关联的 episodic 行（在 v1 中，已晋升的 KG 节点不会同步删除）。
+
+### 配置
+
+在每个 channel 实例的 `config.passive_memory` 下启用（参见 [Channel 实例](/channel-instances#passive-channel-memory-passive_memory)）：
+
+| 字段 | 默认值 | 钳制 / 说明 |
+|---|---|---|
+| `enabled` | `false` | 默认禁用。 |
+| `review_mode` | `true` | 候选项排队等待审核，不自动写入。 |
+| `interval_minutes` | `360` | 钳制到 15–10080。 |
+| `message_cap` | `100` | 钳制到 10–1000。 |
+| `retention_hours` | `168` | 钳制到 1–720。 |
+| `allowed_types` | people、projects、decisions、todos、preferences、events | 无效条目丢弃；空列表 → 完整默认集。 |
+| `exclude_users` | — | ≤50 条，每条 ≤255 字符。 |
+| `exclude_patterns` | — | ≤20 个有效正则，每个 ≤255 字符。 |
+| `min_messages` | `5` | 钳制到 2–100。 |
+| `group_only` | `true` | **v1 中强制为 `true`**（始终强制转换）。 |
+
+> 提取表存储元数据、摘要、主题/实体、置信度、状态和脱敏计数——**而非**原始消息正文。
+
 ## Auto-Injector
 
 **Auto-injector** 在每个 turn 开始时、LLM 调用之前，自动将相关记忆注入 agent 的 system prompt。
@@ -251,6 +286,7 @@ GoClaw 识别四种记忆文件类型：
 | 出现不相关的记忆 | 记忆随时间积累；考虑通过 API 清除旧记忆 |
 | Episodic 摘要未创建 | 验证整合 worker 在启动时已注册；检查 event bus 是否在运行 |
 | dreaming_worker 从不晋升 | 检查该 agent/user 对是否已完成 ≥5 个 session；查看防抖日志 |
+| 被动 channel 记忆未提取 | `passive_memory.enabled` 已关闭，对话不是群组（v1 仅限群组），或缓冲区少于 `min_messages`。除非禁用 `review_mode`，否则批准的条目也需经审核。 |
 
 ## 下一步
 
@@ -259,4 +295,4 @@ GoClaw 识别四种记忆文件类型：
 - [上下文裁剪](/context-pruning) — 裁剪如何与整合 pipeline 配合
 - [Agent 详解](/agents-explained) — Agent 类型和上下文文件
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

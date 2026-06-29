@@ -218,6 +218,76 @@ x-goclaw-no-image-gen: 1
 
 如果未配置 `read_image` 链，图片照常内联附加到主 LLM。
 
+### 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----------|------|---------|-------------|
+| `prompt` | string | 必填 | 你想了解图片的什么内容 |
+| `path` | string | — | 可选：workspace 中图片的路径（生成的图片或附件） |
+| `url` | string | — | 可选：在线托管图片的 URL |
+
+`path` 和 `url` **互斥** — 同时传入会返回错误。两者都不提供时，工具会分析对话中已附加的图片。
+
+> **Provider 说明：** Anthropic 和 `claude-cli` provider 无法直接从 URL 分析图片 — 它们需要 base64 编码的图片数据。如果仅含 URL 的图片被路由到其中之一，该 provider 会报错，链会回退到下一个 provider。Gemini、OpenRouter 和 DashScope 直接接受图片 URL。URL 在任何 fetch 之前会经过 SSRF 校验。
+
+---
+
+## 视频分析（read_video）
+
+`read_video` 工具使用支持视频的 provider 链（默认 Gemini → OpenRouter）分析视频文件。当对话中含有 `<media:video>` 标签，或需要指向 workspace 文件或托管 URL 时使用它。
+
+### 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----------|------|---------|-------------|
+| `prompt` | string | 必填 | 要分析什么 — 例如"总结关键场景""屏幕上出现了什么文字？" |
+| `media_id` | string | — | 可选：来自 `<media:video>` 标签的特定 `media_id`。省略时使用最近的视频 |
+| `url` | string | — | 可选：在线托管视频文件的 URL |
+
+`media_id` 和 `url` **互斥**。本地视频文件上限 **100 MB**。
+
+> **URL 流式传输：** 对于视频 URL，GoClaw 通过 **Gemini File API** 从 URL 管道传输流，而非先将整个文件下载到本地。URL 经过 SSRF 校验，且解析出的 IP 在上传时被固定（pin）。在 provider 层，image 和 video 部分现在是不同的媒体内容类型（`ImageContent` 与 `VideoContent`）。
+
+在 `builtin_tools.settings.read_video` 下适用与 `create_*` 和 `read_image` 相同的链覆盖格式。
+
+---
+
+## 文档分析（read_document）
+
+`read_document` 工具使用支持文档的 provider 链（默认 Gemini → Anthropic → claude-cli → OpenRouter → DashScope）提取和分析文档——**PDF、DOCX 和文档图片**。
+
+### 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----------|------|---------|-------------|
+| `prompt` | string | 必填 | 要分析什么 — 例如"提取所有表格""第 3 页说了什么？" |
+| `media_id` | string | — | 可选：来自 `<media:document>` 标签的特定 `media_id` |
+| `path` | string | — | 可选：来自 `<media:document path="...">` 标签的文件路径 |
+
+与 `read_image` 和 `read_video` 不同，`read_document` **没有** `url` 参数。纯文本格式（JSON、CSV、Markdown、HTML 等）会直接返回而无需 LLM 调用。文件上限 **20 MB**。
+
+### Local-First 提取（opt-in）
+
+默认情况下，文档直接进入云端视觉链。你可以选择启用本地提取，在任何云端调用*之前*在主机上运行 `pdftotext`（PDF）和 `pandoc --sandbox`（DOCX），通过 `document_parser` 配置块：
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| 字段 | 默认值 | 说明 |
+|-------|---------|-------------|
+| `local_first` | `false` | 启用本地提取。需要 PATH 上有 `pdftotext`/`pandoc` — `full` Docker 变体或使用 `ENABLE_FULL_SKILLS=true` 的构建中已包含 |
+| `max_pages` | `200` | PDF 页数限制；传给 `pdftotext -l` |
+| `timeout_sec` | `30` | 每次提取的超时；超时时进程组被 kill |
+| `min_text_len` | `16` | 提取成功所需的最少字符数（trim 后）；更短的输出会触发云端回退 |
+
+配置在启动时捕获（不热重载）；每次调用都会重新检查二进制可用性，因此运行时安装可被检测到而无需重启。任何未命中——已禁用、不支持的 MIME、缺少二进制、超时，或文本太少（例如扫描的纯图片 PDF）——都会透明回退到云端视觉链。PDF 提取使用 `pdftotext -l <max_pages>`；DOCX 使用 `pandoc --sandbox`，使不受信任的文档在转换期间无法获取远程资源。
+
 ---
 
 ## 所需 API Key
@@ -247,4 +317,4 @@ x-goclaw-no-image-gen: 1
 - [自定义工具](/custom-tools) — 构建你自己的工具
 - [Provider 概览](/providers-overview) — 配置 API key
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

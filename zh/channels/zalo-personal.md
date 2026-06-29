@@ -55,6 +55,7 @@ Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Z
 | `group_policy` | string | `"allowlist"` | `open`、`allowlist`、`disabled`（严格默认值） |
 | `require_mention` | bool | true | 群组中是否需要提及 bot |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 功能特性
 
@@ -127,4 +128,4 @@ Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Z
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

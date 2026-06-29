@@ -171,6 +171,8 @@ GoClaw xây dựng system prompt theo hai chế độ:
 - **PromptFull** — dùng cho lần chạy agent chính. Bao gồm tất cả 19+ phần: skill, MCP tool, memory recall, user identity, messaging, silent-reply rule, và đầy đủ context file.
 - **PromptMinimal** — dùng cho subagent (spawn qua tool `spawn`) và cron job. Context thu gọn chỉ gồm các phần cần thiết (tooling, safety, workspace, bootstrap file). Giảm thời gian khởi động và token cho các thao tác nhẹ.
 
+Với phiên **group chat**, system prompt còn inject thêm context group chat — thông tin về người tham gia và nhóm — để agent biết mình là một trong nhiều người nói và có thể xưng hô với người tham gia phù hợp.
+
 ## NO_REPLY Suppression
 
 Agent có thể trả về `NO_REPLY` trong phản hồi cuối để ngăn gửi tin nhắn hiển thị cho người dùng. GoClaw phát hiện chuỗi này trong quá trình finalizing và bỏ qua việc gửi tin hoàn toàn — gọi là "silent completion." Được dùng nội bộ bởi memory flush agent khi không có gì để lưu, và có thể dùng trong hướng dẫn agent tuỳ chỉnh cho các tình huống tương tự.
@@ -234,4 +236,4 @@ Kết quả subagent lệch thời gian được xếp hàng và gộp thành m�
 - [Tools Overview](/tools-overview) — Tool agent có thể dùng
 - [Memory System](./memory-system.md) — Memory dài hạn và tìm kiếm
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

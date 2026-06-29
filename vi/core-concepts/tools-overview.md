@@ -24,7 +24,7 @@ Tool là cách agent tương tác với thế giới ngoài việc tạo ra văn
 | **Messaging** (`group:messaging`) | message, create_forum_topic | Gửi tin nhắn; tạo topic forum Telegram |
 | **Tạo Media** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | Tạo hình ảnh, audio, video, và text-to-speech; `image_generation` là native tool cho Codex/OpenAI-compat (tri-level gate: provider capability + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`) — xem [Media Generation](/vi/advanced/media-generation) |
 | **Browser** | browser | Điều hướng trang web, chụp ảnh màn hình, tương tác với element |
-| **Đọc Media** (`group:media_read`) | read_image, read_audio, read_document, read_video | Phân tích hình ảnh, chuyển ngữ audio, trích xuất tài liệu, phân tích video |
+| **Đọc Media** (`group:media_read`) | read_image, read_audio, read_document, read_video | Phân tích hình ảnh (file, đính kèm, hoặc URL), chuyển ngữ audio, trích xuất tài liệu (PDF, DOCX, ảnh; tùy chọn trích xuất local-first qua pdftotext/pandoc), phân tích video (file hoặc URL) — xem [Media Generation](/advanced/media-generation) |
 | **Skills** (`group:skills`) | use_skill, publish_skill | Gọi và xuất bản skill |
 | **Workspace** | workspace_dir | Resolve workspace directory theo team/user context |
 | **AI** | openai_compat_call | Gọi endpoint tương thích OpenAI với định dạng request tùy chỉnh |
@@ -108,6 +108,32 @@ graph LR
 3. **Thực thi** — Tool chạy và tạo output
 4. **Scrub** — Credentials và dữ liệu nhạy cảm được xóa khỏi output
 5. **Trả về** — Kết quả sạch trả về LLM cho lần lặp tiếp theo
+
+### Lập lịch song song và tuần tự
+
+Khi LLM phát **nhiều** tool call trong một lượt, GoClaw quyết định có chạy đồng thời hay không. Chỉ tool **read-only** đã đăng ký mới đủ điều kiện chạy raw I/O song song có giới hạn. Tool gây thay đổi (mutating), async, MCP-bridge (`mcp_*`), `exec`/`bash`, `wait`, tool không xác định/chưa đăng ký, và các batch vượt ngân sách tool call đều chạy **tuần tự**. Batch hỗn hợp chứa bất kỳ call không đủ điều kiện nào sẽ chạy hoàn toàn tuần tự. Hook `PreToolUse` chạy trước mọi thực thi song song, và kết quả luôn được xử lý theo đúng thứ tự assistant ban đầu. Tính đủ điều kiện này dựa trên metadata khả năng (capability) của mỗi tool (lớp tác dụng phụ), nên custom tool mặc định chạy tuần tự trừ khi được đăng ký là read-only.
+
+### Trích xuất Local-First của `read_document`
+
+`read_document` phân tích PDF, DOCX, và ảnh tài liệu. Mặc định nó gửi file tới provider vision đám mây. Bạn có thể bật **trích xuất local-first** chạy `pdftotext` (PDF) và `pandoc --sandbox` (DOCX) trên host *trước* mọi lệnh gọi đám mây, cấu hình qua block `document_parser`:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Trường | Mặc định | Mô tả |
+|-------|---------|-------------|
+| `local_first` | `false` | Bật trích xuất local (opt-in). Yêu cầu `pdftotext`/`pandoc` trên PATH — có sẵn trong bản Docker `full` hoặc build với `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | Giới hạn số trang PDF; truyền vào `pdftotext -l` |
+| `timeout_sec` | `30` | Timeout mỗi lần trích xuất; process group bị kill khi timeout |
+| `min_text_len` | `16` | Số ký tự tối thiểu (sau khi trim) để coi là trích xuất thành công; output ngắn hơn sẽ kích hoạt fallback đám mây |
+
+Cấu hình được nạp lúc khởi động (không hot-reload), nhưng tính khả dụng của binary được kiểm tra lại mỗi lần gọi nên cài đặt lúc runtime được phát hiện mà không cần restart. Mọi trường hợp không trích xuất được — bị tắt, MIME không hỗ trợ, thiếu binary, timeout, hoặc quá ít văn bản (ví dụ PDF chỉ là ảnh scan) — đều fallback minh bạch về chuỗi vision đám mây mà không khác biệt với phía gọi.
 
 ## Tool Profile
 
@@ -410,4 +436,4 @@ Tất cả tham số đều tùy chọn — giá trị mặc định áp dụng 
 - [Multi-Tenancy](/multi-tenancy) — Truy cập tool per-user và cách ly
 - [Custom Tools](/custom-tools) — Xây dựng tool của riêng bạn
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

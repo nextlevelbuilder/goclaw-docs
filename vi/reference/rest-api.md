@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ ~308 REST endpoint.
+> **Cần index đầy đủ?** Xem [Danh mục Endpoint API](api-endpoints-catalog.md) — danh sách auto-gen của toàn bộ REST endpoint.
 
 HTTP API của GoClaw được serve trên cùng port với WebSocket gateway. Tất cả endpoint đều yêu cầu `Bearer` token trong header `Authorization` khớp với `GOCLAW_GATEWAY_TOKEN`.
 
@@ -569,6 +569,12 @@ Xuất và nhập custom skill dưới dạng archive tar.gz.
 | Param | Kiểu | Mô tả |
 |-------|------|-------|
 | `stream` | `bool` | Khi `true`, trả SSE progress rồi event `complete` kèm `download_url` |
+| `format` | string | Định dạng archive — `tar.gz` (mặc định), `tgz` (alias cho gzip tar), hoặc `zip`. ZIP chỉ dùng cho export/download; import vẫn yêu cầu định dạng skills bundle |
+| `id` | string | Chọn một skill theo ID. Lặp lại param để chọn nhiều skill |
+| `ids` | string | Chọn nhiều skill ID dưới dạng danh sách phân tách bằng dấu phẩy |
+| `include_system` | `bool` | Bao gồm system skill trong full export khi không chọn ID nào |
+
+> `GET /v1/skills/export` hỗ trợ cả **tải xuống trực tiếp** (archive được stream trong response) và luồng SSE token (`stream=true` → `download_url`). Nếu không có `id`/`ids`, export giữ tương thích ngược và mặc định bao gồm các custom skill của tenant.
 
 **Archive format** (`skills-YYYYMMDD.tar.gz`):
 
@@ -614,6 +620,63 @@ skills/{slug}/grants.jsonl    — agent grants (agent_key + pinned version)
 | `POST` | `/v1/skills/install-deps` | Cài đặt tất cả dependency còn thiếu |
 | `POST` | `/v1/skills/install-dep` | Cài đặt một dependency đơn lẻ |
 | `GET` | `/v1/skills/runtimes` | Kiểm tra runtime có sẵn |
+
+---
+
+### Tự tiến hóa & Metrics của Skill
+
+Skill có thể thu thập metric sử dụng và tự đề xuất cải tiến cho chính nó. Tự tiến hóa được scope theo tenant và **mặc định tắt theo từng skill**. Metric sử dụng chỉ được ghi bởi các đường runtime đáng tin cậy (ví dụ tool `use_skill` và việc kích hoạt slash-command) — không có endpoint công khai để ghi metric sử dụng.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/{id}/evolution` | Đọc cấu hình tự tiến hóa của một skill |
+| `PATCH` | `/v1/skills/{id}/evolution` | Cập nhật trạng thái bật hoặc mode (tenant-admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Tổng hợp metric sử dụng + đếm theo status |
+| `GET` | `/v1/skills/{id}/activity` | Log hoạt động tiến hóa (chỉ admin) |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | Liệt kê đề xuất cải tiến scope theo skill |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` | Tạo đề xuất kèm bằng chứng + draft patch (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` | Duyệt một đề xuất (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` | Từ chối một đề xuất (tenant-admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` | Áp dụng đề xuất đã duyệt → version skill mới (tenant-admin) |
+
+**Mode tiến hóa (`PATCH .../evolution`, field `mode`):**
+
+| Mode | Hành vi |
+|------|---------|
+| `suggest_only` | Thu thập metric và quản lý đề xuất; không tự động patch |
+| `auto_analyze` | Dành riêng cho automation phân tích. **Việc áp dụng patch luôn yêu cầu duyệt tường minh** |
+
+> Caller vai trò viewer/operator có thể đọc metric tổng hợp. Raw activity, actor ID, bằng chứng lỗi, draft patch, và hành động apply chỉ dành cho admin. Không thể thay đổi system skill; áp dụng một đề xuất cho custom skill sẽ ghi một thư mục version mới và một bản ghi `skill_versions`.
+
+### Kiểm soát truy cập & Grant của Skill (batch)
+
+Đọc và quản lý ai có thể dùng một skill. Các route số nhiều `grants/agents` và `grants/users` nhận tập **batch**; các route số ít đã mô tả ở [Skill Grants](#skill-grants) vẫn dùng được cho grant đơn lẻ. Tất cả route yêu cầu **vai trò admin**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/{id}/access` | Đọc cấu hình access (visibility + agent/user grants) |
+| `PATCH` | `/v1/skills/{id}/access` | Cập nhật cấu hình access (ví dụ `visibility`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Access hiệu lực cho skill này |
+| `GET` | `/v1/skills/access/effective` | Access hiệu lực trên tất cả skill |
+| `GET` | `/v1/skills/{id}/grants/agents` | Liệt kê agent grant (chế độ batch) |
+| `POST` | `/v1/skills/{id}/grants/agents` | Batch-set agent grant (`agent_id`, tùy chọn `version`/`pinned_version`, `can_manage`) |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` | Xóa một agent grant |
+| `GET` | `/v1/skills/{id}/grants/users` | Liệt kê user grant (chế độ batch) |
+| `POST` | `/v1/skills/{id}/grants/users` | Batch-set user grant (`user_id`) |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` | Xóa một user grant |
+
+**Response access-hiệu-lực** bao gồm `accessible`, `reason`, `can_manage`, và tùy chọn `pinned_version` cho mỗi skill.
+
+### Skill Dependencies
+
+Kiểm tra và giải quyết runtime dependency của một skill. Yêu cầu **vai trò admin**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/skills/{id}/dependencies` | Liệt kê dependency của skill và trạng thái của chúng |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Quét lại các dependency khai báo và làm mới trạng thái |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Kiểm tra xem dependency đã được thỏa mãn chưa |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Cài đặt dependency còn thiếu cho skill |
 
 ---
 
@@ -784,12 +847,28 @@ Các cờ tính năng theo từng agent kiểm soát các hệ thống con v3.
 
 ### `GET /v1/traces`
 
-Liệt kê LLM traces. Hỗ trợ query params: `agentId`, `userId`, `status`, `limit`, `offset`.
+Liệt kê LLM traces.
 
 ```bash
-curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
+curl "http://localhost:18790/v1/traces?agentId=UUID&q=timeout&min_input_tokens=1000&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
+
+**Query param:**
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `agentId` | string | Lọc theo agent |
+| `userId` | string | Lọc theo user |
+| `status` | string | Lọc theo trạng thái |
+| `channel` | string | Lọc theo channel |
+| `q` | string | Tìm kiếm contains rộng trên các field của trace/span |
+| `min_input_tokens` / `max_input_tokens` | integer | Lọc theo khoảng input-token |
+| `min_output_tokens` / `max_output_tokens` | integer | Lọc theo khoảng output-token |
+| `tool_name` | string | Lọc các trace đã dùng một tool nhất định |
+| `min_tool_calls` / `max_tool_calls` | integer | Lọc theo khoảng số lượng tool-call |
+| `limit` | integer | Kích thước trang |
+| `offset` | integer | Offset trang |
 
 ### `GET /v1/traces/follow`
 
@@ -820,6 +899,10 @@ Lấy một trace cùng tất cả spans của nó.
 
 Xuất cây trace dưới dạng gzipped JSON.
 
+### `GET /v1/runs/{runID}/timeline`
+
+Trả về timeline archive đã lưu trữ, an toàn để hiển thị (display-safe) của một run đơn lẻ — chính là các mục được hiển thị trong panel timeline của run/session. Các mục tool chỉ lưu preview giới hạn; raw reasoning không được lưu trữ. Caller không phải admin chỉ được xem các mục của chính mình.
+
 ### Costs
 
 | Method | Path | Mô tả |
@@ -835,8 +918,13 @@ Xuất cây trace dưới dạng gzipped JSON.
 | `GET` | `/v1/usage/timeseries` | Điểm dữ liệu usage theo thời gian |
 | `GET` | `/v1/usage/breakdown` | Phân tích theo provider/model/channel |
 | `GET` | `/v1/usage/summary` | Tóm tắt với so sánh kỳ trước |
+| `GET` | `/v1/usage/events/timeseries` | Time-series dựa trên event (tính từ raw usage event) |
+| `GET` | `/v1/usage/events/breakdown` | Phân tích dựa trên event theo provider/model/channel |
+| `GET` | `/v1/usage/events/summary` | Tóm tắt dựa trên event với so sánh kỳ trước |
 
 **Query param:** `from`, `to` (RFC 3339), `agent_id`, `provider`, `model`, `channel`, `group_by`
+
+> Các biến thể `/v1/usage/events/*` tính cùng các shape từ kho raw usage-event thay vì snapshot đã tính sẵn — hữu ích cho số liệu chính xác, cập nhật đến từng event.
 
 ---
 
@@ -1193,6 +1281,44 @@ Xóa channel instance.
 
 `reason` là một trong `writer`, `not_writer`, `no_writers_configured`, hoặc `invalid_group`.
 
+### Passive Memory Extraction
+
+Trích xuất memory thụ động theo từng channel-instance — khai thác hội thoại gần đây thành các memory candidate được đưa vào hàng đợi review, rồi duyệt chúng vào episodic memory. Endpoint đọc cho phép viewer truy cập; cấu hình settings và chuyển trạng thái item yêu cầu **tenant-admin**.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | Config + run gần nhất + số lượng pending + item gần đây |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | Thay thế khối config `passive_memory` đã chuẩn hóa |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | Kích hoạt một lần extraction thủ công |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | Liệt kê item trong hàng đợi review (tùy chọn lọc `status`) |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | Ghi candidate vào episodic memory + publish event KG |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | Từ chối candidate |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | Xóa candidate (và mọi episodic summary liên kết) |
+
+**Các field config `passive_memory`:** `enabled`, `review_mode`, `interval_minutes`, `message_cap`, `retention_hours`, `allowed_types`, `exclude_users`, `exclude_patterns`, `min_messages`, `group_only`. Mặc định: tắt, bật review-mode, chỉ group, interval 360 phút, cap 100 message, retention 168 giờ, và các loại bền vững (people, projects, decisions, todos, preferences, events).
+
+### Context Capability Administration
+
+Quản lý quyền truy cập tool theo từng context (theo scope) cho một channel instance. Một context được định danh bằng `{scopeType}/{scopeKey}` (ví dụ một group hoặc DM). Các route grant/credential yêu cầu **vai trò admin**; các thao tác đọc list/capabilities cho phép viewer truy cập.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/channels/instances/{id}/contexts` | Liệt kê context của instance |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` | Liệt kê thành viên của một context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` | Capability hiệu lực được giải quyết cho context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` | Liệt kê MCP server grant |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Đặt một MCP grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | Xóa một MCP grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` | Liệt kê MCP credential |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Đặt một MCP credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | Xóa một MCP credential |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` | Liệt kê CLI binary grant |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Đặt một CLI grant |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | Xóa một CLI grant |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` | Liệt kê CLI credential |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Đặt một CLI credential |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | Xóa một CLI credential |
+
 ---
 
 ## Contacts
@@ -1324,6 +1450,17 @@ Yêu cầu **admin role** (full gateway token hoặc gateway token rỗng ở ch
 | `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Lấy credential của user cụ thể |
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Đặt credential của user cụ thể |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | Xóa credential của user cụ thể |
+
+### Per-Agent CLI Credentials
+
+Lưu trữ credential theo từng agent cho một CLI config — lưu các giá trị credential mà một agent cụ thể nên dùng. Đây là phần **khác biệt với [CLI Credential Agent Grants](#cli-credential-agent-grants)** bên dưới: grant kiểm soát *liệu* một agent có được phép dùng một binary hay không (kèm giới hạn arg/timeout), còn các endpoint này lưu payload credential thực tế của agent.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` | Liệt kê credential theo agent cho một CLI config |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Lấy metadata credential của agent |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Tạo hoặc thay thế credential của một agent |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | Xóa credential của một agent |
 
 ### CLI Credential Agent Grants
 
@@ -2042,4 +2179,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

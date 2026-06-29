@@ -42,6 +42,7 @@
 | `require_mention` | bool | `false` | 仅在群组中被 @提及时回复 |
 | `history_limit` | int | `200` | 群组上下文最大待处理消息数（0=禁用） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 架构
 
@@ -168,4 +169,4 @@ GoClaw 会检测旧的 `bridge_url` 配置并显示清晰的迁移错误。
 - [Larksuite](/channel-feishu) — Larksuite 集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

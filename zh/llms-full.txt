@@ -1969,7 +1969,7 @@ Setup（运行一次）
 迭代循环（每轮最多 20 次）
 ├─ ThinkStage   — 构建系统提示词、过滤工具、调用 LLM
 ├─ PruneStage   — 裁剪上下文（需要时触发记忆刷新）
-├─ ToolStage    — 执行工具调用（尽可能并行）
+├─ ToolStage    — 执行工具调用（只读批次有界并行；其余串行）
 ├─ ObserveStage — 处理工具结果，追加到消息缓冲区
 └─ CheckpointStage — 跟踪迭代次数，检查退出条件
 
@@ -1984,7 +1984,7 @@ Finalize（运行一次，即使被取消也会执行）
 | **ContextStage** | Setup | 注入 agent/用户/工作空间上下文；解析每用户文件 |
 | **ThinkStage** | 迭代 | 构建系统提示词（15+ 个部分），调用 LLM，发送流式 chunk |
 | **PruneStage** | 迭代 | 上下文 ≥ 30% 时软裁剪，≥ 50% 时硬裁剪；触发记忆刷新 |
-| **ToolStage** | 迭代 | 执行工具调用——多个调用使用并行 goroutine |
+| **ToolStage** | 迭代 | 执行工具调用。只有已注册的**只读**工具才进行有界并行；变更类（mutating）、async、MCP 桥接（`mcp_*`）、`exec`/`bash`、`wait`、未知/未注册工具，以及超预算批次均**串行**执行。包含任一不合格调用的混合批次将整体串行执行。`PreToolUse` hook 在任何并行 I/O 之前运行，结果按原始 assistant 顺序处理 |
 | **ObserveStage** | 迭代 | 处理工具结果；处理 `NO_REPLY` 静默完成 |
 | **CheckpointStage** | 迭代 | 递增计数器；达到最大迭代次数或上下文取消时退出 |
 | **FinalizeStage** | Finalize | 运行 7 步输出净化；原子刷新消息；更新 session 元数据 |
@@ -2236,6 +2236,8 @@ GoClaw 以两种模式构建系统提示词：
 
 - **PromptFull** — 用于主 agent 运行。包含全部 19+ 部分：skill、MCP 工具、记忆召回、用户身份、消息传递、静默回复规则和完整上下文文件。
 - **PromptMinimal** — 用于子 agent（通过 `spawn` 工具生成）和 cron 任务。精简上下文，只包含必要部分（工具、安全、工作空间、bootstrap 文件）。减少轻量操作的启动时间和 token 用量。
+
+对于**群聊**会话，system prompt 还会注入群聊上下文——参与者和群组信息——以便 agent 知道自己是多个发言者之一，并能恰当地称呼参与者。
 
 ## NO_REPLY 抑制
 
@@ -2490,7 +2492,7 @@ graph LR
 | **消息传递** (`group:messaging`) | message, create_forum_topic | 发送消息；创建 Telegram 论坛话题 |
 | **媒体生成** (`group:media_gen`) | create_image, create_image_byteplus, create_audio, create_video, create_video_byteplus, tts, image_generation | 生成图片、音频、视频和文字转语音；`image_generation` 是 Codex/OpenAI-compat 的原生工具（三级开关：provider 能力 + `other_config.allow_image_generation` + header `x-goclaw-no-image-gen`）——参见[媒体生成](/zh/advanced/media-generation) |
 | **浏览器** | browser | 导航网页、截图、与元素交互 |
-| **媒体读取** (`group:media_read`) | read_image, read_audio, read_document, read_video | 分析图片、转录音频、提取文档、分析视频 |
+| **媒体读取** (`group:media_read`) | read_image, read_audio, read_document, read_video | 分析图片（文件、附件或 URL）、转录音频、提取文档（PDF、DOCX、图片；可选通过 pdftotext/pandoc 的 local-first 提取）、分析视频（文件或 URL）— 参见 [Media Generation](/advanced/media-generation) |
 | **Skills** (`group:skills`) | use_skill, publish_skill | 调用和发布 skills |
 | **工作空间** | workspace_dir | 解析团队/用户上下文的工作空间目录 |
 | **AI** | openai_compat_call | 以自定义请求格式调用 OpenAI 兼容端点 |
@@ -2574,6 +2576,32 @@ graph LR
 3. **执行** — 工具运行并产生输出
 4. **清除** — 从输出中移除凭证和敏感数据
 5. **返回** — 干净的结果返回给 LLM 进行下一次迭代
+
+### 并行与串行调度
+
+当 LLM 在一个回合内发出**多个**工具调用时，GoClaw 决定是否并发运行它们。只有已注册的**只读**工具才有资格进行有界并行原始 I/O。变更类（mutating）、async、MCP 桥接（`mcp_*`）、`exec`/`bash`、`wait`、未知/未注册工具，以及超出工具调用预算的批次均**串行**执行。包含任一不合格调用的混合批次将整体串行执行。`PreToolUse` hook 在任何并行执行之前运行，结果始终按原始 assistant 顺序处理。该资格判定由每个工具的能力（capability）元数据（副作用类别）驱动，因此自定义工具默认串行，除非注册为只读。
+
+### `read_document` Local-First 提取
+
+`read_document` 分析 PDF、DOCX 和文档图片。默认情况下，它将文件发送给云端视觉 provider。你可以选择启用 **local-first 提取**，在任何云端调用*之前*在主机上运行 `pdftotext`（PDF）和 `pandoc --sandbox`（DOCX），通过 `document_parser` 块配置：
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| 字段 | 默认值 | 说明 |
+|-------|---------|-------------|
+| `local_first` | `false` | 启用本地提取（opt-in）。需要 PATH 上有 `pdftotext`/`pandoc` — `full` Docker 变体或使用 `ENABLE_FULL_SKILLS=true` 的构建中已包含 |
+| `max_pages` | `200` | PDF 页数限制；传给 `pdftotext -l` |
+| `timeout_sec` | `30` | 每次提取的超时；超时时进程组被 kill |
+| `min_text_len` | `16` | 提取成功所需的最少字符数（trim 后）；更短的输出会触发云端回退 |
+
+配置在启动时捕获（不热重载），但每次调用都会重新检查二进制可用性，因此运行时安装可被检测到而无需重启。任何提取未命中——已禁用、不支持的 MIME、缺少二进制、超时，或文本太少（例如扫描的纯图片 PDF）——都会透明回退到云端视觉链，对调用方无任何差异。
 
 ## 工具 Profile
 
@@ -2903,7 +2931,7 @@ graph TD
 | 层级 | 存储 | 内容 | 生命周期 | 搜索 |
 |------|------|------|---------|------|
 | **L0 Working** | `memory_documents` + `memory_embeddings` | Agent 整理的事实、auto-flush 笔记、dreaming 输出 | 永久（直到删除） | FTS + 向量混合 |
-| **L1 Episodic** | `episodic_summaries` | Session 摘要、关键主题、L0 摘要 | 90 天（可配置） | FTS + HNSW 向量 |
+| **L1 Episodic** | `episodic_summaries` | Session 摘要、关键主题、L0 摘要（外加经审核的[被动 channel 事实](#passive-channel-memory-extraction)） | 90 天（可配置） | FTS + HNSW 向量 |
 | **L2 Semantic** | 知识图谱表 | 实体、关系、时态有效期窗口 | 永久 | 图遍历 |
 
 ### 层级边界与晋升规则
@@ -3037,6 +3065,41 @@ sequenceDiagram
 
 **定期清理**：一个 goroutine 每 6 小时运行一次，删除超过 `expires_at` 的 episodic 摘要。
 
+## 被动 Channel 记忆提取
+
+大多数记忆来自 session 的完成。**被动 channel 记忆提取**增加了第二个可选来源：它定期从 channel（Telegram、Discord 等）的缓冲消息中挖掘持久事实——无需任何人运行 session——并将经审核的事实送入同一套 L1 → L2 pipeline。
+
+它**默认关闭**且**隐私优先**：在 v1 中它仅查看**群组**对话，候选项会**排队等待审核**而非自动写入，且**绝不存储原始消息正文**——只存储脱敏后的摘要、主题/实体、置信度和计数。
+
+### 工作原理
+
+后台 worker 定期读取现有的租户范围 `channel_pending_messages` 群组缓冲区，对敏感内容脱敏，并向**后台 LLM provider** 请求持久事实候选项。候选项进入审核队列（`channel_memory_extraction_runs` / `_items`）。提取可通过以下方式运行：
+
+- **手动触发** — 即使 `enabled` 为 `false` 也会运行；
+- **消息上限** — 群组缓冲区达到 `message_cap`；
+- **时间间隔** — 已过配置的 `interval_minutes`。
+
+当某项被**批准**时，GoClaw 写入一行 `episodic_summaries`，其 `source_type='channel'` 并带确定性的 `source_id`。从此之后，现有的[整合 worker](#consolidation-workers)（`semantic_worker`、`dreaming_worker` 等）会像处理其他任何 episodic 条目一样将其晋升到知识图谱和长期记忆。**拒绝/删除**可阻止后续写入；删除还会移除关联的 episodic 行（在 v1 中，已晋升的 KG 节点不会同步删除）。
+
+### 配置
+
+在每个 channel 实例的 `config.passive_memory` 下启用（参见 [Channel 实例](/channel-instances#passive-channel-memory-passive_memory)）：
+
+| 字段 | 默认值 | 钳制 / 说明 |
+|---|---|---|
+| `enabled` | `false` | 默认禁用。 |
+| `review_mode` | `true` | 候选项排队等待审核，不自动写入。 |
+| `interval_minutes` | `360` | 钳制到 15–10080。 |
+| `message_cap` | `100` | 钳制到 10–1000。 |
+| `retention_hours` | `168` | 钳制到 1–720。 |
+| `allowed_types` | people、projects、decisions、todos、preferences、events | 无效条目丢弃；空列表 → 完整默认集。 |
+| `exclude_users` | — | ≤50 条，每条 ≤255 字符。 |
+| `exclude_patterns` | — | ≤20 个有效正则，每个 ≤255 字符。 |
+| `min_messages` | `5` | 钳制到 2–100。 |
+| `group_only` | `true` | **v1 中强制为 `true`**（始终强制转换）。 |
+
+> 提取表存储元数据、摘要、主题/实体、置信度、状态和脱敏计数——**而非**原始消息正文。
+
 ## Auto-Injector
 
 **Auto-injector** 在每个 turn 开始时、LLM 调用之前，自动将相关记忆注入 agent 的 system prompt。
@@ -3129,6 +3192,7 @@ GoClaw 识别四种记忆文件类型：
 | 出现不相关的记忆 | 记忆随时间积累；考虑通过 API 清除旧记忆 |
 | Episodic 摘要未创建 | 验证整合 worker 在启动时已注册；检查 event bus 是否在运行 |
 | dreaming_worker 从不晋升 | 检查该 agent/user 对是否已完成 ≥5 个 session；查看防抖日志 |
+| 被动 channel 记忆未提取 | `passive_memory.enabled` 已关闭，对话不是群组（v1 仅限群组），或缓冲区少于 `min_messages`。除非禁用 `review_mode`，否则批准的条目也需经审核。 |
 
 ## 下一步
 
@@ -4744,6 +4808,16 @@ POST /v1/agents/:id/shares
 
 Predefined agent 也可以通过 `channel_instances` 访问。若 predefined agent 有一个已启用的 channel instance，其 `allow_from` 列表包含你的用户 ID，则即使没有直接共享或 default 标志，你也可以访问该 agent。
 
+## 首个 setup agent 的网关 operator 访问
+
+在 `goclaw setup` 期间创建**第一个** agent 时，向导会询问：
+
+```
+Grant this first agent local gateway operator access via the goclaw CLI? [默认：No]
+```
+
+若你回答 **yes**，该 agent 将获得**可撤销的 SecureCLI 访问权限**，可通过 goclaw CLI 运行本地网关命令（例如 `goclaw agent list`）。创建 agent 的响应携带一个 `gateway_operator_bootstrap` 块，含 `status` 字段和可选的 `warning`。默认为 **No** — 仅当你希望第一个 agent 自行操作网关时才启用。由于该权限以 SecureCLI grant 形式授予，你之后可像任何 grant 一样撤销它。
+
 ## 通过 HTTP API 共享 Agent
 
 使用 `POST /v1/agents/:id/shares` 共享 agent。只有所有者（或 gateway 所有者级别的用户）才能共享。
@@ -4890,6 +4964,7 @@ GoClaw 在内存中缓存热点权限查询，以减少高流量部署下的数�
 
 ## 下一步
 
+- [权限矩阵 — agent 配置权限、group/channel 范围以及完整的权限层级表](/permission-matrix)
 - [User Overrides — 让用户按 agent 自定义 LLM provider/model](/user-overrides)
 - [System Prompt Anatomy — 权限如何影响 system prompt 各部分](/system-prompt-anatomy)
 - [Creating Agents — 创建 agent 并立即共享](/creating-agents)
@@ -5218,7 +5293,7 @@ Name()        — 返回 provider 标识符（如 "anthropic"、"openai"）
 |----------|------|---------|
 | **anthropic** | 原生 HTTP + SSE | `claude-sonnet-4-5-20250929` |
 | **claude_cli** | stdio 子进程 + MCP | `sonnet` |
-| **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.5` |
+| **codex** / **chatgpt_oauth** | OAuth Responses API | `gpt-5.3-codex` |
 | **acp** | JSON-RPC 2.0 子 agent | `claude` |
 | **dashscope** | OpenAI 兼容封装 | `qwen3-max` |
 | **vertex** | OpenAI 兼容（OAuth2） | `google/gemini-2.0-flash-001` |
@@ -5240,6 +5315,8 @@ Name()        — 返回 provider 标识符（如 "anthropic"、"openai"）
 | perplexity | `https://api.perplexity.ai` | `sonar-pro` |
 | ollama | `http://localhost:11434/v1` | `llama3.3` |
 | byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` |
+| bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
+| kimi_coding | `https://api.kimi.com/coding/v1` | `kimi-k2-turbo-preview` |
 
 ## 添加 Provider
 
@@ -5398,6 +5475,8 @@ Reasoning effort 控制参数（`reasoning_effort`、`thinking_budget` 等）在
 - [DeepSeek](/provider-deepseek) — 支持 reasoning_content 的 DeepSeek
 - [Groq](/provider-groq) — 超快推理
 - [DashScope](/provider-dashscope) — 支持思考的阿里 Qwen 模型
+- [Bailian](/provider-bailian) — 阿里云百炼 Coding 端点（与 DashScope 分离）
+- [Kimi Coding](/provider-kimi) — Moonshot Kimi，固定 User-Agent 且服务端思考
 - [ACP](/provider-acp) — Claude Code、Codex CLI、Gemini CLI 子 agent 编排
 
 
@@ -5460,6 +5539,12 @@ Anthropic provider 是一个一流的手写 HTTP 客户端（非第三方 SDK）
 
 要为特定 agent 覆盖默认模型，在 agent 配置中设置 `model`。
 
+## 采样参数（Claude 4.6+）
+
+较新的 Claude 模型会无条件拒绝采样参数。对于 **Claude Opus/Sonnet 4.6+ 和 Opus 4.7+**（任何次版本号不低于 6 的 `claude-opus-4-*` 或 `claude-sonnet-4-*`），无论是否启用扩展思考，GoClaw 都会从**每个**请求中移除 `temperature`——并按同一规则移除 `top_p`/`top_k`。这些模型若包含采样参数会返回 `HTTP 400`。
+
+这与下文描述的思考路径下移除 temperature 不同（后者仅在思考激活时移除 `temperature`，适用于所有 Claude 模型）。你无需做任何事：GoClaw 会自动移除这些参数。只需避免在针对这些模型的原始请求中硬编码采样值。
+
 ## 扩展思考
 
 Anthropic provider 实现 `SupportsThinking() bool` 并返回 `true`。当请求中设置 `thinking_level` 时，GoClaw 自动启用 Anthropic 的扩展思考功能。
@@ -5509,6 +5594,7 @@ Anthropic 使用与 OpenAI 不同的工具 schema 格式，GoClaw 自动转换�
 |---|---|---|
 | `HTTP 401` | API key 无效 | 检查 key 是否以 `sk-ant-` 开头 |
 | 思考时出现 `HTTP 400` | temperature 与思考同时设置 | GoClaw 自动移除 temperature；不要在原始请求中硬编码 |
+| 4.6+ 模型上出现提及 temperature 的 `HTTP 400` | Claude Opus/Sonnet 4.6+ / Opus 4.7+ 拒绝采样参数 | GoClaw 自动移除 `temperature`/`top_p`/`top_k`；不要硬编码采样参数 |
 | `HTTP 529` | Anthropic 过载 | 重试逻辑会处理；等待后重试 |
 | 思考块未出现 | 模型不支持思考 | 使用 claude-sonnet-4-5 或 claude-opus-4-5 |
 | token 成本高 | 缓存未命中 | 确保系统提示在各请求间保持稳定 |
@@ -5900,6 +5986,10 @@ Gemini 2.5+ 在工具调用中返回 `thought_signature`。GoClaw 将其存储�
 ### 空内容处理
 
 当工具调用存在时，Gemini 拒绝 `content` 为空的 assistant 消息。GoClaw 在这种情况下省略 `content` 字段，而不是发送空字符串。
+
+### 通过 URL 输入媒体
+
+通过 URL 提供的图片和视频输入无需你先行下载即可处理。图片 URL 直接透传到视觉请求。对于视频，GoClaw 通过一个 SSRF 安全的固定 HTTP 客户端将 URL 流式传入 Gemini File API（上传 → 轮询 → `file_data`）。完整的多模态输入/输出参考见 [媒体生成](/media-generation)。
 
 ## 思考 / 推理
 
@@ -6705,6 +6795,8 @@ DashScope 是阿里巴巴的模型服务平台，提供 Qwen 系列模型。GoCl
 
 DashScope 还通过 `thinking_level` 支持扩展思考，GoClaw 将其映射到 DashScope 特有的 `enable_thinking` 和 `thinking_budget` 参数。
 
+> **注意：** `dashscope` 与 `bailian` 是不同的 provider 类型。阿里云的百炼（Bailian）Coding 端点（`https://coding-intl.dashscope.aliyuncs.com/v1`，默认 `qwen3.5-plus`）是一个独立的 OpenAI 兼容 provider，具有硬编码目录且**无**思考注入。如果你需要 Coding 端点或 `qwen3.7-plus` 等模型，请参阅 [Bailian](/provider-bailian)。
+
 ## 配置
 
 在 `config.json` 中添加 DashScope API key：
@@ -6742,6 +6834,9 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 | `qwen3-turbo` | 最快的 Qwen3 模型 |
 | `qwen3-235b-a22b` | 开放权重，MoE 架构 |
 | `qwq-32b` | 扩展思考 / 推理模型 |
+| `qwen3.5-max` | Qwen 3.5 系列，能力最强 |
+| `qwen3.5-plus` | Qwen 3.5 系列，均衡 |
+| `qwen3.5-turbo` | Qwen 3.5 系列，最快 |
 
 ## 每模型思考保护
 
@@ -6820,6 +6915,7 @@ GoClaw 将 `thinking_level` 映射到 DashScope 的 `thinking_budget`：
 
 - [Claude CLI](/provider-claude-cli) — 调用 Claude Code CLI 二进制文件的独特 provider
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
+- [Bailian](/provider-bailian) — 阿里云百炼 Coding 端点（与 DashScope 分离）
 
 
 
@@ -6983,18 +7079,168 @@ Vertex provider 与 `openai` 和 `gemini` 适配器共用 OpenAI ChatCompletions
 
 # 百炼
 
-> 连接阿里云百炼模型。
-
-🚧 **本页面正在建设中。** 内容即将推出。
+> 通过 OpenAI 兼容端点连接阿里云百炼（Bailian）Coding 模型。
 
 ## 概述
 
-百炼是阿里云的 AI 模型平台。GoClaw 使用 OpenAI 兼容 API 格式连接。
+百炼是阿里云的 AI 模型平台。GoClaw 使用 OpenAI 兼容 API 格式连接到其 **Coding** 端点。`bailian` provider 类型**与 `dashscope` 分离**——它们是不同的端点，具有不同的 base URL 和不同的模型目录。DashScope 的 `enable_thinking`/`thinking_budget` 注入路径**不**适用于百炼；百炼被当作纯 OpenAI 兼容 provider 处理。
+
+- **Provider 类型：** `bailian`
+- **默认模型：** `qwen3.5-plus`
+- **默认 API base：** `https://coding-intl.dashscope.aliyuncs.com/v1`
+
+## 配置
+
+将你的百炼 API key 添加到 `config.json` 的 `bailian` provider 块中：
+
+```json
+{
+  "providers": {
+    "bailian": {
+      "api_key": "$GOCLAW_BAILIAN_API_KEY"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "bailian",
+      "model": "qwen3.5-plus"
+    }
+  }
+}
+```
+
+将 key 存放在 `.env.local`：
+
+```bash
+GOCLAW_BAILIAN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+`api_base` 字段为可选——默认为 `https://coding-intl.dashscope.aliyuncs.com/v1`。你也可以从 dashboard（**Settings → Providers**）添加百炼；key 在存储时使用 AES-256-GCM 加密。
+
+## 模型
+
+百炼 Coding 平台**不**提供标准的 `/v1/models` 端点，因此 GoClaw 内置了一个**硬编码目录**。以下模型可用：
+
+| 模型 | 备注 |
+|---|---|
+| `qwen3.7-plus` | Qwen 3.7 Plus——文本生成、深度思考、视觉理解 |
+| `qwen3.6-plus` | Qwen 3.6 Plus |
+| `qwen3.5-plus` | Qwen 3.5 Plus（默认） |
+| `kimi-k2.5` | Kimi K2.5 |
+| `GLM-5` | GLM-5 |
+| `MiniMax-M2.5` | MiniMax M2.5 |
+| `qwen3-max-2026-01-23` | Qwen 3 Max (2026-01-23) |
+| `qwen3-coder-next` | Qwen 3 Coder Next |
+| `qwen3-coder-plus` | Qwen 3 Coder Plus |
+| `glm-4.7` | GLM 4.7 |
+
+## 百炼 vs DashScope
+
+两者都连接阿里基础设施，但是不同的 provider：
+
+| | `bailian` | `dashscope` |
+|---|---|---|
+| 端点 | `https://coding-intl.dashscope.aliyuncs.com/v1` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
+| 默认模型 | `qwen3.5-plus` | `qwen3-max` |
+| 模型列表 | 硬编码目录（无 `/v1/models`） | 实时列出 |
+| 思考注入 | 无（纯 OpenAI 兼容） | `enable_thinking` + `thinking_budget` |
+
+如果你想要 DashScope 风格的扩展思考，请改用 [DashScope](/provider-dashscope) provider。
+
+## 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|---|---|---|
+| `401 Unauthorized` | API key 无效 | 验证 `.env.local` 中的 `GOCLAW_BAILIAN_API_KEY` |
+| 模型未列出 | 目录为硬编码 | 使用上表中的模型 ID；Coding API 没有 `/v1/models` 端点 |
+| 思考无效 | 百炼是纯 OpenAI 兼容 | DashScope 思考注入不适用；使用 `dashscope` provider 以获得 `enable_thinking` |
 
 ## 下一步
 
 - [Provider 概览](/providers-overview)
-- [DashScope（通义千问）](/provider-dashscope)
+- [DashScope（通义千问）](/provider-dashscope) — 支持思考的阿里 Qwen 模型
+- [Kimi Coding](/provider-kimi) — Moonshot Kimi Coding 端点
+
+
+
+---
+
+> 翻译自 [English version](/provider-kimi)
+
+# Kimi Coding（Moonshot）
+
+> 通过 OpenAI 兼容的 Coding 端点将 GoClaw 连接到 Moonshot 的 Kimi Coding 模型。
+
+## 概述
+
+Kimi Coding 是 Moonshot AI 的编程专用端点。GoClaw 将其作为兼容 OpenAI 的 provider（`provider_type: "kimi_coding"`）连接，复用标准的 `OpenAIProvider`，并自动接入三处 Kimi 特有的调整：**固定的 `User-Agent` 头**、**temperature 锁定**，以及 assistant 工具调用消息上的**强制 `reasoning_content`**。这些你都无需配置——GoClaw 会处理好，让你的 agent 开箱即用。
+
+- **Provider 类型：** `kimi_coding`
+- **默认模型：** `kimi-k2-turbo-preview`
+- **默认 API base：** `https://api.kimi.com/coding/v1`
+
+## 配置
+
+Kimi Coding 从**控制台**添加（它没有静态的 `config.json` provider 块）。在 GoClaw 控制台中：
+
+1. 进入 **Settings → Providers → Add**
+2. 选择 **"Kimi Coding (Moonshot)"**——API base 已预填为 `https://api.kimi.com/coding/v1`
+3. 粘贴你的 Kimi API key
+4. 保存——key 在存储时使用 AES-256-GCM 加密，更改在下一次请求时生效
+
+然后将 agent 指向它：
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "provider": "kimi",
+      "model": "kimi-k2-turbo-preview"
+    }
+  }
+}
+```
+
+> 在 agent 的 `provider` 值中使用你创建 provider 时所取的**名称**（如 `kimi`）。`provider_type`（`kimi_coding`）是从下拉框选定的不可变类型。
+
+## 模型
+
+| 模型 | 备注 |
+|---|---|
+| `kimi-k2-turbo-preview` | 默认——默认开启服务端思维 |
+
+若 API base 留空，则默认为 `https://api.kimi.com/coding/v1`。
+
+## 非标准行为
+
+Kimi Coding 有三处上游严格强制的特殊之处。GoClaw 会为你全部处理。
+
+### 1. 固定 `User-Agent`
+
+每个请求——包括模型列表调用——都会带上固定的头 `User-Agent: claude-code/0.1.0` 发送。上游会拒绝不携带这个确切 User-Agent 的请求。GoClaw 通过 provider 的额外头自动注入它；你无需设置。
+
+### 2. Temperature 锁定
+
+Kimi 服务端将 `temperature` 锁定为 `1` 并拒绝任何覆盖。因此，GoClaw 对 `kimi_coding` provider **从请求体中省略 `temperature`**（与 OpenAI `o1`/`o3`/`o4` 以及 `gpt-5-mini`/`gpt-5-nano` 同样处理）。向原始 API 传入 temperature 值会返回 `HTTP 400 invalid temperature: only 1 is allowed for this model`。
+
+### 3. 工具调用上需要 `reasoning_content`
+
+`kimi-k2-turbo-preview` 默认开启服务端思维。当一条包含 `tool_calls` 的 assistant 消息在对话历史中被回放时，它**必须**携带 `reasoning_content` 字段——否则上游会返回 `HTTP 400 thinking is enabled but reasoning_content is missing in assistant tool call message at index N`。GoClaw 在捕获到推理内容时予以保留，未捕获时则发出**空 `reasoning_content` 字符串**，从而让多轮工具循环持续正常工作。
+
+## 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|---|---|---|
+| `HTTP 400 invalid temperature: only 1 is allowed for this model` | 发送了 temperature 覆盖值 | GoClaw 对 `kimi_coding` 自动省略 `temperature`；不要在原始请求中硬编码 |
+| `HTTP 400 thinking is enabled but reasoning_content is missing in assistant tool call message at index N` | 回放的工具调用消息缺少 `reasoning_content` | GoClaw 自动发出空 `reasoning_content`；确保 assistant 历史未被剥离该字段 |
+| 每次调用都被拒绝 / 4xx | 缺少或被修改的 `User-Agent` | GoClaw 自动发送 `claude-code/0.1.0`；不要覆盖 User-Agent 头 |
+| `401 Unauthorized` | API key 无效 | 在 Settings → Providers 中重新输入 Kimi key |
+
+## 下一步
+
+- [Provider 概览](/providers-overview) — provider 架构和重试逻辑
+- [扩展思维](/extended-thinking) — 思维和 `reasoning_content` 在各 provider 间的工作方式
+- [DashScope（通义千问）](/provider-dashscope) — 支持思考的阿里 Qwen 模型
 
 
 
@@ -7546,6 +7792,22 @@ GET /v1/agents/{id}/codex-pool-activity
 响应结构参见 [REST API](/rest-api)。
 
 
+## 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|---|---|---|
+| `401 Unauthorized` | Token 已过期或被撤销 | 通过 Settings → Providers → ChatGPT 重新认证 |
+| OAuth 回调失败 | 端口 1455 被占用 | 确保认证期间端口 1455 未被其他程序占用 |
+| `model not found` | 模型不在你的订阅中 | 检查 ChatGPT 计划；部分模型需要 Pro |
+| 重启后 provider 不可用 | Token 未持久化 | GoClaw 启动时自动从数据库加载 token；检查数据库连通性 |
+| 响应中出现 phase 字段 | `gpt-5.5` 和 `gpt-5.3-codex` 返回 `commentary` + `final_answer` 阶段 | GoClaw 自动处理；两个阶段均已捕获 |
+
+## 下一步
+
+- [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
+- [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
+
+
 
 ---
 
@@ -7644,6 +7906,8 @@ sequenceDiagram
 3. **`session/cancel`** — 当调用方取消 context 时作为通知发送
 
 session ID 以每进程方式存储在 `ACPProcess.sessionID` 中，并包含在每次提示请求中。这使 ACP agent 能在同一进程生命周期内的多个轮次中维护对话历史和文件状态。
+
+> **运维说明：** ACP `session/update` 的 `tool_call` 和 `tool_call_update` 通知现在以 **Info** 级别记录日志（包含 session ID、tool call ID、工具名称/标题、kind 和 status），以便运维人员在网关日志中观察 ACP agent 的工具活动。
 
 ## 会话串行化
 
@@ -8031,6 +8295,21 @@ GoClaw 会从所有支持回复功能的 channel 中提取被回复消息的媒�
 
 `media_max_bytes` 配置字段对 agent 发送的出站媒体上传设置每个 channel 的限制。超出限制的文件将被跳过并记录日志。每个 channel 有自己的默认值（如 Telegram 为 20 MB，Feishu/Lark 为 30 MB），可按需为每个 channel 单独配置。
 
+### 多附件投递（批量）
+
+`send_file` 工具可以一次性投递多个已有的工作区文件。支持两种形式：
+
+- **单文件：** `path`（外加可选的 `caption`）。
+- **批量：** `attachments: [{ "path": "...", "caption": "..." }, ...]` — 文件顺序、MIME 类型、文件名和每个文件的 caption 都会被保留。
+
+每个 channel 如何对批量进行分组取决于平台支持的能力：
+
+| Channel | 分组方式 | 行为 |
+|---------|----------|------|
+| Telegram | 相册分块 | 兼容的媒体被分组为 `sendMediaGroup` 相册，每组 **2–10** 项。图片/视频可以共用一个分块；文档只与文档分组，音频只与音频分组。语音模式音频、单项分块、作为文档发送的超大图片，以及不兼容的序列会回退为有序的逐个发送。 |
+| Discord | 单条消息 | 多个文件（外加可选文本）在**一条**消息中投递，最多 10 个附件。 |
+| Slack 及其他支持媒体的 channel | 有序回退 | 除非 adapter 声明了更强的批量能力，否则文件按顺序逐个发送。 |
+
 ## 入站防抖
 
 当用户连续快速发送多条消息（或一次上传多个文件）时，GoClaw 会在运行 agent 前把它们合并为**一条**入站消息 — 回复一次，而不是每个片段回复一次。
@@ -8050,6 +8329,64 @@ GoClaw 会从所有支持回复功能的 channel 中提取被回复消息的媒�
 - **按 agent 覆盖：** agent 可在其 `agent_config` 中设置 `inbound_debounce_ms`，使用不同于 gateway 默认值的窗口。
 - **`/stop` 和 `/reset` 绕过防抖器** — 控制命令会被立即处理，绝不缓冲。
 - **媒体下限：** 携带媒体的消息不再绕过防抖。生效窗口为 `max(配置值, 媒体下限)`，因此即使文本防抖设为 `0`，一次多文件上传也总会合并为一条入站消息。（agent 设置的非零覆盖会被原样尊重 — operator 设 `500` 就保持 `500`，而非下限。）由工具/subagent 内部合成的消息免于该下限。
+
+## 拟人化投递
+
+GoClaw 可以让 channel 回复更具对话感 — 在长时间运行前先快速确认一下、工具执行时给出简短的进度提示，并把一条长的最终答案拆成几条自然的消息。这通过 `gateway.chat_behavior` 配置，且**默认禁用**。
+
+> 这些行为是**仅投递层面**的。确认消息、进度提示和拆分片段绝不会写入 session 历史，也不会作为对话回送给模型 — 它们只改变人在聊天中看到的内容。
+
+```json
+{
+  "gateway": {
+    "chat_behavior": {
+      "enabled": true,
+      "quick_ack": { "enabled": true, "mode": "sidecar_generated" },
+      "intermediate_replies": { "enabled": true },
+      "final_split": { "enabled": true }
+    }
+  }
+}
+```
+
+### 三个子行为
+
+| 子行为 | 作用 |
+|--------------|--------------|
+| `quick_ack` | 在较长的非流式运行前发送一条简短的回执，让用户知道 bot 正在工作。 |
+| `intermediate_replies` | 在 agent 运行工具期间发送简短的进度更新。独立于 `quick_ack`。 |
+| `final_split` | 把一条长的最终回复拆成少量段落大小的消息。 |
+
+**`quick_ack` 模式：**
+
+| 模式 | 行为 |
+|------|----------|
+| `sidecar_generated` | 一次有界的、独立的 LLM 调用生成一条简短的、感知上下文的确认消息。 |
+| `llm_generated` | 向后兼容的别名；这也是默认解析出的模式。 |
+| `fixed_template` | 发送 `templates` 中的第一个字符串（默认 `"Got it. Working on it..."`）。 |
+| `off` | 无确认消息。 |
+
+`quick_ack` 字段：`enabled`、`mode`、`min_delay_ms`（默认 1000）、`provider`、`model`、`timeout_ms`（默认 2500）、`max_tokens`（默认 40）、`max_chars`（默认 120）、`templates`。当 `provider`/`model` 未设置时，使用 agent 自身的 provider/model。
+
+**`intermediate_replies`** 模式为 `sidecar_generated`（默认）或 `off`。字段：`enabled`、`mode`、`provider`、`model`、`timeout_ms`（2500）、`max_tokens`（默认 60）、`max_chars`（默认 180）。该 sidecar 只接收有界的元数据（消息预览、locale、channel/peer、agent 标签、当前工具阶段）— **绝不**接收 session 历史、工具参数/输出、记忆或 system prompt。
+
+**`final_split`** 字段：`enabled`、`min_chars`（默认 1200）、`max_messages`（默认 3）、`delay_ms`（默认 500）。拆分是保守的 — 包含围栏代码、表格、列表、引用、JSON/XML 类块或仅含 URL 的段落的回复会保持为一条消息，媒体或流式投递绝不会被拆分。
+
+### 覆盖顺序
+
+`chat_behavior` 可在三个层级设置。解析顺序为 **Channel > Agent > Workspace**：
+
+1. **Workspace** — `gateway.chat_behavior`（基础）。
+2. **Agent** — `agents.other_config.delivery_behavior` 覆盖 workspace 基础。
+3. **Channel** — `channels.<type>.chat_behavior`（或某个 channel 实例的 `chat_behavior`）拥有最终决定权。
+
+每个层级只覆盖它所设置的字段，因此你可以按 channel 调一个旋钮、继承其余的。
+
+> **Legacy `block_reply`。** 当较新的字段未设置时，较旧的 `gateway.block_reply`（及按 channel 的 `block_reply`）标志仍会作为 `intermediate_replies.enabled` 的继承默认值被读取。
+
+### Channel 支持
+
+拟人化投递由采用 `ChatBehaviorChannel` 接口的 channel 实现：**Bitrix24、Discord、Feishu/Lark、Pancake、Slack、Telegram、WhatsApp、Zalo OA 和 Zalo Personal**。
 
 ## Channel 对比
 
@@ -8156,8 +8493,10 @@ GoClaw 跟踪每个 channel 实例的运行时健康状态，并在出现问题�
 | `dm_stream` | bool | false | 为 DM 启用流式输出（编辑占位符） |
 | `group_stream` | bool | false | 为群组启用流式输出（新消息） |
 | `draft_transport` | bool | false | 对 DM 流式使用 `sendMessageDraft`（静默预览，无逐条编辑通知） |
-| `reasoning_stream` | bool | true | 将推理 token 作为独立消息显示在答案前 |
+| `reasoning_delivery` | string | -- | 推理如何呈现：`off`、`streaming_only`、`always_bubbles`。参见 [推理投递](#reasoning-delivery)。 |
+| `reasoning_stream` | bool | true | **Legacy。** 将推理 token 作为独立消息显示在答案前。仅当 `reasoning_delivery` 未设置时使用。 |
 | `block_reply` | bool | -- | 覆盖此 channel 的 gateway `block_reply` 设置（nil = 继承） |
+| `chat_behavior` | object | -- | 覆盖此 channel 的 gateway [拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `reaction_level` | string | `"off"` | `off`、`minimal`（仅 ⏳）、`full`（⏳💬🛠️✅❌🔄） |
 | `media_max_bytes` | int | 20MB | 媒体文件最大大小 |
 | `link_preview` | bool | true | 显示 URL 预览 |
@@ -8337,6 +8676,8 @@ LLM 输出（Markdown）
 3. 转写文本前置到消息：`[audio: filename] Transcript: text`
 4. 若配置了 `voice_agent_id` 则路由到该 agent，否则使用默认 agent
 
+转写通过 GoClaw 统一的 STT chain 进行，它按顺序尝试 provider — 先 `elevenlabs`，再 `proxy`。（这些是当前的 provider 名称；较旧的版本称它们为 `elevenlabs_scribe` 和 `proxy_stt`。）Telegram 在把音频转发给 chain 时会保留原始的语音 MIME 类型，而 legacy 的 STT-proxy 桥接覆盖以平台类型 `telegram` 作为键。
+
 ### 流式输出
 
 启用实时响应更新：
@@ -8344,11 +8685,27 @@ LLM 输出（Markdown）
 - **DM**（`dm_stream`）：随分块到达编辑"Thinking..."占位符。默认使用 `sendMessage+editMessageText`；设置 `draft_transport: true` 可使用 `sendMessageDraft`（静默预览，无逐条编辑通知，但在某些客户端可能出现"回复已删除消息"的问题）。
 - **群组**（`group_stream`）：发送占位符，以完整响应编辑
 
-默认禁用。启用后若 `reasoning_stream: true`（默认），推理 token 在最终答案前作为独立消息显示。
+默认禁用。
+
+### 推理投递
+
+当模型发出推理（"thinking"）token 时，`reasoning_delivery` 控制这些推理是否以及如何出现在聊天中：
+
+| `reasoning_delivery` | 行为 |
+|----------------------|----------|
+| `streaming_only` | 推理只出现在实时流式通道中（legacy 行为）。 |
+| `always_bubbles` | 在内部强制 provider 流式，并将推理作为有界的普通"气泡"消息发送 — 即使 `dm_stream` / `group_stream` 关闭也是如此。最终答案仍以非流式方式投递。 |
+| `off` | 在该 channel 中抑制推理。trace 和用量统计不受影响。 |
+
+**向后兼容。** 当 `reasoning_delivery` 未设置时，legacy 的 `reasoning_stream` 布尔值生效：`reasoning_stream: false` 解析为 `off`，否则解析为 `streaming_only`。显式的 `reasoning_delivery` 值总是优先于 legacy 布尔值。
+
+推理气泡是仅投递层面的 — 它们不会被加入 assistant/session 历史。Telegram 目前是唯一实现此控制（`ReasoningDeliveryChannel`）的 channel。
 
 ### 媒体处理
 
 **相册 / 多附件合并。** 当用户发送一个相册（在客户端上分组的多张图片或文件）时，Telegram 会把它作为 N 个独立 update 投递，它们共享同一个 `MediaGroupID`。GoClaw 在 channel 层缓冲相册成员（500 ms 静默窗口），并将它们合成为**一条**入站消息，因此 agent 回复一次而非每个附件回复一次。缓冲键为 `(chatID, MediaGroupID)`；发送者在第一个成员处被固定，发送者不匹配的成员会作为防御措施被丢弃。
+
+**出站相册批量。** 当 agent 一次发送多个文件时 — 通过 `send_file` 工具的 `attachments: [{path, caption?}, ...]` 形式 — Telegram 把兼容的出站媒体分组为 `sendMediaGroup` 相册分块，每组 **2–10** 项。图片和视频可以共用一个分块；文档只与文档分组，音频只与音频分组。语音模式音频、单项分块、回退为以文档发送的超大图片，以及其他不兼容的序列会优雅降级为有序的逐个发送。文件顺序、MIME 类型、文件名和 caption 都会被保留。
 
 **出站上传限制。** 出站媒体在发送前会针对上传上限做校验 — 超限文件会以明确的 "outbound media too large" 错误被拒绝，而不是在上传中途失败。官方 Bot API 上限为 50 MB，配置本地 Bot API server（`api_server`）时为 200 MB（若 `media_max_bytes` 调高到该值以上则更高）。
 
@@ -8379,6 +8736,8 @@ LLM 输出（Markdown）
 | stallHard | 😨 | 30 秒无活动 |
 
 每个状态都有备选 emoji 变体，以防主 emoji 被聊天的允许回应列表限制。中间状态（thinking、tool 等）以 700ms 去抖以避免回应刷屏。
+
+> **无占位的工具状态文本。** 确定性的工具状态更新只通过表情回应呈现 — 它们不再在 channel 中发出单独的"tool"文本消息。平台表情回应和显式的推理投递仍是相互独立的行为。
 
 ### Bot 命令
 
@@ -8517,6 +8876,8 @@ goclaw bitrix-portal create \
 
 `--name`（例如 `acme`）是频道配置引用的 portal key。`--domain` 是裸主机名 — 不带 scheme，不带结尾斜杠。
 
+> **支持自托管 portal。** 除了 Bitrix24 云域名（`*.bitrix24.{com,eu,vn,...}` 和 `*.bitrix.info`），`--domain` 还接受**自托管 Bitrix24 FQDN**，例如 `bx.mycompany.com`（允许可选的 `:port`）。自托管域名会经过一道 SSRF 安全校验：解析主机名并检查**每一个**返回的 IP，拒绝 loopback/私有/metadata IP 范围，屏蔽 `localhost` / `.local` / `.localhost` 名称，且任何端口必须在 1–65535 范围内。云域名跳过此检查（它们由 Bitrix 运营且受信任）。
+
 > 运行此命令前请设置 `GOCLAW_ENCRYPTION_KEY`。凭据和 token 以 AES-256-GCM 加密存储；如果缺少该 key，它们将以明文存储（并附带警告）。
 
 你也可以从 dashboard 创建 portal，它会直接返回安装 URL。
@@ -8575,6 +8936,7 @@ https://<你的公网-url>/bitrix24/install?state=<tenant-uuid>:acme
 | `reaction_level` | string | `"minimal"` | `off`、`minimal`、`full` |
 | `history_limit` | int | -- | 作为上下文保留的待处理群组消息数 |
 | `block_reply` | bool | -- | 覆盖 gateway 的 `block_reply`（nil = 继承） |
+| `chat_behavior` | object | -- | 覆盖此 channel 的 gateway [拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `public_url` | string | -- | 按实例覆盖公网 URL（legacy；建议使用自动捕获的 portal URL） |
 | `mcp_server_name` | string | -- | 用于按用户提供凭据的 MCP server 名称（参见 [MCP 集成](#mcp-集成)） |
 | `mcp_base_url` | string | -- | MCP server 的 base URL；必须与 `mcp_server_name` 一同设置 |
@@ -8670,6 +9032,7 @@ Bitrix24 频道可以惰性地提供**按用户的 MCP 凭据**，使每个用�
 | Open Channel bot 对客户静默 | `bot_type: "O"` 需要 `dm_policy: "open"`，且管理员必须在 Bitrix24 UI 中将 bot 接入 Open Channel 队列。 |
 | 重新部署后事件 handler URL 过期 | 设置 `BITRIX24_FORCE_REREGISTER=1` 并重启，以把新 URL 推入 Bitrix24。 |
 | 想查看原始事件 | 进程启动时设置 `BITRIX24_LOG_RAW_EVENT=1`（凭据会被脱敏）。生产环境请关闭 — 它会记录消息文本。 |
+| 自托管域名被拒绝 | FQDN 必须解析到公网 IP。SSRF 校验会屏蔽 loopback/私有/metadata IP 范围以及 `localhost` / `.local` / `.localhost` 名称；端口必须在 1–65535 范围内。 |
 
 ## 下一步
 
@@ -8733,6 +9096,7 @@ Bitrix24 频道可以惰性地提供**按用户的 MCP 凭据**，使每个用�
 | `require_mention` | bool | true | 服务器（channel）中是否需要 @bot 提及 |
 | `history_limit` | int | 50 | 每个 channel 的待处理消息数（0=禁用） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 覆盖此 channel 的 gateway [拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 功能特性
 
@@ -8771,6 +9135,20 @@ Agent 处理期间显示 typing 指示器（9 秒保活）。消息成功投递�
 ### 线程支持
 
 Bot 自动检测并在 Discord 线程中响应。响应保持在同一线程中。
+
+### 线程历史回填
+
+当 bot 在 **Discord 线程内**被提及时，GoClaw 会在回答前拉取最近的线程上下文 — 这样线程中途的提及不会被盲目作答。
+
+- 通过 Discord REST API 获取触发消息之前的最多 **25** 条线程消息，并将它们的文本作为上下文前置。
+- 将最多 **15** 个之前的附件下载到入站媒体管道，每个文件上限 **5 MB**。
+- 整个回填受 **30 秒**超时约束。
+
+这是**仅限线程**的。如果 bot 缺少 `READ_MESSAGE_HISTORY` 权限或 REST 调用失败，GoClaw 会优雅地回退为只用当前消息。
+
+### 多文件投递
+
+Discord 在**单条消息**中投递多个文件（外加可选文本），最多 10 个附件 — 因此一次批量 `send_file` 会落地为一条整洁的消息，而非一连串刷屏。参见概览中的 [多附件投递](/channels-overview#multi-attachment-delivery-batching)。
 
 ### 回复消息中的媒体
 
@@ -8821,6 +9199,7 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 | 占位符编辑失败 | 确保 bot 有 `Manage Messages` 权限。Discord 可能在设置期间撤销此权限。 |
 | 消息分割不正确 | 长响应在换行处分割。通过模型 `max_tokens` 控制消息长度。 |
 | Bot 提及自己 | 检查 Discord 权限。Bot 响应中不应包含 `@everyone` 或 `@here`。 |
+| 线程上下文缺失 | 线程历史回填需要 `READ_MESSAGE_HISTORY`。授予该权限；仅在线程内生效。 |
 
 ## 下一步
 
@@ -8896,6 +9275,7 @@ Discord channel 实现暂不支持按 guild/channel 覆盖配置。使用全局 
 | `reaction_level` | string | `"off"` | `off`、`minimal`（仅 ⏳）、`full` |
 | `history_limit` | int | -- | 从历史加载的最大消息数 |
 | `block_reply` | bool | -- | 屏蔽回复消息上下文 |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `stt_proxy_url` | string | -- | 语音转文字代理 URL |
 | `stt_api_key` | string | -- | 语音转文字 API key |
 | `stt_tenant_id` | string | -- | 语音转文字租户 ID |
@@ -9384,6 +9764,7 @@ Zalo 官方账号（OA）集成。仅支持 DM，基于配对的访问控制，�
 | `webhook_secret` | string | -- | 可选 webhook 签名密钥 |
 | `media_max_mb` | int | 5 | 最大图片文件大小（MB） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 功能特性
 
@@ -9517,6 +9898,7 @@ Zalo 个人使用**非官方逆向工程协议**。你的账号随时可能被 Z
 | `group_policy` | string | `"allowlist"` | `open`、`allowlist`、`disabled`（严格默认值） |
 | `require_mention` | bool | true | 群组中是否需要提及 bot |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 功能特性
 
@@ -9701,6 +10083,7 @@ GOCLAW_SLACK_APP_TOKEN=xapp-...
 | `native_stream` | bool | false | 若可用则使用 Slack ChatStreamer API |
 | `reaction_level` | string | `"off"` | `off`、`minimal`、`full` |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `debounce_delay` | int | 300 | 快速消息分发前的等待毫秒数（0=禁用） |
 | `thread_ttl` | int | 24 | 线程参与过期前的小时数（0=禁用） |
 | `media_max_bytes` | int | 20MB | 最大文件下载大小（字节） |
@@ -9793,7 +10176,7 @@ _italic_  → _italic_
 
 **接收文件：** 消息附件的文件通过 SSRF 保护下载（hostname 白名单：`*.slack.com`、`*.slack-edge.com`、`*.slack-files.com`）。重定向时剥离认证 token。超过 `media_max_bytes`（默认 20MB）的文件被跳过。
 
-**发送文件：** Agent 生成的文件通过 Slack 文件上传 API 上传。上传失败显示内联错误消息。
+**发送文件：** Agent 生成的文件通过 Slack 文件上传 API 上传。上传失败显示内联错误消息。当 agent 发送一批文件（带 `attachments[]` 的 `send_file`）时，Slack 使用**有序单发**回退方式——文件按顺序逐个投递。参见[多附件投递](/channels-overview#multi-attachment-delivery-batching)。
 
 **文档提取：** 文档文件（PDF、文本文件）的内容被提取并附加到消息中供 agent 处理。
 
@@ -9883,6 +10266,7 @@ Slack 支持群组级别的配对。当 `group_policy: "pairing"` 时：
 | `require_mention` | bool | `false` | 仅在群组中被 @提及时回复 |
 | `history_limit` | int | `200` | 群组上下文最大待处理消息数（0=禁用） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 架构
 
@@ -10120,6 +10504,7 @@ Pancake 是一个社交电商平台，提供跨多个社交网络的统一消息
 | `first_inbox_message` | string | 内置文本 | first inbox 功能发送的自定义私信内容 |
 | `post_context_cache_ttl` | string | `"15m"` | 评论 context 抓取的帖子内容缓存 TTL（如 `"30m"`） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `allow_from` | list | -- | 用户/群组 ID 白名单 |
 
 ## 架构
@@ -12591,6 +12976,10 @@ DELETE /v1/tools/custom/{id}
 }
 ```
 
+## 执行顺序
+
+当 agent 在一个回合内发出多个工具调用时，只有已注册的**只读**内置工具才进行有界并行。自定义工具（基于 shell）未注册为只读，因此始终**串行**执行——任何将自定义工具与其他调用混合的批次都会整体串行执行。这使基于 shell 的副作用有序且可预测；这不是你需要配置的设置。
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -13110,6 +13499,76 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 **基于哈希的幂等性：** 上传端点使用 `SKILL.md` 内容的 SHA-256 哈希进行去重。如果相同的 `SKILL.md` 内容再次上传（即使打包在不同的 ZIP 中），也不会创建新版本 — 现有版本保持不变。只有 `SKILL.md` 实际内容发生变化时才会触发新版本创建。
 
+> **通过 `skill_manage` 内联伴生文件：** 启用了 skill 进化的 agent 也可以通过向 `skill_manage` tool 传入 `files` 对象来内联创建小型文本伴生文件（无需 ZIP）—— 以相对路径作为键，例如 `references/guide.md`。每个内联文本文件限制为 **2 MB**，路径校验器会拒绝绝对路径、Windows 盘符路径（`C:\...`）、空字节、`..` 穿越、覆盖 `SKILL.md`、dotfile/dotdir 以及系统工件（例如 `.git`）。详见 [Agent 进化](agent-evolution.md)。
+
+## 选择性导出与下载
+
+你可以从 Dashboard 或 API 将 skill 导出为 ZIP 归档 —— 既可导出全部 skill，也可导出手动挑选的子集。
+
+**构建前预览** —— `GET /v1/skills/export/preview` 返回*将要*导出的数量而不构建归档，以便 UI 在你确认前显示"N 个 skill，将包含 M 个"：
+
+```bash
+curl "http://localhost:8080/v1/skills/export/preview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**导出选定的 skill** —— 传入特定的 skill ID 仅导出那些 skill，并可附带可选的 `include_system` 标志以包含内置/系统 skill：
+
+```bash
+# 导出两个特定 skill，排除系统 skill
+curl "http://localhost:8080/v1/skills/export?ids=SKILL_ID_1,SKILL_ID_2&include_system=false" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+对于大型导出，服务器可异步构建归档，并在处理过程中流式推送 Server-Sent Events。完成时返回指向一次性 token 端点的 `download_url`：
+
+```
+event: complete
+data: {"download_url":"/v1/export/download/TOKEN"}
+```
+
+```bash
+# 使用返回的 token 获取已构建的归档
+curl "http://localhost:8080/v1/export/download/TOKEN" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+**Dashboard：** **Skills** 页面有一个批量选择工具栏 —— 勾选你想要的 skill，然后点击 **Export selected** 仅下载那些 skill。
+
+## 访问模式与有效访问
+
+除可见性级别外，每个 skill 还有一个**访问模式（access mode）**，用于控制其可达范围。管理员通过 access 端点读取和设置它：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/access` | 显示该 skill 的访问模式和 grants |
+| `PATCH` | `/v1/skills/{id}/access` | 设置访问模式（`private`、`internal` 或 `public`） |
+| `GET` | `/v1/skills/{id}/access/effective` | 针对给定 agent 和 user，解释单个 skill 的有效访问 |
+| `GET` | `/v1/skills/access/effective` | 针对一个 agent 和 user，解释所有 skill 的有效访问 |
+
+```bash
+# 将某个 skill 的访问模式设为 internal
+curl -X PATCH "http://localhost:8080/v1/skills/{id}/access" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_mode": "internal"}'
+
+# 解释某个 agent/user 为何能或不能访问某个 skill
+curl "http://localhost:8080/v1/skills/{id}/access/effective?agent_id=AGENT_UUID&user_id=user@example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### 按 skill 的依赖端点
+
+除了全网关重新扫描外，你还可以检查和管理单个 skill 的依赖：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/dependencies` | skill 当前的依赖状态 |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | 重新扫描已声明和检测到的依赖 |
+| `POST` | `/v1/skills/{id}/dependencies/check` | 检查每个依赖在运行时能否解析 |
+| `POST` | `/v1/skills/{id}/dependencies/install` | 安装缺失的依赖（master 租户） |
+
 ## 运行时环境
 
 使用 Python 或 Node.js 的 skill 在预装了相应包的 Docker 容器中运行。
@@ -13153,7 +13612,7 @@ Agent **不可以**：写入系统路径，从 `/tmp` 执行二进制文件，�
 
 ## 内置 Skill
 
-GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了六个核心 skill，优先级最低 — 用户上传的同名 slug skill 可覆盖它们。
+GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了七个核心 skill，优先级最低 — 用户上传的同名 slug skill 可覆盖它们。
 
 | Skill | 用途 |
 |---|---|
@@ -13163,6 +13622,7 @@ GoClaw 在 Docker 镜像内的 `/app/bundled-skills/` 中内置了六个核心 s
 | `pptx` | 读取、创建、编辑演示文稿 |
 | `skill-creator` | 创建新 skill |
 | `workspace-organizing` | 保持 agent 工作空间整洁、易于查找 — 强制执行基于用途的文件夹约定，并在写入文件前运行 memory/Vault/knowledge-graph 发现以避免重复 |
+| `goclaw` | 通过 `goclaw` CLI/runtime 运维、检查、管理和调试 GoClaw 网关 — CLI 发现、网关 health/config 诊断、agents、skills、MCP/tools、运行时包、credentials、traces、sessions、channels、providers 和 cron/jobs。始终先检查实时的 `goclaw --help` 输出，因为可用命令取决于版本。 |
 
 内置 skill 在每次网关启动时种入 PostgreSQL（哈希跟踪，未变更则不重新导入）。它们被标记为 `is_system = true` 且 `visibility = 'public'`。
 
@@ -13540,7 +14000,7 @@ goclaw cron delete <jobId>
 | `schedule.tz` | string | IANA 时区 — 适用于**所有**调度类型（`at`、`every`、`cron`），不仅限于 cron 表达式。省略则使用网关默认时区 |
 | `message` | string | agent 接收的输入文本 |
 | `stateless` | bool | 无需会话历史运行 — 为简单定时任务节省 token。默认 `false` |
-| `deliver` | bool | `true` = 将结果投递到 channel；`false` = agent 静默处理。当任务从真实 channel（Telegram 等）创建时自动默认为 `true` |
+| `deliver` | bool | `true` = 将结果投递到 channel；`false` = agent 静默处理。当任务从真实 channel（Telegram 等）创建时自动默认为 `true`。若输出包含 `NO_REPLY` 标记，投递仍会被抑制 — 见 [NO_REPLY 抑制](#no_reply-抑制) |
 | `channel` | string | 目标 channel：`telegram`、`discord` 等。`deliver` 为 `true` 时从上下文自动填充 |
 | `to` | string | 聊天 ID 或收件人标识符。`deliver` 为 `true` 时从上下文自动填充 |
 | `deleteAfterRun` | bool | `at` 任务自动设为 `true`；可手动设置在任意任务上 |
@@ -13633,6 +14093,28 @@ GoClaw 通过 WebSocket RPC 方法暴露 cron 管理功能：
 调度器每 1 秒检查一次任务。到期任务在并行 goroutine 中分发。运行日志持久化到 `cron_run_logs` PostgreSQL 表，可通过 `cron.runs` 方法访问。
 
 失败的任务记录 `lastStatus: "error"` 和 `lastError` 消息。任务保持启用状态，并在下次计划时间重试（除非是一次性 `at` 任务）。
+
+## NO_REPLY 抑制
+
+即使任务配置为投递（`deliver: true` 且带有 `channel` 和 `to`），如果 agent 的输出包含 `NO_REPLY` 标记，GoClaw 也**不会**将结果发送到 channel。
+
+- 匹配为**全词**且**不区分大小写**（`NO_REPLY`、`no_reply` 等），因此该标记必须独立出现 — 嵌入在更长单词内时不会匹配。
+- 被抑制时，运行仍会完成并记录日志；仅跳过 channel 投递（一条 info 级别日志记录投递已被抑制）。
+
+这让定时 agent 可在运行时自行判断没有值得发送的内容 — 例如，仅在出现问题时才回复的健康检查：
+
+```json
+{
+  "name": "api-health-check",
+  "schedule": { "kind": "every", "everyMs": 300000 },
+  "message": "Check https://api.example.com/health. If it returns 200, reply with exactly NO_REPLY. Otherwise describe what is wrong.",
+  "deliver": true,
+  "channel": "telegram",
+  "to": "123456789"
+}
+```
+
+`NO_REPLY` 标记遵循 GoClaw 通用的约定 — 见 [GoClaw 工作原理](../core-concepts/how-goclaw-works.md) 和 [Sessions & History](../core-concepts/sessions-and-history.md)。
 
 ## 重试 — 指数退避
 
@@ -14491,6 +14973,76 @@ x-goclaw-no-image-gen: 1
 ```
 
 如果未配置 `read_image` 链，图片照常内联附加到主 LLM。
+
+### 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----------|------|---------|-------------|
+| `prompt` | string | 必填 | 你想了解图片的什么内容 |
+| `path` | string | — | 可选：workspace 中图片的路径（生成的图片或附件） |
+| `url` | string | — | 可选：在线托管图片的 URL |
+
+`path` 和 `url` **互斥** — 同时传入会返回错误。两者都不提供时，工具会分析对话中已附加的图片。
+
+> **Provider 说明：** Anthropic 和 `claude-cli` provider 无法直接从 URL 分析图片 — 它们需要 base64 编码的图片数据。如果仅含 URL 的图片被路由到其中之一，该 provider 会报错，链会回退到下一个 provider。Gemini、OpenRouter 和 DashScope 直接接受图片 URL。URL 在任何 fetch 之前会经过 SSRF 校验。
+
+---
+
+## 视频分析（read_video）
+
+`read_video` 工具使用支持视频的 provider 链（默认 Gemini → OpenRouter）分析视频文件。当对话中含有 `<media:video>` 标签，或需要指向 workspace 文件或托管 URL 时使用它。
+
+### 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----------|------|---------|-------------|
+| `prompt` | string | 必填 | 要分析什么 — 例如"总结关键场景""屏幕上出现了什么文字？" |
+| `media_id` | string | — | 可选：来自 `<media:video>` 标签的特定 `media_id`。省略时使用最近的视频 |
+| `url` | string | — | 可选：在线托管视频文件的 URL |
+
+`media_id` 和 `url` **互斥**。本地视频文件上限 **100 MB**。
+
+> **URL 流式传输：** 对于视频 URL，GoClaw 通过 **Gemini File API** 从 URL 管道传输流，而非先将整个文件下载到本地。URL 经过 SSRF 校验，且解析出的 IP 在上传时被固定（pin）。在 provider 层，image 和 video 部分现在是不同的媒体内容类型（`ImageContent` 与 `VideoContent`）。
+
+在 `builtin_tools.settings.read_video` 下适用与 `create_*` 和 `read_image` 相同的链覆盖格式。
+
+---
+
+## 文档分析（read_document）
+
+`read_document` 工具使用支持文档的 provider 链（默认 Gemini → Anthropic → claude-cli → OpenRouter → DashScope）提取和分析文档——**PDF、DOCX 和文档图片**。
+
+### 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----------|------|---------|-------------|
+| `prompt` | string | 必填 | 要分析什么 — 例如"提取所有表格""第 3 页说了什么？" |
+| `media_id` | string | — | 可选：来自 `<media:document>` 标签的特定 `media_id` |
+| `path` | string | — | 可选：来自 `<media:document path="...">` 标签的文件路径 |
+
+与 `read_image` 和 `read_video` 不同，`read_document` **没有** `url` 参数。纯文本格式（JSON、CSV、Markdown、HTML 等）会直接返回而无需 LLM 调用。文件上限 **20 MB**。
+
+### Local-First 提取（opt-in）
+
+默认情况下，文档直接进入云端视觉链。你可以选择启用本地提取，在任何云端调用*之前*在主机上运行 `pdftotext`（PDF）和 `pandoc --sandbox`（DOCX），通过 `document_parser` 配置块：
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| 字段 | 默认值 | 说明 |
+|-------|---------|-------------|
+| `local_first` | `false` | 启用本地提取。需要 PATH 上有 `pdftotext`/`pandoc` — `full` Docker 变体或使用 `ENABLE_FULL_SKILLS=true` 的构建中已包含 |
+| `max_pages` | `200` | PDF 页数限制；传给 `pdftotext -l` |
+| `timeout_sec` | `30` | 每次提取的超时；超时时进程组被 kill |
+| `min_text_len` | `16` | 提取成功所需的最少字符数（trim 后）；更短的输出会触发云端回退 |
+
+配置在启动时捕获（不热重载）；每次调用都会重新检查二进制可用性，因此运行时安装可被检测到而无需重启。任何未命中——已禁用、不支持的 MIME、缺少二进制、超时，或文本太少（例如扫描的纯图片 PDF）——都会透明回退到云端视觉链。PDF 提取使用 `pdftotext -l <max_pages>`；DOCX 使用 `pandoc --sandbox`，使不受信任的文档在转换期间无法获取远程资源。
 
 ---
 
@@ -16183,7 +16735,7 @@ Agent 调用：
 
 扩展思维让支持的 LLM 在生成最终回复前先推理问题。模型生成不出现在可见响应中的内部推理 token，但能提升复杂分析、多步规划和决策的质量。
 
-GoClaw 通过单一的 `thinking_level` 设置支持四个 provider 系列的扩展思维 — Anthropic、兼容 OpenAI 的、DashScope（阿里 Qwen）和 Codex（阿里 AI Reasoning）。
+GoClaw 通过单一的 `thinking_level` 设置支持四个 provider 系列的扩展思维 — Anthropic、兼容 OpenAI 的、DashScope（阿里 Qwen）和 Codex（OpenAI ChatGPT OAuth，Responses API）。
 
 
 ## Provider 映射
@@ -16220,6 +16772,8 @@ flowchart TD
 - **去除 `temperature` 参数** — Anthropic 拒绝包含 temperature 的思维请求
 - 自动将 `max_tokens` 调整为 `budget_tokens + 8,192` 以容纳思维开销
 
+> **Claude 4.6+ 上的采样参数：** 对于 Claude Opus/Sonnet 4.6+ 和 Opus 4.7+，GoClaw 会从**每个**请求中移除 `temperature`（以及 `top_p`/`top_k`）——与是否启用思维无关。这些模型若包含采样参数会返回 `HTTP 400`。这比上文的仅思维路径移除更宽泛。详见 [Anthropic provider](/provider-anthropic) 页面。
+
 ### 兼容 OpenAI（OpenAI、Groq、DeepSeek 等）
 
 将 `thinking_level` 直接映射到 `reasoning_effort`：
@@ -16229,6 +16783,10 @@ flowchart TD
 - `high` → `reasoning_effort: "high"`
 
 推理内容在流式传输期间通过 `reasoning_content` 到达，不需要在轮次间特殊传递。
+
+> **Kimi Coding（`kimi_coding`）：** Kimi 是兼容 OpenAI 的，但对 `kimi-k2-turbo-preview` **默认开启服务端思维**。因此，在历史中回放的 assistant 工具调用消息**必须携带** `reasoning_content` 字段——当未捕获到任何内容时 GoClaw 会自动发出空字符串，否则上游会返回 `HTTP 400`。详见 [Kimi Coding](/provider-kimi) 页面。
+
+> **Bailian Coding（`bailian`）：** 百炼是一个独立的兼容 OpenAI 的 Coding 端点。其硬编码目录包含 `qwen3.7-plus`（宣传具备深度思考和视觉理解），但下文描述的 DashScope `enable_thinking`/`thinking_budget` 注入路径**不**适用于百炼——它被当作纯兼容 OpenAI 的 provider 处理。详见 [Bailian](/provider-bailian)。
 
 ### DashScope（阿里 Qwen）
 
@@ -16270,6 +16828,8 @@ flowchart TD
 | Codex | 追踪 `OutputTokensDetails.ReasoningTokens` | 标准内容 |
 
 思维 token 按 `字符数 / 4` 估算用于上下文窗口追踪。
+
+> **渠道投递与 provider 流式传输是相互独立的。** provider 是否流式输出推理是一个决定；聊天渠道（如 Telegram）是否向最终用户展示该推理是另一个决定。Telegram 为此暴露了 `reasoning_delivery` 设置——其各模式参见渠道文档。
 
 ---
 
@@ -16883,6 +17443,8 @@ source .env.local
 
 GoClaw 使用 **5 层权限系统**。API key 和角色位于第 1 层 — 网关认证层。请求到达时，GoClaw 检查 `Authorization: Bearer <token>` 请求头，将 token 解析为角色，并对调用的方法执行该角色的权限检查。
 
+> API key 和租户 RBAC 只是第一层。Agent 配置权限、group/channel 范围以及 channel-context 凭据记录在[权限矩阵](/permission-matrix)中。
+
 存在三种角色：
 
 | 角色 | 级别 | 描述 |
@@ -17107,10 +17669,139 @@ key 创建或撤销时，`cache.invalidate` 事件在内部消息总线上广播
 
 ## 下一步
 
+- [权限矩阵](/permission-matrix) — agent 配置权限、group/channel 范围以及完整的权限层级表
 - [身份认证与 OAuth](/authentication) — 网关 token 和 OAuth 流程
 - [Exec 审批](/exec-approval) — 需要 `operator.approvals` scope
 - [安全加固](/deploy-security) — 完整的 5 层权限概览
 - [CLI 凭据](./cli-credentials.md) — SecureCLI：向 CLI 工具注入凭据，不向 agent 暴露密钥
+
+
+
+---
+
+# Agent 权限矩阵
+
+> 决定一个 agent 在各 channel、group 和 workspace 上能做什么的全部授权层级——以及这些层级如何组合。
+
+## 概览
+
+一个 agent 的单一操作（发送回复、写 workspace 文件、编辑 context 文件）会经过若干个相互独立的权限层。每一层都可以允许或拒绝，并且它们层层叠加：只有当每个适用的层都允许时，操作才被准许。本页梳理这些层、你可以从 chat 授予的 agent 配置权限规则、按 channel 划分的矩阵，以及最容易让人意外的规则（Zalo context 写入和 channel-context 凭证）。
+
+如果你只需要 gateway-token 角色，请看 [API Keys 与 RBAC](/api-keys-rbac)——那是第 1 层。本页覆盖其上的各层。
+
+## 权限层级
+
+| 层 | 范围 | 说明 |
+|----|------|------|
+| 租户 RBAC | Dashboard、HTTP、WebSocket RPC | Viewer / operator / admin / owner。仅 admin 的方法包括 `config.permissions.*`。 |
+| Agent 所有权 / 共享 | 用户能看到和管理哪些 agent | Owner 加上显式共享；见[共享与访问控制](/sharing-and-access)。 |
+| Channel 成员资格 | 平台投递 | 在 GoClaw 允许操作后，平台仍可拒绝出站投递。 |
+| Agent 配置权限 | 从 chat 驱动的配置变更 | 按 `agent_id`、`scope`、`config_type`、`user_id` 匹配，包括通配符行。 |
+| Workspace 文件边界 | 文件系统访问 | 防止路径逃逸和不支持的写入。 |
+| Context 文件边界 | Agent 身份 / context 文件 | 受保护文件被路由到 store，并在 group context 中要求 group writer 权限。 |
+| Channel context 能力 | MCP + Secure CLI 工具执行 | 凭证优先级：用户凭证 > context 凭证/grant > agent grant > 全局默认值。 |
+
+## Agent 配置权限行
+
+agent 的部分配置可以从 chat 中更改（例如启用 file writer 或 heartbeat）。每条权限规则是一个带四个字段的行：
+
+| 字段 | 示例 | 含义 |
+|------|------|------|
+| `scope` | `agent`、`group:*`、`group:zalo:123`、`group:telegram:-100`、`*` | grant 适用的位置。 |
+| `config_type` | `file_writer`、`heartbeat`、`cron`、`context_files`、`*` | grant 覆盖的操作族。 |
+| `user_id` | `123456`、`zalo-user-id`、`*` | grant 覆盖的对象。`*` 授予所选范围内的每位成员。 |
+| `permission` | `allow`、`deny` | 决策。deny 可以覆盖更宽的 allow。 |
+
+### 生效优先级
+
+当多行匹配同一请求时，GoClaw 自上而下解析，并停在第一个适用的规则：
+
+1. 个体 deny。
+2. 个体 allow。
+3. 范围/用户通配符 deny。
+4. 范围/用户通配符 allow。
+5. 默认 deny。
+
+因此针对某个用户的特定 `deny` 始终胜过通配符 `allow`，未匹配到的任何内容都按默认拒绝。
+
+## Channel 矩阵
+
+agent 能做什么取决于请求来自哪里。下表汇总了常见的 channel context。
+
+| Channel context | 读取 agent 输出 | 发送回复 | 写 workspace 文件 | 写受保护 context 文件 | 授予所有成员 |
+|-----------------|-----------------|----------|-------------------|------------------------|--------------|
+| Dashboard | 受 RBAC 控制 | N/A | admin/operator 路径，然后 workspace 边界 | admin 路径，然后 context interceptor | 使用 Permissions 选项卡 |
+| 私信 | 按 agent/session 访问 | Channel adapter | 由 workspace 边界允许 | 由 agent/context 规则允许 | 通常不需要 |
+| Telegram group | Group 范围 + sender ID | Channel adapter | group 受控时需要 `file_writer` | 需要 `context_files` 或 `file_writer` 且 sender 真实 | `scope=group:telegram:<chatId>`、`user_id=*` |
+| Zalo group | Group 范围 + sender ID | Channel adapter、group thread 元数据 | group 受控时需要 `file_writer` | 需要 `context_files` 或 `file_writer` 且 sender 真实 | `scope=group:zalo:<chatId>`、`user_id=*` |
+| Discord guild/channel | Guild 范围 + sender ID | Channel adapter | guild 受控时需要 `file_writer` | 需要 `context_files` 或 `file_writer` 且 sender 真实 | `scope=guild:<id>` 或匹配的 group 范围、`user_id=*` |
+| 计划/主动运行 | 系统 sender | Channel adapter | group 受控写入被拒绝，除非 context 被提升 | 受保护 group context 写入被拒绝 | 配置显式规则，或从 dashboard/admin context 运行 |
+
+## Zalo context 写入规则
+
+一个常见的 Zalo group 失败是：agent 试图从一个缺少 sender 的 group session 写入受保护的 context 文件——`SOUL.md`、`IDENTITY.md`、`AGENTS.md`、`USER.md`、`USER_PREDEFINED.md` 或 `CAPABILITIES.md`。受保护的 context 写入会经过 group permission gate，要求：
+
+- `sender_id` 是**真实的平台用户**，不为空或合成。
+- `user_id` 标识 group 范围，例如 `group:zalo:<chatId>`。
+- sender 匹配一个 `context_files` allow（或旧版 `file_writer` allow），包括 `user_id="*"` 这样的通配符行。
+- 缺少租户 context 或 permission-store 错误会 **fail closed**——写入被拒绝而非被允许。
+
+如果某个 Zalo group 写入被拒绝，请检查该消息是否携带真实 sender，以及该 group 范围是否存在匹配的 `context_files` 规则。
+
+## Permissions 选项卡（UX）
+
+dashboard 的 Permissions 选项卡是上述各行的完整矩阵编辑器：
+
+| 控件 | 行为 |
+|------|------|
+| 用户/联系人选择器 | 接受显式用户 ID 和联系人搜索结果。 |
+| All members 按钮 | 将当前规则的 `user_id` 设为 `*`。 |
+| Config type 选择器 | `file_writer`、`heartbeat`、`cron`、`context_files` 或 `*`。 |
+| Scope 选择器 | 已知 group、`group:*`、`agent` 或 `*`。 |
+| Check access | 调用 `config.permissions.check`，在保存前或保存后显示生效的 allow/deny 决策。 |
+
+使用 **Check access** 可在不保存的情况下预览某个特定用户和范围的生效决策——它运行与运行时相同的优先级解析。
+
+## Channel context 能力
+
+Channel instance 在 dashboard 和 API 中暴露已存的 context。基础 context 是 channel instance 本身；group context 来自已存的 channel contact。每个能力行结合该 context 的 MCP 与 Secure CLI 可见性——来源、启用状态、工具 allow/deny 列表，以及是否存在凭证。
+
+Context 凭证行**绝不返回 secret 材料**。它们仅投影元数据，例如 `has_api_key`、`has_env`、`credential_source` 以及可用的 key 名称。写入受租户-admin 限制，运行时解析携带 `ChannelContextScope`，因此 grant 和凭证仅应用于匹配的 channel/group 范围。
+
+### Channel-context 凭证优先级
+
+当工具在 channel context 中运行时，GoClaw 按以下顺序解析凭证——第一个匹配项胜出：
+
+1. 用户凭证。
+2. Context 凭证 / grant。
+3. Agent grant。
+4. 全局默认值。
+
+这与 git 适配器使用的类型化凭证优先级一致（见 [CLI 凭据](/cli-credentials)）。
+
+## 安全说明
+
+- 通配符 `user_id="*"` 应易于授予，但始终**在视觉上显式**——它会将访问扩展到范围内的每位成员。
+- 合成 sender 对 group 文件/context 写入仍被拒绝，因此系统轮次不会从一个并非其本身的真实用户继承权限。
+- permission-store 错误在 group 变更边界 **fail closed**。
+- 后端校验在写入任何规则前拒绝未知的 config type 和 permission。
+- 平台发送权限与 GoClaw 权限相互独立：即使 GoClaw 允许 agent 的操作，channel adapter 仍可拒绝投递。
+
+## 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| Zalo group context 写入被拒绝 | 确保消息有真实的 `sender_id`，并为 `group:zalo:<chatId>` 存在匹配的 `context_files`（或 `file_writer`）allow。 |
+| 通配符 allow 未生效 | 个体 `deny` 胜过通配符 `allow`。移除 deny 或将其范围收窄。 |
+| 计划运行无法写 group 文件 | 主动/系统运行对 group 受控写入被拒绝——配置显式规则或从 dashboard/admin context 运行。 |
+| GoClaw 发送的回复从未送达 | channel adapter 拒绝了投递——GoClaw 权限与平台发送权限相互独立。 |
+
+## 下一步
+
+- [API Keys 与 RBAC](/api-keys-rbac) — 第 1 层：gateway-token 角色与 scope
+- [共享与访问控制](/sharing-and-access) — agent 所有权与共享
+- [CLI 凭据](/cli-credentials) — 类型化凭证与 channel-context 凭证优先级
+- [安全加固](/deploy-security) — 完整的五层安全概览
 
 
 
@@ -17368,7 +18059,7 @@ curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId
 
 ### 凭证类型
 
-每行 user credential 携带一个 `credential_type`（migration `000073`）：
+每行 typed credential 携带一个 `credential_type`：
 
 | `credential_type` | 含义 |
 |-------------------|------|
@@ -17378,14 +18069,81 @@ curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId
 
 `NULL`/`env` 行永不被迁移——现有旧版凭证保持原样工作。类型化适配器按凭证逐个 opt-in。
 
-### User credential 与 binary/system credential
+### Agent 凭证（默认 git 路径）
 
-类型化适配器作用于 **user credential**，而非 binary 级别的 env 默认值：
+Agent 凭证是 git 认证的**默认**路径。它们避免了 channel 用户 ID 的歧义：被选中的 agent 拥有该凭证，任何被允许使用该 agent 的人都可以让它带着已存凭证运行 git。
 
-- **Binary/system credential**——binary 定义 + 其默认 env var（以及 agent-grant 覆盖），如上所述。在该 binary 的各 grant 之间共享。
-- **User credential**——存储在 `secure_cli_user_credentials` 中的 per-user 类型化 secret，scope 到单个 hostname。
+Agent 凭证存于 `secure_cli_agent_credentials` 表（migration `000077`），该表将类型化 secret 材料与 `secure_cli_agent_grants` 策略行**分开**存储。每个 `(agent, binary)` 对应一个凭证。
 
-在 dashboard 的 **Settings → CLI Credentials → User Credentials** 管理 user credential。点击 **Add**，选择 user，选择凭证类型（`Personal Access Token` 或 `SSH Private Key`），输入 **Host Scope**，并粘贴 secret。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑该行会显示 `••••••••` 占位符；secret 字段留空将保留已存值，输入新值则替换它。
+**添加 agent 凭证（UI）：**
+
+1. 打开 **Packages → CLI Credentials**。
+2. 选择 `git` 行并打开 **Agent Access**。
+3. 在 **Credential** 选项卡中选择 agent。
+4. 选择 **Credential Type**：`Personal Access Token` 或 `SSH Private Key`。
+5. 输入 **Host Scope**（PAT/SSH 必填）：凭证认证到的 hostname（例如 `github.com`、`gitlab.example.com`、`gitea.internal:8443`）。
+6. 粘贴 token（PAT）或未加密的 PEM 主体（SSH）。
+7. 保存。
+
+**Agent Access** 对话框有两个选项卡：
+
+- **Credential**——选择 agent、凭证类型、host scope 和 secret（如上）。
+- **Access policy**——更改该 agent 的 deny args、timeout、tips 或 env 覆盖（`secure_cli_agent_grants` 行）。
+
+策略与 secret 存储在内部保持分离，但你在这一个对话框中将它们作为单一访问决策来管理。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑该行会显示 `••••••••` 占位符。
+
+### 凭证生效优先级
+
+当 git 运行时，GoClaw 按以下顺序解析要注入哪个类型化凭证——**第一个**匹配项胜出：
+
+1. **用户覆盖**——一个 per-user 类型化凭证（下方的 Advanced user overrides）。
+2. **channel/context 凭证**——scope 到该次运行所源自的 channel 或 group context 的凭证。
+3. **Agent 凭证**——agent 自己的 `secure_cli_agent_credentials` 行。这是默认信任边界。
+4. **Binary 级 env 默认值**——binary 定义上的旧版透传 env。
+
+授予 agent git 访问权限实际上就是授予使用其已存 git 凭证，因此除非存在更高层（用户覆盖或 channel/context 凭证），agent 凭证就是默认边界。
+
+### Advanced user overrides
+
+Per-user 凭证仍可用于个人覆盖与向后兼容。仅当一个稳定的租户用户 ID 是预期的凭证边界时才使用它们——它们在优先级顺序中位于 agent 凭证**之上**。
+
+在 dashboard 的 **Packages → CLI Credentials → Advanced User Overrides → Add** 管理它们：选择 user，选择凭证类型（`Personal Access Token` 或 `SSH Private Key`），输入 **Host Scope**，并粘贴 secret。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑时 secret 字段留空将保留已存值，输入新值则替换它。
+
+这些行存于 `secure_cli_user_credentials` 表。
+
+### Agent 凭证 REST API
+
+agent-credentials 端点管理单个 `(binary, agent)` 对的类型化 secret。它们需要 `admin` 角色。
+
+#### 列出某 binary 的 agent 凭证
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials
+```
+
+返回为该 binary 存有凭证的 agent，仅含元数据（凭证类型、host scope、是否有 key）——绝不返回 secret。
+
+#### 获取某个 agent 的凭证
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+#### 设置（创建或替换）某个 agent 的凭证
+
+```
+PUT /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+发送 `credential_type`、`host_scope` 和 secret（`env` 用 `env_vars`，或类型化 PAT/SSH key 主体）。secret 在存储时加密且绝不返回。
+
+#### 删除某个 agent 的凭证
+
+```
+DELETE /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+删除已存 secret。agent 的 `secure_cli_agent_grants` 策略行（deny args、timeout 等）不受影响——单独删除 grant 以撤销访问权限。
 
 ### git 适配器
 
@@ -17402,10 +18160,12 @@ clone   fetch   pull   push   submodule
 ```
 GIT_CONFIG_COUNT=1
 GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
-GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+GIT_CONFIG_VALUE_0=Authorization: Basic base64("x-access-token:<token>")
 ```
 
-由于 token 位于 env value 中（而非命令行 flag），它绝不会出现在 `ps`、`/proc/<pid>/cmdline` 或 shell 历史中。注入的 env var 仅作用于被 spawn 的 `git` 进程——GoClaw 自身的环境和其他 exec 调用永远看不到它们。
+header 值是 HTTP Basic 认证：固定用户名 `x-access-token` 与你的 token 用冒号连接，再做 base64 编码。由于 token 位于 env value 中（而非命令行 flag），它绝不会出现在 `ps`、`/proc/<pid>/cmdline` 或 shell 历史中。注入的 env var 仅作用于被 spawn 的 `git` 进程——GoClaw 自身的环境和其他 exec 调用永远看不到它们。
+
+原始 token、base64 payload **以及**完整的 `Authorization: Basic …` header 都已注册到 output scrubber，因此这三者都无法通过 stdout、stderr、错误消息或 audit log 泄回 agent。
 
 **SSH 流程。** PEM 密钥被写入系统临时目录中一个 `0600` 模式的 tmpfile（前缀 `goclaw-gitkey-*`），并将 `GIT_SSH_COMMAND` 设为：
 
@@ -17413,7 +18173,7 @@ GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
 ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
 ```
 
-`StrictHostKeyChecking=accept-new` 在**首次连接（TOFU）**时接受未知 host key。预先填充 `~/.ssh/known_hosts` 以关闭该窗口（见 [安全加固](/deploy-security)）。tmpfile 在 exec 后通过 deferred cleanup 删除。**带 passphrase 的 SSH 密钥在保存时被拒绝**——请重新导出无 passphrase 的密钥，或使用专用 deploy key。
+`BatchMode=yes` 意味着 SSH 绝不提示，并在 agent 上下文中快速失败。`StrictHostKeyChecking=accept-new` 在**首次连接（TOFU）**时接受未知 host key。预先填充 `~/.ssh/known_hosts` 以关闭该窗口（见 [安全加固](/deploy-security)）。tmpfile 在 exec 后通过 deferred cleanup 删除。**SSH 私钥在保存时会两次校验**——先用 Go 的 SSH 解析器，再在可用时用 OpenSSH（`ssh-keygen -y -f <tmpfile>`）——以捕获那些能保存成功但日后会因 OpenSSH 诊断而失败的密钥。**带 passphrase 的 SSH 密钥在保存时被拒绝**——请重新导出无 passphrase 的密钥，或使用专用 deploy key。
 
 ### Host scope
 
@@ -17423,7 +18183,7 @@ ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking
 |---------------------|:---:|:---:|:---:|
 | `github.com` | ✓ | ✗ | ✗ |
 
-如果你在 scheme 的默认端口（443 HTTPS、22 SSH）上运行自托管服务器，省略 port；若在非默认端口上，则包含 port（例如 `gitea.internal:8443`）。当没有存储凭证匹配解析出的 remote host 时，适配器回退到无凭证路径，若该操作需要认证，remote 将拒绝它。
+如果你在 scheme 的默认端口（443 HTTPS、22 SSH）上运行自托管服务器，省略 port；若在非默认端口上，则包含 port（例如 `gitea.internal:8443`）。当没有选择任何类型化 PAT/SSH 凭证，或所选凭证无法匹配解析出的 remote host 时，**适配器管理的 remote git 命令将 fail closed 并附带一个 GoClaw 诊断**。在 agent 运行时中，`git` **不**允许回退到交互式用户名/密码提示。
 
 ### Env 可见性：敏感与非敏感
 
@@ -17438,10 +18198,11 @@ ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking
 
 ### 从旧版 env 凭证迁移
 
-没有强制迁移。`credential_type IS NULL` 或 `= 'env'` 的行仍像以前一样发出其 env var。要升级某个 git 凭证，打开 user-credential 对话框，选择 **Personal Access Token** 或 **SSH Private Key**，输入 host scope，粘贴 secret 并保存——旧行将被原子替换。
+没有强制迁移。`credential_type IS NULL` 或 `= 'env'` 的行仍像以前一样发出其 env var。要升级某个 git 凭证，创建一个匹配的 **Agent Credential**（或者，若稳定的用户 ID 是预期边界，则创建一个 Advanced user override），输入 host scope，粘贴 secret 并保存。现有用户覆盖的优先级仍高于 agent 凭证，因此你可以逐步迁移，并在不再需要时移除用户覆盖。
 
 ### v1 限制
 
+- **每个 `(agent, binary)` 行一个凭证**，外加每个 `(user, binary)` 覆盖的旧版一个凭证。
 - **无通配符 host**——每个精确 `host[:port]` 对应一个凭证；不支持 `*.github.com`。
 - **无带 passphrase 的 SSH 密钥**——在验证时被拒绝。
 - **无 sandbox 传播**——适配器会修改已 fork 子进程的环境，与基于 bind-mount 的 Docker sandbox 路径不兼容。v1 中 credentialed exec 仅在 host 上运行。
@@ -17503,9 +18264,11 @@ gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
 | Agent 无法运行 binary | 检查 binary 的 `is_global`——若为 `false`，该 agent 需要显式 grant |
 | Grant 覆盖未生效 | 确认 grant `enabled = true` 且覆盖字段非 null |
 | grant 端点返回 `403` | 需要 admin 角色——检查 API key 的 scopes |
+| `git clone`/`push` 因无凭证失败 | 没有类型化凭证匹配 remote host——git fail closed（不提示）。添加一个带精确 `host_scope` 的 Agent Credential。 |
 
 ## 下一步
 
+- [权限矩阵](/permission-matrix) — 完整的权限层级、group/channel 范围以及 channel-context 凭证
 - [数据库 Schema → secure_cli_agent_grants](/database-schema)
 - [Exec 审批](/exec-approval)
 - [API Keys 与 RBAC](/api-keys-rbac)
@@ -17728,6 +18491,14 @@ Agent goroutine 阻塞直到你响应。如果 2 分钟内无响应，请求自�
 ```
 
 拒绝组与 exec 审批流程独立运作——命令可以通过拒绝组检查，但仍会根据你的 `ask` 模式设置被暂停等待人工审批。
+
+### 实时重载的持久性
+
+全局拒绝组更改无需重启即可立即生效。重载会在应用前克隆配置快照，因此**禁用会正确保留**——你关闭的组会保持关闭，直到你重新开启。同一次重载还会刷新 provider 级 shell-deny 策略（Claude CLI / ACP），而不仅是全局 exec 工具。
+
+### venv Python 豁免
+
+GoClaw 阻止 shell 访问其内部 `.goclaw/` 数据目录。**GoClaw 托管的 Python 解释器获得豁免**：用其绝对路径（`<home>/.goclaw/venv/bin/python3`）调用是允许的。GoClaw 在启动时解析该路径（跟随符号链接）一次，并豁免已解析的解释器目录；若不存在 venv 则静默回退。这是 agent 的 shell 命令在 `.goclaw/` 下唯一能触及的路径。
 
 ---
 
@@ -18021,6 +18792,10 @@ max_tokens = clamp(input_tokens / 25, 1024, 8192)
 
 当上下文在一次压缩后仍超出预算（例如 system prompt 和 tool schema 已接近填满上下文窗口）时，GoClaw 会在返回错误之前执行一次辅助恢复扫描。此溢出恢复路径（PR #958）最多重试一次，仅在第二次扫描仍失败时才返回 `context overflow after compaction` 错误。实践中，这可防止拥有大型 tool schema 或 system prompt 的 agent 出现硬性上下文溢出失败。
 
+### 待处理消息保留（Pending-Message Preservation）
+
+压缩可能在**循环中途**触发，即在请求工具调用的 assistant 消息与回答它们的 `tool` 结果之间。GoClaw 现在会在循环中途的压缩扫描中保留正在处理的 assistant `tool_calls` 消息，因此下一次发往 provider 的请求绝不会在缺少前置 `tool_calls` 消息的情况下发送 `tool` 结果消息。否则，provider 会以 **HTTP 400**（孤立的工具结果）拒绝该请求。如果你之前在长的、工具密集的回合中偶发遇到 400 错误，这就是修复。
+
 ---
 
 ## 下一步
@@ -18098,6 +18873,48 @@ graph LR
 | `config` | object | Channel 专属配置（可选） |
 | `enabled` | bool | `false` 表示禁用实例而不删除 |
 | `is_default` | bool | 种子实例为 `true` — 不能删除 |
+
+---
+
+## 实例 `config` 参考
+
+`config` 对象保存 channel 专属设置。除了每个 channel 页面记录的逐 channel 配置项之外，这里值得指出两个跨 channel 的关注点。
+
+### 投递覆盖（`chat_behavior`、`block_reply`）
+
+Channel 实例可以覆盖工作区级别的[拟人化投递](/channels-overview#human-like-delivery)行为：
+
+| 配置项 | 类型 | 说明 |
+|---|---|---|
+| `chat_behavior` | object | 为此实例覆盖 `gateway.chat_behavior`（省略 = 继承）。只设置你想更改的字段。 |
+| `block_reply` | bool | **遗留字段。** 当较新字段未设置时，读取为 `intermediate_replies.enabled` 的继承默认值。 |
+
+解析顺序为 **Channel > Agent > Workspace**：
+
+1. **Workspace** — `gateway.chat_behavior`（基准）。
+2. **Agent** — `agents.other_config.delivery_behavior` 覆盖工作区基准。
+3. **Channel** — 实例的 `config.chat_behavior` 拥有最终决定权。
+
+每一层仅覆盖它所设置的字段，因此你可以为每个 channel 调整某一项而继承其余。只有实现了 `ChatBehaviorChannel` 接口的 channel 才会遵循这些覆盖（Bitrix24、Discord、Feishu/Lark、Pancake、Slack、Telegram、WhatsApp、Zalo OA、Zalo Personal）。
+
+### 被动 channel 记忆（`passive_memory`）
+
+实例可以通过在其 `config` 中添加 `passive_memory` 块来开启[被动 channel 记忆提取](/memory-system#passive-channel-memory-extraction)：
+
+```json
+{
+  "config": {
+    "passive_memory": {
+      "enabled": true,
+      "review_mode": true,
+      "interval_minutes": 360,
+      "min_messages": 5
+    }
+  }
+}
+```
+
+默认禁用，v1 仅限群组，且需经审核。完整字段表和行为参见[记忆系统 › 被动 channel 记忆提取](/memory-system#passive-channel-memory-extraction)。
 
 ---
 
@@ -18291,7 +19108,7 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 | 问题 | 原因 | 解决方法 |
 |---|---|---|
 | 删除时 `403` | 实例是默认/种子实例 | 默认实例不能删除；改用 `enabled: false` 禁用 |
-| `400 invalid channel_type` | 拼写错误或不支持的类型 | 使用：`telegram`、`discord`、`slack`、`whatsapp`、`zalo_oa`、`zalo_personal`、`feishu` 之一 |
+| `400 invalid channel_type` | 拼写错误或不支持的类型 | 使用：`telegram`、`discord`、`slack`、`whatsapp`、`zalo_oa`、`zalo_personal`、`feishu`、`bitrix24`、`pancake`、`facebook` 之一 |
 | 消息未路由到 agent | 实例已禁用或 `agent_id` 错误 | 验证 `enabled: true` 和正确的 `agent_id` |
 | 凭据未持久化 | 未设置 `GOCLAW_ENCRYPTION_KEY` | 设置加密密钥环境变量；凭据需要它 |
 | 更新后缓存陈旧 | 内存缓存尚未刷新 | GoClaw 在每次写入时广播缓存失效事件；缓存在数秒内刷新 |
@@ -20074,6 +20891,8 @@ reusable skill? Reply "save as skill" or "skip"._
 | `content` | string | create | 包含 YAML frontmatter 的完整 SKILL.md |
 | `find` | string | patch | 在当前 SKILL.md 中查找的精确文本 |
 | `replace` | string | patch | 替换文本 |
+| `files` | object | 可选（create、patch） | 按相对路径作为键的伴生文本文件（例如 `references/guide.md`）。每个文件限制为 **2 MB**；路径会被校验（不允许 `..`、绝对路径/Windows 路径、空字节、覆盖 `SKILL.md`、dotfile 或系统工件） |
+| `visibility` | string | 可选（patch） | 仅元数据级别的可见性变更（`private` 或 `public`）— 在没有 `content`/`files` 变更时，更新谁可以发现该 skill 而不创建新版本 |
 
 **示例 — 从对话创建 skill：**
 
@@ -20101,6 +20920,16 @@ skill_manage(
 skill_manage(action="delete", slug="deploy-checklist")
 ```
 
+**示例 — 创建带伴生 reference 文件的 skill：**
+
+```
+skill_manage(
+  action="create",
+  content="---\nname: Deploy Checklist\ndescription: Steps to deploy the app safely.\n---\n\n## Steps\nSee {baseDir}/references/runbook.md",
+  files={"references/runbook.md": "# Runbook\n1. Run tests\n2. Build image\n3. Push to registry"}
+)
+```
+
 ### publish_skill tool
 
 `publish_skill` 是将整个本地目录注册为 skill 的替代路径。它始终作为内置 tool 开关可用（不受 `skill_evolve` 门控）。
@@ -20116,7 +20945,7 @@ publish_skill(path="./skills/my-skill")
 | | `skill_manage` | `publish_skill` |
 |---|---|---|
 | 输入 | 内容字符串 | 目录路径 |
-| 文件 | 仅 SKILL.md（修补时复制伴生文件） | 整个目录（脚本、资源等） |
+| 文件 | SKILL.md 加上直接伴生文本文件（`files=...`）；修补时将现有伴生文件复制到新版本 | 整个目录（脚本、资源等） |
 | 门控方式 | `skill_evolve` 配置 | 内置 tool 开关（始终可用） |
 | 引导 | 通过 skill_evolve 提示注入 | 使用 `skill-creator` 核心 skill |
 | 自动授权 | 是 | 是 |
@@ -20273,6 +21102,68 @@ SuggestionEngine.Analyze() — 每日通过 cron 运行
 
 ---
 
+## Skill 自我进化（按 skill 的指标）
+
+这是一个**独立于**上述"v3 进化指标"的子系统。agent 级进化调整的是 *agent* 的参数，而 skill 自我进化跟踪每个**现有 skill** 随时间的表现，并为该 skill 本身提议改进。它也不同于 `skill_evolve` 学习循环 —— 后者教 agent *何时* 应创建或修补可复用 skill。
+
+### 运行时记录
+
+usage 会在 agent 使用 skill 时自动记录 —— **没有公开的 usage 端点**：
+
+- `use_skill` tool 调用以租户范围记录 usage，状态为 `succeeded` 或 `failed`，并附带 duration、session key、run/trace ID、agent ID 和 user 范围。
+- 斜杠命令激活（`/<slug>` 或 `/use <skill>`）在解析到某个 skill 时记录一个 `started` 事件。
+- usage 写入**仅限内部**。v1 有意不提供公开的 `POST /v1/skills/{id}/usage` 端点，因此客户端无法伪造成功率。
+
+### 持久化表
+
+| 表 | 用途 |
+|---|---|
+| `skill_evolution_settings` | 按租户、按 skill 的 `enabled` 标志和 `mode` |
+| `skill_usage_metrics` | 运行时 usage 事件和状态计数 |
+| `skill_improvement_suggestions` | 按 skill 的改进建议，附带证据和草稿补丁 |
+| `skill_versions` | 不可变的已应用版本记录，关联到已变更文件和来源建议 |
+
+### 模式与状态
+
+| 字段 | 取值 | 备注 |
+|---|---|---|
+| 设置 `mode` | `suggest_only`（默认）、`auto_analyze` | v1 不会自动 *修补* —— `auto_analyze` 仅自动生成建议 |
+| usage `status` | `started`、`succeeded`、`failed`、`abandoned` | 按每次 skill 调用记录 |
+| 建议 `status` | `pending`、`approved`、`rejected`、`applied` | 改进建议的生命周期 |
+
+### 应用建议
+
+建议由管理员审核并应用。将建议应用到**自定义** skill 时：
+
+1. 将当前 skill 目录复制到新版本。
+2. 校验目标路径（与 `skill_manage` 伴生文件规则相同）。
+3. 当 SKILL.md 变更时运行 SKILL.md 内容守卫扫描器。
+4. 更新当前活动 skill 并记录一条新的 `skill_versions` 行。
+5. 写入一条 activity 日志条目。
+
+**系统/内置 skill 的变更会被拒绝** —— 对任何 `is_system = true` 的 skill，应用路径在触及文件系统之前返回 `403`。
+
+### 需要管理员权限的界面
+
+查看界面经过脱敏。失败证据、草稿补丁、actor ID 和 activity 详情需要**管理员**可见性 —— 非管理员仅能看到汇总的、不敏感的数据。
+
+### HTTP API
+
+| 方法 | 路径 | 访问权限 |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/evolution` | 读取自我进化设置 |
+| `PATCH` | `/v1/skills/{id}/evolution` | 设置 `enabled` / `mode`（租户管理员） |
+| `GET` | `/v1/skills/{id}/metrics` | usage 指标（total / started / succeeded / failed / abandoned / 成功率） |
+| `GET` | `/v1/skills/{id}/activity` | 最近的自我进化 activity（仅管理员） |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | 列出该 skill 的建议 |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/approve` | 批准一条建议（租户管理员） |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/reject` | 拒绝一条建议（租户管理员） |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/apply` | 应用一条已批准的建议（租户管理员） |
+
+对应的 CLI 命令是 `goclaw skills evolve`、`goclaw skills metrics`、`goclaw skills suggestions` 和 `goclaw skills activity`。Dashboard 在 skill 详情的 **Evolution** 标签页中展示上述全部内容。
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -20283,6 +21174,9 @@ SuggestionEngine.Analyze() — 每日通过 cron 运行
 | 修补失败提示"not owner" | Agent 尝试修补其他 agent 的 skill | 每个 agent 只能修改自己创建的 skill |
 | 修补失败提示"system skill" | 尝试修改内置系统 skill | 系统 skill 始终为只读 |
 | Skill 内容被拒绝 | 内容匹配 guard.go 中的安全规则 | 移除标记的模式；参见上方第一层类别 |
+| 伴生文件被 `skill_manage` 拒绝 | 路径使用了 `..`、绝对路径/Windows 路径、dotfile 或系统工件；或文件超过 2 MB | 在 skill 根目录下使用干净的相对路径，并将每个文本文件保持在 2 MB 以下 |
+| 无法应用 skill 建议 | 目标是系统/内置 skill，或建议尚未处于 `approved` 状态 | 系统 skill 为只读；先批准建议再应用 |
+| Skill 指标无数据 | 尚未记录任何 `use_skill`/斜杠命令激活，或自我进化已禁用 | usage 会在 agent 使用 skill 时内部记录；在该 skill 的 Evolution 标签页启用自我进化 |
 
 ---
 
@@ -20807,9 +21701,9 @@ docker compose \
 
 > **数据钩子：** GoClaw 在独立的 `data_migrations` 表中追踪迁移后的 Go 变换。运行 `./goclaw upgrade --status` 可查看 SQL 迁移版本和待执行的数据钩子。
 
-> 迁移 `000045`–`000073` 继续扩展 schema：模型 fallback 配置、REST endpoint catalog、Bitrix24 portal OAuth state（`bitrix_portals`）、服务端浏览器 cookie 同步（`browser_cookies`）、usage-cap 定价与执行表（`usage_pricing_catalog`、`usage_pricing_overrides`、`usage_cap_policies`、`usage_cap_counters`、`usage_cap_reservations`、`usage_cap_events`）、agent-budget 桥接，以及带类型的 secure-CLI 凭证——参见 [Database Schema → Migration History](/database-schema)。
+> 迁移 `000045`–`000080` 继续扩展 schema：模型 fallback 配置、REST endpoint catalog、Bitrix24 portal OAuth state（`bitrix_portals`）、服务端浏览器 cookie 同步（`browser_cookies`）、usage-cap 定价与执行表（`usage_pricing_catalog`、`usage_pricing_overrides`、`usage_cap_policies`、`usage_cap_counters`、`usage_cap_reservations`、`usage_cap_events`）、agent-budget 桥接、带类型的 secure-CLI 凭证、归档 run 时间线（`run_timeline_items`）、按 channel 的 context 能力（限定范围的 MCP/secure-CLI 授权与凭据）、被动 channel 记忆提取、按 agent 的 secure-CLI 凭据、skill self-evolution（`skill_usage_metrics`、`skill_improvement_suggestions`、`skill_versions`），以及 usage event 分析（`usage_events`、`usage_event_rollups`）——参见 [Database Schema → Migration History](/database-schema)。
 
-部署后运行 `./goclaw migrate status` 确认当前 schema 版本为 **73**。
+部署后运行 `./goclaw migrate status` 确认当前 schema 版本为 **80**。
 
 ---
 
@@ -20819,7 +21713,7 @@ GoClaw v3 支持两种数据库后端：
 
 | 功能 | PostgreSQL | SQLite（桌面版） |
 |------|-----------|-----------------|
-| 完整 schema（73 个迁移） | 是 | 是 |
+| 完整 schema（80 个迁移） | 是 | 是 |
 | 向量相似度搜索（HNSW） | 是——pgvector | 否 |
 | Episodic summaries 向量搜索 | 是 | 仅关键词 FTS |
 | Knowledge Vault 自动链接 | 是——相似度阈值 0.7 | 否（仅摘要） |
@@ -21057,7 +21951,7 @@ flowchart TD
 
 ### 全局 shell deny-groups — 运行时切换
 
-`config.tools.shellDenyGroups` 是一个 `map[string]bool`，允许在不重启 gateway 的情况下全局启用或禁用 deny-group。更改通过 `bus.TopicConfigChanged` 实时生效（runtime-reloadable）。
+`config.tools.shellDenyGroups` 是一个 `map[string]bool`，允许在不重启 gateway 的情况下全局启用或禁用 deny-group。更改通过 `bus.TopicConfigChanged` 实时生效（runtime-reloadable）。重载会在应用前克隆配置快照，因此组的*禁用*在重载后正确保留，并且它还会重载 provider 级 shell-deny 策略（Claude CLI / ACP），而不仅是全局 exec 工具。
 
 ```json
 {
@@ -21079,6 +21973,8 @@ flowchart TD
 `resolvePath()` 依次应用 `filepath.Clean()` 和 `HasPrefix()`，确保所有文件路径保持在 agent 工作区内。启用 `restrict_to_workspace: true`（agent 默认值）时，工作区外的任何路径均被阻止。
 
 四个文件系统工具（`read_file`、`write_file`、`list_files`、`edit`）均实现 `PathDenyable` 接口。Agent loop 启动时调用 `DenyPaths(".goclaw")`——agent 无法读取 GoClaw 内部数据目录。`list_files` 工具从目录列表中完全过滤掉被拒绝的路径，agent 看不到它们。
+
+**venv 解释器豁免。** GoClaw 托管的 Python 解释器从 `.goclaw/` 拒绝中豁免，以便 agent 可直接运行它。GoClaw 在启动时解析 `<home>/.goclaw/venv/bin/python3`（跟随符号链接）一次，并豁免*已解析*的解释器目录；若不存在 venv 则静默回退。这是 exec 在 `.goclaw/` 下唯一能触及的路径。
 
 ### 文件服务路径遍历保护
 
@@ -21367,7 +22263,7 @@ GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 
 > **集群中必须保持一致。** 集群部署时，每个 gateway 实例必须使用相同的 `GOCLAW_ENCRYPTION_KEY`。轮换密钥需要在重启前重新加密所有已存储的密钥。
 
-credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries`、`secure_cli_agent_grants` 和 `secure_cli_user_credentials` 都将 secret 存储在 `encrypted_env` 列中。每个条目携带一个可见性 `kind`——`sensitive` 条目在正常 API/UI response 中被屏蔽，仅通过已审计的 `env:reveal` 流程返回；`value` 条目（例如 region 或 profile 名）会返回给 admin 用于运营审查。
+credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries`、`secure_cli_agent_grants`、`secure_cli_user_credentials` 和 `secure_cli_agent_credentials` 都将 secret 存储在 `encrypted_env` 列中。每个条目携带一个可见性 `kind`——`sensitive` 条目在正常 API/UI response 中被屏蔽，仅通过已审计的 `env:reveal` 流程返回；`value` 条目（例如 region 或 profile 名）会返回给 admin 用于运营审查。
 
 ---
 
@@ -21382,6 +22278,12 @@ credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries
 
 适配器名称拼写错误会回退到 passthrough（旧版 denylist-only 行为）——**没有静默 bypass**。
 
+### 凭据生效优先级
+
+当适配器决定注入哪个凭据时，它按以下顺序选择**第一个**匹配项：**用户覆盖 → channel/context 凭据 → agent 凭据 → binary 级 env 默认值**。Agent 凭据（`secure_cli_agent_credentials`）是 git 的默认信任边界；存在用户覆盖或 channel/context 凭据时优先。审计字段 `credential_source` 记录所使用的层。
+
+对于 PAT 路径，适配器会合成一个 `http.<remote>.extraheader` 配置项，值为 `Authorization: Basic base64("x-access-token:<token>")`。原始 token、base64 payload 和完整 header 都已注册到 scrubber。SSH 私钥在保存时会**两次**校验——先用 Go 的 SSH 解析器，再在可用时用 OpenSSH（`ssh-keygen -y -f`）——因此那些日后会因 OpenSSH 诊断而失败的密钥会被提前拒绝。
+
 ### 审计事件：`security.system_env_injection`
 
 每次适配器注入都发出**恰好一行**结构化 `slog.Warn`。明文 hostname **从不记录**——使审计日志在受监管租户内保持 PII 安全。
@@ -21395,6 +22297,7 @@ credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries
 | `env_keys` | 已排序的 env var **名称**——绝不含值 |
 | `argv_prefix_len` | 前置的 argv 元素数量，而非其内容 |
 | `host_scope_hash` | `SHA-256(规范化 host_scope)` 的前 8 个十六进制字符，或 `"none"` |
+| `credential_source` | 哪个优先级层提供了凭据：`user`、`context`、`agent`，或在未选择任何按范围划分的凭据行时为空 |
 
 v1 **无专用审计表**——该行通过 `slog` 路由到 stderr → systemd/journald 或 Docker logs。要 grep 针对特定 host 的活动，预先计算其 hash：
 
@@ -21700,19 +22603,44 @@ gunzip trace.json.gz
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/v1/traces` | 列出 trace，支持分页和过滤 |
+| GET | `/v1/traces/follow` | 轮询单个 session 或 agent 的 trace 变更 |
 | GET | `/v1/traces/{id}` | 获取 trace 详情及所有 span |
 | GET | `/v1/traces/{id}/export` | 将 trace + 子 trace 导出为 gzip JSON |
+| GET | `/v1/runs/{runID}/timeline` | 获取已持久化的 run-archive 时间线条目 |
 
 ### 查询过滤参数（GET /v1/traces）
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
+| `q` | string | 在 trace ID、trace 预览、session/channel 标签、agent/channel 标签以及 span 预览/工具名上进行包含式搜索 |
 | `agent_id` | UUID | 按 agent 过滤 |
 | `user_id` | string | 按用户过滤 |
-| `status` | string | `running`、`success`、`error`、`cancelled` |
-| `from` / `to` | timestamp | 日期范围过滤 |
+| `session_key` | string | 按 session key 过滤 |
+| `status` | string | `running`、`completed`、`error`、`cancelled` |
+| `channel` | string | 按原始 channel 过滤 |
+| `agent` | string | 在 agent 显示名和 key 上进行包含式搜索 |
+| `channel_query` | string | 在 tenant 范围的 channel 实例标签上进行包含式搜索 |
+| `tool_name` | string | 在 span 工具名上进行包含式搜索 |
+| `has_tool_calls` | boolean | 含（`true`）或不含（`false`）工具调用的 trace |
+| `from` / `to` | timestamp | `start_time` 范围过滤 — `from` 含、`to` 不含 |
+| `min_input_tokens` / `max_input_tokens` | int | 输入 token 范围 |
+| `min_output_tokens` / `max_output_tokens` | int | 输出 token 范围 |
+| `min_tool_calls` / `max_tool_calls` | int | 工具调用数量范围 |
 | `limit` | int | 每页数量（默认 50） |
 | `offset` | int | 分页偏移 |
+
+> `goclaw traces` 运维 CLI 封装了这些相同的端点。命令参考见 [CLI Commands](../reference/cli-commands.md)。
+
+### 将运维命令指向某个网关
+
+HTTP 运维命令（以及仪表盘 API）按以下顺序解析其 base URL：
+
+1. `--server <url>` 标志（最高优先级）
+2. `GOCLAW_SERVER` 环境变量
+3. `GOCLAW_GATEWAY_URL` 环境变量（回退）
+4. `config.json` 中的网关 host/port（默认 `http://127.0.0.1:18790`）
+
+`GOCLAW_GATEWAY_URL` 现在驱动**所有** HTTP 运维命令，不仅仅是 `auth`。请配合 `--token` / `GOCLAW_GATEWAY_TOKEN` 提供 bearer token。
 
 ## OpenTelemetry 导出
 
@@ -22233,7 +23161,7 @@ GoClaw 升级分两个部分：
 1. **SQL 迁移** — 由 `golang-migrate` 应用的 schema 变更（幂等、带版本号）
 2. **数据钩子** — 在 schema 迁移后运行的可选 Go 数据变换（如回填新列）
 
-`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **73**。
+`./goclaw upgrade` 命令按正确顺序处理两者。可多次安全运行——完全幂等。当前所需 schema 版本为 **80**。
 
 ```mermaid
 graph LR
@@ -22444,6 +23372,18 @@ pg_restore -d "$GOCLAW_POSTGRES_DSN" goclaw-backup-20250308.dump
 - `000071_usage_cap_policies` — 添加 usage-cap 执行表：`usage_cap_policies`、`usage_cap_counters`、`usage_cap_reservations`、`usage_cap_events`。
 - `000072_agent_budget_usage_cap_bridge` — 为 `usage_cap_policies` 添加 `source` 列，并为每个 `budget_monthly_cents` 非 NULL 的 agent **回填**一条 `month` 窗口 policy（1 美分 = 10,000 micros，`source = 'agent_budget_monthly_cents'`）。现有的 per-agent 月度预算现在通过 usage-cap 引擎执行。幂等（`ON CONFLICT DO NOTHING`）；无需操作。
 - `000073_secure_cli_credential_type` — 为 `secure_cli_user_credentials` 添加可空的 `credential_type` + `host_scope`，为 `secure_cli_binaries` 添加 `adapter_name`，用于带类型的 credential-adapter 框架。所有列默认 NULL 以保留旧版 passthrough 行为——无需操作。
+
+#### Schema 73 → 80
+
+迁移 `000074`–`000080` 在下次启动时自动应用（`./goclaw upgrade` 或 `GOCLAW_AUTO_UPGRADE=true`）——无需手动操作。全部为新表；现有数据不受影响。亮点：
+
+- `000074_run_timeline_items` — 添加 `run_timeline_items`，提供归档的、按 run 排序的时间线（消息/工具调用），用于回放 run；关联到 traces 和 spans。
+- `000075_channel_context_capabilities` — 添加 `mcp_context_grants`、`mcp_context_credentials`、`secure_cli_context_grants` 和 `secure_cli_context_credentials`，用于按 channel-instance 限定范围的 MCP 与 secure-CLI 授权及加密凭据。
+- `000076_channel_memory_extraction` — 添加 `channel_memory_extraction_runs` 和 `channel_memory_extraction_items`，用于从 channel 历史中被动、按计划地提取持久记忆（仅摘要，不含原始内容），并带审核队列。
+- `000077_secure_cli_agent_credentials` — 添加 `secure_cli_agent_credentials`，用于按 agent 的带类型 CLI 凭据，独立于授权策略；使用复合 FK `(binary_id, tenant_id)` 和 `(agent_id, tenant_id)`。
+- `000078_skill_user_grants_tenant_unique` — 将 `skill_user_grants` 的唯一键替换为按 tenant 限定的 `(skill_id, user_id, tenant_id)`。无需操作。
+- `000079_skill_self_evolution` — 添加 `skill_evolution_settings`、`skill_usage_metrics`、`skill_improvement_suggestions` 和 `skill_versions`，用于按 skill 的使用追踪以及建议/已应用的改进。**回填**为每个现有未删除的 skill 各添加一行 `skill_versions`。幂等（`ON CONFLICT DO NOTHING`）。
+- `000080_usage_event_analytics` — 添加 `usage_events`（原始的逐事件分析）和 `usage_event_rollups`（预聚合的小时级 rollup），支撑用量分析 dashboard。
 
 **gateway 触发的升级（host release-upgrade 流程）：** 当在 systemd 主机上通过 dashboard/API 触发升级时，`goclaw-upgrade-release` 现在会先将自身以临时 `systemd-run` 单元重新启动，因此 deploy 期间停止 `goclaw` 不再杀死升级任务。陈旧的 `running` 状态记录在 30 分钟后被取代，部署等待循环也能容忍 restart 期间的瞬时 `502`。无需更改配置。
 
@@ -23863,6 +24803,8 @@ goclaw [global flags] <command> [subcommand] [flags] [args]
 |------|--------|------|
 | `--config <path>` | `config.json` | 配置文件路径，也可从 `$GOCLAW_CONFIG` 读取 |
 | `-v`, `--verbose` | false | 启用调试日志 |
+| `--server <url>` | — | HTTP 类命令（traces、skills 等）的网关服务器 URL 覆盖。回退到 `$GOCLAW_SERVER`，再回退到 `$GOCLAW_GATEWAY_URL` |
+| `--token <token>` | — | 网关 bearer token 覆盖。回退到 `$GOCLAW_GATEWAY_TOKEN` |
 
 
 ## `version`
@@ -24177,6 +25119,118 @@ goclaw sessions reset "telegram:123456789"
 
 ---
 
+## `traces`
+
+通过运行中的网关检查 agent 执行 trace 和运行时间线。所有 `traces` 子命令均为 HTTP 类——它们连接由 `--server` / `$GOCLAW_SERVER` / `$GOCLAW_GATEWAY_URL` 解析出的网关，并用 `--token` / `$GOCLAW_GATEWAY_TOKEN` 进行认证。
+
+| 持久标志 | 默认值 | 说明 |
+|------|--------|------|
+| `-o`, `--output <table\|json>` | `table` | 输出格式 |
+
+```bash
+goclaw traces list --status error --limit 20
+goclaw traces get <trace-id> -o json
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces timeline <trace-id>
+# 远程网关：
+goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" traces get <trace-id> -o json
+```
+
+### `traces list`
+
+带过滤和全文搜索列出 trace。
+
+```bash
+goclaw traces list
+goclaw traces list -q "payment" --has-tool-calls true --limit 50
+```
+
+| 标志 | 说明 |
+|------|------|
+| `-q`, `--query <text>` | 搜索 trace 文本、ID、标签和 span 预览 |
+| `--agent-id <uuid>` | 按 agent UUID 过滤 |
+| `--user <id>` | 按用户 ID 过滤（管理员调用方） |
+| `--session <key>` | 按 session key 过滤 |
+| `--status <status>` | 按 trace 状态过滤（`running`、`completed`、`error`、`cancelled`） |
+| `--channel <channel>` | 按原始 channel 过滤 |
+| `--agent <text>` | 搜索 agent 显示名称或 key |
+| `--channel-query <text>` | 搜索 channel 实例标签 |
+| `--tool <name>` | 搜索 span 工具名称 |
+| `--from <rfc3339>` | 开始时间下界（含） |
+| `--to <rfc3339>` | 开始时间上界（不含） |
+| `--since <rfc3339>` | `--from` 的别名 |
+| `--until <rfc3339>` | `--to` 的别名 |
+| `--has-tool-calls <true\|false>` | 仅显示有/无工具调用的 trace |
+| `--min-input-tokens <n>` | 最小输入 token 数 |
+| `--max-input-tokens <n>` | 最大输入 token 数 |
+| `--min-output-tokens <n>` | 最小输出 token 数 |
+| `--max-output-tokens <n>` | 最大输出 token 数 |
+| `--min-tool-calls <n>` | 最小工具调用次数 |
+| `--max-tool-calls <n>` | 最大工具调用次数 |
+| `--limit <n>` | 每页大小（最大 200） |
+| `--offset <n>` | 分页偏移量 |
+
+### `traces get <trace-id>`
+
+获取带 span 的 trace 详情。只接受一个 trace ID。
+
+```bash
+goclaw traces get <trace-id>
+goclaw traces get <trace-id> -o json
+```
+
+### `traces export <trace-id>`
+
+导出 gzip 压缩的 trace 树。只接受一个 trace ID。
+
+```bash
+goclaw traces export <trace-id>                 # 写入 trace-<short>-<YYYYMMDD>.json.gz
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces export <trace-id> --file -        # gzip 输出到 stdout
+goclaw traces export <trace-id> -o json         # 解压后的 JSON 输出到 stdout
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--file <path>` | 将 gzip 导出写入文件（使用 `-` 表示 stdout）。默认写入 `trace-<short>-<YYYYMMDD>.json.gz` |
+
+### `traces follow`
+
+轮询单个 session 或 agent 的 trace 变更。**需要 `--session` 或 `--agent-id`。**
+
+```bash
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces follow --agent-id <uuid> --include-spans
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--session <key>` | 按 session key 过滤 |
+| `--agent-id <uuid>` | 按 agent UUID 过滤 |
+| `--user <id>` | 按用户 ID 过滤（管理员调用方） |
+| `--status <status>` | 按 trace 状态过滤 |
+| `--channel <channel>` | 按原始 channel 过滤 |
+| `--since <rfc3339>` | 变更 trace 的 RFC3339 下界 |
+| `--limit <n>` | 每页大小（最大 200） |
+| `--include-spans` | 包含按 trace ID 分组的 span |
+
+### `traces timeline <trace-id>`
+
+显示与 trace 关联的已持久化运行时间线。解析 trace 的 `run_id`，然后查询运行归档。只接受一个 trace ID。
+
+```bash
+goclaw traces timeline <trace-id>
+goclaw traces timeline <trace-id> --limit 100 --offset 0
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--limit <n>` | 每页大小（最大 500） |
+| `--offset <n>` | 分页偏移量 |
+
+---
+
 ## `cron`
 
 管理定时 cron 任务。需要网关运行中。
@@ -24368,6 +25422,136 @@ goclaw skills list --json
 ```bash
 goclaw skills show sequential-thinking
 ```
+
+> 以下子命令为 HTTP 类（需要网关运行中）。`<skill>` 参数接受技能 ID、slug 或名称——由网关进行解析。
+
+### `skills evolve`
+
+管理每个技能的自演化设置。
+
+```bash
+goclaw skills evolve status <skill>
+goclaw skills evolve enable <skill>
+goclaw skills evolve disable <skill>
+goclaw skills evolve mode <skill> suggest_only
+goclaw skills evolve mode <skill> auto_analyze
+```
+
+| 命令 | 参数 | 效果 |
+|------|------|------|
+| `skills evolve status <skill>` | 1 | 显示自演化设置 |
+| `skills evolve enable <skill>` | 1 | 启用自演化 |
+| `skills evolve disable <skill>` | 1 | 禁用自演化 |
+| `skills evolve mode <skill> <suggest_only\|auto_analyze>` | 2 | 设置演化模式 |
+
+### `skills metrics <skill>`
+
+显示技能记录的使用指标（Total、Started、Succeeded、Failed、Abandoned、Success rate）。
+
+```bash
+goclaw skills metrics <skill>
+goclaw skills metrics <skill> --json
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--json` | 以 JSON 格式输出 |
+
+### `skills activity <skill>`
+
+显示技能近期的自演化活动（管理员限定的详情）。
+
+```bash
+goclaw skills activity <skill>
+goclaw skills activity <skill> --json
+```
+
+| 标志 | 说明 |
+|------|------|
+| `--json` | 以 JSON 格式输出 |
+
+### `skills suggestions`
+
+管理技能改进建议。
+
+```bash
+goclaw skills suggestions list <skill>
+goclaw skills suggestions approve <skill> <suggestion-id>
+goclaw skills suggestions reject <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id> --approve
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills suggestions list <skill>` | 1 | 列出技能的建议 |
+| `skills suggestions approve <skill> <suggestion-id>` | 2 | 批准建议 |
+| `skills suggestions reject <skill> <suggestion-id>` | 2 | 拒绝建议 |
+| `skills suggestions apply <skill> <suggestion-id>` | 2, `--approve` | 应用已批准的建议（`--approve` 会先批准待处理的建议） |
+
+### `skills deps`
+
+扫描、检查和安装技能依赖。参数接受本地技能路径或网关技能 ID。
+
+```bash
+goclaw skills deps status <skill-id-or-path>
+goclaw skills deps scan <skill-id-or-path>
+goclaw skills deps check <skill-id-or-path>
+goclaw skills deps install <skill-id>
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills deps status <skill-id-or-path>` | 1, `--json` | 显示依赖状态 |
+| `skills deps scan <skill-id-or-path>` | 1, `--json` | 扫描依赖声明 |
+| `skills deps check <skill-id-or-path>` | 1, `--json` | 检查可用性 |
+| `skills deps install <skill-id>` | 1, `--json` | 安装缺失的依赖（master 租户） |
+
+### `skills access`
+
+管理技能访问模式和有效访问权限。
+
+```bash
+goclaw skills access get <skill-id>
+goclaw skills access set <skill-id> --mode internal
+goclaw skills access effective <skill-id> --agent <agent-id> --user <user-id>
+goclaw skills access effective --agent <agent-id> --user <user-id>
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills access get <skill-id>` | 1, `--json` | 显示访问模式和授权 |
+| `skills access set <skill-id> --mode <private\|internal\|public>` | 1, `--mode`（必填）, `--json` | 设置访问模式 |
+| `skills access effective [skill-id] --agent <id> --user <id>` | 0–1, `--agent`+`--user`（必填）, `--json` | 检查有效访问权限（提供 ID 时为单个技能，否则跨技能） |
+
+### `skills grant`
+
+向 agent 或用户授予技能访问权限。
+
+```bash
+goclaw skills grant agent <skill-id> <agent-id>
+goclaw skills grant agent <skill-id> <agent-id> --can-manage --pinned-version 3
+goclaw skills grant user <skill-id> <user-id>
+```
+
+| 命令 | 参数 / 标志 | 效果 |
+|------|------|------|
+| `skills grant agent <skill-id> <agent-id>` | 2, `--can-manage`, `--pinned-version <n>`, `--json` | 向 agent 授予技能 |
+| `skills grant user <skill-id> <user-id>` | 2, `--json` | 向用户授予技能 |
+
+### `skills revoke`
+
+从 agent 或用户撤销技能访问权限。
+
+```bash
+goclaw skills revoke agent <skill-id> <agent-id>
+goclaw skills revoke user <skill-id> <user-id>
+```
+
+| 命令 | 参数 | 效果 |
+|------|------|------|
+| `skills revoke agent <skill-id> <agent-id>` | 2 | 撤销 agent 授权 |
+| `skills revoke user <skill-id> <user-id>` | 2 | 撤销用户授权 |
 
 ---
 
@@ -24728,6 +25912,46 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `sessions.delete` | `{key}` | 删除会话 |
 | `sessions.reset` | `{key}` | 清空会话历史 |
 | `sessions.compact` | `{key, keepLast?}` | 截断历史保留最后 N 条消息（默认 4）；history < 6 时跳过 |
+| `run.timeline.get` | `{runId?, sessionKey?, limit?, offset?}` | 获取已归档的 run/会话时间线条目（display-safe）|
+
+#### `run.timeline.get`
+
+获取 agent 运行期间记录的 display-safe 时间线条目。传入 `runId` 获取单次运行，或传入 `sessionKey` 获取会话归档面板 — **两者至少需提供一个**。`limit` 默认为 `200`，上限为 `500`；`offset` 用于分页。viewer 角色可读取此方法；非管理员调用方仅能收到 `user_id` 与其已连接用户匹配的条目。
+
+**请求：**
+
+```json
+{
+  "type": "req",
+  "id": "tl-1",
+  "method": "run.timeline.get",
+  "params": { "runId": "run-123", "sessionKey": "agent:demo:direct:user-1", "limit": 100, "offset": 0 }
+}
+```
+
+**响应 payload：**
+
+```json
+{
+  "runId": "run-123",
+  "sessionKey": "agent:demo:direct:user-1",
+  "items": [{
+    "id": "019e...",
+    "run_id": "run-123",
+    "session_key": "agent:demo:direct:user-1",
+    "seq": 1,
+    "item_type": "assistant.message",
+    "status": "completed",
+    "title": "assistant",
+    "preview": "I will check that now.",
+    "created_at": "2026-05-29T10:00:00Z"
+  }],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+时间线的 `item_type` 取值包括 `activity`、`assistant.message`、`tool.call`、`tool.result` 和 `run.status`。Tool 条目仅存储有界的 preview；原始 reasoning/thinking 不会被持久化。
 
 ### 配置
 
@@ -25147,7 +26371,7 @@ ws.onmessage = (e) => {
 
 ## 概览
 
-> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 ~308 REST 端点列表。
+> **需要完整索引？** 查看 [API 端点目录](api-endpoints-catalog.md) — 自动生成的全部 REST 端点列表。
 
 GoClaw 的 HTTP API 与 WebSocket gateway 共用同一端口。所有端点需要在 `Authorization` 头中提供与 `GOCLAW_GATEWAY_TOKEN` 匹配的 `Bearer` token。
 
@@ -25641,6 +26865,12 @@ curl -X POST http://localhost:18790/v1/skills/upload \
 | 参数 | 类型 | 说明 |
 |-------|------|-------------|
 | `stream` | `bool` | 为 `true` 时以 SSE 流式推送进度，最后发送含 `download_url` 的 `complete` 事件 |
+| `format` | string | 归档格式 — `tar.gz`（默认）、`tgz`（gzip tar 的别名）或 `zip`。ZIP 仅用于导出/下载；导入仍要求 skills bundle 格式 |
+| `id` | string | 按 ID 选择单个 skill。重复该参数可选择多个 |
+| `ids` | string | 以逗号分隔的列表选择多个 skill ID |
+| `include_system` | `bool` | 未选择任何 ID 进行完整导出时，包含 system skill |
+
+> `GET /v1/skills/export` 同时支持**直接下载**（在响应中流式传输归档）和 SSE token 流（`stream=true` → `download_url`）。不指定 `id`/`ids` 时，导出保持向后兼容，默认包含租户的自定义 skill。
 
 **归档格式**（`skills-YYYYMMDD.tar.gz`）：
 
@@ -25686,6 +26916,63 @@ skills/{slug}/grants.jsonl    — agent grant（agent_key + pinned version）
 | `POST` | `/v1/skills/install-deps` | 安装所有缺失依赖 |
 | `POST` | `/v1/skills/install-dep` | 安装单个依赖 |
 | `GET` | `/v1/skills/runtimes` | 检查运行时可用性 |
+
+---
+
+### Skill 自进化与指标
+
+Skill 可以收集使用指标并提出自身改进建议。自进化按租户限定范围，且**每个 skill 默认关闭**。使用指标仅由受信任的运行时路径写入（如 `use_skill` 工具和 slash-command 激活）——不存在公开的用量写入端点。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/evolution` | 读取某 skill 的自进化设置 |
+| `PATCH` | `/v1/skills/{id}/evolution` | 更新启用状态或 mode（租户管理员）|
+| `GET` | `/v1/skills/{id}/metrics` | 聚合使用指标 + 状态计数 |
+| `GET` | `/v1/skills/{id}/activity` | 仅管理员的进化活动日志 |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | 列出该 skill 范围内的改进建议 |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` | 创建带证据 + 草稿补丁的建议（租户管理员）|
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` | 批准建议（租户管理员）|
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` | 拒绝建议（租户管理员）|
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` | 应用已批准的建议 → 生成新 skill 版本（租户管理员）|
+
+**进化 mode（`PATCH .../evolution`，字段 `mode`）：**
+
+| Mode | 行为 |
+|------|----------|
+| `suggest_only` | 收集指标并管理建议；不自动打补丁 |
+| `auto_analyze` | 为分析自动化保留。**补丁应用始终需要显式批准** |
+
+> Viewer/operator 调用方可读取聚合指标。原始 activity、actor ID、失败证据、草稿补丁和 apply 操作仅限管理员。System skill 不可变更；应用自定义 skill 的建议会写入一个新的版本化目录和一条 `skill_versions` 记录。
+
+### Skill 访问控制与授权（批量）
+
+读取和管理谁可以使用某个 skill。复数形式的 `grants/agents` 和 `grants/users` 路由接受**批量**集合；[Skill 授权](#skill-授权)中记录的单数路由仍可用于单条授权。所有路由都需要 **admin 角色**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/access` | 读取访问配置（visibility + agent/user 授权）|
+| `PATCH` | `/v1/skills/{id}/access` | 更新访问配置（如 `visibility`）|
+| `GET` | `/v1/skills/{id}/access/effective` | 该 skill 的有效访问权限 |
+| `GET` | `/v1/skills/access/effective` | 所有 skill 的有效访问权限 |
+| `GET` | `/v1/skills/{id}/grants/agents` | 列出 agent 授权（批量视图）|
+| `POST` | `/v1/skills/{id}/grants/agents` | 批量设置 agent 授权（`agent_id`、可选 `version`/`pinned_version`、`can_manage`）|
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` | 移除一条 agent 授权 |
+| `GET` | `/v1/skills/{id}/grants/users` | 列出 user 授权（批量视图）|
+| `POST` | `/v1/skills/{id}/grants/users` | 批量设置 user 授权（`user_id`）|
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` | 移除一条 user 授权 |
+
+**有效访问响应**中每个 skill 包含 `accessible`、`reason`、`can_manage` 和可选的 `pinned_version`。
+
+### Skill 依赖
+
+检查并解析某 skill 的运行时依赖。需要 **admin 角色**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/skills/{id}/dependencies` | 列出该 skill 的依赖及其状态 |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | 重新扫描声明的依赖并刷新状态 |
+| `POST` | `/v1/skills/{id}/dependencies/check` | 检查依赖是否已满足 |
+| `POST` | `/v1/skills/{id}/dependencies/install` | 为该 skill 安装缺失依赖 |
 
 ---
 
@@ -25856,12 +27143,28 @@ POST /v1/tools/invoke
 
 ### `GET /v1/traces`
 
-列出 LLM traces。支持查询参数：`agentId`、`userId`、`status`、`limit`、`offset`。
+列出 LLM traces。
 
 ```bash
-curl "http://localhost:18790/v1/traces?agentId=UUID&limit=50" \
+curl "http://localhost:18790/v1/traces?agentId=UUID&q=timeout&min_input_tokens=1000&limit=50" \
   -H "Authorization: Bearer TOKEN"
 ```
+
+**查询参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `agentId` | string | 按 agent 过滤 |
+| `userId` | string | 按用户过滤 |
+| `status` | string | 按状态过滤 |
+| `channel` | string | 按 channel 过滤 |
+| `q` | string | 在 trace/span 字段上进行宽泛的 contains 搜索 |
+| `min_input_tokens` / `max_input_tokens` | integer | 按输入 token 范围过滤 |
+| `min_output_tokens` / `max_output_tokens` | integer | 按输出 token 范围过滤 |
+| `tool_name` | string | 过滤使用了指定 tool 的 trace |
+| `min_tool_calls` / `max_tool_calls` | integer | 按 tool 调用次数范围过滤 |
+| `limit` | integer | 每页数量 |
+| `offset` | integer | 页偏移 |
 
 ### `GET /v1/traces/follow`
 
@@ -25892,6 +27195,10 @@ curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-
 
 将 trace 树导出为 gzip 压缩的 JSON。
 
+### `GET /v1/runs/{runID}/timeline`
+
+返回单次运行已持久化的 display-safe 归档时间线 — 与 run/会话时间线面板中呈现的条目相同。Tool 条目仅存储有界的 preview；原始 reasoning 不会被持久化。非管理员调用方仅限于自己的条目。
+
 ### 成本
 
 | 方法 | 路径 | 说明 |
@@ -25907,8 +27214,13 @@ curl "http://localhost:18790/v1/traces/follow?agent_id=AGENT_UUID&since=2026-06-
 | `GET` | `/v1/usage/timeseries` | 时序用量数据点 |
 | `GET` | `/v1/usage/breakdown` | 按 provider/model/channel 分类 |
 | `GET` | `/v1/usage/summary` | 含环比对比的摘要 |
+| `GET` | `/v1/usage/events/timeseries` | 基于事件的时序（从原始用量事件计算）|
+| `GET` | `/v1/usage/events/breakdown` | 基于事件的按 provider/model/channel 分类 |
+| `GET` | `/v1/usage/events/summary` | 基于事件、含环比对比的摘要 |
 
 **查询参数：** `from`、`to`（RFC 3339）、`agent_id`、`provider`、`model`、`channel`、`group_by`
+
+> `/v1/usage/events/*` 变体从原始用量事件存储而非预计算快照计算相同的数据结构 — 适用于获取精确、即时到事件的数据。
 
 ---
 
@@ -26265,6 +27577,44 @@ curl -X POST http://localhost:18790/v1/channels/instances \
 
 `reason` 为 `writer`、`not_writer`、`no_writers_configured` 或 `invalid_group` 之一。
 
+### 被动记忆提取（Passive Memory Extraction）
+
+按 channel 实例的被动记忆提取 — 从近期对话中挖掘出进入审核队列的记忆候选项，再将其批准进入情节记忆。读取端点 viewer 可访问；设置与条目状态转换需要**租户管理员（tenant-admin）**。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` | 配置 + 最近一次运行 + 待处理数量 + 近期条目 |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` | 替换归一化后的 `passive_memory` 配置块 |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` | 触发一次手动提取运行 |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` | 列出审核队列条目（可选 `status` 过滤）|
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` | 将候选项写入情节记忆 + 发布 KG 事件 |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` | 拒绝候选项 |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` | 删除候选项（及任何关联的情节摘要）|
+
+**`passive_memory` 配置字段：** `enabled`、`review_mode`、`interval_minutes`、`message_cap`、`retention_hours`、`allowed_types`、`exclude_users`、`exclude_patterns`、`min_messages`、`group_only`。默认值：禁用、开启审核模式、仅群组、360 分钟间隔、100 条消息上限、168 小时保留，以及持久类型（people、projects、decisions、todos、preferences、events）。
+
+### 上下文能力管理（Context Capability Administration）
+
+管理某 channel 实例的 per-context（按 scope）工具访问。context 由 `{scopeType}/{scopeKey}` 标识（如某个群组或 DM）。Grant/credential 路由需要 **admin 角色**；list/capabilities 读取 viewer 可访问。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/channels/instances/{id}/contexts` | 列出该实例的 context |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` | 列出某 context 的成员 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` | 为该 context 解析出的有效能力 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` | 列出 MCP server 授权 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | 设置一条 MCP 授权 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` | 移除一条 MCP 授权 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` | 列出 MCP 凭证 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | 设置一条 MCP 凭证 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` | 移除一条 MCP 凭证 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` | 列出 CLI 二进制授权 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | 设置一条 CLI 授权 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` | 移除一条 CLI 授权 |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` | 列出 CLI 凭证 |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | 设置一条 CLI 凭证 |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` | 移除一条 CLI 凭证 |
+
 ---
 
 ## 联系人
@@ -26396,6 +27746,17 @@ agents/{agent_key}/workspace/          — 每个 agent 的工作区文件
 | `GET` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 获取用户专属凭证 |
 | `PUT` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 设置用户专属凭证 |
 | `DELETE` | `/v1/cli-credentials/{id}/user-credentials/{userId}` | 删除用户专属凭证 |
+
+### 按 Agent CLI 凭证
+
+某 CLI 配置的 agent 级凭证存储 — 存储单个 agent 应使用的凭证值。这与下方的 **[CLI 凭证 Agent 授权](#cli-凭证-agent-授权)有所区别**：授权控制 agent *是否*可以使用某二进制（含参数/超时限制），而这些端点存储的是 agent 实际的凭证 payload。
+
+| 方法 | 路径 | 说明 |
+|--------|------|-------------|
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` | 列出某 CLI 配置的 agent 级凭证 |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | 获取 agent 凭证元数据 |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | 创建或替换一条 agent 凭证 |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` | 删除一条 agent 凭证 |
 
 ### CLI 凭证 Agent 授权
 
@@ -27122,7 +28483,7 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 
 > 自动生成的全部 REST 端点完整索引。请求/响应详情、示例和认证说明，请参见 [REST API 参考](rest-api.md)。
 
-**Total endpoints:** 308 — generated from goclaw `d85bf171` on `2026-06-07`.
+**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
 
 ## 如何使用本页
 
@@ -27139,14 +28500,6 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 |---|---|
 | `GET` | `/v1/activity` |
 | `GET` | `/v1/activity/aggregate` |
-
-### Browser Cookies (`internal/http/browser_cookies.go`)
-
-| Method | Path |
-|---|---|
-| `GET` | `/v1/browser/cookies` |
-| `DELETE` | `/v1/browser/cookies` |
-| `POST` | `/v1/browser/cookies/sync` |
 
 ### Agents (`internal/http/agents.go`)
 
@@ -27207,6 +28560,14 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `GET` | `/v1/system/backup/s3/list` |
 | `POST` | `/v1/system/backup/s3/upload` |
 
+### Browser Cookies (`internal/http/browser_cookies.go`)
+
+| Method | Path |
+|---|---|
+| `DELETE` | `/v1/browser/cookies` |
+| `GET` | `/v1/browser/cookies` |
+| `POST` | `/v1/browser/cookies/sync` |
+
 ### Builtin Tools (`internal/http/builtin_tools.go`)
 
 | Method | Path |
@@ -27227,11 +28588,33 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `DELETE` | `/v1/channels/instances/{id}` |
 | `GET` | `/v1/channels/instances/{id}` |
 | `PUT` | `/v1/channels/instances/{id}` |
+| `GET` | `/v1/channels/instances/{id}/contexts` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/capabilities` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-credentials/{binaryID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/cli-grants/{binaryID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-credentials/{serverID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants` |
+| `DELETE` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` |
+| `PUT` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/mcp-grants/{serverID}` |
+| `GET` | `/v1/channels/instances/{id}/contexts/{scopeType}/{scopeKey}/members` |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction` |
+| `GET` | `/v1/channels/instances/{id}/memory-extraction/items` |
+| `DELETE` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/approve` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/items/{itemID}/reject` |
+| `POST` | `/v1/channels/instances/{id}/memory-extraction/run` |
+| `PUT` | `/v1/channels/instances/{id}/memory-extraction/settings` |
 | `GET` | `/v1/channels/instances/{id}/writers` |
 | `POST` | `/v1/channels/instances/{id}/writers` |
-| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `DELETE` | `/v1/channels/instances/{id}/writers/{userId}` |
 | `GET` | `/v1/channels/instances/{id}/writers/groups` |
+| `POST` | `/v1/channels/instances/{id}/writers/test` |
 | `GET` | `/v1/contacts` |
 | `POST` | `/v1/contacts/merge` |
 | `GET` | `/v1/contacts/merged/{tenantUserId}` |
@@ -27359,16 +28742,6 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `POST` | `/v1/agents/{agentID}/memory/search` |
 | `GET` | `/v1/memory/documents` |
 
-### Model Pricing (`internal/http/usage_caps.go`)
-
-| Method | Path |
-|---|---|
-| `GET` | `/v1/model-pricing` |
-| `GET` | `/v1/model-pricing/overrides` |
-| `PUT` | `/v1/model-pricing/overrides` |
-| `DELETE` | `/v1/model-pricing/overrides/{id}` |
-| `POST` | `/v1/model-pricing/sync-openrouter` |
-
 ### OAuth (`internal/http/oauth.go`)
 
 | Method | Path |
@@ -27454,6 +28827,10 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `DELETE` | `/v1/cli-credentials/{id}` |
 | `GET` | `/v1/cli-credentials/{id}` |
 | `PUT` | `/v1/cli-credentials/{id}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials` |
+| `DELETE` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
+| `GET` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
+| `PUT` | `/v1/cli-credentials/{id}/agent-credentials/{agentId}` |
 | `GET` | `/v1/cli-credentials/{id}/agent-grants` |
 | `POST` | `/v1/cli-credentials/{id}/agent-grants` |
 | `DELETE` | `/v1/cli-credentials/{id}/agent-grants/{grantId}` |
@@ -27472,9 +28849,9 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 
 | Method | Path |
 |---|---|
-| `GET` | `/v1/sessions` |
 | `POST` | `/v1/chat/sessions/{key}/branch` |
 | `GET` | `/v1/chat/sessions/{key}/history/follow` |
+| `GET` | `/v1/sessions` |
 
 ### Skills (`internal/http/skills.go`)
 
@@ -27485,17 +28862,40 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `DELETE` | `/v1/skills/{id}` |
 | `GET` | `/v1/skills/{id}` |
 | `PUT` | `/v1/skills/{id}` |
+| `GET` | `/v1/skills/{id}/access` |
+| `PATCH` | `/v1/skills/{id}/access` |
+| `GET` | `/v1/skills/{id}/access/effective` |
+| `GET` | `/v1/skills/{id}/activity` |
+| `GET` | `/v1/skills/{id}/dependencies` |
+| `POST` | `/v1/skills/{id}/dependencies/check` |
+| `POST` | `/v1/skills/{id}/dependencies/install` |
+| `POST` | `/v1/skills/{id}/dependencies/scan` |
+| `GET` | `/v1/skills/{id}/evolution` |
+| `PATCH` | `/v1/skills/{id}/evolution` |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/apply` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/approve` |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{suggestionID}/reject` |
 | `GET` | `/v1/skills/{id}/files` |
 | `GET` | `/v1/skills/{id}/files/{path...}` |
 | `GET` | `/v1/skills/{id}/grants/agent` |
 | `POST` | `/v1/skills/{id}/grants/agent` |
 | `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` |
+| `GET` | `/v1/skills/{id}/grants/agents` |
+| `POST` | `/v1/skills/{id}/grants/agents` |
+| `DELETE` | `/v1/skills/{id}/grants/agents/{agentID}` |
 | `POST` | `/v1/skills/{id}/grants/user` |
 | `DELETE` | `/v1/skills/{id}/grants/user/{userID}` |
+| `GET` | `/v1/skills/{id}/grants/users` |
+| `POST` | `/v1/skills/{id}/grants/users` |
+| `DELETE` | `/v1/skills/{id}/grants/users/{userID}` |
+| `GET` | `/v1/skills/{id}/metrics` |
 | `DELETE` | `/v1/skills/{id}/tenant-config` |
 | `PUT` | `/v1/skills/{id}/tenant-config` |
 | `POST` | `/v1/skills/{id}/toggle` |
 | `GET` | `/v1/skills/{id}/versions` |
+| `GET` | `/v1/skills/access/effective` |
 | `GET` | `/v1/skills/export` |
 | `GET` | `/v1/skills/export/preview` |
 | `POST` | `/v1/skills/import` |
@@ -27558,10 +28958,11 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | Method | Path |
 |---|---|
 | `GET` | `/v1/costs/summary` |
+| `GET` | `/v1/runs/{runID}/timeline` |
 | `GET` | `/v1/traces` |
-| `GET` | `/v1/traces/follow` |
 | `GET` | `/v1/traces/{traceID}` |
 | `GET` | `/v1/traces/{traceID}/export` |
+| `GET` | `/v1/traces/follow` |
 
 ### TTS (`internal/http/tts.go`)
 
@@ -27580,6 +28981,9 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | Method | Path |
 |---|---|
 | `GET` | `/v1/usage/breakdown` |
+| `GET` | `/v1/usage/events/breakdown` |
+| `GET` | `/v1/usage/events/summary` |
+| `GET` | `/v1/usage/events/timeseries` |
 | `GET` | `/v1/usage/summary` |
 | `GET` | `/v1/usage/timeseries` |
 
@@ -27587,12 +28991,17 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 
 | Method | Path |
 |---|---|
+| `GET` | `/v1/model-pricing` |
+| `GET` | `/v1/model-pricing/overrides` |
+| `PUT` | `/v1/model-pricing/overrides` |
+| `DELETE` | `/v1/model-pricing/overrides/{id}` |
+| `POST` | `/v1/model-pricing/sync-openrouter` |
+| `GET` | `/v1/usage-caps/events` |
 | `GET` | `/v1/usage-caps/policies` |
 | `POST` | `/v1/usage-caps/policies` |
-| `PATCH` | `/v1/usage-caps/policies/{id}` |
 | `DELETE` | `/v1/usage-caps/policies/{id}` |
+| `PATCH` | `/v1/usage-caps/policies/{id}` |
 | `GET` | `/v1/usage-caps/utilization` |
-| `GET` | `/v1/usage-caps/events` |
 
 ### Vault (`internal/http/vault_graph_handler.go`)
 
@@ -27631,7 +29040,7 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 |---|---|
 | `POST` | `/v1/agents/{id}/wake` |
 
-### Webhooks (`internal/http/webhooks_admin.go`, `webhooks_llm.go`, `webhooks_message.go`)
+### Webhooks Admin (`internal/http/webhooks_admin.go`)
 
 | Method | Path |
 |---|---|
@@ -27641,7 +29050,17 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `GET` | `/v1/webhooks/{id}` |
 | `PATCH` | `/v1/webhooks/{id}` |
 | `POST` | `/v1/webhooks/{id}/rotate` |
+
+### Webhooks Llm (`internal/http/webhooks_llm.go`)
+
+| Method | Path |
+|---|---|
 | `POST` | `/v1/webhooks/llm` |
+
+### Webhooks Message (`internal/http/webhooks_message.go`)
+
+| Method | Path |
+|---|---|
 | `POST` | `/v1/webhooks/message` |
 
 ### Workspace (`internal/http/workspace_upload.go`)
@@ -27652,8 +29071,6 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `POST` | `/v1/teams/{teamId}/workspace/upload` |
 
 ### Workstations (`internal/http/workstations.go`)
-
-> 仅 Standard 版本 — Lite 版 gateway 返回 `403`。
 
 | Method | Path |
 |---|---|
@@ -28670,7 +30087,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector 用于 embedding
 
 自定义 `uuid_generate_v7()` 函数提供时序有序的 UUID。所有主键默认使用此函数。
 
-Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**73**。
+Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**80**。
 
 ### v3 Store 统一
 
@@ -28927,7 +30344,7 @@ BM25 + 向量混合记忆系统。
 
 **索引：** owner、visibility（部分 active）、slug、HNSW embedding、GIN tags、`is_system`（部分 true）、`enabled`（部分 false）
 
-**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。`skill_agent_grants` 还增加了 `can_manage BOOLEAN NOT NULL DEFAULT FALSE`（迁移 066）——授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。
+**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。`skill_agent_grants` 还增加了 `can_manage BOOLEAN NOT NULL DEFAULT FALSE`（迁移 066）——授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。自迁移 078 起，`skill_user_grants` 的唯一键改为 `(skill_id, user_id, tenant_id)`（按租户限定），因此同一 user 可以在不同租户中被授予同一 skill。
 
 ---
 
@@ -29654,6 +31071,19 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 65 | `agent_model_fallback` — 为 `agents` 添加 `model_fallback JSONB NOT NULL DEFAULT '{}'` 列；有序数组，当主模型失败时按序尝试 fallback 模型。|
 | 66 | `skill_agent_manage_grants` — 为 `skill_agent_grants` 添加 `can_manage BOOLEAN NOT NULL DEFAULT FALSE` 列；授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。|
 | 67 | `skill_agent_grants_scope_cleanup` — 仅操作数据的迁移；删除 `skill_agent_grants` 中 `tenant_id` 与 agent 或 skill 租户不匹配的行，强制 skill grants 的租户范围隔离。无 schema 变更。|
+| 68 | `bitrix_portals` — Bitrix24 portal 注册表，含加密的 OAuth 凭据，在安装流程前预置。|
+| 69 | `browser_cookies` — 为 browser automation 提供按 agent 的加密浏览器 cookie 存储。|
+| 70 | `usage_pricing_catalog` / `usage_pricing_overrides` — provider/model 定价目录与按租户覆盖。|
+| 71 | `usage_cap_policies` / `usage_cap_counters` / `usage_cap_reservations` / `usage_cap_events` — usage-cap policy 引擎，含计数器、预留和决策审计日志。|
+| 72 | agent budget ↔ usage-cap 桥接 — 将按 agent 的预算接入 usage-cap policy 引擎。|
+| 73 | `secure_cli_credential_type` — 为 secure-CLI 凭据表添加 `credential_type` / `host_scope` 列。|
+| 74 | `run_timeline_items` — 用于回放 run 的归档、按 run 排序时间线；FK 指向 traces/spans。|
+| 75 | Channel context capabilities — `mcp_context_grants` / `mcp_context_credentials` / `secure_cli_context_grants` / `secure_cli_context_credentials`；按 channel-instance 限定范围的 MCP 与 secure-CLI 授权及加密凭据。|
+| 76 | Channel memory extraction — `channel_memory_extraction_runs` / `channel_memory_extraction_items`；从 channel 历史被动、按计划提取持久记忆（仅摘要，不含原始内容），并带审核队列。|
+| 77 | `secure_cli_agent_credentials` — 按 agent 的带类型 CLI 凭据，独立于授权策略；复合 FK `(binary_id, tenant_id)` 和 `(agent_id, tenant_id)`。|
+| 78 | `skill_user_grants_tenant_unique` — 将 `skill_user_grants` 的唯一键替换为 `(skill_id, user_id, tenant_id)`（按租户限定）。|
+| 79 | Skill self-evolution — `skill_evolution_settings` / `skill_usage_metrics` / `skill_improvement_suggestions` / `skill_versions`；按 skill 的使用追踪及建议/已应用的改进（为每个现有 skill 回填一行 `skill_versions`）。|
+| 80 | Usage event analytics — `usage_events` / `usage_event_rollups`；原始逐事件分析与预聚合的小时级 rollup，用于 usage dashboard。|
 
 ---
 
@@ -30302,6 +31732,236 @@ workstation exec 事件（`exec` 和 `deny`）的滚动审计日志。Append-onl
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
 
 **索引：** `(tenant_id, created_at DESC)`
+
+---
+
+### `run_timeline_items`
+
+按 run 排序的 item 时间线（消息、工具调用等），用于回放归档的 run。（迁移 074）
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `run_id` | TEXT | NOT NULL | run 标识符 |
+| `session_key` | VARCHAR(500) | NOT NULL | 此 run 所属的 session |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | 产生该 run 的 agent |
+| `user_id` | VARCHAR(255) | | user 范围 |
+| `channel` | VARCHAR(50) | | channel |
+| `chat_id` | VARCHAR(255) | | chat ID |
+| `seq` | INT | NOT NULL | run 内排序 |
+| `item_type` | VARCHAR(40) | NOT NULL | item 类型（message、tool call 等） |
+| `status` | VARCHAR(40) | | item 状态 |
+| `title` | TEXT | | item 标题 |
+| `preview` | TEXT | | 简短预览 |
+| `content` | TEXT | NOT NULL DEFAULT '' | item 完整内容 |
+| `tool_name` | VARCHAR(255) | | 工具名称（如适用） |
+| `tool_call_id` | VARCHAR(255) | | tool call ID |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | 关联 trace |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | 关联 span |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, run_id, seq)`
+**索引：** `(tenant_id, run_id, seq)`；`(tenant_id, session_key, created_at DESC)`；`(tenant_id, trace_id) WHERE trace_id IS NOT NULL`
+
+---
+
+### Channel context capabilities
+
+按 channel-instance 限定范围的 MCP 与 secure-CLI 授权及加密凭据。四张表共用一个 scope 模型：`scope_type VARCHAR(32)` + `scope_key VARCHAR(255) DEFAULT ''`，让一个授权可作用于整个 channel-instance，或收窄到某个具体 scope（例如某个 chat 或 user）。（迁移 075）
+
+**`mcp_context_grants`** — 为某个 channel-instance scope 启用一个 MCP server。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `scope_type` | VARCHAR(32) | NOT NULL | scope 类型 |
+| `scope_key` | VARCHAR(255) | NOT NULL DEFAULT '' | scope 值 |
+| `server_id` | UUID FK → mcp_servers | NOT NULL ON DELETE CASCADE | 被授权的 MCP server |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `tool_allow` / `tool_deny` / `config_overrides` | JSONB | | 按 scope 的工具过滤与覆盖 |
+| `granted_by` | VARCHAR(255) | NOT NULL | 授权的执行者 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, channel_instance_id, scope_type, scope_key, server_id)` · **索引：** scope、`server_id`
+
+**`mcp_context_credentials`** — 限定范围的 MCP server 的加密凭据。与上表相同的 scope key，外加 `api_key TEXT`、`headers BYTEA`、`env BYTEA`、`created_by VARCHAR(255) NOT NULL`、时间戳。相同的唯一键和索引。
+
+**`secure_cli_context_grants`** — 为某个 channel-instance scope 启用一个 secure-CLI binary。相同的 scope key，外加 `binary_id UUID FK → secure_cli_binaries ON DELETE CASCADE`、`deny_args`/`deny_verbose JSONB`、`timeout_seconds INTEGER`、`tips TEXT`、`encrypted_env BYTEA`、`enabled BOOLEAN NOT NULL DEFAULT true`、`granted_by VARCHAR(255) NOT NULL`、时间戳。**唯一：** `(tenant_id, channel_instance_id, scope_type, scope_key, binary_id)` · **索引：** scope、`binary_id`。
+
+**`secure_cli_context_credentials`** — 限定范围的 secure-CLI binary 的加密凭据。相同的 scope key，外加 `binary_id`、`encrypted_env BYTEA NOT NULL`、`metadata JSONB NOT NULL DEFAULT '{}'`、`credential_type TEXT`、`host_scope TEXT`、`created_by VARCHAR(255) NOT NULL`、时间戳。与 grants 表相同的唯一键和索引。
+
+---
+
+### Channel memory extraction
+
+从 channel 历史被动、按计划地提取持久记忆。不存储任何原始消息内容——仅存储待审核的摘要。（迁移 076）
+
+**`channel_memory_extraction_runs`** — 对 channel 历史的一个切片进行一次提取。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `channel_name` | VARCHAR(255) | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `history_key` | VARCHAR(255) | NOT NULL | 历史 bucket key |
+| `trigger` | VARCHAR(32) | NOT NULL DEFAULT 'scheduled' | 触发该 run 的来源 |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending' | run 状态 |
+| `source_start_id` / `source_end_id` | VARCHAR(255) | NOT NULL DEFAULT '' | 源消息范围 |
+| `source_start_at` / `source_end_at` | TIMESTAMPTZ | | 源时间范围 |
+| `message_count` / `redaction_count` / `item_count` | INTEGER | NOT NULL DEFAULT 0 | 计数器 |
+| `redaction_types` | JSONB | NOT NULL DEFAULT `[]` | 已应用的脱敏类别 |
+| `error_message` | TEXT | NOT NULL DEFAULT '' | |
+| `started_at` / `completed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)` · **索引：** channel、status
+
+**`channel_memory_extraction_items`** — 候选记忆 item 的审核队列。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `run_id` | UUID FK → channel_memory_extraction_runs | NOT NULL ON DELETE CASCADE | 父 run |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `item_hash` | VARCHAR(128) | NOT NULL | 去重 hash |
+| `item_type` | VARCHAR(64) | NOT NULL | |
+| `summary` | TEXT | NOT NULL | 提取的摘要（不含原始内容） |
+| `topics` / `entities` | JSONB | NOT NULL DEFAULT `[]` | |
+| `confidence` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `source_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending_review' | 审核状态 |
+| `approved_by` / `rejected_by` | VARCHAR(255) | NOT NULL DEFAULT '' | 审核执行者 |
+| `approved_at` / `rejected_at` / `deleted_at` / `written_at` | TIMESTAMPTZ | | 审核/生命周期时间戳 |
+| `episodic_id` | VARCHAR(64) | NOT NULL DEFAULT '' | 已写入的 episodic 记忆 ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, run_id, item_hash)` · **索引：** channel+status、run
+
+---
+
+### `secure_cli_agent_credentials`
+
+secure-CLI binary 的按 agent 带类型凭据，与 `secure_cli_agent_grants` 策略分开存储。运行时解析顺序为 user → context → agent → binary 默认值。（迁移 077）
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID | NOT NULL | CLI binary（与 `tenant_id` 构成复合 FK） |
+| `agent_id` | UUID | NOT NULL | agent（与 `tenant_id` 构成复合 FK） |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM 加密的 env |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | 所属租户 |
+| `credential_type` | TEXT | NULL | 可选的凭据类型 |
+| `host_scope` | TEXT | NULL | 可选的 host scope |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(binary_id, agent_id, tenant_id)`
+**复合 FK：** `(binary_id, tenant_id)` → `secure_cli_binaries(id, tenant_id)` CASCADE；`(agent_id, tenant_id)` → `agents(id, tenant_id)` CASCADE（由新唯一索引 `idx_secure_cli_binaries_id_tenant` 和 `idx_agents_id_tenant` 支持）
+**索引：** tenant、binary、agent
+
+---
+
+### Skill self-evolution
+
+追踪每个现有 skill 随时间的表现，并记录建议的、已应用的改进。区别于 agent 级的 evolution 指标。（迁移 079）
+
+**`skill_evolution_settings`** — 按租户/按 skill 的开关与模式。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | PK 部分 |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | PK 部分 |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | |
+| `mode` | VARCHAR(32) | NOT NULL DEFAULT 'suggest_only', CHECK in (`suggest_only`, `auto_analyze`) | |
+| `last_analyzed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**主键：** `(tenant_id, skill_id)` · **索引：** `skill_id`
+
+**`skill_usage_metrics`** — 每次记录的 skill 调用一行。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `skill_version` | INT | NOT NULL DEFAULT 1 | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `user_id` | VARCHAR(255) | | |
+| `session_key` / `trace_id` / `invocation_id` | TEXT | | 关联 |
+| `invocation_source` | VARCHAR(32) | NOT NULL DEFAULT 'runtime' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'started', CHECK in (`started`, `succeeded`, `failed`, `abandoned`) | |
+| `failure_reason` | TEXT | | |
+| `tool_calls_count` | INT | NOT NULL DEFAULT 0 | |
+| `duration_ms` | BIGINT | NOT NULL DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** `(skill_id, created_at DESC)`；`(tenant_id, created_at DESC)`；`(skill_id, status, created_at DESC)`；`invocation_id` 上的 partial
+
+**`skill_improvement_suggestions`** — 带证据的建议补丁。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `suggestion_type` | VARCHAR(64) | NOT NULL | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending', CHECK in (`pending`, `approved`, `rejected`, `applied`) | |
+| `reason` | TEXT | NOT NULL DEFAULT '' | |
+| `evidence` / `draft_patch` | JSONB | NOT NULL DEFAULT `{}` | 支持证据 + 建议补丁 |
+| `target_file` | TEXT | NOT NULL DEFAULT '' | |
+| `created_by_actor_type` / `created_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_by_actor_type` / `reviewed_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_at` | TIMESTAMPTZ | | |
+| `applied_version` | INT | | 若已应用则产生的版本 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** `(skill_id, status, created_at DESC)`；`(tenant_id, created_at DESC)`
+
+**`skill_versions`** — 已应用变更的不可变版本记录。`id UUID PK`、`tenant_id`/`skill_id` FK CASCADE、`version INT NOT NULL`、`content_hash VARCHAR(64)`、`changed_files JSONB`、created-by 执行者列、`created_from_suggestion_id UUID FK → skill_improvement_suggestions ON DELETE SET NULL`、`created_at`。**唯一：** `(skill_id, version)` · **索引：** `(tenant_id, skill_id, version DESC)`。迁移为每个现有未删除的 skill 回填一行。
+
+---
+
+### Usage event analytics
+
+原始的逐事件分析，加上预聚合的小时级 rollup，支撑 usage 分析 dashboard。区别于 `usage_snapshots`（迁移 016）以及 `usage_cap_*` / `usage_pricing_*` 系列。（迁移 080）
+
+**`usage_events`** — 每个计费/可度量事件一行。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `event_time` / `bucket_hour` | TIMESTAMPTZ | NOT NULL | 事件时间和小时 bucket |
+| `event_type` / `resource_type` / `resource_name` | TEXT | NOT NULL | 事件维度 |
+| `resource_id` / `source` | TEXT | NOT NULL DEFAULT '' | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `team_id` | UUID | | |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | |
+| `run_id` / `session_key` / `channel` / `provider` / `model` / `status` | TEXT | NOT NULL DEFAULT '' | |
+| `input_tokens` / `output_tokens` / `total_tokens` | BIGINT | NOT NULL DEFAULT 0 | |
+| `cost_usd` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `duration_ms` / `call_count` / `error_count` | INTEGER | NOT NULL DEFAULT 0 / 1 / 0 | |
+| `metadata` | JSONB | | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** tenant+time；tenant+resource+time；tenant+type+time；tenant+agent+time；partial tenant+channel+time `WHERE channel != ''`；**unique partial** `(trace_id, span_id, event_type, source) WHERE trace_id IS NOT NULL AND span_id IS NOT NULL`（幂等摄取）
+
+**`usage_event_rollups`** — 在相同维度（`bucket_hour`、`event_type`、`resource_type`、`resource_name`、`source`、`agent_id`、`channel`、`provider`、`model`、`status`）上预聚合的小时级 rollup，count/token/cost 求和。在完整维度元组上使用 `COALESCE(agent_id, '00000000-0000-0000-0000-000000000000')` 设置 **唯一** 约束。**索引：** `(tenant_id, bucket_hour DESC)`；`(tenant_id, resource_type, resource_name, bucket_hour DESC)`。
 
 ---
 
@@ -31728,6 +33388,26 @@ WhatsApp **直接连接**（原生多设备协议）。无需外部桥接服务�
 
 ---
 
+## Bitrix24
+
+| 问题 | 原因 | 解决方案 |
+|---------|-------|----------|
+| 自托管域名被拒绝 | SSRF 安全校验 | 门户 FQDN 必须解析为公网 IP。环回/私有/元数据 IP 段以及 `localhost` / `.local` / `.localhost` 名称会被阻止；端口必须在 1–65535 范围内。云端 `*.bitrix24.*` 域名跳过此检查。 |
+
+---
+
+## 拟人化投递与被动记忆
+
+这些功能**默认禁用**。如果你期待它们但什么都看不到，请检查配置。
+
+| 问题 | 原因 | 解决方案 |
+|---------|-------|----------|
+| 快速确认/进度回复未出现 | `gateway.chat_behavior` 已禁用（默认） | 启用 `chat_behavior`（及其 `quick_ack` / `intermediate_replies` 子块）；确认 sidecar 的 `provider`/`model` 能解析。参见[拟人化投递](/channels-overview#human-like-delivery)。 |
+| 行为因 channel 而异 | 覆盖解析 | 顺序为 **Channel > Agent > Workspace** —— channel 级别的 `chat_behavior` 优先于 agent 和工作区基准。 |
+| 被动 channel 记忆未提取 | `passive_memory.enabled` 已关闭、不是群组，或未达到 `min_messages` | 启用 `passive_memory`；注意 v1 中仅限群组。参见[记忆系统 › 被动 channel 记忆提取](/memory-system#passive-channel-memory-extraction)。 |
+
+---
+
 ## Channel 健康状态
 
 GoClaw v3 跟踪每个 channel 的运行时状态。仪表盘和 `channels.status` RPC 反映以下状态：
@@ -32022,7 +33702,7 @@ ERROR mcp.server.reconnect_exhausted server=postgres
 
 ## 概览
 
-GoClaw 需要 PostgreSQL 15+，并安装 `pgvector` 和 `pgcrypto` 扩展。数据库连接仅通过 `GOCLAW_POSTGRES_DSN` 配置（从不存储在 `config.json` 中）。迁移由 `golang-migrate` 管理，通过 `./goclaw migrate up` 运行。当前 schema 版本：**44**。
+GoClaw 需要 PostgreSQL 15+，并安装 `pgvector` 和 `pgcrypto` 扩展。数据库连接仅通过 `GOCLAW_POSTGRES_DSN` 配置（从不存储在 `config.json` 中）。迁移由 `golang-migrate` 管理，通过 `./goclaw migrate up` 运行。当前 schema 版本：**80**。
 
 ## 连接失败
 
@@ -32191,6 +33871,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
 
 ## v3 迁移故障（037–044）
+
+> Schema 现已扩展至 **080**。下面的恢复步骤涵盖 v3 批次（037–044），它们是从较旧的 v3 安装升级时最容易失败的迁移；后续迁移（045–080）均为增量式，很少需要手动干预。完整列表参见 [Database Schema → Migration History](/database-schema)。
 
 Migration 037–044 是 v3 批次迁移。如有失败：
 

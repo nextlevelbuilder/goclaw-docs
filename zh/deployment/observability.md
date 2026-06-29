@@ -86,19 +86,44 @@ gunzip trace.json.gz
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/v1/traces` | 列出 trace，支持分页和过滤 |
+| GET | `/v1/traces/follow` | 轮询单个 session 或 agent 的 trace 变更 |
 | GET | `/v1/traces/{id}` | 获取 trace 详情及所有 span |
 | GET | `/v1/traces/{id}/export` | 将 trace + 子 trace 导出为 gzip JSON |
+| GET | `/v1/runs/{runID}/timeline` | 获取已持久化的 run-archive 时间线条目 |
 
 ### 查询过滤参数（GET /v1/traces）
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
+| `q` | string | 在 trace ID、trace 预览、session/channel 标签、agent/channel 标签以及 span 预览/工具名上进行包含式搜索 |
 | `agent_id` | UUID | 按 agent 过滤 |
 | `user_id` | string | 按用户过滤 |
-| `status` | string | `running`、`success`、`error`、`cancelled` |
-| `from` / `to` | timestamp | 日期范围过滤 |
+| `session_key` | string | 按 session key 过滤 |
+| `status` | string | `running`、`completed`、`error`、`cancelled` |
+| `channel` | string | 按原始 channel 过滤 |
+| `agent` | string | 在 agent 显示名和 key 上进行包含式搜索 |
+| `channel_query` | string | 在 tenant 范围的 channel 实例标签上进行包含式搜索 |
+| `tool_name` | string | 在 span 工具名上进行包含式搜索 |
+| `has_tool_calls` | boolean | 含（`true`）或不含（`false`）工具调用的 trace |
+| `from` / `to` | timestamp | `start_time` 范围过滤 — `from` 含、`to` 不含 |
+| `min_input_tokens` / `max_input_tokens` | int | 输入 token 范围 |
+| `min_output_tokens` / `max_output_tokens` | int | 输出 token 范围 |
+| `min_tool_calls` / `max_tool_calls` | int | 工具调用数量范围 |
 | `limit` | int | 每页数量（默认 50） |
 | `offset` | int | 分页偏移 |
+
+> `goclaw traces` 运维 CLI 封装了这些相同的端点。命令参考见 [CLI Commands](../reference/cli-commands.md)。
+
+### 将运维命令指向某个网关
+
+HTTP 运维命令（以及仪表盘 API）按以下顺序解析其 base URL：
+
+1. `--server <url>` 标志（最高优先级）
+2. `GOCLAW_SERVER` 环境变量
+3. `GOCLAW_GATEWAY_URL` 环境变量（回退）
+4. `config.json` 中的网关 host/port（默认 `http://127.0.0.1:18790`）
+
+`GOCLAW_GATEWAY_URL` 现在驱动**所有** HTTP 运维命令，不仅仅是 `auth`。请配合 `--token` / `GOCLAW_GATEWAY_TOKEN` 提供 bearer token。
 
 ## OpenTelemetry 导出
 
@@ -225,4 +250,4 @@ GoClaw 通过后台 worker（每小时 HH:05:00 UTC 运行）将 token 计数和
 - [Docker Compose 设置](/deploy-docker-compose) — 完整 compose 文件参考
 - [安全加固](/deploy-security) — 保护你的部署
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

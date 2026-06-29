@@ -8,7 +8,7 @@
 
 扩展思维让支持的 LLM 在生成最终回复前先推理问题。模型生成不出现在可见响应中的内部推理 token，但能提升复杂分析、多步规划和决策的质量。
 
-GoClaw 通过单一的 `thinking_level` 设置支持四个 provider 系列的扩展思维 — Anthropic、兼容 OpenAI 的、DashScope（阿里 Qwen）和 Codex（阿里 AI Reasoning）。
+GoClaw 通过单一的 `thinking_level` 设置支持四个 provider 系列的扩展思维 — Anthropic、兼容 OpenAI 的、DashScope（阿里 Qwen）和 Codex（OpenAI ChatGPT OAuth，Responses API）。
 
 ---
 
@@ -61,6 +61,8 @@ flowchart TD
 - **去除 `temperature` 参数** — Anthropic 拒绝包含 temperature 的思维请求
 - 自动将 `max_tokens` 调整为 `budget_tokens + 8,192` 以容纳思维开销
 
+> **Claude 4.6+ 上的采样参数：** 对于 Claude Opus/Sonnet 4.6+ 和 Opus 4.7+，GoClaw 会从**每个**请求中移除 `temperature`（以及 `top_p`/`top_k`）——与是否启用思维无关。这些模型若包含采样参数会返回 `HTTP 400`。这比上文的仅思维路径移除更宽泛。详见 [Anthropic provider](/provider-anthropic) 页面。
+
 ### 兼容 OpenAI（OpenAI、Groq、DeepSeek 等）
 
 将 `thinking_level` 直接映射到 `reasoning_effort`：
@@ -70,6 +72,10 @@ flowchart TD
 - `high` → `reasoning_effort: "high"`
 
 推理内容在流式传输期间通过 `reasoning_content` 到达，不需要在轮次间特殊传递。
+
+> **Kimi Coding（`kimi_coding`）：** Kimi 是兼容 OpenAI 的，但对 `kimi-k2-turbo-preview` **默认开启服务端思维**。因此，在历史中回放的 assistant 工具调用消息**必须携带** `reasoning_content` 字段——当未捕获到任何内容时 GoClaw 会自动发出空字符串，否则上游会返回 `HTTP 400`。详见 [Kimi Coding](/provider-kimi) 页面。
+
+> **Bailian Coding（`bailian`）：** 百炼是一个独立的兼容 OpenAI 的 Coding 端点。其硬编码目录包含 `qwen3.7-plus`（宣传具备深度思考和视觉理解），但下文描述的 DashScope `enable_thinking`/`thinking_budget` 注入路径**不**适用于百炼——它被当作纯兼容 OpenAI 的 provider 处理。详见 [Bailian](/provider-bailian)。
 
 ### DashScope（阿里 Qwen）
 
@@ -111,6 +117,8 @@ flowchart TD
 | Codex | 追踪 `OutputTokensDetails.ReasoningTokens` | 标准内容 |
 
 思维 token 按 `字符数 / 4` 估算用于上下文窗口追踪。
+
+> **渠道投递与 provider 流式传输是相互独立的。** provider 是否流式输出推理是一个决定；聊天渠道（如 Telegram）是否向最终用户展示该推理是另一个决定。Telegram 为此暴露了 `reasoning_delivery` 设置——其各模式参见渠道文档。
 
 ---
 
@@ -206,4 +214,4 @@ flowchart TD
 - [Agent 概览](/agents-explained) — 按 agent 配置参考
 - [Hooks 与质量门控](/hooks-quality-gates) — 推理后验证 agent 输出
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

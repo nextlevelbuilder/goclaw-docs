@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector for embeddings
 
 A custom `uuid_generate_v7()` function provides time-ordered UUIDs. All primary keys use this function by default.
 
-Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **73**.
+Schema versions are tracked by `golang-migrate`. Run `goclaw migrate up` or `goclaw upgrade` to apply all migrations. Current schema version: **80**.
 
 ### v3 Store Unification
 
@@ -316,7 +316,7 @@ Uploaded skill packages with BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control for skills, same pattern as MCP grants. `skill_agent_grants` also has `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — grants the agent permission to manage (publish, update, delete) the skill.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control for skills, same pattern as MCP grants. `skill_agent_grants` also has `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — grants the agent permission to manage (publish, update, delete) the skill. As of migration 078, `skill_user_grants` is uniquely keyed on `(skill_id, user_id, tenant_id)` (tenant-scoped), so the same user can be granted the same skill in different tenants.
 
 ---
 
@@ -1045,6 +1045,19 @@ Centralized key-value store for per-tenant system settings. Falls back to master
 | 65 | `agent_model_fallback` — adds `model_fallback JSONB NOT NULL DEFAULT '{}'` to `agents`; ordered array of fallback model identifiers tried when the primary model fails. |
 | 66 | `skill_agent_manage_grants` — adds `can_manage BOOLEAN NOT NULL DEFAULT FALSE` to `skill_agent_grants`; grants the agent permission to manage (publish, update, delete) the skill at tenant scope. |
 | 67 | `skill_agent_grants_scope_cleanup` — data-only migration; deletes `skill_agent_grants` rows where `tenant_id` mismatches agent or skill tenant, enforcing tenant-scope isolation on skill grants. No schema changes. |
+| 68 | `bitrix_portals` — Bitrix24 portal registry with encrypted OAuth credentials, seeded before the install flow. |
+| 69 | `browser_cookies` — encrypted per-agent browser cookie storage for browser automation. |
+| 70 | `usage_pricing_catalog` / `usage_pricing_overrides` — provider/model pricing catalog and per-tenant overrides. |
+| 71 | `usage_cap_policies` / `usage_cap_counters` / `usage_cap_reservations` / `usage_cap_events` — usage cap policy engine with counters, reservations, and a decision audit log. |
+| 72 | Agent budget ↔ usage-cap bridge — links per-agent budgets into the usage-cap policy engine. |
+| 73 | `secure_cli_credential_type` — adds `credential_type` / `host_scope` columns to secure-CLI credential tables. |
+| 74 | `run_timeline_items` — archived per-run ordered timeline for replaying runs; FK to traces/spans. |
+| 75 | Channel context capabilities — `mcp_context_grants` / `mcp_context_credentials` / `secure_cli_context_grants` / `secure_cli_context_credentials`; per-channel-instance scoped MCP and secure-CLI grants with encrypted credentials. |
+| 76 | Channel memory extraction — `channel_memory_extraction_runs` / `channel_memory_extraction_items`; passive scheduled extraction of durable memory (summaries only, no raw bodies) with a review queue. |
+| 77 | `secure_cli_agent_credentials` — per-agent typed CLI credentials separate from grants policy; composite FKs `(binary_id, tenant_id)` and `(agent_id, tenant_id)`. |
+| 78 | `skill_user_grants_tenant_unique` — replaces the `skill_user_grants` unique key with `(skill_id, user_id, tenant_id)` (tenant-scoped). |
+| 79 | Skill self-evolution — `skill_evolution_settings` / `skill_usage_metrics` / `skill_improvement_suggestions` / `skill_versions`; per-skill usage tracking and suggested/applied improvements (backfills one `skill_versions` row per existing skill). |
+| 80 | Usage event analytics — `usage_events` / `usage_event_rollups`; raw per-event analytics and pre-aggregated hourly rollups for the usage dashboard. |
 
 ---
 
@@ -1704,10 +1717,240 @@ Audit log of cap decisions (allow/deny) and their reasons. (migration 071)
 
 ---
 
+### `run_timeline_items`
+
+Per-run ordered timeline of items (messages, tool calls, etc.) used to replay archived runs. (migration 074)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Owning tenant |
+| `run_id` | TEXT | NOT NULL | Run identifier |
+| `session_key` | VARCHAR(500) | NOT NULL | Session this run belongs to |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Agent that produced the run |
+| `user_id` | VARCHAR(255) | | User scope |
+| `channel` | VARCHAR(50) | | Channel |
+| `chat_id` | VARCHAR(255) | | Chat ID |
+| `seq` | INT | NOT NULL | Ordering within the run |
+| `item_type` | VARCHAR(40) | NOT NULL | Item kind (message, tool call, etc.) |
+| `status` | VARCHAR(40) | | Item status |
+| `title` | TEXT | | Item title |
+| `preview` | TEXT | | Short preview |
+| `content` | TEXT | NOT NULL DEFAULT '' | Full item content |
+| `tool_name` | VARCHAR(255) | | Tool name, when applicable |
+| `tool_call_id` | VARCHAR(255) | | Tool call ID |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | Linked trace |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | Linked span |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, seq)`
+**Indexes:** `(tenant_id, run_id, seq)`; `(tenant_id, session_key, created_at DESC)`; `(tenant_id, trace_id) WHERE trace_id IS NOT NULL`
+
+---
+
+### Channel context capabilities
+
+Per-channel-instance, scoped MCP and secure-CLI grants plus encrypted credentials. All four tables share a scope model: `scope_type VARCHAR(32)` + `scope_key VARCHAR(255) DEFAULT ''` let a grant apply to the whole channel instance or narrow to a specific scope (e.g. a chat or user). (migration 075)
+
+**`mcp_context_grants`** — enables an MCP server for a channel-instance scope.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `scope_type` | VARCHAR(32) | NOT NULL | Scope kind |
+| `scope_key` | VARCHAR(255) | NOT NULL DEFAULT '' | Scope value |
+| `server_id` | UUID FK → mcp_servers | NOT NULL ON DELETE CASCADE | MCP server granted |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `tool_allow` / `tool_deny` / `config_overrides` | JSONB | | Per-scope tool filters and overrides |
+| `granted_by` | VARCHAR(255) | NOT NULL | Actor who granted |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, server_id)` · **Indexes:** scope, `server_id`
+
+**`mcp_context_credentials`** — encrypted credentials for the scoped MCP server. Same scope key as above plus `api_key TEXT`, `headers BYTEA`, `env BYTEA`, `created_by VARCHAR(255) NOT NULL`, timestamps. Same unique key and indexes.
+
+**`secure_cli_context_grants`** — enables a secure-CLI binary for a channel-instance scope. Same scope key plus `binary_id UUID FK → secure_cli_binaries ON DELETE CASCADE`, `deny_args`/`deny_verbose JSONB`, `timeout_seconds INTEGER`, `tips TEXT`, `encrypted_env BYTEA`, `enabled BOOLEAN NOT NULL DEFAULT true`, `granted_by VARCHAR(255) NOT NULL`, timestamps. **Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, binary_id)` · **Indexes:** scope, `binary_id`.
+
+**`secure_cli_context_credentials`** — encrypted credentials for the scoped secure-CLI binary. Same scope key plus `binary_id`, `encrypted_env BYTEA NOT NULL`, `metadata JSONB NOT NULL DEFAULT '{}'`, `credential_type TEXT`, `host_scope TEXT`, `created_by VARCHAR(255) NOT NULL`, timestamps. Same unique key and indexes as the grants table.
+
+---
+
+### Channel memory extraction
+
+Passive, scheduled extraction of durable memory from channel history. Stores no raw message bodies — only summaries pending review. (migration 076)
+
+**`channel_memory_extraction_runs`** — one extraction pass over a slice of channel history.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `channel_name` | VARCHAR(255) | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `history_key` | VARCHAR(255) | NOT NULL | History bucket key |
+| `trigger` | VARCHAR(32) | NOT NULL DEFAULT 'scheduled' | What started the run |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending' | Run status |
+| `source_start_id` / `source_end_id` | VARCHAR(255) | NOT NULL DEFAULT '' | Source message range |
+| `source_start_at` / `source_end_at` | TIMESTAMPTZ | | Source time range |
+| `message_count` / `redaction_count` / `item_count` | INTEGER | NOT NULL DEFAULT 0 | Counters |
+| `redaction_types` | JSONB | NOT NULL DEFAULT `[]` | Redaction categories applied |
+| `error_message` | TEXT | NOT NULL DEFAULT '' | |
+| `started_at` / `completed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)` · **Indexes:** channel, status
+
+**`channel_memory_extraction_items`** — review queue of candidate memory items.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `run_id` | UUID FK → channel_memory_extraction_runs | NOT NULL ON DELETE CASCADE | Parent run |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `item_hash` | VARCHAR(128) | NOT NULL | Dedup hash |
+| `item_type` | VARCHAR(64) | NOT NULL | |
+| `summary` | TEXT | NOT NULL | Extracted summary (no raw body) |
+| `topics` / `entities` | JSONB | NOT NULL DEFAULT `[]` | |
+| `confidence` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `source_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending_review' | Review status |
+| `approved_by` / `rejected_by` | VARCHAR(255) | NOT NULL DEFAULT '' | Review actors |
+| `approved_at` / `rejected_at` / `deleted_at` / `written_at` | TIMESTAMPTZ | | Review/lifecycle timestamps |
+| `episodic_id` | VARCHAR(64) | NOT NULL DEFAULT '' | Written episodic memory ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, item_hash)` · **Indexes:** channel+status, run
+
+---
+
+### `secure_cli_agent_credentials`
+
+Per-agent typed credentials for secure-CLI binaries, stored separately from the `secure_cli_agent_grants` policy. Runtime resolution order is user → context → agent → binary defaults. (migration 077)
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID | NOT NULL | CLI binary (composite FK with `tenant_id`) |
+| `agent_id` | UUID | NOT NULL | Agent (composite FK with `tenant_id`) |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM encrypted env |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Owning tenant |
+| `credential_type` | TEXT | NULL | Optional credential type |
+| `host_scope` | TEXT | NULL | Optional host scope |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(binary_id, agent_id, tenant_id)`
+**Composite FKs:** `(binary_id, tenant_id)` → `secure_cli_binaries(id, tenant_id)` CASCADE; `(agent_id, tenant_id)` → `agents(id, tenant_id)` CASCADE (backed by new unique indexes `idx_secure_cli_binaries_id_tenant` and `idx_agents_id_tenant`)
+**Indexes:** tenant, binary, agent
+
+---
+
+### Skill self-evolution
+
+Tracks how each existing skill performs over time and records suggested, applied improvements. Distinct from agent-level evolution metrics. (migration 079)
+
+**`skill_evolution_settings`** — per-tenant/per-skill toggle and mode.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | PK part |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | PK part |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | |
+| `mode` | VARCHAR(32) | NOT NULL DEFAULT 'suggest_only', CHECK in (`suggest_only`, `auto_analyze`) | |
+| `last_analyzed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Primary key:** `(tenant_id, skill_id)` · **Index:** `skill_id`
+
+**`skill_usage_metrics`** — one row per recorded skill invocation.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `skill_version` | INT | NOT NULL DEFAULT 1 | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `user_id` | VARCHAR(255) | | |
+| `session_key` / `trace_id` / `invocation_id` | TEXT | | Linkage |
+| `invocation_source` | VARCHAR(32) | NOT NULL DEFAULT 'runtime' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'started', CHECK in (`started`, `succeeded`, `failed`, `abandoned`) | |
+| `failure_reason` | TEXT | | |
+| `tool_calls_count` | INT | NOT NULL DEFAULT 0 | |
+| `duration_ms` | BIGINT | NOT NULL DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:** `(skill_id, created_at DESC)`; `(tenant_id, created_at DESC)`; `(skill_id, status, created_at DESC)`; partial on `invocation_id`
+
+**`skill_improvement_suggestions`** — suggested patches with evidence.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `suggestion_type` | VARCHAR(64) | NOT NULL | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending', CHECK in (`pending`, `approved`, `rejected`, `applied`) | |
+| `reason` | TEXT | NOT NULL DEFAULT '' | |
+| `evidence` / `draft_patch` | JSONB | NOT NULL DEFAULT `{}` | Supporting evidence + proposed patch |
+| `target_file` | TEXT | NOT NULL DEFAULT '' | |
+| `created_by_actor_type` / `created_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_by_actor_type` / `reviewed_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_at` | TIMESTAMPTZ | | |
+| `applied_version` | INT | | Version produced if applied |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:** `(skill_id, status, created_at DESC)`; `(tenant_id, created_at DESC)`
+
+**`skill_versions`** — immutable version records for applied changes. `id UUID PK`, `tenant_id`/`skill_id` FK CASCADE, `version INT NOT NULL`, `content_hash VARCHAR(64)`, `changed_files JSONB`, created-by actor columns, `created_from_suggestion_id UUID FK → skill_improvement_suggestions ON DELETE SET NULL`, `created_at`. **Unique:** `(skill_id, version)` · **Index:** `(tenant_id, skill_id, version DESC)`. The migration backfills one row per existing non-deleted skill.
+
+---
+
+### Usage event analytics
+
+Raw per-event analytics plus pre-aggregated hourly rollups backing the usage analytics dashboard. Distinct from `usage_snapshots` (migration 016) and the `usage_cap_*` / `usage_pricing_*` family. (migration 080)
+
+**`usage_events`** — one row per billable/measurable event.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `event_time` / `bucket_hour` | TIMESTAMPTZ | NOT NULL | Event time and hourly bucket |
+| `event_type` / `resource_type` / `resource_name` | TEXT | NOT NULL | Event dimensions |
+| `resource_id` / `source` | TEXT | NOT NULL DEFAULT '' | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `team_id` | UUID | | |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | |
+| `run_id` / `session_key` / `channel` / `provider` / `model` / `status` | TEXT | NOT NULL DEFAULT '' | |
+| `input_tokens` / `output_tokens` / `total_tokens` | BIGINT | NOT NULL DEFAULT 0 | |
+| `cost_usd` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `duration_ms` / `call_count` / `error_count` | INTEGER | NOT NULL DEFAULT 0 / 1 / 0 | |
+| `metadata` | JSONB | | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:** tenant+time; tenant+resource+time; tenant+type+time; tenant+agent+time; partial tenant+channel+time `WHERE channel != ''`; **unique partial** `(trace_id, span_id, event_type, source) WHERE trace_id IS NOT NULL AND span_id IS NOT NULL` (idempotent ingest)
+
+**`usage_event_rollups`** — pre-aggregated hourly rollups over the same dimensions (`bucket_hour`, `event_type`, `resource_type`, `resource_name`, `source`, `agent_id`, `channel`, `provider`, `model`, `status`) with summed counts/tokens/cost. **Unique** on the full dimension tuple using `COALESCE(agent_id, '00000000-0000-0000-0000-000000000000')`. **Indexes:** `(tenant_id, bucket_hour DESC)`; `(tenant_id, resource_type, resource_name, bucket_hour DESC)`.
+
+---
+
 ## What's Next
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` and `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — how database config maps to `config.json`
 - [Glossary](/glossary) — Session, Compaction, Lane, and other key terms
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

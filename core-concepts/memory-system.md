@@ -23,7 +23,7 @@ graph TD
 | Tier | Storage | Content | Lifespan | Search |
 |------|---------|---------|---------|--------|
 | **L0 Working** | `memory_documents` + `memory_embeddings` | Agent-curated facts, auto-flush notes, dreaming output | Permanent until deleted | FTS + vector hybrid |
-| **L1 Episodic** | `episodic_summaries` | Session summaries, key topics, L0 abstracts | 90 days (configurable) | FTS + HNSW vector |
+| **L1 Episodic** | `episodic_summaries` | Session summaries, key topics, L0 abstracts (plus approved [passive channel facts](#passive-channel-memory-extraction)) | 90 days (configurable) | FTS + HNSW vector |
 | **L2 Semantic** | Knowledge Graph tables | Entities, relations, temporal validity windows | Permanent | Graph traversal |
 
 ### Tier Boundaries and Promotion Rules
@@ -157,6 +157,41 @@ Not a standalone worker — a utility called by `episodic_worker` to produce a b
 
 **Periodic pruning**: A goroutine runs every 6 hours to delete episodic summaries past their `expires_at` date.
 
+## Passive Channel Memory Extraction
+
+Most memory comes from a session completing. **Passive channel memory extraction** adds a second, opt-in source: it periodically mines the buffered messages from a channel (Telegram, Discord, etc.) for durable facts — without anyone running a session — and feeds approved facts into the same L1 → L2 pipeline.
+
+It is **off by default** and **privacy-first**: in v1 it only looks at **group** conversations, candidates are **queued for review** rather than auto-written, and **raw message bodies are never stored** — only redacted summaries, topics/entities, confidence, and counts.
+
+### How it works
+
+A background worker periodically reads the existing tenant-scoped `channel_pending_messages` group buffers, redacts sensitive content, and asks the **background LLM provider** for durable fact candidates. Candidates land in a review queue (`channel_memory_extraction_runs` / `_items`). Extraction can run by:
+
+- **manual trigger** — runs even when `enabled` is `false`;
+- **message cap** — the group buffer reaches `message_cap`;
+- **interval** — the configured `interval_minutes` has elapsed.
+
+When an item is **approved**, GoClaw writes an `episodic_summaries` row with `source_type='channel'` and a deterministic `source_id`. From there the existing [consolidation workers](#consolidation-workers) (`semantic_worker`, `dreaming_worker`, …) promote it to the knowledge graph and long-term memory like any other episodic entry. **Reject/delete** prevents a later write; delete also removes the linked episodic row (KG nodes already promoted are not synchronously deleted in v1).
+
+### Configuration
+
+Enable it per channel instance under `config.passive_memory` (see [Channel Instances](/channel-instances#passive-channel-memory-passive_memory)):
+
+| Field | Default | Clamp / Notes |
+|---|---|---|
+| `enabled` | `false` | Disabled by default. |
+| `review_mode` | `true` | Candidates are queued for review, not auto-written. |
+| `interval_minutes` | `360` | Clamped to 15–10080. |
+| `message_cap` | `100` | Clamped to 10–1000. |
+| `retention_hours` | `168` | Clamped to 1–720. |
+| `allowed_types` | people, projects, decisions, todos, preferences, events | Invalid entries dropped; empty list → full default set. |
+| `exclude_users` | — | ≤50 entries, ≤255 chars each. |
+| `exclude_patterns` | — | ≤20 valid regexes, ≤255 chars each. |
+| `min_messages` | `5` | Clamped to 2–100. |
+| `group_only` | `true` | **Forced `true` in v1** (always coerced). |
+
+> Extraction tables store metadata, summaries, topics/entities, confidence, status, and redaction counts — **not** raw message bodies.
+
 ## Auto-Injector
 
 The **auto-injector** automatically surfaces relevant memories into the agent's system prompt at the start of each turn, before the LLM call.
@@ -249,6 +284,7 @@ This allows knowledge sharing within a team without duplication. The leader accu
 | Irrelevant memories surfacing | Memory accumulates over time; consider clearing old memories via the API |
 | Episodic summaries not created | Verify consolidation workers are registered at startup; check event bus is running |
 | Dreaming worker never promotes | Check that ≥5 sessions have completed for the agent/user pair; review debounce logs |
+| Passive channel memory not extracting | `passive_memory.enabled` is off, the conversation is not a group (group-only in v1), or the buffer has fewer than `min_messages`. Approved items also require review unless `review_mode` is disabled. |
 
 ## What's Next
 
@@ -257,4 +293,4 @@ This allows knowledge sharing within a team without duplication. The leader accu
 - [Context Pruning](/context-pruning) — How pruning integrates with the consolidation pipeline
 - [Agents Explained](/agents-explained) — Agent types and context files
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

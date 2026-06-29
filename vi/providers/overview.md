@@ -69,6 +69,8 @@ Các provider hỗ trợ extended thinking cũng triển khai thêm `SupportsThi
 | perplexity | `https://api.perplexity.ai` | `sonar-pro` |
 | ollama | `http://localhost:11434/v1` | `llama3.3` |
 | byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` |
+| bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
+| kimi_coding | `https://api.kimi.com/coding/v1` | `kimi-k2-turbo-preview` |
 
 ## Thêm Provider
 
@@ -227,6 +229,8 @@ Khi GoClaw kết nối MCP (Model Context Protocol) tools tới một provider, 
 - [DeepSeek](./deepseek.md) — DeepSeek với hỗ trợ reasoning_content
 - [Groq](./groq.md) — inference cực nhanh
 - [DashScope](./dashscope.md) — Alibaba Qwen model với hỗ trợ thinking
+- [Bailian](./bailian.md) — endpoint Bailian Coding của Alibaba Cloud (tách biệt với DashScope)
+- [Kimi Coding](./kimi.md) — Moonshot Kimi với User-Agent cố định và thinking phía máy chủ
 - [ACP](./acp.md) — điều phối subagent Claude Code, Codex CLI, Gemini CLI
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

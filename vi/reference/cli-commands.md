@@ -18,6 +18,8 @@ goclaw [global flags] <command> [subcommand] [flags] [args]
 |------|----------|-------|
 | `--config <path>` | `config.json` | Đường dẫn config file. Cũng đọc từ `$GOCLAW_CONFIG` |
 | `-v`, `--verbose` | false | Bật debug logging |
+| `--server <url>` | — | Ghi đè URL gateway server cho các lệnh dựa trên HTTP (traces, skills, v.v.). Fallback về `$GOCLAW_SERVER`, rồi `$GOCLAW_GATEWAY_URL` |
+| `--token <token>` | — | Ghi đè gateway bearer token. Fallback về `$GOCLAW_GATEWAY_TOKEN` |
 
 ---
 
@@ -360,6 +362,118 @@ goclaw sessions reset "telegram:123456789"
 
 ---
 
+## `traces`
+
+Kiểm tra trace thực thi agent và run timeline qua gateway đang chạy. Tất cả subcommand `traces` đều dựa trên HTTP — chúng kết nối tới gateway được phân giải từ `--server` / `$GOCLAW_SERVER` / `$GOCLAW_GATEWAY_URL` và xác thực bằng `--token` / `$GOCLAW_GATEWAY_TOKEN`.
+
+| Persistent flag | Mặc định | Mô tả |
+|------|---------|-------------|
+| `-o`, `--output <table\|json>` | `table` | Định dạng output |
+
+```bash
+goclaw traces list --status error --limit 20
+goclaw traces get <trace-id> -o json
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces timeline <trace-id>
+# remote gateway:
+goclaw --server https://goclaw.example.com --token "$GOCLAW_GATEWAY_TOKEN" traces get <trace-id> -o json
+```
+
+### `traces list`
+
+Liệt kê trace với bộ lọc và tìm kiếm full-text.
+
+```bash
+goclaw traces list
+goclaw traces list -q "payment" --has-tool-calls true --limit 50
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `-q`, `--query <text>` | Tìm kiếm nội dung trace, ID, label, và preview span |
+| `--agent-id <uuid>` | Lọc theo UUID agent |
+| `--user <id>` | Lọc theo user ID (người gọi admin) |
+| `--session <key>` | Lọc theo session key |
+| `--status <status>` | Lọc theo trạng thái trace (`running`, `completed`, `error`, `cancelled`) |
+| `--channel <channel>` | Lọc theo raw channel |
+| `--agent <text>` | Tìm kiếm display name hoặc key của agent |
+| `--channel-query <text>` | Tìm kiếm label của channel instance |
+| `--tool <name>` | Tìm kiếm tên tool của span |
+| `--from <rfc3339>` | Cận dưới thời điểm bắt đầu (bao gồm) |
+| `--to <rfc3339>` | Cận trên thời điểm bắt đầu (không bao gồm) |
+| `--since <rfc3339>` | Bí danh của `--from` |
+| `--until <rfc3339>` | Bí danh của `--to` |
+| `--has-tool-calls <true\|false>` | Chỉ trace có/không có tool call |
+| `--min-input-tokens <n>` | Số input token tối thiểu |
+| `--max-input-tokens <n>` | Số input token tối đa |
+| `--min-output-tokens <n>` | Số output token tối thiểu |
+| `--max-output-tokens <n>` | Số output token tối đa |
+| `--min-tool-calls <n>` | Số tool call tối thiểu |
+| `--max-tool-calls <n>` | Số tool call tối đa |
+| `--limit <n>` | Kích thước trang (tối đa 200) |
+| `--offset <n>` | Offset phân trang |
+
+### `traces get <trace-id>`
+
+Lấy chi tiết trace kèm span. Nhận đúng một trace ID.
+
+```bash
+goclaw traces get <trace-id>
+goclaw traces get <trace-id> -o json
+```
+
+### `traces export <trace-id>`
+
+Export cây trace dạng gzip. Nhận đúng một trace ID.
+
+```bash
+goclaw traces export <trace-id>                 # ghi trace-<short>-<YYYYMMDD>.json.gz
+goclaw traces export <trace-id> --file trace.json.gz
+goclaw traces export <trace-id> --file -        # gzip ra stdout
+goclaw traces export <trace-id> -o json         # JSON đã giải nén ra stdout
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--file <path>` | Ghi bản export gzip ra file (dùng `-` cho stdout). Mặc định ghi `trace-<short>-<YYYYMMDD>.json.gz` |
+
+### `traces follow`
+
+Poll thay đổi trace cho một session hoặc agent. **Yêu cầu `--session` HOẶC `--agent-id`.**
+
+```bash
+goclaw traces follow --session <session-key> --since 2026-06-12T01:00:00Z
+goclaw traces follow --agent-id <uuid> --include-spans
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--session <key>` | Lọc theo session key |
+| `--agent-id <uuid>` | Lọc theo UUID agent |
+| `--user <id>` | Lọc theo user ID (người gọi admin) |
+| `--status <status>` | Lọc theo trạng thái trace |
+| `--channel <channel>` | Lọc theo raw channel |
+| `--since <rfc3339>` | Cận dưới RFC3339 cho trace đã thay đổi |
+| `--limit <n>` | Kích thước trang (tối đa 200) |
+| `--include-spans` | Bao gồm span nhóm theo trace ID |
+
+### `traces timeline <trace-id>`
+
+Hiển thị run timeline đã lưu liên kết với một trace. Phân giải `run_id` của trace, rồi truy vấn run archive. Nhận đúng một trace ID.
+
+```bash
+goclaw traces timeline <trace-id>
+goclaw traces timeline <trace-id> --limit 100 --offset 0
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--limit <n>` | Kích thước trang (tối đa 500) |
+| `--offset <n>` | Offset phân trang |
+
+---
+
 ## `cron`
 
 Quản lý scheduled cron job. Cần gateway đang chạy.
@@ -552,6 +666,136 @@ Hiển thị nội dung và metadata cho một skill cụ thể.
 goclaw skills show sequential-thinking
 ```
 
+> Các subcommand dưới đây dựa trên HTTP (cần gateway đang chạy). Tham số `<skill>` chấp nhận skill ID, slug, hoặc name — nó được phân giải theo gateway.
+
+### `skills evolve`
+
+Quản lý cài đặt self-evolution cho từng skill.
+
+```bash
+goclaw skills evolve status <skill>
+goclaw skills evolve enable <skill>
+goclaw skills evolve disable <skill>
+goclaw skills evolve mode <skill> suggest_only
+goclaw skills evolve mode <skill> auto_analyze
+```
+
+| Lệnh | Args | Tác dụng |
+|---------|------|--------|
+| `skills evolve status <skill>` | 1 | Hiển thị cài đặt self-evolution |
+| `skills evolve enable <skill>` | 1 | Bật self-evolution |
+| `skills evolve disable <skill>` | 1 | Tắt self-evolution |
+| `skills evolve mode <skill> <suggest_only\|auto_analyze>` | 2 | Đặt chế độ evolution |
+
+### `skills metrics <skill>`
+
+Hiển thị usage metrics đã ghi của một skill (Total, Started, Succeeded, Failed, Abandoned, Success rate).
+
+```bash
+goclaw skills metrics <skill>
+goclaw skills metrics <skill> --json
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--json` | Output dạng JSON |
+
+### `skills activity <skill>`
+
+Hiển thị hoạt động self-evolution gần đây của một skill (chi tiết giới hạn cho admin).
+
+```bash
+goclaw skills activity <skill>
+goclaw skills activity <skill> --json
+```
+
+| Flag | Mô tả |
+|------|-------|
+| `--json` | Output dạng JSON |
+
+### `skills suggestions`
+
+Quản lý đề xuất cải thiện skill.
+
+```bash
+goclaw skills suggestions list <skill>
+goclaw skills suggestions approve <skill> <suggestion-id>
+goclaw skills suggestions reject <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id>
+goclaw skills suggestions apply <skill> <suggestion-id> --approve
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills suggestions list <skill>` | 1 | Liệt kê đề xuất cho một skill |
+| `skills suggestions approve <skill> <suggestion-id>` | 2 | Phê duyệt một đề xuất |
+| `skills suggestions reject <skill> <suggestion-id>` | 2 | Từ chối một đề xuất |
+| `skills suggestions apply <skill> <suggestion-id>` | 2, `--approve` | Áp dụng đề xuất đã phê duyệt (`--approve` phê duyệt đề xuất đang chờ trước) |
+
+### `skills deps`
+
+Quét, kiểm tra, và cài đặt dependency của skill. Tham số chấp nhận đường dẫn skill cục bộ hoặc gateway skill ID.
+
+```bash
+goclaw skills deps status <skill-id-or-path>
+goclaw skills deps scan <skill-id-or-path>
+goclaw skills deps check <skill-id-or-path>
+goclaw skills deps install <skill-id>
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills deps status <skill-id-or-path>` | 1, `--json` | Hiển thị trạng thái dependency |
+| `skills deps scan <skill-id-or-path>` | 1, `--json` | Quét khai báo dependency |
+| `skills deps check <skill-id-or-path>` | 1, `--json` | Kiểm tra tính khả dụng |
+| `skills deps install <skill-id>` | 1, `--json` | Cài đặt dependency còn thiếu (master tenant) |
+
+### `skills access`
+
+Quản lý chế độ access của skill và access hiệu lực.
+
+```bash
+goclaw skills access get <skill-id>
+goclaw skills access set <skill-id> --mode internal
+goclaw skills access effective <skill-id> --agent <agent-id> --user <user-id>
+goclaw skills access effective --agent <agent-id> --user <user-id>
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills access get <skill-id>` | 1, `--json` | Hiển thị chế độ access và grant |
+| `skills access set <skill-id> --mode <private\|internal\|public>` | 1, `--mode` (bắt buộc), `--json` | Đặt chế độ access |
+| `skills access effective [skill-id] --agent <id> --user <id>` | 0–1, `--agent`+`--user` (bắt buộc), `--json` | Kiểm tra access hiệu lực (theo từng skill khi có ID, ngược lại trên toàn bộ skills) |
+
+### `skills grant`
+
+Cấp quyền access skill cho một agent hoặc user.
+
+```bash
+goclaw skills grant agent <skill-id> <agent-id>
+goclaw skills grant agent <skill-id> <agent-id> --can-manage --pinned-version 3
+goclaw skills grant user <skill-id> <user-id>
+```
+
+| Lệnh | Args / Flags | Tác dụng |
+|---------|--------------|--------|
+| `skills grant agent <skill-id> <agent-id>` | 2, `--can-manage`, `--pinned-version <n>`, `--json` | Cấp một skill cho agent |
+| `skills grant user <skill-id> <user-id>` | 2, `--json` | Cấp một skill cho user |
+
+### `skills revoke`
+
+Thu hồi quyền access skill khỏi một agent hoặc user.
+
+```bash
+goclaw skills revoke agent <skill-id> <agent-id>
+goclaw skills revoke user <skill-id> <user-id>
+```
+
+| Lệnh | Args | Tác dụng |
+|---------|------|--------|
+| `skills revoke agent <skill-id> <agent-id>` | 2 | Thu hồi grant của agent |
+| `skills revoke user <skill-id> <user-id>` | 2 | Thu hồi grant của user |
+
 ---
 
 ## `models`
@@ -728,4 +972,4 @@ goclaw bitrix-portal set-public-url \
 - [REST API](/rest-api) — danh sách HTTP API endpoint
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

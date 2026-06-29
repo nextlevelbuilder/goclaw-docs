@@ -59,6 +59,7 @@ All config keys are in `channels.feishu`:
 | `reaction_level` | string | `"off"` | `off`, `minimal` (⏳ only), `full` |
 | `history_limit` | int | -- | Max messages to load from history |
 | `block_reply` | bool | -- | Block reply-to-message context |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `stt_proxy_url` | string | -- | Speech-to-text proxy URL |
 | `stt_api_key` | string | -- | Speech-to-text API key |
 | `stt_tenant_id` | string | -- | Speech-to-text tenant ID |
@@ -240,4 +241,4 @@ Set `voice_agent_id` to route transcribed voice messages to a specific agent.
 - [Telegram](/channel-telegram) — Telegram bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-15 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

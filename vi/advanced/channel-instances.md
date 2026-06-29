@@ -39,6 +39,9 @@ Các instance có `name` bằng với loại channel (`telegram`, `discord`, `fe
 | `zalo_oa` | Zalo Official Account |
 | `zalo_personal` | Tài khoản Zalo cá nhân |
 | `feishu` | Feishu / Lark bot |
+| `bitrix24` | Bitrix24 portal (Open Channel / chat bot) |
+| `pancake` | Pancake multi-platform proxy (Facebook, Zalo OA, Instagram, TikTok, WhatsApp, Line) |
+| `facebook` | Facebook Fanpage (Messenger + comment) |
 
 ---
 
@@ -76,6 +79,48 @@ Tất cả API response trả về đối tượng instance với credentials đ
 | `config` | object | Config theo từng channel (tùy chọn) |
 | `enabled` | bool | `false` tắt instance mà không xóa |
 | `is_default` | bool | `true` với instance seeded — không thể xóa |
+
+---
+
+## Tham chiếu `config` của instance
+
+Đối tượng `config` chứa các thiết lập riêng theo từng channel. Ngoài các key theo từng channel được tài liệu hóa trên mỗi trang channel, có hai vấn đề xuyên channel đáng được nhắc đến ở đây.
+
+### Ghi đè delivery (`chat_behavior`, `block_reply`)
+
+Channel instance có thể ghi đè hành vi [human-like delivery](/channels-overview#human-like-delivery) ở cấp workspace:
+
+| Key | Kiểu | Ghi chú |
+|---|---|---|
+| `chat_behavior` | object | Ghi đè `gateway.chat_behavior` cho instance này (bỏ trống = kế thừa). Chỉ đặt các trường bạn muốn thay đổi. |
+| `block_reply` | bool | **Legacy.** Được đọc như giá trị mặc định kế thừa cho `intermediate_replies.enabled` khi trường mới chưa được đặt. |
+
+Thứ tự phân giải là **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (cơ sở).
+2. **Agent** — `agents.other_config.delivery_behavior` ghi đè cơ sở workspace.
+3. **Channel** — `config.chat_behavior` của instance có tiếng nói cuối cùng.
+
+Mỗi cấp chỉ ghi đè các trường mà nó đặt, nên bạn có thể tinh chỉnh một thông số cho mỗi channel và kế thừa phần còn lại. Chỉ các channel triển khai interface `ChatBehaviorChannel` mới tôn trọng các ghi đè này (Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, Zalo Personal).
+
+### Passive channel memory (`passive_memory`)
+
+Một instance có thể bật [passive channel memory extraction](/memory-system#passive-channel-memory-extraction) bằng cách thêm khối `passive_memory` vào `config` của nó:
+
+```json
+{
+  "config": {
+    "passive_memory": {
+      "enabled": true,
+      "review_mode": true,
+      "interval_minutes": 360,
+      "min_messages": 5
+    }
+  }
+}
+```
+
+Mặc định tắt, chỉ áp dụng cho group ở v1, và phải qua review. Xem [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction) để biết bảng trường đầy đủ và hành vi.
 
 ---
 
@@ -269,7 +314,7 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 | Vấn đề | Nguyên nhân | Cách khắc phục |
 |---|---|---|
 | `403` khi xóa | Instance là instance mặc định/seeded | Instance mặc định không thể xóa; thay vào đó dùng `enabled: false` để tắt |
-| `400 invalid channel_type` | Lỗi đánh máy hoặc loại không được hỗ trợ | Dùng một trong: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu` |
+| `400 invalid channel_type` | Lỗi đánh máy hoặc loại không được hỗ trợ | Dùng một trong: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu`, `bitrix24`, `pancake`, `facebook` |
 | Tin nhắn không định tuyến đến agent | Instance bị tắt hoặc `agent_id` sai | Kiểm tra `enabled: true` và `agent_id` đúng |
 | Credentials không được lưu | `GOCLAW_ENCRYPTION_KEY` chưa được đặt | Đặt biến môi trường encryption key; credentials yêu cầu key này |
 | Cache cũ sau khi cập nhật | Cache trong bộ nhớ chưa được làm mới | GoClaw phát sự kiện cache-invalidate sau mỗi lần ghi; cache làm mới trong vài giây |
@@ -282,4 +327,4 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 - [Multi-Channel Setup](/recipe-multi-channel)
 - [Multi-Tenancy](/multi-tenancy)
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

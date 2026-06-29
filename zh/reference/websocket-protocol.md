@@ -196,6 +196,46 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `sessions.delete` | `{key}` | 删除会话 |
 | `sessions.reset` | `{key}` | 清空会话历史 |
 | `sessions.compact` | `{key, keepLast?}` | 截断历史保留最后 N 条消息（默认 4）；history < 6 时跳过 |
+| `run.timeline.get` | `{runId?, sessionKey?, limit?, offset?}` | 获取已归档的 run/会话时间线条目（display-safe）|
+
+#### `run.timeline.get`
+
+获取 agent 运行期间记录的 display-safe 时间线条目。传入 `runId` 获取单次运行，或传入 `sessionKey` 获取会话归档面板 — **两者至少需提供一个**。`limit` 默认为 `200`，上限为 `500`；`offset` 用于分页。viewer 角色可读取此方法；非管理员调用方仅能收到 `user_id` 与其已连接用户匹配的条目。
+
+**请求：**
+
+```json
+{
+  "type": "req",
+  "id": "tl-1",
+  "method": "run.timeline.get",
+  "params": { "runId": "run-123", "sessionKey": "agent:demo:direct:user-1", "limit": 100, "offset": 0 }
+}
+```
+
+**响应 payload：**
+
+```json
+{
+  "runId": "run-123",
+  "sessionKey": "agent:demo:direct:user-1",
+  "items": [{
+    "id": "019e...",
+    "run_id": "run-123",
+    "session_key": "agent:demo:direct:user-1",
+    "seq": 1,
+    "item_type": "assistant.message",
+    "status": "completed",
+    "title": "assistant",
+    "preview": "I will check that now.",
+    "created_at": "2026-05-29T10:00:00Z"
+  }],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+时间线的 `item_type` 取值包括 `activity`、`assistant.message`、`tool.call`、`tool.result` 和 `run.status`。Tool 条目仅存储有界的 preview；原始 reasoning/thinking 不会被持久化。
 
 ### 配置
 
@@ -603,4 +643,4 @@ ws.onmessage = (e) => {
 - [CLI 命令](/cli-commands) — 从终端进行配对和会话管理
 - [词汇表](/glossary) — Session、Lane、Compaction 等核心术语
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

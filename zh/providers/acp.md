@@ -137,6 +137,8 @@ sequenceDiagram
 
 session ID 以每进程方式存储在 `ACPProcess.sessionID` 中，并包含在每次提示请求中。这使 ACP agent 能在同一进程生命周期内的多个轮次中维护对话历史和文件状态。
 
+> **运维说明：** ACP `session/update` 的 `tool_call` 和 `tool_call_update` 通知现在以 **Info** 级别记录日志（包含 session ID、tool call ID、工具名称/标题、kind 和 status），以便运维人员在网关日志中观察 ACP agent 的工具活动。
+
 ## 会话串行化
 
 同一会话的并发请求可能损坏文件状态。ACP 通过 `sessionMu` mutex 串行化每个会话的请求：
@@ -236,4 +238,4 @@ type ContentBlock struct {
 - [Claude CLI](/provider-claude-cli)
 - [自定义 / OpenAI 兼容](/provider-custom)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

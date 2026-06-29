@@ -148,9 +148,9 @@ docker compose \
 
 > **数据钩子：** GoClaw 在独立的 `data_migrations` 表中追踪迁移后的 Go 变换。运行 `./goclaw upgrade --status` 可查看 SQL 迁移版本和待执行的数据钩子。
 
-> 迁移 `000045`–`000073` 继续扩展 schema：模型 fallback 配置、REST endpoint catalog、Bitrix24 portal OAuth state（`bitrix_portals`）、服务端浏览器 cookie 同步（`browser_cookies`）、usage-cap 定价与执行表（`usage_pricing_catalog`、`usage_pricing_overrides`、`usage_cap_policies`、`usage_cap_counters`、`usage_cap_reservations`、`usage_cap_events`）、agent-budget 桥接，以及带类型的 secure-CLI 凭证——参见 [Database Schema → Migration History](/database-schema)。
+> 迁移 `000045`–`000080` 继续扩展 schema：模型 fallback 配置、REST endpoint catalog、Bitrix24 portal OAuth state（`bitrix_portals`）、服务端浏览器 cookie 同步（`browser_cookies`）、usage-cap 定价与执行表（`usage_pricing_catalog`、`usage_pricing_overrides`、`usage_cap_policies`、`usage_cap_counters`、`usage_cap_reservations`、`usage_cap_events`）、agent-budget 桥接、带类型的 secure-CLI 凭证、归档 run 时间线（`run_timeline_items`）、按 channel 的 context 能力（限定范围的 MCP/secure-CLI 授权与凭据）、被动 channel 记忆提取、按 agent 的 secure-CLI 凭据、skill self-evolution（`skill_usage_metrics`、`skill_improvement_suggestions`、`skill_versions`），以及 usage event 分析（`usage_events`、`usage_event_rollups`）——参见 [Database Schema → Migration History](/database-schema)。
 
-部署后运行 `./goclaw migrate status` 确认当前 schema 版本为 **73**。
+部署后运行 `./goclaw migrate status` 确认当前 schema 版本为 **80**。
 
 ---
 
@@ -160,7 +160,7 @@ GoClaw v3 支持两种数据库后端：
 
 | 功能 | PostgreSQL | SQLite（桌面版） |
 |------|-----------|-----------------|
-| 完整 schema（73 个迁移） | 是 | 是 |
+| 完整 schema（80 个迁移） | 是 | 是 |
 | 向量相似度搜索（HNSW） | 是——pgvector | 否 |
 | Episodic summaries 向量搜索 | 是 | 仅关键词 FTS |
 | Knowledge Vault 自动链接 | 是——相似度阈值 0.7 | 否（仅摘要） |
@@ -299,4 +299,4 @@ VACUUM ANALYZE traces, spans;
 - [安全加固](/deploy-security) — 数据库中密钥的 AES-256-GCM 加密
 - [可观测性](/deploy-observability) — 查询 LLM 费用监控的 traces 和 spans
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-29 -->

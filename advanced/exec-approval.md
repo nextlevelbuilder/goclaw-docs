@@ -241,6 +241,14 @@ All groups default to `true` (denied). Explicitly set a group to `false` to allo
 
 Deny groups and the exec approval flow operate independently — a command can pass the deny-group check but still be held for human approval based on your `ask` mode setting.
 
+### Live-reload persistence
+
+Global deny-group changes apply immediately without a restart. The reload clones the config snapshot before applying it, so **disables persist correctly** across reload — a group you turned off stays off until you turn it back on. The same reload also refreshes provider-level shell-deny policies (Claude CLI / ACP), not just the global exec tool.
+
+### venv Python exemption
+
+GoClaw blocks shell access to its internal `.goclaw/` data directory. The **GoClaw-managed Python interpreter is exempt**: invoking it by its absolute path (`<home>/.goclaw/venv/bin/python3`) is allowed. GoClaw resolves that path (following symlinks) once at startup and exempts the resolved interpreter directory; if no venv is present it falls back silently. This is the only path under `.goclaw/` an agent's shell commands can reach.
+
 ---
 
 ## Common Issues
@@ -261,4 +269,4 @@ Deny groups and the exec approval flow operate independently — a command can p
 - [Custom Tools](/custom-tools) — define tools backed by shell commands
 - [Security Hardening](/deploy-security) — full five-layer security overview
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->
