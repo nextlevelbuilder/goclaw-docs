@@ -87,6 +87,16 @@ When you try to access an agent, GoClaw checks in this order:
 
 Predefined agents can also be accessible through `channel_instances`. If a predefined agent has an enabled channel instance whose `allow_from` list includes your user ID, you can access that agent even without a direct share or default flag.
 
+## First-Setup-Agent Gateway Operator Access
+
+When you create the **first** agent during `goclaw setup`, the wizard asks:
+
+```
+Grant this first agent local gateway operator access via the goclaw CLI? [default: No]
+```
+
+If you answer **yes**, that agent is granted **revocable SecureCLI access** to run local gateway commands (for example `goclaw agent list`) through the goclaw CLI. The create response carries a `gateway_operator_bootstrap` block with a `status` field and an optional `warning`. The default is **No** — only opt in when you want the first agent to operate the gateway itself. Because the access is granted as a SecureCLI grant, you can revoke it later like any other grant.
+
 ## Sharing an Agent via HTTP API
 
 Use `POST /v1/agents/:id/shares` to share an agent. Only the owner (or a gateway owner-level user) can share.
@@ -233,8 +243,9 @@ The cache is invalidated via pubsub events:
 
 ## What's Next
 
+- [Permission Matrix — agent-config permissions, group/channel scopes, and the full authorization-layer table](/permission-matrix)
 - [User Overrides — Let users customize LLM provider/model per-agent](/user-overrides)
 - [System Prompt Anatomy — How permissions affect system prompt sections](/system-prompt-anatomy)
 - [Creating Agents — Create an agent and immediately share it](/creating-agents)
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

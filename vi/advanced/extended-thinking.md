@@ -8,7 +8,7 @@
 
 Extended thinking cho phép LLM được hỗ trợ suy luận qua một vấn đề trước khi tạo ra câu trả lời cuối cùng. Model tạo ra các token suy luận nội bộ không phải là một phần của phản hồi hiển thị nhưng cải thiện chất lượng phân tích phức tạp, lập kế hoạch nhiều bước, và ra quyết định.
 
-GoClaw hỗ trợ extended thinking trên bốn họ provider — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), và Codex (Alibaba AI Reasoning) — thông qua một cài đặt `thinking_level` thống nhất mỗi agent.
+GoClaw hỗ trợ extended thinking trên bốn họ provider — Anthropic, OpenAI-compatible, DashScope (Alibaba Qwen), và Codex (OpenAI ChatGPT OAuth, Responses API) — thông qua một cài đặt `thinking_level` thống nhất mỗi agent.
 
 ---
 
@@ -61,6 +61,8 @@ Khi thinking hoạt động, GoClaw:
 - **Xóa tham số `temperature`** — Anthropic từ chối request thinking kèm temperature
 - Tự động điều chỉnh `max_tokens` thành `budget_tokens + 8,192` để phù hợp với overhead thinking
 
+> **Tham số sampling trên Claude 4.6+:** Với Claude Opus/Sonnet 4.6+ và Opus 4.7+, GoClaw loại bỏ `temperature` (và `top_p`/`top_k`) khỏi **mọi** request — độc lập với thinking. Các model này trả về `HTTP 400` nếu có tham số sampling. Điều này rộng hơn việc chỉ xóa khi thinking ở trên. Xem trang [provider Anthropic](/provider-anthropic).
+
 ### OpenAI-Compatible (OpenAI, Groq, DeepSeek, v.v.)
 
 Ánh xạ `thinking_level` trực tiếp sang `reasoning_effort`:
@@ -70,6 +72,10 @@ Khi thinking hoạt động, GoClaw:
 - `high` → `reasoning_effort: "high"`
 
 Nội dung suy luận đến trong `reasoning_content` trong quá trình streaming và không yêu cầu xử lý passback đặc biệt giữa các turn.
+
+> **Kimi Coding (`kimi_coding`):** Kimi tương thích OpenAI nhưng có **thinking phía máy chủ bật mặc định** cho `kimi-k2-turbo-preview`. Do đó, các assistant message chứa tool call khi replay trong history **bắt buộc phải mang** trường `reasoning_content` — GoClaw tự phát ra một chuỗi rỗng khi không có giá trị nào được ghi lại, nếu không upstream trả về `HTTP 400`. Xem trang [Kimi Coding](/provider-kimi).
+
+> **Bailian Coding (`bailian`):** Bailian là một endpoint Coding tương thích OpenAI tách biệt. Catalog cố định của nó bao gồm `qwen3.7-plus` (quảng bá có Deep Thinking và Hiểu hình ảnh), nhưng đường tiêm `enable_thinking`/`thinking_budget` của DashScope mô tả bên dưới **không** áp dụng cho Bailian — nó được xử lý như một provider tương thích OpenAI thuần túy. Xem [Bailian](/provider-bailian).
 
 ### DashScope (Alibaba Qwen)
 
@@ -111,6 +117,8 @@ flowchart TD
 | Codex | `OutputTokensDetails.ReasoningTokens` được theo dõi | Content tiêu chuẩn |
 
 Token thinking được ước tính là `character_count / 4` để theo dõi context window.
+
+> **Phân phối qua channel tách biệt với streaming của provider.** Việc một provider có stream reasoning hay không là một quyết định; việc một channel chat (ví dụ Telegram) có hiển thị reasoning đó cho người dùng cuối hay không là quyết định khác. Telegram cung cấp cài đặt `reasoning_delivery` cho việc này — xem tài liệu channel để biết các chế độ.
 
 ---
 
@@ -206,4 +214,4 @@ Cài đặt này đặt `budget_tokens: 32,000`. Dùng cho các tác vụ yêu c
 - [Agents Overview](/agents-explained) — tài liệu tham khảo cấu hình mỗi agent
 - [Hooks & Quality Gates](/hooks-quality-gates) — validate đầu ra agent sau khi suy luận
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

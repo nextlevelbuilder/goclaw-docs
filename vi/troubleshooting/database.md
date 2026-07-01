@@ -6,7 +6,7 @@
 
 ## Tổng quan
 
-GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` và `pgcrypto`. Kết nối database được cấu hình duy nhất qua `GOCLAW_POSTGRES_DSN` (không bao giờ lưu trong `config.json`). Migration được quản lý bởi `golang-migrate` và chạy qua `./goclaw migrate up`. Phiên bản schema hiện tại: **44**.
+GoClaw yêu cầu PostgreSQL 15+ với extension `pgvector` và `pgcrypto`. Kết nối database được cấu hình duy nhất qua `GOCLAW_POSTGRES_DSN` (không bao giờ lưu trong `config.json`). Migration được quản lý bởi `golang-migrate` và chạy qua `./goclaw migrate up`. Phiên bản schema hiện tại: **80**.
 
 ## Lỗi Kết Nối
 
@@ -176,6 +176,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## Lỗi migration v3 (037–044)
 
+> Schema hiện đã mở rộng tới **080**. Các bước khắc phục bên dưới bao quát loạt v3 (037–044), vốn là các migration dễ lỗi nhất khi nâng cấp từ những bản v3 cũ; các migration sau (045–080) chỉ bổ sung và hiếm khi cần can thiệp thủ công. Xem [Database Schema → Migration History](/database-schema) để biết danh sách đầy đủ.
+
 Migrations 037–044 là loạt migration v3. Nếu gặp lỗi:
 
 | Migration | Lỗi thường gặp | Cách xử lý |
@@ -226,4 +228,4 @@ Migration `000057_heartbeat_provider_fk_set_null` xóa foreign key `RESTRICT` hi
 - [Vấn đề provider](/troubleshoot-providers)
 - [Vấn đề channel](/troubleshoot-channels)
 
-<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-29 -->

@@ -6,6 +6,8 @@
 
 GoClaw uses a **5-layer permission system**. API keys and roles sit at layer 1 — gateway authentication. When a request arrives, GoClaw checks the `Authorization: Bearer <token>` header, resolves the token to a role, and enforces that role against the method being called.
 
+> API keys and tenant RBAC are only the first layer. Agent-config permissions, group/channel scopes, and channel-context credentials are documented in the [Permission Matrix](/permission-matrix).
+
 Three roles exist:
 
 | Role | Level | Description |
@@ -254,9 +256,10 @@ When a key is created or revoked, a `cache.invalidate` event is broadcast on the
 
 ## What's Next
 
+- [Permission Matrix](/permission-matrix) — agent-config permissions, group/channel scopes, and the full authorization-layer table
 - [Authentication & OAuth](/authentication) — gateway token and OAuth flow
 - [Exec Approval](/exec-approval) — require `operator.approvals` scope
 - [Security Hardening](/deploy-security) — full 5-layer permission overview
 - [CLI Credentials](./cli-credentials.md) — SecureCLI: inject credentials into CLI tools (gh, aws, gcloud) without exposing secrets to the agent
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

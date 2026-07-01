@@ -177,6 +177,10 @@ The check runs on the **fully rendered command** after all `{{.param}}` substitu
 }
 ```
 
+## Execution Ordering
+
+When an agent emits several tool calls in one turn, only registered **read-only** built-in tools run in bounded parallel. Custom (shell-backed) tools are not registered as read-only, so they always execute **sequentially** — and any batch that mixes a custom tool with other calls runs entirely sequentially. This keeps shell-backed side effects predictable and ordered; it is not a setting you configure.
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -252,4 +256,4 @@ Returns all documents that link to the specified path. Respects team boundaries 
 - [Exec Approval](/exec-approval) — require human approval before commands run
 - [Sandbox](/sandbox) — run commands inside Docker for extra isolation
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

@@ -122,7 +122,7 @@ flowchart TD
 
 ### 全局 shell deny-groups — 运行时切换
 
-`config.tools.shellDenyGroups` 是一个 `map[string]bool`，允许在不重启 gateway 的情况下全局启用或禁用 deny-group。更改通过 `bus.TopicConfigChanged` 实时生效（runtime-reloadable）。
+`config.tools.shellDenyGroups` 是一个 `map[string]bool`，允许在不重启 gateway 的情况下全局启用或禁用 deny-group。更改通过 `bus.TopicConfigChanged` 实时生效（runtime-reloadable）。重载会在应用前克隆配置快照，因此组的*禁用*在重载后正确保留，并且它还会重载 provider 级 shell-deny 策略（Claude CLI / ACP），而不仅是全局 exec 工具。
 
 ```json
 {
@@ -144,6 +144,8 @@ flowchart TD
 `resolvePath()` 依次应用 `filepath.Clean()` 和 `HasPrefix()`，确保所有文件路径保持在 agent 工作区内。启用 `restrict_to_workspace: true`（agent 默认值）时，工作区外的任何路径均被阻止。
 
 四个文件系统工具（`read_file`、`write_file`、`list_files`、`edit`）均实现 `PathDenyable` 接口。Agent loop 启动时调用 `DenyPaths(".goclaw")`——agent 无法读取 GoClaw 内部数据目录。`list_files` 工具从目录列表中完全过滤掉被拒绝的路径，agent 看不到它们。
+
+**venv 解释器豁免。** GoClaw 托管的 Python 解释器从 `.goclaw/` 拒绝中豁免，以便 agent 可直接运行它。GoClaw 在启动时解析 `<home>/.goclaw/venv/bin/python3`（跟随符号链接）一次，并豁免*已解析*的解释器目录；若不存在 venv 则静默回退。这是 exec 在 `.goclaw/` 下唯一能触及的路径。
 
 ### 文件服务路径遍历保护
 
@@ -432,7 +434,7 @@ GOCLAW_ENCRYPTION_KEY=your-44-char-base64-key
 
 > **集群中必须保持一致。** 集群部署时，每个 gateway 实例必须使用相同的 `GOCLAW_ENCRYPTION_KEY`。轮换密钥需要在重启前重新加密所有已存储的密钥。
 
-credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries`、`secure_cli_agent_grants` 和 `secure_cli_user_credentials` 都将 secret 存储在 `encrypted_env` 列中。每个条目携带一个可见性 `kind`——`sensitive` 条目在正常 API/UI response 中被屏蔽，仅通过已审计的 `env:reveal` 流程返回；`value` 条目（例如 region 或 profile 名）会返回给 admin 用于运营审查。
+credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries`、`secure_cli_agent_grants`、`secure_cli_user_credentials` 和 `secure_cli_agent_credentials` 都将 secret 存储在 `encrypted_env` 列中。每个条目携带一个可见性 `kind`——`sensitive` 条目在正常 API/UI response 中被屏蔽，仅通过已审计的 `env:reveal` 流程返回；`value` 条目（例如 region 或 profile 名）会返回给 admin 用于运营审查。
 
 ---
 
@@ -447,6 +449,12 @@ credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries
 
 适配器名称拼写错误会回退到 passthrough（旧版 denylist-only 行为）——**没有静默 bypass**。
 
+### 凭据生效优先级
+
+当适配器决定注入哪个凭据时，它按以下顺序选择**第一个**匹配项：**用户覆盖 → channel/context 凭据 → agent 凭据 → binary 级 env 默认值**。Agent 凭据（`secure_cli_agent_credentials`）是 git 的默认信任边界；存在用户覆盖或 channel/context 凭据时优先。审计字段 `credential_source` 记录所使用的层。
+
+对于 PAT 路径，适配器会合成一个 `http.<remote>.extraheader` 配置项，值为 `Authorization: Basic base64("x-access-token:<token>")`。原始 token、base64 payload 和完整 header 都已注册到 scrubber。SSH 私钥在保存时会**两次**校验——先用 Go 的 SSH 解析器，再在可用时用 OpenSSH（`ssh-keygen -y -f`）——因此那些日后会因 OpenSSH 诊断而失败的密钥会被提前拒绝。
+
 ### 审计事件：`security.system_env_injection`
 
 每次适配器注入都发出**恰好一行**结构化 `slog.Warn`。明文 hostname **从不记录**——使审计日志在受监管租户内保持 PII 安全。
@@ -460,6 +468,7 @@ credentialed-CLI 的 env var 同样经 AES-256-GCM 加密：`secure_cli_binaries
 | `env_keys` | 已排序的 env var **名称**——绝不含值 |
 | `argv_prefix_len` | 前置的 argv 元素数量，而非其内容 |
 | `host_scope_hash` | `SHA-256(规范化 host_scope)` 的前 8 个十六进制字符，或 `"none"` |
+| `credential_source` | 哪个优先级层提供了凭据：`user`、`context`、`agent`，或在未选择任何按范围划分的凭据行时为空 |
 
 v1 **无专用审计表**——该行通过 `slog` 路由到 stderr → systemd/journald 或 Docker logs。要 grep 针对特定 host 的活动，预先计算其 hash：
 
@@ -673,4 +682,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Webhooks](../advanced/webhooks.md) — HMAC 认证 HTTP 端点、签名验证和重放保护
 - [Workstations](../advanced/workstations.md) — 远程执行目标、权限模型和活动审计
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

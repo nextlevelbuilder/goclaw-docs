@@ -255,7 +255,7 @@ The sections above describe the **legacy env-paste model** — you paste arbitra
 
 ### Credential types
 
-A user credential row carries a `credential_type` (migration `000073`):
+A typed credential row carries a `credential_type`:
 
 | `credential_type` | Meaning |
 |-------------------|---------|
@@ -265,14 +265,81 @@ A user credential row carries a `credential_type` (migration `000073`):
 
 `NULL`/`env` rows are never migrated — existing legacy credentials keep working unchanged. Typed adapters are opt-in per credential.
 
-### User credentials vs binary/system credentials
+### Agent credentials (default git path)
 
-Typed adapters operate on **user credentials**, not the binary-level env defaults:
+Agent credentials are the **default** path for git auth. They avoid channel-user ID ambiguity: the selected agent owns the credential, and anyone allowed to use that agent can cause it to run git with the stored credential.
 
-- **Binary/system credentials** — the binary definition + its default env vars (and agent-grant overrides) described above. Shared across the binary's grants.
-- **User credentials** — per-user typed secrets stored in `secure_cli_user_credentials`, scoped to a single hostname.
+Agent credentials live in the `secure_cli_agent_credentials` table (migration `000077`), which stores the typed secret material **separately** from the `secure_cli_agent_grants` policy row. There is one credential per `(agent, binary)`.
 
-Manage user credentials in the dashboard under **Settings → CLI Credentials → User Credentials**. Click **Add**, select the user, choose the credential type (`Personal Access Token` or `SSH Private Key`), enter the **Host Scope**, and paste the secret. The stored secret is AES-256-GCM encrypted and can never be read back — editing the row shows a `••••••••` placeholder; leaving the secret field blank preserves the stored value, typing a new value replaces it.
+**Add an agent credential (UI):**
+
+1. Open **Packages → CLI Credentials**.
+2. Pick the `git` row and open **Agent Access**.
+3. On the **Credential** tab, select the agent.
+4. Choose **Credential Type**: `Personal Access Token` or `SSH Private Key`.
+5. Enter the **Host Scope** (required for PAT/SSH): the hostname the credential authenticates to (e.g. `github.com`, `gitlab.example.com`, `gitea.internal:8443`).
+6. Paste the token (PAT) or the unencrypted PEM body (SSH).
+7. Save.
+
+The **Agent Access** dialog has two tabs:
+
+- **Credential** — pick the agent, credential type, host scope, and secret (above).
+- **Access policy** — change deny args, timeout, tips, or env overrides for that agent (the `secure_cli_agent_grants` row).
+
+Policy and secret storage stay separate internally, but you manage them as one access decision in this single dialog. The stored secret is AES-256-GCM encrypted and can never be read back — editing the row shows a `••••••••` placeholder.
+
+### Effective credential precedence
+
+When git runs, GoClaw resolves which typed credential to inject in this order — the **first** match wins:
+
+1. **User override** — a per-user typed credential (Advanced user overrides, below).
+2. **Channel/context credential** — a credential scoped to the channel or group context the run originated from.
+3. **Agent credential** — the agent's own `secure_cli_agent_credentials` row. This is the default trust boundary.
+4. **Binary-level env defaults** — the legacy passthrough env on the binary definition.
+
+Granting an agent access to git effectively grants use of its stored git credential, so the agent credential is the default boundary unless a higher layer (user override or channel/context credential) is present.
+
+### Advanced user overrides
+
+Per-user credentials remain available for personal overrides and backward compatibility. Use them only when a stable tenant user ID is the intended credential boundary — they sit **above** agent credentials in the precedence order.
+
+Manage them in the dashboard under **Packages → CLI Credentials → Advanced User Overrides → Add**: select the user, choose the credential type (`Personal Access Token` or `SSH Private Key`), enter the **Host Scope**, and paste the secret. The stored secret is AES-256-GCM encrypted and can never be read back — leaving the secret field blank on edit preserves the stored value, typing a new value replaces it.
+
+These rows live in the `secure_cli_user_credentials` table.
+
+### Agent credentials REST API
+
+The agent-credentials endpoints manage the typed secret for one `(binary, agent)` pair. They require the `admin` role.
+
+#### List agent credentials for a binary
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials
+```
+
+Returns the agents that have a stored credential for this binary, with metadata only (credential type, host scope, key presence) — never the secret.
+
+#### Get one agent's credential
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+#### Set (create or replace) an agent's credential
+
+```
+PUT /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Send `credential_type`, `host_scope`, and the secret (`env_vars` for `env`, or the typed PAT/SSH key body). The secret is encrypted at rest and never returned.
+
+#### Delete an agent's credential
+
+```
+DELETE /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Removes the stored secret. The agent's `secure_cli_agent_grants` policy row (deny args, timeout, etc.) is unaffected — delete the grant separately to revoke access.
 
 ### The git adapter
 
@@ -289,10 +356,12 @@ Any other subcommand (`status`, `log`, `diff`, `commit`, `branch`, …) is a loc
 ```
 GIT_CONFIG_COUNT=1
 GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
-GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+GIT_CONFIG_VALUE_0=Authorization: Basic base64("x-access-token:<token>")
 ```
 
-Because the token lives in an env value (not a command-line flag), it never appears in `ps`, `/proc/<pid>/cmdline`, or shell history. The injected vars are scoped to the spawned `git` process only — GoClaw's own environment and sibling exec calls never see them.
+The header value is HTTP Basic auth: the literal username `x-access-token` and your token joined by a colon, base64-encoded. Because the token lives in an env value (not a command-line flag), it never appears in `ps`, `/proc/<pid>/cmdline`, or shell history. The injected vars are scoped to the spawned `git` process only — GoClaw's own environment and sibling exec calls never see them.
+
+The raw token, the base64 payload, **and** the full `Authorization: Basic …` header are all registered with the output scrubber, so none of the three can leak back to the agent through stdout, stderr, error messages, or the audit log.
 
 **SSH flow.** The PEM key is written to a `0600`-mode tmpfile in the system temp dir (prefix `goclaw-gitkey-*`), and `GIT_SSH_COMMAND` is set to:
 
@@ -300,7 +369,7 @@ Because the token lives in an env value (not a command-line flag), it never appe
 ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
 ```
 
-`StrictHostKeyChecking=accept-new` accepts unknown host keys on **first contact (TOFU)**. Pre-seed `~/.ssh/known_hosts` to close the window (see [Security Hardening](/deploy-security)). The tmpfile is removed after exec via a deferred cleanup. **Passphrase-protected SSH keys are rejected at save time** — re-export your key without a passphrase, or use a dedicated deploy key.
+`BatchMode=yes` means SSH never prompts and fails fast in the agent context. `StrictHostKeyChecking=accept-new` accepts unknown host keys on **first contact (TOFU)**. Pre-seed `~/.ssh/known_hosts` to close the window (see [Security Hardening](/deploy-security)). The tmpfile is removed after exec via a deferred cleanup. **SSH private keys are validated twice at save time** — first with Go's SSH parser, then with OpenSSH (`ssh-keygen -y -f <tmpfile>`) when `ssh-keygen` is available — to catch keys that would save but later fail with OpenSSH diagnostics. **Passphrase-protected SSH keys are rejected at save time** — re-export your key without a passphrase, or use a dedicated deploy key.
 
 ### Host scope
 
@@ -310,7 +379,7 @@ Both `pat` and `ssh_key` require a **`host_scope`** — the exact ASCII `host` o
 |---------------------|:---:|:---:|:---:|
 | `github.com` | ✓ | ✗ | ✗ |
 
-If you run a self-hosted server on the scheme's default port (443 HTTPS, 22 SSH), omit the port; if on a non-default port, include it (e.g. `gitea.internal:8443`). When no stored credential matches the resolved remote host, the adapter falls through to the uncredentialed path and the remote rejects the operation if it requires auth.
+If you run a self-hosted server on the scheme's default port (443 HTTPS, 22 SSH), omit the port; if on a non-default port, include it (e.g. `gitea.internal:8443`). When no typed PAT/SSH credential is selected, or the selected credential cannot match the resolved remote host, **adapter-managed remote git commands fail closed with a GoClaw diagnostic**. `git` is **not** allowed to fall through to an interactive username/password prompt in agent runtime.
 
 ### Env visibility: sensitive vs non-sensitive
 
@@ -325,10 +394,11 @@ This lets operators see non-secret context (e.g. `AWS_DEFAULT_REGION=us-west-2`)
 
 ### Migrating from legacy env credentials
 
-There is no forced migration. A row with `credential_type IS NULL` or `= 'env'` keeps emitting its env vars exactly as before. To upgrade a git credential, open the user-credentials dialog, pick **Personal Access Token** or **SSH Private Key**, enter the host scope, paste the secret, and save — the legacy row is replaced atomically.
+There is no forced migration. A row with `credential_type IS NULL` or `= 'env'` keeps emitting its env vars exactly as before. To upgrade a git credential, create a matching **Agent Credential** (or, if a stable user ID is the intended boundary, an Advanced user override), enter the host scope, paste the secret, and save. Existing user overrides remain higher precedence than agent credentials, so you can migrate gradually and remove the user override when it is no longer needed.
 
 ### v1 limitations
 
+- **One credential per `(agent, binary)` row**, plus a legacy one credential per `(user, binary)` override.
 - **No wildcard hosts** — one credential per exact `host[:port]`; `*.github.com` is not supported.
 - **No passphrase-protected SSH keys** — rejected at validation time.
 - **No sandbox propagation** — the adapter mutates the forked child's environment, which is incompatible with the bind-mount Docker sandbox path. Credentialed exec runs on the host only in v1.
@@ -390,12 +460,14 @@ Update the grant: `{"enabled": false}`. The binary remains accessible to other a
 | Agent cannot run a binary | Check `is_global` on the binary — if `false`, the agent needs an explicit grant |
 | Grant overrides not applied | Verify the grant `enabled = true` and that override fields are non-null |
 | `403` on grant endpoints | Requires admin role — check API key scopes |
+| `git clone`/`push` fails with no credential | No typed credential matched the remote host — git fails closed (no prompt). Add an Agent Credential with the exact `host_scope`. |
 
 ## What's Next
 
+- [Permission Matrix](/permission-matrix) — full authorization layers, channel/group scopes, and channel-context credentials
 - [Database Schema → secure_cli_agent_grants](/database-schema)
 - [Exec Approval](/exec-approval)
 - [API Keys & RBAC](/api-keys-rbac)
 - [Security Hardening](/deploy-security)
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

@@ -55,6 +55,7 @@ Tất cả config key nằm trong `channels.zalo_personal`:
 | `group_policy` | string | `"allowlist"` | `open`, `allowlist`, `disabled` (mặc định hạn chế) |
 | `require_mention` | bool | true | Yêu cầu mention bot trong nhóm |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Tính năng
 
@@ -127,4 +128,4 @@ Khi kết nối thất bại:
 - [Telegram](/channel-telegram) — Thiết lập Telegram bot
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

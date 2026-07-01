@@ -28,6 +28,7 @@ Telegram dùng **long polling** — không cần webhook URL public.
 | Menu command không đồng bộ | `setMyCommands` bị rate limit | Tự retry; restart gateway sau vài giây |
 | Proxy không kết nối | Proxy URL không hợp lệ | Dùng định dạng `http://user:pass@host:port` trong field config `proxy` |
 | Bảng trông lạ | HTML Telegram không hỗ trợ bảng | Bình thường — GoClaw render bảng dạng ASCII trong block `<pre>` |
+| Reasoning bubble không bao giờ xuất hiện | `reasoning_delivery` chưa đặt/`off`, hoặc streaming tắt | Đặt `reasoning_delivery: "always_bubbles"` để hiển thị reasoning dưới dạng tin nhắn bubble ngay cả khi `dm_stream`/`group_stream` tắt |
 
 **Env var bắt buộc:** `GOCLAW_TELEGRAM_TOKEN`
 
@@ -113,6 +114,26 @@ Xác thực qua GoClaw UI (Channels > WhatsApp > Re-authenticate).
 
 ---
 
+## Bitrix24
+
+| Vấn đề | Nguyên nhân | Cách xử lý |
+|--------|-------------|------------|
+| Domain self-hosted bị từ chối | Validation an toàn SSRF | FQDN của portal phải phân giải về một IP public. Các dải IP loopback/private/metadata và tên `localhost` / `.local` / `.localhost` bị chặn; port bất kỳ phải nằm trong khoảng 1–65535. Domain cloud `*.bitrix24.*` bỏ qua kiểm tra này. |
+
+---
+
+## Human-like Delivery & Passive Memory
+
+Các tính năng này **mặc định tắt**. Nếu bạn mong đợi chúng nhưng không thấy gì, hãy kiểm tra config.
+
+| Vấn đề | Nguyên nhân | Cách xử lý |
+|--------|-------------|------------|
+| Quick-ack / progress reply không xuất hiện | `gateway.chat_behavior` đang tắt (mặc định) | Bật `chat_behavior` (và các khối con `quick_ack` / `intermediate_replies`); xác minh `provider`/`model` của sidecar phân giải được. Xem [Human-like Delivery](/channels-overview#human-like-delivery). |
+| Hành vi khác nhau theo channel | Phân giải override | Thứ tự là **Channel > Agent > Workspace** — `chat_behavior` cấp channel thắng so với cơ sở agent và workspace. |
+| Passive channel memory không trích xuất | `passive_memory.enabled` tắt, không phải group, hoặc chưa đạt `min_messages` | Bật `passive_memory`; lưu ý chỉ áp dụng cho group ở v1. Xem [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction). |
+
+---
+
 ## Trạng Thái Channel Health
 
 GoClaw v3 theo dõi trạng thái runtime của từng channel. Dashboard và RPC `channels.status` phản ánh các trạng thái sau:
@@ -134,4 +155,4 @@ Khi channel vào trạng thái `failed`, dashboard hiển thị gợi ý khắc 
 - [Vấn đề database](/troubleshoot-database)
 - [Các vấn đề thường gặp](/troubleshoot-common)
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

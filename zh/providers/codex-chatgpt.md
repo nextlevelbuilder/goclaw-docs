@@ -195,6 +195,14 @@ GET /v1/agents/{id}/codex-pool-activity
 
 ---
 
+## 安全错误回退
+
+当上游 Responses API 因安全原因拒绝请求时——响应中包含诸如 *"limited access to this content for safety reasons"* 或 *"invalid prompt … safety"* 之类的措辞——GoClaw 会将该错误归类为**可回退**，而非硬性失败。GoClaw 不会将该拒绝作为致命错误抛出，而是触发其模型回退链，在下一个已配置的模型上重试请求。当某个特定模型拒绝了另一个模型可能接受的提示时，这能让 agent 保持响应能力。
+
+该回退会被记录为一条 model-fallback 观测记录，因此你可以在追踪中看到尝试了哪个模型以及它为何被跳过。
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方案 |
@@ -210,4 +218,4 @@ GET /v1/agents/{id}/codex-pool-activity
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
 - [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
 
-<!-- goclaw-source: 392f0fda | 更新: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

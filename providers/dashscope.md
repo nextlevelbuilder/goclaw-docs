@@ -8,6 +8,8 @@ DashScope is Alibaba's model serving platform, offering the Qwen family of model
 
 DashScope also supports extended thinking via `thinking_level`, which GoClaw maps to DashScope-specific `enable_thinking` and `thinking_budget` parameters.
 
+> **Note:** `dashscope` is a different provider type from `bailian`. Alibaba Cloud's Bailian Coding endpoint (`https://coding-intl.dashscope.aliyuncs.com/v1`, default `qwen3.5-plus`) is a separate OpenAI-compatible provider with a hardcoded catalog and **no** thinking injection. If you need the Coding endpoint or models like `qwen3.7-plus`, see [Bailian](/provider-bailian).
+
 ## Setup
 
 Add your DashScope API key to `config.json`:
@@ -126,5 +128,6 @@ GoClaw maps `thinking_level` to DashScope's `thinking_budget`:
 
 - [Claude CLI](/provider-claude-cli) — unique provider that shells out to the Claude Code CLI binary
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API
+- [Bailian](/provider-bailian) — Alibaba Cloud Bailian Coding endpoint (separate from DashScope)
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

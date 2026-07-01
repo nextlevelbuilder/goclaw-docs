@@ -46,7 +46,8 @@
 - [Perplexity](vi/providers/perplexity.md): Kết nối GoClaw với các model AI tìm kiếm web của Perplexity qua OpenAI-compatible API.
 - [DashScope (Qwen)](vi/providers/dashscope.md): Kết nối GoClaw với các model Qwen của Alibaba qua DashScope OpenAI-compatible API.
 - [Vertex AI (Google Cloud)](vi/providers/vertex.md): Dùng endpoint OpenAI-compatible của Google Cloud Vertex AI cho Gemini, xác thực bằng OAuth2 service account hoặc Application Default Credentials.
-- [Bailian](vi/providers/bailian.md): Kết nối với Alibaba Cloud Bailian (百炼).
+- [Bailian](vi/providers/bailian.md): Kết nối với các model Bailian (百炼) Coding của Alibaba Cloud qua endpoint tương thích OpenAI.
+- [Kimi Coding (Moonshot)](vi/providers/kimi.md): Kết nối GoClaw với các model Kimi Coding của Moonshot qua endpoint Coding tương thích OpenAI.
 - [Suno](vi/providers/suno.md): Tạo nhạc và âm thanh với nền tảng tạo nhạc AI của Suno.
 - [Zai](vi/providers/zai.md): Kết nối với Zai và Zai Coding provider (tương thích OpenAI).
 - [YesScale](vi/providers/yescale.md): Chạy các mô hình AI ở quy mô lớn với nền tảng AI đám mây YesScale.
@@ -96,6 +97,7 @@
 - [Hooks & Quality Gates](vi/advanced/hooks-quality-gates.md): Chặn, quan sát hoặc inject hành vi tại các điểm xác định trong vòng lặp agent — chặn tool call không an toàn, tự động audit sau khi ghi, inject context session, hoặc thông báo khi dừng.
 - [Authentication & OAuth](vi/advanced/authentication.md): Kết nối GoClaw với ChatGPT qua OAuth — không cần API key, dùng tài khoản OpenAI hiện có của bạn.
 - [API Keys & RBAC](vi/advanced/api-keys-rbac.md): Quản lý API key với phân quyền theo vai trò cho các triển khai đa người dùng và truy cập lập trình.
+- [Agent Permission Matrix](vi/advanced/permission-matrix.md): Toàn bộ các lớp phân quyền quyết định một agent được làm gì trên các channel, group, và workspace — và cách các lớp đó kết hợp với nhau.
 - [CLI Credentials](vi/advanced/cli-credentials.md): Lưu trữ và quản lý bộ thông tin xác thực có tên cho thực thi lệnh shell, với kiểm soát truy cập per-agent qua grants.
 - [Exec Approval](vi/advanced/exec-approval.md): Tạm dừng lệnh shell của agent để con người xem xét trước khi chạy — cho phép, từ chối, hoặc luôn cho phép từ dashboard.
 - [Context Pruning](vi/advanced/context-pruning.md): Tự động cắt tỉa kết quả tool cũ để giữ context agent trong giới hạn token.

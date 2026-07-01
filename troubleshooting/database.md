@@ -4,7 +4,7 @@
 
 ## Overview
 
-GoClaw requires PostgreSQL 15+ with the `pgvector` and `pgcrypto` extensions. The database connection is configured exclusively via `GOCLAW_POSTGRES_DSN` (never stored in `config.json`). Migrations are managed with `golang-migrate` and run via `./goclaw migrate up`. Current schema version: **44**.
+GoClaw requires PostgreSQL 15+ with the `pgvector` and `pgcrypto` extensions. The database connection is configured exclusively via `GOCLAW_POSTGRES_DSN` (never stored in `config.json`). Migrations are managed with `golang-migrate` and run via `./goclaw migrate up`. Current schema version: **80**.
 
 ## Connection Failures
 
@@ -174,6 +174,8 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 
 ## v3 Migration Failures (037–044)
 
+> The schema now extends through **080**. The recovery steps below cover the v3 batch (037–044), which are the migrations most prone to failure on upgrades from older v3 installs; later migrations (045–080) are additive and rarely need manual intervention. See [Database Schema → Migration History](/database-schema) for the full list.
+
 Migrations 037–044 are the v3 batch. If any fails:
 
 | Migration | Common failure | Fix |
@@ -224,4 +226,4 @@ Migration `000057_heartbeat_provider_fk_set_null` drops the existing `RESTRICT` 
 - [Provider issues](/troubleshoot-providers)
 - [Channel issues](/troubleshoot-channels)
 
-<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

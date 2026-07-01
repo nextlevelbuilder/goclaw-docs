@@ -8,6 +8,8 @@
 
 GoClaw 使用 **5 层权限系统**。API key 和角色位于第 1 层 — 网关认证层。请求到达时，GoClaw 检查 `Authorization: Bearer <token>` 请求头，将 token 解析为角色，并对调用的方法执行该角色的权限检查。
 
+> API key 和租户 RBAC 只是第一层。Agent 配置权限、group/channel 范围以及 channel-context 凭据记录在[权限矩阵](/permission-matrix)中。
+
 存在三种角色：
 
 | 角色 | 级别 | 描述 |
@@ -256,9 +258,10 @@ key 创建或撤销时，`cache.invalidate` 事件在内部消息总线上广播
 
 ## 下一步
 
+- [权限矩阵](/permission-matrix) — agent 配置权限、group/channel 范围以及完整的权限层级表
 - [身份认证与 OAuth](/authentication) — 网关 token 和 OAuth 流程
 - [Exec 审批](/exec-approval) — 需要 `operator.approvals` scope
 - [安全加固](/deploy-security) — 完整的 5 层权限概览
 - [CLI 凭据](./cli-credentials.md) — SecureCLI：向 CLI 工具注入凭据，不向 agent 暴露密钥
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

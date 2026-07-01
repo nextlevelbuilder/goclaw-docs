@@ -106,7 +106,7 @@ goclaw cron delete <jobId>
 | `schedule.tz` | string | Múi giờ IANA — áp dụng cho **tất cả** loại schedule (`at`, `every`, `cron`), không chỉ biểu thức cron. Bỏ trống để dùng múi giờ mặc định của gateway |
 | `message` | string | Văn bản agent nhận làm đầu vào |
 | `stateless` | bool | Chạy không cần session history — tiết kiệm token cho các tác vụ định kỳ đơn giản. Mặc định `false` |
-| `deliver` | bool | `true` = giao kết quả đến channel; `false` = agent xử lý âm thầm. Tự động thành `true` khi job được tạo từ channel thực (Telegram, v.v.) |
+| `deliver` | bool | `true` = giao kết quả đến channel; `false` = agent xử lý âm thầm. Tự động thành `true` khi job được tạo từ channel thực (Telegram, v.v.). Việc giao hàng vẫn bị triệt tiêu nếu output chứa token `NO_REPLY` — xem [Triệt tiêu NO_REPLY](#triệt-tiêu-no_reply) |
 | `channel` | string | Channel đích: `telegram`, `discord`, v.v. Tự động điền từ context khi `deliver` là `true` |
 | `to` | string | Chat ID hoặc định danh người nhận. Tự động điền từ context khi `deliver` là `true` |
 | `deleteAfterRun` | bool | Tự động đặt `true` cho job `at`; có thể đặt thủ công cho bất kỳ job nào |
@@ -199,6 +199,28 @@ GoClaw quản lý cron qua các WebSocket RPC method:
 Scheduler kiểm tra job mỗi 1 giây. Job đến hạn được dispatch trong các goroutine song song. Run log được lưu vào bảng `cron_run_logs` trên PostgreSQL và truy cập được qua method `cron.runs`.
 
 Job thất bại ghi `lastStatus: "error"` và `lastError` kèm thông báo. Job vẫn ở trạng thái enabled và sẽ thử lại vào lần tick tiếp theo (trừ khi là job một lần `at`).
+
+## Triệt tiêu NO_REPLY
+
+Ngay cả khi một job được cấu hình để giao hàng (`deliver: true` kèm `channel` và `to`), GoClaw sẽ **không** gửi kết quả đến channel nếu output của agent chứa token `NO_REPLY`.
+
+- So khớp theo **toàn từ** và **không phân biệt hoa thường** (`NO_REPLY`, `no_reply`, v.v.), nên token phải đứng độc lập — sẽ không khớp khi nằm bên trong một từ dài hơn.
+- Khi bị triệt tiêu, run vẫn hoàn thành và được ghi log; chỉ việc giao đến channel bị bỏ qua (một log mức info ghi lại rằng việc giao hàng đã bị triệt tiêu).
+
+Điều này cho phép một agent theo lịch tự quyết định tại runtime rằng không có gì đáng để gửi — ví dụ, một health check chỉ trả lời khi có sự cố:
+
+```json
+{
+  "name": "api-health-check",
+  "schedule": { "kind": "every", "everyMs": 300000 },
+  "message": "Check https://api.example.com/health. If it returns 200, reply with exactly NO_REPLY. Otherwise describe what is wrong.",
+  "deliver": true,
+  "channel": "telegram",
+  "to": "123456789"
+}
+```
+
+Token `NO_REPLY` tuân theo cùng quy ước được dùng xuyên suốt GoClaw — xem [Cách GoClaw hoạt động](../core-concepts/how-goclaw-works.md) và [Sessions & History](../core-concepts/sessions-and-history.md).
 
 ## Retry — Exponential Backoff
 
@@ -342,4 +364,4 @@ GoClaw chạy một background cron nội bộ cho engine evolution agent v3. Đ
 - [Skills](../advanced/skills.md) — inject kiến thức domain để agent theo lịch hiệu quả hơn
 - [Sandbox](../advanced/sandbox.md) — cô lập thực thi code trong các agent turn theo lịch
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-15 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

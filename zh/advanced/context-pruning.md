@@ -290,6 +290,10 @@ max_tokens = clamp(input_tokens / 25, 1024, 8192)
 
 当上下文在一次压缩后仍超出预算（例如 system prompt 和 tool schema 已接近填满上下文窗口）时，GoClaw 会在返回错误之前执行一次辅助恢复扫描。此溢出恢复路径（PR #958）最多重试一次，仅在第二次扫描仍失败时才返回 `context overflow after compaction` 错误。实践中，这可防止拥有大型 tool schema 或 system prompt 的 agent 出现硬性上下文溢出失败。
 
+### 待处理消息保留（Pending-Message Preservation）
+
+压缩可能在**循环中途**触发，即在请求工具调用的 assistant 消息与回答它们的 `tool` 结果之间。GoClaw 现在会在循环中途的压缩扫描中保留正在处理的 assistant `tool_calls` 消息，因此下一次发往 provider 的请求绝不会在缺少前置 `tool_calls` 消息的情况下发送 `tool` 结果消息。否则，provider 会以 **HTTP 400**（孤立的工具结果）拒绝该请求。如果你之前在长的、工具密集的回合中偶发遇到 400 错误，这就是修复。
+
 ---
 
 ## 下一步
@@ -298,4 +302,4 @@ max_tokens = clamp(input_tokens / 25, 1024, 8192)
 - [记忆系统](../../core-concepts/memory-system.md) — 三层记忆架构与整合 pipeline
 - [配置参考](/config-reference) — 完整的 agent 配置参考
 
-<!-- goclaw-source: 29457bb3 | 更新: 2026-04-25 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

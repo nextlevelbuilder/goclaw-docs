@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector cho embeddings
 
 Hàm `uuid_generate_v7()` tùy chỉnh cung cấp UUID theo thứ tự thời gian. Tất cả primary key dùng hàm này mặc định.
 
-Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **73**.
+Phiên bản schema được theo dõi bởi `golang-migrate`. Chạy `goclaw migrate up` hoặc `goclaw upgrade` để áp dụng tất cả migration. Phiên bản schema hiện tại: **80**.
 
 ### Thống nhất Store v3
 
@@ -316,7 +316,7 @@ Skill package được upload với BM25 + semantic search.
 
 **Indexes:** owner, visibility (partial active), slug, HNSW embedding, GIN tags, `is_system` (partial true), `enabled` (partial false)
 
-**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants. `skill_agent_grants` còn có cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant.
+**`skill_agent_grants`** / **`skill_user_grants`** — access control cho skills, cùng pattern với MCP grants. `skill_agent_grants` còn có cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` (migration 066) — cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant. Từ migration 078, `skill_user_grants` có khóa unique là `(skill_id, user_id, tenant_id)` (theo phạm vi tenant), nên cùng một user có thể được cấp cùng một skill ở các tenant khác nhau.
 
 ---
 
@@ -1043,6 +1043,19 @@ Kho key-value tập trung cho cấu hình hệ thống theo tenant. Fallback v�
 | 65 | `agent_model_fallback` — thêm cột `model_fallback JSONB NOT NULL DEFAULT '{}'` vào `agents`; mảng thứ tự model fallback được thử khi primary model thất bại. |
 | 66 | `skill_agent_manage_grants` — thêm cột `can_manage BOOLEAN NOT NULL DEFAULT FALSE` vào `skill_agent_grants`; cấp quyền cho agent quản lý (publish, update, delete) skill trong phạm vi tenant. |
 | 67 | `skill_agent_grants_scope_cleanup` — migration chỉ thao tác data; xóa các row `skill_agent_grants` có `tenant_id` không khớp với tenant của agent hoặc skill, đảm bảo tenant-scope isolation trên skill grants. Không thay đổi schema. |
+| 68 | `bitrix_portals` — registry portal Bitrix24 với credential OAuth được mã hóa, seed trước luồng cài đặt. |
+| 69 | `browser_cookies` — lưu trữ cookie browser theo từng agent được mã hóa cho browser automation. |
+| 70 | `usage_pricing_catalog` / `usage_pricing_overrides` — catalog pricing theo provider/model và override theo từng tenant. |
+| 71 | `usage_cap_policies` / `usage_cap_counters` / `usage_cap_reservations` / `usage_cap_events` — engine policy usage-cap với counter, reservation và audit log quyết định. |
+| 72 | Bridge agent budget ↔ usage-cap — liên kết budget theo từng agent vào engine policy usage-cap. |
+| 73 | `secure_cli_credential_type` — thêm cột `credential_type` / `host_scope` vào các bảng credential secure-CLI. |
+| 74 | `run_timeline_items` — timeline lưu trữ có thứ tự theo từng run để phát lại run; FK tới traces/spans. |
+| 75 | Channel context capabilities — `mcp_context_grants` / `mcp_context_credentials` / `secure_cli_context_grants` / `secure_cli_context_credentials`; grant MCP và secure-CLI có phạm vi theo từng channel-instance kèm credential được mã hóa. |
+| 76 | Channel memory extraction — `channel_memory_extraction_runs` / `channel_memory_extraction_items`; trích xuất thụ động, theo lịch trình bộ nhớ bền vững (chỉ tóm tắt, không lưu nội dung gốc) kèm hàng đợi duyệt. |
+| 77 | `secure_cli_agent_credentials` — credential CLI có kiểu theo từng agent, tách biệt khỏi chính sách grant; FK tổ hợp `(binary_id, tenant_id)` và `(agent_id, tenant_id)`. |
+| 78 | `skill_user_grants_tenant_unique` — thay khóa unique của `skill_user_grants` bằng `(skill_id, user_id, tenant_id)` (theo phạm vi tenant). |
+| 79 | Skill self-evolution — `skill_evolution_settings` / `skill_usage_metrics` / `skill_improvement_suggestions` / `skill_versions`; theo dõi sử dụng theo từng skill và các cải tiến được đề xuất/áp dụng (backfill một dòng `skill_versions` cho mỗi skill hiện có). |
+| 80 | Usage event analytics — `usage_events` / `usage_event_rollups`; phân tích thô theo từng sự kiện và rollup tổng hợp sẵn theo giờ cho dashboard usage. |
 
 ---
 
@@ -1694,10 +1707,240 @@ Audit log các quyết định cap (allow/deny) và lý do. (migration 071)
 
 ---
 
+### `run_timeline_items`
+
+Timeline có thứ tự theo từng run gồm các item (tin nhắn, lời gọi tool, v.v.) dùng để phát lại các run đã lưu trữ. (migration 074)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Tenant sở hữu |
+| `run_id` | TEXT | NOT NULL | Định danh run |
+| `session_key` | VARCHAR(500) | NOT NULL | Session mà run này thuộc về |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | Agent tạo ra run |
+| `user_id` | VARCHAR(255) | | Phạm vi user |
+| `channel` | VARCHAR(50) | | Channel |
+| `chat_id` | VARCHAR(255) | | Chat ID |
+| `seq` | INT | NOT NULL | Thứ tự trong run |
+| `item_type` | VARCHAR(40) | NOT NULL | Loại item (message, tool call, v.v.) |
+| `status` | VARCHAR(40) | | Trạng thái item |
+| `title` | TEXT | | Tiêu đề item |
+| `preview` | TEXT | | Preview ngắn |
+| `content` | TEXT | NOT NULL DEFAULT '' | Nội dung đầy đủ của item |
+| `tool_name` | VARCHAR(255) | | Tên tool, khi áp dụng |
+| `tool_call_id` | VARCHAR(255) | | Tool call ID |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | Trace liên kết |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | Span liên kết |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, seq)`
+**Index:** `(tenant_id, run_id, seq)`; `(tenant_id, session_key, created_at DESC)`; `(tenant_id, trace_id) WHERE trace_id IS NOT NULL`
+
+---
+
+### Channel context capabilities
+
+Grant MCP và secure-CLI có phạm vi theo từng channel-instance cùng credential được mã hóa. Cả bốn bảng dùng chung một mô hình scope: `scope_type VARCHAR(32)` + `scope_key VARCHAR(255) DEFAULT ''` cho phép một grant áp dụng cho toàn bộ channel-instance hoặc thu hẹp về một scope cụ thể (ví dụ một chat hoặc user). (migration 075)
+
+**`mcp_context_grants`** — bật một MCP server cho một scope channel-instance.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `scope_type` | VARCHAR(32) | NOT NULL | Loại scope |
+| `scope_key` | VARCHAR(255) | NOT NULL DEFAULT '' | Giá trị scope |
+| `server_id` | UUID FK → mcp_servers | NOT NULL ON DELETE CASCADE | MCP server được cấp |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `tool_allow` / `tool_deny` / `config_overrides` | JSONB | | Bộ lọc tool và override theo từng scope |
+| `granted_by` | VARCHAR(255) | NOT NULL | Actor đã cấp |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, server_id)` · **Index:** scope, `server_id`
+
+**`mcp_context_credentials`** — credential được mã hóa cho MCP server có phạm vi. Cùng scope key như trên cộng thêm `api_key TEXT`, `headers BYTEA`, `env BYTEA`, `created_by VARCHAR(255) NOT NULL`, các timestamp. Cùng khóa unique và index.
+
+**`secure_cli_context_grants`** — bật một binary secure-CLI cho một scope channel-instance. Cùng scope key cộng thêm `binary_id UUID FK → secure_cli_binaries ON DELETE CASCADE`, `deny_args`/`deny_verbose JSONB`, `timeout_seconds INTEGER`, `tips TEXT`, `encrypted_env BYTEA`, `enabled BOOLEAN NOT NULL DEFAULT true`, `granted_by VARCHAR(255) NOT NULL`, các timestamp. **Unique:** `(tenant_id, channel_instance_id, scope_type, scope_key, binary_id)` · **Index:** scope, `binary_id`.
+
+**`secure_cli_context_credentials`** — credential được mã hóa cho binary secure-CLI có phạm vi. Cùng scope key cộng thêm `binary_id`, `encrypted_env BYTEA NOT NULL`, `metadata JSONB NOT NULL DEFAULT '{}'`, `credential_type TEXT`, `host_scope TEXT`, `created_by VARCHAR(255) NOT NULL`, các timestamp. Cùng khóa unique và index như bảng grants.
+
+---
+
+### Channel memory extraction
+
+Trích xuất thụ động, theo lịch trình bộ nhớ bền vững từ lịch sử channel. Không lưu nội dung tin nhắn gốc — chỉ tóm tắt chờ duyệt. (migration 076)
+
+**`channel_memory_extraction_runs`** — một lượt trích xuất trên một lát của lịch sử channel.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `channel_name` | VARCHAR(255) | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `history_key` | VARCHAR(255) | NOT NULL | Key của bucket lịch sử |
+| `trigger` | VARCHAR(32) | NOT NULL DEFAULT 'scheduled' | Cái gì khởi động run |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending' | Trạng thái run |
+| `source_start_id` / `source_end_id` | VARCHAR(255) | NOT NULL DEFAULT '' | Khoảng message nguồn |
+| `source_start_at` / `source_end_at` | TIMESTAMPTZ | | Khoảng thời gian nguồn |
+| `message_count` / `redaction_count` / `item_count` | INTEGER | NOT NULL DEFAULT 0 | Bộ đếm |
+| `redaction_types` | JSONB | NOT NULL DEFAULT `[]` | Các loại redaction đã áp dụng |
+| `error_message` | TEXT | NOT NULL DEFAULT '' | |
+| `started_at` / `completed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)` · **Index:** channel, status
+
+**`channel_memory_extraction_items`** — hàng đợi duyệt các item bộ nhớ ứng viên.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `run_id` | UUID FK → channel_memory_extraction_runs | NOT NULL ON DELETE CASCADE | Run cha |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `item_hash` | VARCHAR(128) | NOT NULL | Hash dedup |
+| `item_type` | VARCHAR(64) | NOT NULL | |
+| `summary` | TEXT | NOT NULL | Tóm tắt đã trích xuất (không có nội dung gốc) |
+| `topics` / `entities` | JSONB | NOT NULL DEFAULT `[]` | |
+| `confidence` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `source_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending_review' | Trạng thái duyệt |
+| `approved_by` / `rejected_by` | VARCHAR(255) | NOT NULL DEFAULT '' | Actor duyệt |
+| `approved_at` / `rejected_at` / `deleted_at` / `written_at` | TIMESTAMPTZ | | Timestamp duyệt/vòng đời |
+| `episodic_id` | VARCHAR(64) | NOT NULL DEFAULT '' | ID bộ nhớ episodic đã ghi |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(tenant_id, run_id, item_hash)` · **Index:** channel+status, run
+
+---
+
+### `secure_cli_agent_credentials`
+
+Credential có kiểu theo từng agent cho các binary secure-CLI, lưu tách biệt khỏi chính sách `secure_cli_agent_grants`. Thứ tự resolve khi chạy là user → context → agent → mặc định của binary. (migration 077)
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID | NOT NULL | Binary CLI (FK tổ hợp với `tenant_id`) |
+| `agent_id` | UUID | NOT NULL | Agent (FK tổ hợp với `tenant_id`) |
+| `encrypted_env` | BYTEA | NOT NULL | Env mã hóa AES-256-GCM |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | Tenant sở hữu |
+| `credential_type` | TEXT | NULL | Loại credential tùy chọn |
+| `host_scope` | TEXT | NULL | Host scope tùy chọn |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Unique:** `(binary_id, agent_id, tenant_id)`
+**FK tổ hợp:** `(binary_id, tenant_id)` → `secure_cli_binaries(id, tenant_id)` CASCADE; `(agent_id, tenant_id)` → `agents(id, tenant_id)` CASCADE (được hỗ trợ bởi các unique index mới `idx_secure_cli_binaries_id_tenant` và `idx_agents_id_tenant`)
+**Index:** tenant, binary, agent
+
+---
+
+### Skill self-evolution
+
+Theo dõi hiệu năng của mỗi skill hiện có theo thời gian và ghi lại các cải tiến được đề xuất, đã áp dụng. Khác với metric evolution ở cấp agent. (migration 079)
+
+**`skill_evolution_settings`** — toggle và mode theo từng tenant/từng skill.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | Phần PK |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | Phần PK |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | |
+| `mode` | VARCHAR(32) | NOT NULL DEFAULT 'suggest_only', CHECK in (`suggest_only`, `auto_analyze`) | |
+| `last_analyzed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Primary key:** `(tenant_id, skill_id)` · **Index:** `skill_id`
+
+**`skill_usage_metrics`** — một dòng cho mỗi lần gọi skill được ghi nhận.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `skill_version` | INT | NOT NULL DEFAULT 1 | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `user_id` | VARCHAR(255) | | |
+| `session_key` / `trace_id` / `invocation_id` | TEXT | | Liên kết |
+| `invocation_source` | VARCHAR(32) | NOT NULL DEFAULT 'runtime' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'started', CHECK in (`started`, `succeeded`, `failed`, `abandoned`) | |
+| `failure_reason` | TEXT | | |
+| `tool_calls_count` | INT | NOT NULL DEFAULT 0 | |
+| `duration_ms` | BIGINT | NOT NULL DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(skill_id, created_at DESC)`; `(tenant_id, created_at DESC)`; `(skill_id, status, created_at DESC)`; partial trên `invocation_id`
+
+**`skill_improvement_suggestions`** — các patch được đề xuất kèm bằng chứng.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `suggestion_type` | VARCHAR(64) | NOT NULL | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending', CHECK in (`pending`, `approved`, `rejected`, `applied`) | |
+| `reason` | TEXT | NOT NULL DEFAULT '' | |
+| `evidence` / `draft_patch` | JSONB | NOT NULL DEFAULT `{}` | Bằng chứng hỗ trợ + patch đề xuất |
+| `target_file` | TEXT | NOT NULL DEFAULT '' | |
+| `created_by_actor_type` / `created_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_by_actor_type` / `reviewed_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_at` | TIMESTAMPTZ | | |
+| `applied_version` | INT | | Version tạo ra nếu được áp dụng |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** `(skill_id, status, created_at DESC)`; `(tenant_id, created_at DESC)`
+
+**`skill_versions`** — bản ghi version bất biến cho các thay đổi đã áp dụng. `id UUID PK`, `tenant_id`/`skill_id` FK CASCADE, `version INT NOT NULL`, `content_hash VARCHAR(64)`, `changed_files JSONB`, các cột actor created-by, `created_from_suggestion_id UUID FK → skill_improvement_suggestions ON DELETE SET NULL`, `created_at`. **Unique:** `(skill_id, version)` · **Index:** `(tenant_id, skill_id, version DESC)`. Migration backfill một dòng cho mỗi skill chưa bị xóa hiện có.
+
+---
+
+### Usage event analytics
+
+Phân tích thô theo từng sự kiện cộng với rollup tổng hợp sẵn theo giờ hỗ trợ dashboard phân tích usage. Khác với `usage_snapshots` (migration 016) và họ `usage_cap_*` / `usage_pricing_*`. (migration 080)
+
+**`usage_events`** — một dòng cho mỗi sự kiện tính phí/đo lường được.
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `event_time` / `bucket_hour` | TIMESTAMPTZ | NOT NULL | Thời điểm sự kiện và bucket theo giờ |
+| `event_type` / `resource_type` / `resource_name` | TEXT | NOT NULL | Các chiều của sự kiện |
+| `resource_id` / `source` | TEXT | NOT NULL DEFAULT '' | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `team_id` | UUID | | |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | |
+| `run_id` / `session_key` / `channel` / `provider` / `model` / `status` | TEXT | NOT NULL DEFAULT '' | |
+| `input_tokens` / `output_tokens` / `total_tokens` | BIGINT | NOT NULL DEFAULT 0 | |
+| `cost_usd` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `duration_ms` / `call_count` / `error_count` | INTEGER | NOT NULL DEFAULT 0 / 1 / 0 | |
+| `metadata` | JSONB | | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Index:** tenant+time; tenant+resource+time; tenant+type+time; tenant+agent+time; partial tenant+channel+time `WHERE channel != ''`; **unique partial** `(trace_id, span_id, event_type, source) WHERE trace_id IS NOT NULL AND span_id IS NOT NULL` (ingest idempotent)
+
+**`usage_event_rollups`** — rollup tổng hợp sẵn theo giờ trên cùng các chiều (`bucket_hour`, `event_type`, `resource_type`, `resource_name`, `source`, `agent_id`, `channel`, `provider`, `model`, `status`) với count/token/cost được cộng tổng. **Unique** trên toàn bộ tuple chiều dùng `COALESCE(agent_id, '00000000-0000-0000-0000-000000000000')`. **Index:** `(tenant_id, bucket_hour DESC)`; `(tenant_id, resource_type, resource_name, bucket_hour DESC)`.
+
+---
+
 ## Tiếp theo
 
 - [Environment Variables](/env-vars) — `GOCLAW_POSTGRES_DSN` và `GOCLAW_ENCRYPTION_KEY`
 - [Config Reference](/config-reference) — cấu hình database map sang `config.json` như thế nào
 - [Glossary](/glossary) — Session, Compaction, Lane, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-29 -->

@@ -47,8 +47,10 @@ Tất cả config key nằm trong `channels.telegram`:
 | `dm_stream` | bool | false | Bật streaming cho DM (chỉnh sửa placeholder) |
 | `group_stream` | bool | false | Bật streaming cho nhóm (tin nhắn mới) |
 | `draft_transport` | bool | false | Dùng `sendMessageDraft` cho DM streaming (stealth preview, không thông báo mỗi lần edit) |
-| `reasoning_stream` | bool | true | Hiển thị reasoning token dưới dạng tin nhắn riêng trước câu trả lời |
+| `reasoning_delivery` | string | -- | Cách reasoning được hiển thị: `off`, `streaming_only`, `always_bubbles`. Xem [Reasoning Delivery](#reasoning-delivery). |
+| `reasoning_stream` | bool | true | **Legacy.** Hiển thị reasoning token dưới dạng tin nhắn riêng trước câu trả lời. Chỉ dùng khi `reasoning_delivery` chưa được đặt. |
 | `block_reply` | bool | -- | Ghi đè cài đặt `block_reply` của gateway cho channel này (nil = kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 | `reaction_level` | string | `"off"` | `off`, `minimal` (chỉ ⏳), `full` (⏳💬🛠️✅❌🔄) |
 | `media_max_bytes` | int | 20MB | Kích thước file media tối đa |
 | `link_preview` | bool | true | Hiển thị xem trước URL |
@@ -228,6 +230,8 @@ Khi user gửi voice message:
 3. Transcript được thêm vào đầu tin nhắn: `[audio: filename] Transcript: text`
 4. Định tuyến đến `voice_agent_id` nếu được cấu hình, ngược lại đến agent mặc định
 
+Transcription chạy qua chuỗi STT thống nhất của GoClaw, thử các provider theo thứ tự — `elevenlabs`, rồi `proxy`. (Đây là tên provider hiện tại; các bản phát hành cũ gọi chúng là `elevenlabs_scribe` và `proxy_stt`.) Telegram giữ nguyên MIME type gốc của voice khi chuyển audio vào chuỗi, và phần ghi đè bridge STT-proxy legacy được định khóa theo platform type `telegram`.
+
 ### Streaming
 
 Bật cập nhật phản hồi trực tiếp:
@@ -235,11 +239,27 @@ Bật cập nhật phản hồi trực tiếp:
 - **DM** (`dm_stream`): Edit placeholder "Thinking..." khi từng chunk đến. Mặc định dùng `sendMessage+editMessageText`; đặt `draft_transport: true` để dùng `sendMessageDraft` (stealth preview, không thông báo mỗi lần edit, nhưng có thể gây lỗi "reply to deleted message" trên một số client).
 - **Group** (`group_stream`): Gửi placeholder, edit với phản hồi đầy đủ
 
-Mặc định tắt. Khi bật với `reasoning_stream: true` (mặc định), reasoning token hiển thị dưới dạng tin nhắn riêng trước câu trả lời cuối cùng.
+Mặc định tắt.
+
+### Reasoning Delivery
+
+Khi model phát ra reasoning token ("thinking"), `reasoning_delivery` kiểm soát cách — hay liệu có — reasoning đó hiển thị trong chat:
+
+| `reasoning_delivery` | Hành vi |
+|----------------------|----------|
+| `streaming_only` | Reasoning chỉ xuất hiện trong làn streaming trực tiếp (hành vi legacy). |
+| `always_bubbles` | Buộc provider streaming nội bộ và gửi reasoning dưới dạng các tin nhắn "bubble" bình thường có giới hạn — kể cả khi `dm_stream` / `group_stream` đang tắt. Câu trả lời cuối vẫn được gửi không streaming. |
+| `off` | Reasoning bị ẩn trong channel. Traces và hạch toán usage không bị ảnh hưởng. |
+
+**Tương thích ngược.** Khi `reasoning_delivery` chưa được đặt, giá trị boolean legacy `reasoning_stream` được tôn trọng: `reasoning_stream: false` phân giải thành `off`, ngược lại thành `streaming_only`. Một giá trị `reasoning_delivery` rõ ràng luôn thắng giá trị boolean legacy.
+
+Reasoning bubble chỉ liên quan đến việc gửi — chúng không được thêm vào lịch sử assistant/session. Telegram hiện là channel duy nhất triển khai cơ chế kiểm soát này (`ReasoningDeliveryChannel`).
 
 ### Xử lý Media
 
 **Album / gộp nhiều file đính kèm.** Khi người dùng gửi một album (nhiều ảnh hoặc file gom lại trên client), Telegram giao nó dưới dạng N update riêng biệt cùng chung một `MediaGroupID`. GoClaw buffer các thành viên album ở tầng channel (cửa sổ im lặng 500 ms) và tổng hợp chúng thành **một** tin nhắn đến, nên agent trả lời một lần thay vì một lần cho mỗi file. Khóa buffer là `(chatID, MediaGroupID)`; người gửi được ghim từ thành viên đầu tiên, và một thành viên đến với người gửi không khớp sẽ bị loại bỏ như một biện pháp phòng vệ.
+
+**Gom album gửi ra ngoài.** Khi agent gửi nhiều file cùng lúc — qua dạng `attachments: [{path, caption?}, ...]` của tool `send_file` — Telegram gom media tương thích gửi ra thành các đoạn album `sendMediaGroup` gồm **2–10** mục. Ảnh và video có thể chung một đoạn; document chỉ gom với document và audio chỉ gom với audio. Audio voice-mode, đoạn đơn lẻ, ảnh quá khổ bị chuyển sang gửi dưới dạng document, và các chuỗi không tương thích khác sẽ thoái lui mượt mà về gửi từng file theo thứ tự. Thứ tự file, MIME type, tên file, và caption đều được giữ nguyên.
 
 **Giới hạn upload ra ngoài.** Media gửi ra được kiểm tra với ngưỡng upload trước khi gửi — file vượt giới hạn bị từ chối với lỗi rõ ràng "outbound media too large" thay vì hỏng giữa chừng. Ngưỡng là 50 MB trên Bot API chính thức và 200 MB khi cấu hình một Bot API server cục bộ (`api_server`) (hoặc cao hơn nếu `media_max_bytes` được nâng trên mức đó).
 
@@ -270,6 +290,8 @@ Hiển thị trạng thái emoji trên tin nhắn user. Đặt `reaction_level`:
 | stallHard | 😨 | Không hoạt động 30 giây |
 
 Mỗi status có emoji dự phòng trong trường hợp emoji chính bị hạn chế bởi reaction cho phép của chat. Các trạng thái trung gian (thinking, tool, v.v.) được debounce ở 700ms để tránh spam reaction.
+
+> **Không có văn bản tool-status placeholder.** Các cập nhật tool-status xác định chỉ được hiển thị qua reaction — chúng không còn phát ra một tin nhắn văn bản "tool" riêng trong channel. Reaction của nền tảng và việc gửi reasoning rõ ràng vẫn là các hành vi độc lập.
 
 ### Lệnh Bot
 
@@ -346,4 +368,4 @@ Không cần cấu hình. Kiểm tra log với `telegram: migrating group chat` 
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 - [Sessions & History](../core-concepts/sessions-and-history.md) — Lịch sử cuộc trò chuyện
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

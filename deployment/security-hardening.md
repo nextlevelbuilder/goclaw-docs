@@ -120,7 +120,7 @@ To allow a specific group for one agent, set it to `false` in the agent's config
 
 ### Global shell deny-groups — runtime toggle
 
-`config.tools.shellDenyGroups` is a `map[string]bool` that lets you enable or disable deny-groups globally without restarting the gateway. Changes take effect immediately via `bus.TopicConfigChanged` live-reload.
+`config.tools.shellDenyGroups` is a `map[string]bool` that lets you enable or disable deny-groups globally without restarting the gateway. Changes take effect immediately via `bus.TopicConfigChanged` live-reload. The reload clones the config snapshot before applying it, so group *disables* persist correctly across reload, and it also reloads provider-level shell-deny policies (Claude CLI / ACP), not just the global exec tool.
 
 ```json
 {
@@ -142,6 +142,8 @@ See [`reference/config-reference.md`](../reference/config-reference.md) for the 
 `resolvePath()` applies `filepath.Clean()` then `HasPrefix()` to ensure all file paths stay within the agent's workspace. With `restrict_to_workspace: true` (the default on agents), any path outside the workspace is blocked.
 
 All four filesystem tools (`read_file`, `write_file`, `list_files`, `edit`) implement the `PathDenyable` interface. The agent loop calls `DenyPaths(".goclaw")` at startup — agents cannot read GoClaw's internal data directory. The `list_files` tool filters denied paths from directory listings entirely, so agents never see them.
+
+**venv interpreter exemption.** The GoClaw-managed Python interpreter is exempt from the `.goclaw/` deny so agents can run it directly. GoClaw resolves `<home>/.goclaw/venv/bin/python3` (following symlinks) once at startup and exempts the *resolved* interpreter directory; if no venv is present it falls back silently. This is the only path under `.goclaw/` that exec can reach.
 
 ### File serving path traversal protection
 
@@ -430,7 +432,7 @@ Format stored: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Valu
 
 > **Must match across replicas.** In a clustered deployment, every gateway instance must use the same `GOCLAW_ENCRYPTION_KEY`. Rotating the key requires re-encrypting all stored secrets before restarting.
 
-Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`, `secure_cli_agent_grants`, and `secure_cli_user_credentials` all store secrets in an `encrypted_env` column. Each entry carries a visibility `kind` — `sensitive` entries are masked in normal API/UI responses and only returned via the audited `env:reveal` flow; `value` entries (e.g. region or profile names) are returned to admins for operational review.
+Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`, `secure_cli_agent_grants`, `secure_cli_user_credentials`, and `secure_cli_agent_credentials` all store secrets in an `encrypted_env` column. Each entry carries a visibility `kind` — `sensitive` entries are masked in normal API/UI responses and only returned via the audited `env:reveal` flow; `value` entries (e.g. region or profile names) are returned to admins for operational review.
 
 ---
 
@@ -445,6 +447,12 @@ Credentialed-CLI env vars are also AES-256-GCM encrypted: `secure_cli_binaries`,
 
 A typo in the adapter name falls back to passthrough (the legacy denylist-only behavior) — there is **no silent bypass**.
 
+### Effective credential precedence
+
+When an adapter resolves which credential to inject, it picks the **first** match in this order: **user override → channel/context credential → agent credential → binary-level env defaults**. Agent credentials (`secure_cli_agent_credentials`) are the default trust boundary for git; a user override or a channel/context credential takes precedence when present. The `credential_source` audit field records which layer was used.
+
+For the PAT path, the adapter synthesizes an `http.<remote>.extraheader` config entry with `Authorization: Basic base64("x-access-token:<token>")`. The raw token, the base64 payload, and the full header are all registered with the scrubber. SSH private keys are validated **twice** at save time — first with Go's SSH parser, then with OpenSSH (`ssh-keygen -y -f`) when available — so keys that would fail later with OpenSSH diagnostics are rejected up front.
+
 ### Audit event: `security.system_env_injection`
 
 Every adapter injection emits **exactly one** structured `slog.Warn` line. The plaintext hostname is intentionally **never logged** — keeping audit logs PII-safe inside regulated tenants.
@@ -458,6 +466,7 @@ Every adapter injection emits **exactly one** structured `slog.Warn` line. The p
 | `env_keys` | sorted env-var **names** only — never values |
 | `argv_prefix_len` | number of argv elements prepended, not their content |
 | `host_scope_hash` | first 8 hex chars of `SHA-256(normalized host_scope)`, or `"none"` |
+| `credential_source` | which precedence layer supplied the credential: `user`, `context`, `agent`, or empty when no scoped credential row was selected |
 
 There is **no dedicated audit table** in v1 — the line routes through `slog` to stderr → systemd/journald or Docker logs. To grep for activity against a specific host, pre-compute its hash:
 
@@ -671,4 +680,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Webhooks](../advanced/webhooks.md) — HMAC-authenticated HTTP endpoints, signature verification, and replay protection
 - [Workstations](../advanced/workstations.md) — remote execution targets, permission model, and activity audit
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

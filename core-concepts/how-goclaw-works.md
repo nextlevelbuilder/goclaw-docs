@@ -35,7 +35,7 @@ Setup (runs once)
 Iteration loop (up to 20 × per turn)
 ├─ ThinkStage   — build system prompt, filter tools, call LLM
 ├─ PruneStage   — soft/hard trim context, trigger memory flush if needed
-├─ ToolStage    — execute tool calls (parallel where possible)
+├─ ToolStage    — execute tool calls (read-only batches in bounded parallel; others sequential)
 ├─ ObserveStage — process tool results, append to message buffer
 └─ CheckpointStage — track iterations, check exit conditions
 
@@ -50,7 +50,7 @@ Finalize (runs once, survives cancellation)
 | **ContextStage** | Setup | Injects agent/user/workspace context; resolves per-user files |
 | **ThinkStage** | Iteration | Builds system prompt (15+ sections), calls LLM, emits streaming chunks |
 | **PruneStage** | Iteration | Trims context when ≥ 30% full (soft) or ≥ 50% full (hard); triggers memory flush |
-| **ToolStage** | Iteration | Executes tool calls — parallel goroutines for multiple calls |
+| **ToolStage** | Iteration | Executes tool calls. Only registered **read-only** tools run in bounded parallel; mutating, async, MCP-bridged (`mcp_*`), `exec`/`bash`, `wait`, unknown/unregistered tools, and over-budget batches run **sequentially**. A mixed batch with any ineligible call runs entirely sequentially. `PreToolUse` hooks run before any parallel I/O, and results are processed in original assistant order |
 | **ObserveStage** | Iteration | Processes tool results; handles `NO_REPLY` silent completion |
 | **CheckpointStage** | Iteration | Increments counter; breaks loop on max-iter or context cancellation |
 | **FinalizeStage** | Finalize | Runs 7-step output sanitization; atomically flushes messages; updates session metadata |
@@ -126,4 +126,4 @@ GoClaw v3 ships five new systems — each has its own dedicated page:
 - [Tools Overview](/tools-overview) — The full tool catalog
 - [Sessions and History](../core-concepts/sessions-and-history.md) — How conversations persist
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-17 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

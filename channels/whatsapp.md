@@ -40,6 +40,7 @@ All config keys are in `channels.whatsapp` (config file) or the instance config 
 | `require_mention` | bool | `false` | Only respond in groups when bot is @mentioned |
 | `history_limit` | int | `200` | Max pending group messages for context (0=disabled) |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 
 ## Architecture
 
@@ -166,4 +167,4 @@ GoClaw will detect old `bridge_url` config and show a clear migration error.
 - [Larksuite](/channel-feishu) — Larksuite integration
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

@@ -216,6 +216,76 @@ Cũng hỗ trợ định dạng phẳng cũ:
 
 Nếu không cấu hình chuỗi `read_image`, hình ảnh được đính kèm inline vào LLM chính như bình thường.
 
+### Tham số
+
+| Tham số | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------------|
+| `prompt` | string | bắt buộc | Bạn muốn biết gì về (các) hình ảnh |
+| `path` | string | — | Đường dẫn tùy chọn tới ảnh trong workspace (ảnh sinh ra hoặc đính kèm) |
+| `url` | string | — | URL tùy chọn tới ảnh được host trực tuyến |
+
+`path` và `url` **loại trừ lẫn nhau** — truyền cả hai sẽ trả về lỗi. Nếu không có cái nào, tool phân tích hình ảnh đã đính kèm trong hội thoại.
+
+> **Ghi chú provider:** Provider Anthropic và `claude-cli` không thể phân tích ảnh trực tiếp từ URL — chúng yêu cầu dữ liệu ảnh mã hóa base64. Nếu ảnh chỉ-có-URL được định tuyến tới một trong số đó, provider đó báo lỗi và chuỗi fallback sang provider kế tiếp. Gemini, OpenRouter, và DashScope chấp nhận URL ảnh trực tiếp. URL được kiểm tra SSRF trước khi fetch.
+
+---
+
+## Phân tích video (read_video)
+
+Công cụ `read_video` phân tích file video bằng chuỗi provider hỗ trợ video (mặc định Gemini → OpenRouter). Dùng khi hội thoại có thẻ `<media:video>`, hoặc trỏ tới file workspace hay URL được host.
+
+### Tham số
+
+| Tham số | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------------|
+| `prompt` | string | bắt buộc | Cần phân tích gì — ví dụ "Tóm tắt các cảnh chính", "Có chữ gì hiện trên màn hình?" |
+| `media_id` | string | — | `media_id` cụ thể tùy chọn từ thẻ `<media:video>`. Nếu bỏ trống, dùng video gần nhất |
+| `url` | string | — | URL tùy chọn tới file video được host trực tuyến |
+
+`media_id` và `url` **loại trừ lẫn nhau**. File video cục bộ bị giới hạn **100 MB**.
+
+> **Stream từ URL:** Với video URL, GoClaw pipe stream từ URL qua **Gemini File API** thay vì tải toàn bộ file về cục bộ trước. URL được kiểm tra SSRF và IP đã resolve được ghim (pin) cho lần upload. Ở tầng provider, phần image và video giờ là các kiểu media-content riêng biệt (`ImageContent` và `VideoContent`).
+
+Áp dụng cùng định dạng ghi đè chuỗi như `create_*` và `read_image` dưới `builtin_tools.settings.read_video`.
+
+---
+
+## Phân tích tài liệu (read_document)
+
+Công cụ `read_document` trích xuất và phân tích tài liệu — **PDF, DOCX, và ảnh tài liệu** — bằng chuỗi provider hỗ trợ tài liệu (mặc định Gemini → Anthropic → claude-cli → OpenRouter → DashScope).
+
+### Tham số
+
+| Tham số | Kiểu | Mặc định | Mô tả |
+|-----------|------|---------|-------------|
+| `prompt` | string | bắt buộc | Cần phân tích gì — ví dụ "Trích xuất tất cả bảng", "Trang 3 nói gì?" |
+| `media_id` | string | — | `media_id` cụ thể tùy chọn từ thẻ `<media:document>` |
+| `path` | string | — | Đường dẫn file tùy chọn từ thẻ `<media:document path="...">` |
+
+Khác với `read_image` và `read_video`, `read_document` **không có** tham số `url`. Các định dạng văn bản thuần (JSON, CSV, Markdown, HTML, v.v.) được trả về trực tiếp mà không cần gọi LLM. File bị giới hạn **20 MB**.
+
+### Trích xuất Local-First (opt-in)
+
+Mặc định, tài liệu đi thẳng tới chuỗi vision đám mây. Bạn có thể bật trích xuất local chạy `pdftotext` (PDF) và `pandoc --sandbox` (DOCX) trên host *trước* mọi lệnh gọi đám mây, qua block cấu hình `document_parser`:
+
+```json
+{
+  "local_first": false,
+  "max_pages": 200,
+  "timeout_sec": 30,
+  "min_text_len": 16
+}
+```
+
+| Trường | Mặc định | Mô tả |
+|-------|---------|-------------|
+| `local_first` | `false` | Bật trích xuất local. Yêu cầu `pdftotext`/`pandoc` trên PATH — có sẵn trong bản Docker `full` hoặc build với `ENABLE_FULL_SKILLS=true` |
+| `max_pages` | `200` | Giới hạn số trang PDF; truyền vào `pdftotext -l` |
+| `timeout_sec` | `30` | Timeout mỗi lần trích xuất; process group bị kill khi timeout |
+| `min_text_len` | `16` | Số ký tự tối thiểu (sau khi trim) để coi là trích xuất thành công; output ngắn hơn sẽ kích hoạt fallback đám mây |
+
+Cấu hình được nạp lúc khởi động (không hot-reload); tính khả dụng của binary được kiểm tra lại mỗi lần gọi, nên cài đặt lúc runtime được phát hiện mà không cần restart. Mọi trường hợp không trích xuất được — bị tắt, MIME không hỗ trợ, thiếu binary, timeout, hoặc quá ít văn bản (ví dụ PDF chỉ là ảnh scan) — đều fallback minh bạch về chuỗi vision đám mây. Trích xuất PDF dùng `pdftotext -l <max_pages>`; DOCX dùng `pandoc --sandbox` để một tài liệu không tin cậy không thể fetch tài nguyên từ xa trong lúc chuyển đổi.
+
 ---
 
 ## API Key cần thiết
@@ -245,4 +315,4 @@ File media tải về giới hạn tối đa **200 MB**. File vượt quá sẽ 
 - [Custom Tools](/custom-tools) — Tạo công cụ riêng
 - [Tổng quan Provider](/providers-overview) — Cấu hình API key
 
-<!-- goclaw-source: 29457bb3 | cập nhật: 2026-04-25 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

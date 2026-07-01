@@ -46,7 +46,8 @@
 - [Perplexity](zh/providers/perplexity.md): 通过 OpenAI 兼容 API 将 GoClaw 连接到 Perplexity 的搜索增强 AI 模型。
 - [DashScope (Qwen)](zh/providers/dashscope.md): 通过 DashScope OpenAI 兼容 API 将 GoClaw 连接到阿里巴巴的 Qwen 模型。
 - [Vertex AI (Google Cloud)](zh/providers/vertex.md): 使用 Google Cloud Vertex AI 面向 Gemini 的 OpenAI-compatible endpoint,通过 OAuth2 service account 或 Application Default Credentials 认证。
-- [Bailian](zh/providers/bailian.md): 连接阿里云百炼模型。
+- [Bailian](zh/providers/bailian.md): 通过 OpenAI 兼容端点连接阿里云百炼（Bailian）Coding 模型。
+- [Kimi Coding (Moonshot)](zh/providers/kimi.md): 通过 OpenAI 兼容的 Coding 端点将 GoClaw 连接到 Moonshot 的 Kimi Coding 模型。
 - [Suno](zh/providers/suno.md): 使用 Suno 的 AI 音乐生成平台创作音乐和音频。
 - [Zai](zh/providers/zai.md): 连接 Zai 和 Zai Coding provider（OpenAI 兼容）。
 - [YesScale](zh/providers/yescale.md): 通过 YesScale 的云 AI 平台大规模运行 AI 模型。
@@ -96,6 +97,7 @@
 - [Hooks & Quality Gates](zh/advanced/hooks-quality-gates.md): 在 agent 循环的定义节点拦截、观察或注入行为 — 阻止不安全的 tool call、写入后自动审计、注入 session 上下文，或在停止时发出通知。
 - [Authentication & OAuth](zh/advanced/authentication.md): 通过 OAuth 将 GoClaw 连接到 ChatGPT — 无需 API key，使用你现有的 OpenAI 账号。
 - [API Keys & RBAC](zh/advanced/api-keys-rbac.md): 为多用户和程序化访问部署管理带角色权限控制的 API key。
+- [Agent Permission Matrix](zh/advanced/permission-matrix.md): 决定一个 agent 在各 channel、group 和 workspace 上能做什么的全部授权层级——以及这些层级如何组合。
 - [CLI Credentials](zh/advanced/cli-credentials.md): 安全存储和管理用于 shell 工具执行的命名凭据集，通过 grants 实现 per-agent 访问控制。
 - [Exec Approval](zh/advanced/exec-approval.md): 在 agent shell 命令运行前暂停等待人工审阅 — 从 Dashboard 批准、拒绝或永久允许。
 - [Context Pruning](zh/advanced/context-pruning.md): 自动修剪旧的工具结果，将 agent 上下文保持在 token 限制内。

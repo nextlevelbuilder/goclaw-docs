@@ -47,8 +47,10 @@
 | `dm_stream` | bool | false | 为 DM 启用流式输出（编辑占位符） |
 | `group_stream` | bool | false | 为群组启用流式输出（新消息） |
 | `draft_transport` | bool | false | 对 DM 流式使用 `sendMessageDraft`（静默预览，无逐条编辑通知） |
-| `reasoning_stream` | bool | true | 将推理 token 作为独立消息显示在答案前 |
+| `reasoning_delivery` | string | -- | 推理如何呈现：`off`、`streaming_only`、`always_bubbles`。参见 [推理投递](#reasoning-delivery)。 |
+| `reasoning_stream` | bool | true | **Legacy。** 将推理 token 作为独立消息显示在答案前。仅当 `reasoning_delivery` 未设置时使用。 |
 | `block_reply` | bool | -- | 覆盖此 channel 的 gateway `block_reply` 设置（nil = 继承） |
+| `chat_behavior` | object | -- | 覆盖此 channel 的 gateway [拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `reaction_level` | string | `"off"` | `off`、`minimal`（仅 ⏳）、`full`（⏳💬🛠️✅❌🔄） |
 | `media_max_bytes` | int | 20MB | 媒体文件最大大小 |
 | `link_preview` | bool | true | 显示 URL 预览 |
@@ -228,6 +230,8 @@ LLM 输出（Markdown）
 3. 转写文本前置到消息：`[audio: filename] Transcript: text`
 4. 若配置了 `voice_agent_id` 则路由到该 agent，否则使用默认 agent
 
+转写通过 GoClaw 统一的 STT chain 进行，它按顺序尝试 provider — 先 `elevenlabs`，再 `proxy`。（这些是当前的 provider 名称；较旧的版本称它们为 `elevenlabs_scribe` 和 `proxy_stt`。）Telegram 在把音频转发给 chain 时会保留原始的语音 MIME 类型，而 legacy 的 STT-proxy 桥接覆盖以平台类型 `telegram` 作为键。
+
 ### 流式输出
 
 启用实时响应更新：
@@ -235,11 +239,27 @@ LLM 输出（Markdown）
 - **DM**（`dm_stream`）：随分块到达编辑"Thinking..."占位符。默认使用 `sendMessage+editMessageText`；设置 `draft_transport: true` 可使用 `sendMessageDraft`（静默预览，无逐条编辑通知，但在某些客户端可能出现"回复已删除消息"的问题）。
 - **群组**（`group_stream`）：发送占位符，以完整响应编辑
 
-默认禁用。启用后若 `reasoning_stream: true`（默认），推理 token 在最终答案前作为独立消息显示。
+默认禁用。
+
+### 推理投递
+
+当模型发出推理（"thinking"）token 时，`reasoning_delivery` 控制这些推理是否以及如何出现在聊天中：
+
+| `reasoning_delivery` | 行为 |
+|----------------------|----------|
+| `streaming_only` | 推理只出现在实时流式通道中（legacy 行为）。 |
+| `always_bubbles` | 在内部强制 provider 流式，并将推理作为有界的普通"气泡"消息发送 — 即使 `dm_stream` / `group_stream` 关闭也是如此。最终答案仍以非流式方式投递。 |
+| `off` | 在该 channel 中抑制推理。trace 和用量统计不受影响。 |
+
+**向后兼容。** 当 `reasoning_delivery` 未设置时，legacy 的 `reasoning_stream` 布尔值生效：`reasoning_stream: false` 解析为 `off`，否则解析为 `streaming_only`。显式的 `reasoning_delivery` 值总是优先于 legacy 布尔值。
+
+推理气泡是仅投递层面的 — 它们不会被加入 assistant/session 历史。Telegram 目前是唯一实现此控制（`ReasoningDeliveryChannel`）的 channel。
 
 ### 媒体处理
 
 **相册 / 多附件合并。** 当用户发送一个相册（在客户端上分组的多张图片或文件）时，Telegram 会把它作为 N 个独立 update 投递，它们共享同一个 `MediaGroupID`。GoClaw 在 channel 层缓冲相册成员（500 ms 静默窗口），并将它们合成为**一条**入站消息，因此 agent 回复一次而非每个附件回复一次。缓冲键为 `(chatID, MediaGroupID)`；发送者在第一个成员处被固定，发送者不匹配的成员会作为防御措施被丢弃。
+
+**出站相册批量。** 当 agent 一次发送多个文件时 — 通过 `send_file` 工具的 `attachments: [{path, caption?}, ...]` 形式 — Telegram 把兼容的出站媒体分组为 `sendMediaGroup` 相册分块，每组 **2–10** 项。图片和视频可以共用一个分块；文档只与文档分组，音频只与音频分组。语音模式音频、单项分块、回退为以文档发送的超大图片，以及其他不兼容的序列会优雅降级为有序的逐个发送。文件顺序、MIME 类型、文件名和 caption 都会被保留。
 
 **出站上传限制。** 出站媒体在发送前会针对上传上限做校验 — 超限文件会以明确的 "outbound media too large" 错误被拒绝，而不是在上传中途失败。官方 Bot API 上限为 50 MB，配置本地 Bot API server（`api_server`）时为 200 MB（若 `media_max_bytes` 调高到该值以上则更高）。
 
@@ -270,6 +290,8 @@ LLM 输出（Markdown）
 | stallHard | 😨 | 30 秒无活动 |
 
 每个状态都有备选 emoji 变体，以防主 emoji 被聊天的允许回应列表限制。中间状态（thinking、tool 等）以 700ms 去抖以避免回应刷屏。
+
+> **无占位的工具状态文本。** 确定性的工具状态更新只通过表情回应呈现 — 它们不再在 channel 中发出单独的"tool"文本消息。平台表情回应和显式的推理投递仍是相互独立的行为。
 
 ### Bot 命令
 
@@ -346,4 +368,4 @@ Writer 是允许执行敏感命令（`/reset`、文件写入）的群组成员�
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 - [Sessions & History](../core-concepts/sessions-and-history.md) — 会话历史
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

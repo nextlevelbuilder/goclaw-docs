@@ -46,7 +46,8 @@
 - [Perplexity](providers/perplexity.md): Connect GoClaw to Perplexity's search-augmented AI models via their OpenAI-compatible API.
 - [DashScope (Qwen)](providers/dashscope.md): Connect GoClaw to Alibaba's Qwen models via the DashScope OpenAI-compatible API.
 - [Vertex AI (Google Cloud)](providers/vertex.md): Use Google Cloud Vertex AI's OpenAI-compatible Gemini endpoint with OAuth2 service-account or Application Default Credentials.
-- [Bailian](providers/bailian.md): Connect to Alibaba Cloud Bailian (百炼) models.
+- [Bailian](providers/bailian.md): Connect to Alibaba Cloud Bailian (百炼) Coding models via the OpenAI-compatible endpoint.
+- [Kimi Coding (Moonshot)](providers/kimi.md): Connect GoClaw to Moonshot's Kimi Coding models via the OpenAI-compatible Coding endpoint.
 - [Suno](providers/suno.md): Generate music and audio with Suno's AI music generation platform.
 - [Zai](providers/zai.md): Connect to Zai and Zai Coding providers (OpenAI-compatible).
 - [YesScale](providers/yescale.md): Run AI models at scale with YesScale's cloud AI platform.
@@ -96,6 +97,7 @@
 - [Hooks & Quality Gates](advanced/hooks-quality-gates.md): Intercept, observe, or inject behavior at defined points in the agent loop — block unsafe tool calls, auto-audit after writes, inject session context, or notify on stop.
 - [Authentication & OAuth](advanced/authentication.md): Connect GoClaw to ChatGPT via OAuth — no API key needed, uses your existing OpenAI account.
 - [API Keys & RBAC](advanced/api-keys-rbac.md): Manage API keys with role-based access control for multi-user and programmatic access deployments.
+- [Agent Permission Matrix](advanced/permission-matrix.md): The full set of authorization layers that decide what an agent can do across channels, groups, and workspaces — and how those layers combine.
 - [CLI Credentials](advanced/cli-credentials.md): Securely store and manage named credential sets for shell tool execution, with per-agent access control via grants.
 - [Exec Approval](advanced/exec-approval.md): Pause agent shell commands for human review before they run — approve, deny, or permanently allow from the dashboard.
 - [Context Pruning](advanced/context-pruning.md): Automatically trim old tool results to keep agent context within token limits.

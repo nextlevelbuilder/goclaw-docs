@@ -243,6 +243,14 @@ Tất cả nhóm mặc định là `true` (bị chặn). Đặt một nhóm thà
 
 Deny group và luồng exec approval hoạt động độc lập — một lệnh có thể qua kiểm tra deny group nhưng vẫn bị giữ để con người phê duyệt tùy theo cài đặt `ask` của bạn.
 
+### Giữ trạng thái qua live-reload
+
+Thay đổi deny-group toàn cục có hiệu lực ngay mà không cần khởi động lại. Quá trình reload clone snapshot config trước khi áp dụng, nên việc **tắt được giữ đúng** qua reload — một group bạn tắt sẽ vẫn tắt cho đến khi bạn bật lại. Lần reload tương tự cũng làm mới các policy shell-deny cấp provider (Claude CLI / ACP), không chỉ exec tool toàn cục.
+
+### Ngoại lệ cho Python venv
+
+GoClaw chặn truy cập shell vào thư mục dữ liệu nội bộ `.goclaw/`. **Interpreter Python do GoClaw quản lý được miễn trừ**: gọi nó bằng đường dẫn tuyệt đối (`<home>/.goclaw/venv/bin/python3`) là được phép. GoClaw resolve đường dẫn đó (lần theo symlink) một lần khi khởi động và miễn trừ thư mục interpreter đã resolve; nếu không có venv thì im lặng bỏ qua. Đây là path duy nhất dưới `.goclaw/` mà lệnh shell của agent có thể chạm tới.
+
 ---
 
 ## Các vấn đề thường gặp
@@ -263,4 +271,4 @@ Deny group và luồng exec approval hoạt động độc lập — một lện
 - [Custom Tools](/custom-tools) — định nghĩa tool backed bởi lệnh shell
 - [Security Hardening](/deploy-security) — tổng quan bảo mật năm lớp đầy đủ
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

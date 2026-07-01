@@ -197,6 +197,8 @@ The `skill_manage` tool is available to agents when `skill_evolve=true`. It supp
 | `content` | string | create | Full SKILL.md including YAML frontmatter |
 | `find` | string | patch | Exact text to find in current SKILL.md |
 | `replace` | string | patch | Replacement text |
+| `files` | object | optional (create, patch) | Companion text files keyed by relative path (e.g. `references/guide.md`). Each file is capped at **2 MB**; paths are validated (no `..`, absolute/Windows paths, null bytes, `SKILL.md` overwrite, dotfiles, or system artifacts) |
+| `visibility` | string | optional (patch) | Metadata-only visibility change (`private` or `public`) — updates who can discover the skill without creating a new version when no `content`/`files` change |
 
 **Example — creating a skill from conversation:**
 
@@ -224,6 +226,16 @@ skill_manage(
 skill_manage(action="delete", slug="deploy-checklist")
 ```
 
+**Example — creating a skill with a companion reference file:**
+
+```
+skill_manage(
+  action="create",
+  content="---\nname: Deploy Checklist\ndescription: Steps to deploy the app safely.\n---\n\n## Steps\nSee {baseDir}/references/runbook.md",
+  files={"references/runbook.md": "# Runbook\n1. Run tests\n2. Build image\n3. Push to registry"}
+)
+```
+
 ### publish_skill tool
 
 `publish_skill` is an alternative path that registers an entire local directory as a skill. It is always available as a built-in tool toggle (not gated by `skill_evolve`).
@@ -239,7 +251,7 @@ The directory must contain a `SKILL.md` with a `name` in frontmatter. The skill 
 | | `skill_manage` | `publish_skill` |
 |---|---|---|
 | Input | Content string | Directory path |
-| Files | SKILL.md only (companions copied on patch) | Entire directory (scripts, assets, etc.) |
+| Files | SKILL.md plus direct text companion files (`files=...`); patch copies existing companions forward | Entire directory (scripts, assets, etc.) |
 | Gated by | `skill_evolve` config | Built-in tool toggle (always available) |
 | Guidance | Injected via skill_evolve prompt | Uses `skill-creator` core skill |
 | Auto-grant | Yes | Yes |
@@ -410,6 +422,68 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 
 ---
 
+## Skill Self-Evolution (per-skill metrics)
+
+This is a **separate subsystem** from the agent-level "v3 Evolution Metrics" above. Where agent-level evolution tunes an *agent's* parameters, skill self-evolution tracks how each **existing skill** performs over time and proposes improvements to that skill. It is also distinct from the `skill_evolve` learning loop, which teaches an agent *when* to create or patch reusable skills.
+
+### Runtime recording
+
+Usage is recorded automatically as agents use skills — there is **no public usage endpoint**:
+
+- `use_skill` tool calls record tenant-scoped usage with status `succeeded` or `failed`, plus duration, session key, run/trace ID, agent ID, and user scope.
+- Slash-command activation (`/<slug>` or `/use <skill>`) records a `started` event when it resolves to a skill.
+- Usage writes are **internal only**. v1 intentionally has no public `POST /v1/skills/{id}/usage` endpoint, so clients cannot forge success rates.
+
+### Persistent tables
+
+| Table | Purpose |
+|---|---|
+| `skill_evolution_settings` | Per-tenant, per-skill `enabled` flag and `mode` |
+| `skill_usage_metrics` | Runtime usage events and status counts |
+| `skill_improvement_suggestions` | Skill-scoped suggestions with evidence and draft patches |
+| `skill_versions` | Immutable applied-version records linked to changed files and the originating suggestion |
+
+### Modes and statuses
+
+| Field | Values | Notes |
+|---|---|---|
+| Settings `mode` | `suggest_only` (default), `auto_analyze` | No automatic *patching* happens in v1 — `auto_analyze` only generates suggestions automatically |
+| Usage `status` | `started`, `succeeded`, `failed`, `abandoned` | Recorded per skill invocation |
+| Suggestion `status` | `pending`, `approved`, `rejected`, `applied` | Lifecycle of an improvement suggestion |
+
+### Applying a suggestion
+
+Suggestions are reviewed and applied by admins. Applying a suggestion to a **custom** skill:
+
+1. Copies the current skill directory forward to the next version.
+2. Validates the target path (same rules as `skill_manage` companion files).
+3. Runs the SKILL.md content guard scanner when SKILL.md changes.
+4. Updates the active skill and records a new `skill_versions` row.
+5. Writes an activity log entry.
+
+**System/bundled skill mutation is refused** — the apply path returns `403` for any skill with `is_system = true`, before touching the filesystem.
+
+### Admin-gated surfaces
+
+Viewer surfaces are sanitized. Failure evidence, draft patches, actor IDs, and activity details require **admin** visibility — non-admins see only aggregate, non-sensitive data.
+
+### HTTP API
+
+| Method | Path | Access |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/evolution` | Read self-evolution settings |
+| `PATCH` | `/v1/skills/{id}/evolution` | Set `enabled` / `mode` (tenant admin) |
+| `GET` | `/v1/skills/{id}/metrics` | Usage metrics (total / started / succeeded / failed / abandoned / success rate) |
+| `GET` | `/v1/skills/{id}/activity` | Recent self-evolution activity (admin only) |
+| `GET` | `/v1/skills/{id}/evolution/suggestions` | List suggestions for the skill |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/approve` | Approve a suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/reject` | Reject a suggestion (tenant admin) |
+| `POST` | `/v1/skills/{id}/evolution/suggestions/{sid}/apply` | Apply an approved suggestion (tenant admin) |
+
+The matching CLI commands are `goclaw skills evolve`, `goclaw skills metrics`, `goclaw skills suggestions`, and `goclaw skills activity`. The Dashboard surfaces all of this in the skill detail's **Evolution** tab.
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Fix |
@@ -420,6 +494,9 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 | Patch fails with "not owner" | Agent trying to patch another agent's skill | Each agent can only modify skills it created |
 | Patch fails with "system skill" | Attempting to modify a built-in system skill | System skills are always read-only |
 | Skill content rejected | Content matched a security rule in guard.go | Remove the flagged pattern; see Layer 1 categories above |
+| Companion file rejected by `skill_manage` | Path uses `..`, an absolute/Windows path, a dotfile, or a system artifact; or the file exceeds 2 MB | Use a clean relative path under the skill root and keep each text file under 2 MB |
+| Cannot apply a skill suggestion | Target is a system/bundled skill, or the suggestion is not yet `approved` | System skills are read-only; approve the suggestion first, then apply |
+| Skill metrics show no data | No `use_skill`/slash-command activations recorded yet, or self-evolution disabled | Usage is recorded internally as agents use the skill; enable self-evolution in the skill's Evolution tab |
 
 ---
 
@@ -428,4 +505,4 @@ WebSocket equivalents: `agent.evolution.metrics`, `agent.evolution.suggestions`,
 - [Skills](./skills.md) — skill format, hierarchy, and hot reload
 - [Predefined Agents](../core-concepts/agents-explained.md) — how predefined agents differ from open agents
 
-<!-- goclaw-source: 1296cdbf | updated: 2026-04-11 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

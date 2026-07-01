@@ -179,6 +179,10 @@ Kiểm tra được thực hiện trên **lệnh đã render đầy đủ** sau 
 }
 ```
 
+## Thứ tự thực thi
+
+Khi agent phát nhiều tool call trong một lượt, chỉ tool built-in **read-only** đã đăng ký mới chạy song song có giới hạn. Custom tool (chạy nền shell) không được đăng ký là read-only, nên luôn chạy **tuần tự** — và bất kỳ batch nào trộn custom tool với call khác đều chạy hoàn toàn tuần tự. Điều này giữ cho tác dụng phụ chạy nền shell có thứ tự và dễ đoán; đây không phải tùy chọn bạn cấu hình.
+
 ## Các vấn đề thường gặp
 
 | Vấn đề | Nguyên nhân | Giải pháp |
@@ -254,4 +258,4 @@ Trả về tất cả tài liệu liên kết đến đường dẫn được ch
 - [Exec Approval](/exec-approval) — yêu cầu phê duyệt từ người dùng trước khi lệnh chạy
 - [Sandbox](/sandbox) — chạy lệnh trong Docker để tăng cô lập
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

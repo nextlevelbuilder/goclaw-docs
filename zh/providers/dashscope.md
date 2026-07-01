@@ -10,6 +10,8 @@ DashScope 是阿里巴巴的模型服务平台，提供 Qwen 系列模型。GoCl
 
 DashScope 还通过 `thinking_level` 支持扩展思考，GoClaw 将其映射到 DashScope 特有的 `enable_thinking` 和 `thinking_budget` 参数。
 
+> **注意：** `dashscope` 与 `bailian` 是不同的 provider 类型。阿里云的百炼（Bailian）Coding 端点（`https://coding-intl.dashscope.aliyuncs.com/v1`，默认 `qwen3.5-plus`）是一个独立的 OpenAI 兼容 provider，具有硬编码目录且**无**思考注入。如果你需要 Coding 端点或 `qwen3.7-plus` 等模型，请参阅 [Bailian](/provider-bailian)。
+
 ## 配置
 
 在 `config.json` 中添加 DashScope API key：
@@ -47,6 +49,9 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 | `qwen3-turbo` | 最快的 Qwen3 模型 |
 | `qwen3-235b-a22b` | 开放权重，MoE 架构 |
 | `qwq-32b` | 扩展思考 / 推理模型 |
+| `qwen3.5-max` | Qwen 3.5 系列，能力最强 |
+| `qwen3.5-plus` | Qwen 3.5 系列，均衡 |
+| `qwen3.5-turbo` | Qwen 3.5 系列，最快 |
 
 ## 每模型思考保护
 
@@ -125,5 +130,6 @@ GoClaw 将 `thinking_level` 映射到 DashScope 的 `thinking_budget`：
 
 - [Claude CLI](/provider-claude-cli) — 调用 Claude Code CLI 二进制文件的独特 provider
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API
+- [Bailian](/provider-bailian) — 阿里云百炼 Coding 端点（与 DashScope 分离）
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

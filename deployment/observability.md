@@ -84,19 +84,44 @@ gunzip trace.json.gz
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/traces` | List traces with pagination and filters |
+| GET | `/v1/traces/follow` | Poll trace changes for one session or agent |
 | GET | `/v1/traces/{id}` | Get trace details with all spans |
 | GET | `/v1/traces/{id}/export` | Export trace + sub-traces as gzip JSON |
+| GET | `/v1/runs/{runID}/timeline` | Get persisted run-archive timeline items |
 
 ### Query Filters (GET /v1/traces)
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `q` | string | Contains-search across trace ID, trace previews, session/channel labels, agent/channel labels, and span previews/tool names |
 | `agent_id` | UUID | Filter by agent |
 | `user_id` | string | Filter by user |
-| `status` | string | `running`, `success`, `error`, `cancelled` |
-| `from` / `to` | timestamp | Date range filter |
+| `session_key` | string | Filter by session key |
+| `status` | string | `running`, `completed`, `error`, `cancelled` |
+| `channel` | string | Filter by raw channel |
+| `agent` | string | Contains-search over agent display name and key |
+| `channel_query` | string | Contains-search over tenant-scoped channel instance labels |
+| `tool_name` | string | Contains-search over span tool names |
+| `has_tool_calls` | boolean | Traces with (`true`) or without (`false`) tool calls |
+| `from` / `to` | timestamp | `start_time` range filter — `from` inclusive, `to` exclusive |
+| `min_input_tokens` / `max_input_tokens` | int | Input token range |
+| `min_output_tokens` / `max_output_tokens` | int | Output token range |
+| `min_tool_calls` / `max_tool_calls` | int | Tool-call count range |
 | `limit` | int | Page size (default 50) |
 | `offset` | int | Pagination offset |
+
+> The `goclaw traces` operator CLI wraps these same endpoints. See [CLI Commands](../reference/cli-commands.md) for the command reference.
+
+### Pointing operator commands at a gateway
+
+HTTP operator commands (and the dashboard's API) resolve their base URL in this order:
+
+1. `--server <url>` flag (highest priority)
+2. `GOCLAW_SERVER` environment variable
+3. `GOCLAW_GATEWAY_URL` environment variable (fallback)
+4. The gateway host/port from `config.json` (defaults to `http://127.0.0.1:18790`)
+
+`GOCLAW_GATEWAY_URL` now drives **all** HTTP operator commands, not just `auth`. Pair it with `--token` / `GOCLAW_GATEWAY_TOKEN` for the bearer token.
 
 ## OpenTelemetry Export
 
@@ -223,4 +248,4 @@ This means dashboard users see real-time logs without SSH access, and secrets ne
 - [Docker Compose Setup](/deploy-docker-compose) — full compose file reference
 - [Security Hardening](/deploy-security) — securing your deployment
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

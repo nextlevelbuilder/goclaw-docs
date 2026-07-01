@@ -10,6 +10,8 @@ DashScope là nền tảng phục vụ model của Alibaba, cung cấp bộ mode
 
 DashScope cũng hỗ trợ extended thinking qua `thinking_level`, GoClaw ánh xạ sang các tham số `enable_thinking` và `thinking_budget` đặc thù của DashScope.
 
+> **Lưu ý:** `dashscope` là loại provider khác với `bailian`. Endpoint Bailian Coding của Alibaba Cloud (`https://coding-intl.dashscope.aliyuncs.com/v1`, mặc định `qwen3.5-plus`) là một provider tương thích OpenAI tách biệt, với catalog cố định và **không** tiêm thinking. Nếu bạn cần endpoint Coding hoặc các model như `qwen3.7-plus`, xem [Bailian](/provider-bailian).
+
 ## Cài đặt
 
 Thêm DashScope API key vào `config.json`:
@@ -128,5 +130,6 @@ GoClaw ánh xạ `thinking_level` sang `thinking_budget` của DashScope:
 
 - [Claude CLI](/provider-claude-cli) — provider đặc biệt gọi CLI binary của Claude Code
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI
+- [Bailian](/provider-bailian) — endpoint Bailian Coding của Alibaba Cloud (tách biệt với DashScope)
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

@@ -54,6 +54,12 @@ Anthropic provider 是一个一流的手写 HTTP 客户端（非第三方 SDK）
 
 要为特定 agent 覆盖默认模型，在 agent 配置中设置 `model`。
 
+## 采样参数（Claude 4.6+）
+
+较新的 Claude 模型会无条件拒绝采样参数。对于 **Claude Opus/Sonnet 4.6+ 和 Opus 4.7+**（任何次版本号不低于 6 的 `claude-opus-4-*` 或 `claude-sonnet-4-*`），无论是否启用扩展思考，GoClaw 都会从**每个**请求中移除 `temperature`——并按同一规则移除 `top_p`/`top_k`。这些模型若包含采样参数会返回 `HTTP 400`。
+
+这与下文描述的思考路径下移除 temperature 不同（后者仅在思考激活时移除 `temperature`，适用于所有 Claude 模型）。你无需做任何事：GoClaw 会自动移除这些参数。只需避免在针对这些模型的原始请求中硬编码采样值。
+
 ## 扩展思考
 
 Anthropic provider 实现 `SupportsThinking() bool` 并返回 `true`。当请求中设置 `thinking_level` 时，GoClaw 自动启用 Anthropic 的扩展思考功能。
@@ -103,6 +109,7 @@ Anthropic 使用与 OpenAI 不同的工具 schema 格式，GoClaw 自动转换�
 |---|---|---|
 | `HTTP 401` | API key 无效 | 检查 key 是否以 `sk-ant-` 开头 |
 | 思考时出现 `HTTP 400` | temperature 与思考同时设置 | GoClaw 自动移除 temperature；不要在原始请求中硬编码 |
+| 4.6+ 模型上出现提及 temperature 的 `HTTP 400` | Claude Opus/Sonnet 4.6+ / Opus 4.7+ 拒绝采样参数 | GoClaw 自动移除 `temperature`/`top_p`/`top_k`；不要硬编码采样参数 |
 | `HTTP 529` | Anthropic 过载 | 重试逻辑会处理；等待后重试 |
 | 思考块未出现 | 模型不支持思考 | 使用 claude-sonnet-4-5 或 claude-opus-4-5 |
 | token 成本高 | 缓存未命中 | 确保系统提示在各请求间保持稳定 |
@@ -112,4 +119,4 @@ Anthropic 使用与 OpenAI 不同的工具 schema 格式，GoClaw 自动转换�
 - [OpenAI](/provider-openai) — GPT-4o 和 o 系列推理模型
 - [概览](/providers-overview) — provider 架构和重试逻辑
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

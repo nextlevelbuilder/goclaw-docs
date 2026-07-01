@@ -106,7 +106,7 @@ goclaw cron delete <jobId>
 | `schedule.tz` | string | IANA 时区 — 适用于**所有**调度类型（`at`、`every`、`cron`），不仅限于 cron 表达式。省略则使用网关默认时区 |
 | `message` | string | agent 接收的输入文本 |
 | `stateless` | bool | 无需会话历史运行 — 为简单定时任务节省 token。默认 `false` |
-| `deliver` | bool | `true` = 将结果投递到 channel；`false` = agent 静默处理。当任务从真实 channel（Telegram 等）创建时自动默认为 `true` |
+| `deliver` | bool | `true` = 将结果投递到 channel；`false` = agent 静默处理。当任务从真实 channel（Telegram 等）创建时自动默认为 `true`。若输出包含 `NO_REPLY` 标记，投递仍会被抑制 — 见 [NO_REPLY 抑制](#no_reply-抑制) |
 | `channel` | string | 目标 channel：`telegram`、`discord` 等。`deliver` 为 `true` 时从上下文自动填充 |
 | `to` | string | 聊天 ID 或收件人标识符。`deliver` 为 `true` 时从上下文自动填充 |
 | `deleteAfterRun` | bool | `at` 任务自动设为 `true`；可手动设置在任意任务上 |
@@ -199,6 +199,28 @@ GoClaw 通过 WebSocket RPC 方法暴露 cron 管理功能：
 调度器每 1 秒检查一次任务。到期任务在并行 goroutine 中分发。运行日志持久化到 `cron_run_logs` PostgreSQL 表，可通过 `cron.runs` 方法访问。
 
 失败的任务记录 `lastStatus: "error"` 和 `lastError` 消息。任务保持启用状态，并在下次计划时间重试（除非是一次性 `at` 任务）。
+
+## NO_REPLY 抑制
+
+即使任务配置为投递（`deliver: true` 且带有 `channel` 和 `to`），如果 agent 的输出包含 `NO_REPLY` 标记，GoClaw 也**不会**将结果发送到 channel。
+
+- 匹配为**全词**且**不区分大小写**（`NO_REPLY`、`no_reply` 等），因此该标记必须独立出现 — 嵌入在更长单词内时不会匹配。
+- 被抑制时，运行仍会完成并记录日志；仅跳过 channel 投递（一条 info 级别日志记录投递已被抑制）。
+
+这让定时 agent 可在运行时自行判断没有值得发送的内容 — 例如，仅在出现问题时才回复的健康检查：
+
+```json
+{
+  "name": "api-health-check",
+  "schedule": { "kind": "every", "everyMs": 300000 },
+  "message": "Check https://api.example.com/health. If it returns 200, reply with exactly NO_REPLY. Otherwise describe what is wrong.",
+  "deliver": true,
+  "channel": "telegram",
+  "to": "123456789"
+}
+```
+
+`NO_REPLY` 标记遵循 GoClaw 通用的约定 — 见 [GoClaw 工作原理](../core-concepts/how-goclaw-works.md) 和 [Sessions & History](../core-concepts/sessions-and-history.md)。
 
 ## 重试 — 指数退避
 
@@ -342,4 +364,4 @@ GoClaw 为 v3 agent 进化引擎运行内部后台 cron。这不是用户管理�
 - [Skills](/skills) — 注入领域知识使计划任务的 agent 更高效
 - [Sandbox](/sandbox) — 在计划 agent 运行期间隔离代码执行
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-15 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

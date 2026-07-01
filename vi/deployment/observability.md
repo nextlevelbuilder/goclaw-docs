@@ -86,19 +86,44 @@ gunzip trace.json.gz
 | Method | Path | Mô tả |
 |--------|------|-------|
 | GET | `/v1/traces` | Liệt kê trace với phân trang và filter |
+| GET | `/v1/traces/follow` | Poll thay đổi trace cho một session hoặc agent |
 | GET | `/v1/traces/{id}` | Lấy chi tiết trace với tất cả span |
 | GET | `/v1/traces/{id}/export` | Export trace + sub-trace dạng gzip JSON |
+| GET | `/v1/runs/{runID}/timeline` | Lấy các mục timeline run-archive đã lưu |
 
 ### Bộ lọc truy vấn (GET /v1/traces)
 
 | Tham số | Kiểu | Mô tả |
 |---------|------|-------|
+| `q` | string | Tìm kiếm chứa-chuỗi trên trace ID, trace preview, nhãn session/channel, nhãn agent/channel, và span preview/tool name |
 | `agent_id` | UUID | Lọc theo agent |
 | `user_id` | string | Lọc theo user |
-| `status` | string | `running`, `success`, `error`, `cancelled` |
-| `from` / `to` | timestamp | Lọc theo khoảng ngày |
+| `session_key` | string | Lọc theo session key |
+| `status` | string | `running`, `completed`, `error`, `cancelled` |
+| `channel` | string | Lọc theo raw channel |
+| `agent` | string | Tìm kiếm chứa-chuỗi trên display name và key của agent |
+| `channel_query` | string | Tìm kiếm chứa-chuỗi trên nhãn channel instance theo tenant |
+| `tool_name` | string | Tìm kiếm chứa-chuỗi trên tool name của span |
+| `has_tool_calls` | boolean | Trace có (`true`) hoặc không có (`false`) tool call |
+| `from` / `to` | timestamp | Lọc khoảng `start_time` — `from` bao gồm, `to` loại trừ |
+| `min_input_tokens` / `max_input_tokens` | int | Khoảng input token |
+| `min_output_tokens` / `max_output_tokens` | int | Khoảng output token |
+| `min_tool_calls` / `max_tool_calls` | int | Khoảng số lượng tool call |
 | `limit` | int | Kích thước trang (mặc định 50) |
 | `offset` | int | Offset phân trang |
+
+> CLI vận hành `goclaw traces` bao bọc chính các endpoint này. Xem [CLI Commands](../reference/cli-commands.md) để tham khảo lệnh.
+
+### Trỏ lệnh vận hành đến một gateway
+
+Lệnh vận hành HTTP (và API của dashboard) phân giải base URL theo thứ tự:
+
+1. Flag `--server <url>` (ưu tiên cao nhất)
+2. Biến môi trường `GOCLAW_SERVER`
+3. Biến môi trường `GOCLAW_GATEWAY_URL` (dự phòng)
+4. Host/port gateway từ `config.json` (mặc định `http://127.0.0.1:18790`)
+
+`GOCLAW_GATEWAY_URL` giờ điều khiển **tất cả** lệnh vận hành HTTP, không chỉ riêng `auth`. Kết hợp với `--token` / `GOCLAW_GATEWAY_TOKEN` cho bearer token.
 
 ## OpenTelemetry Export
 
@@ -225,4 +250,4 @@ WebSocket client đã kết nối có thể subscribe nhận live log events. T�
 - [Docker Compose Setup](/deploy-docker-compose) — tham chiếu đầy đủ compose file
 - [Security Hardening](/deploy-security) — bảo mật deployment
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

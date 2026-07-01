@@ -26,6 +26,7 @@ Telegram uses **long polling** — no public webhook URL required.
 | Menu commands not syncing | `setMyCommands` rate limited | Retried automatically; restart gateway after a few seconds |
 | Proxy not connecting | Invalid proxy URL | Use `http://user:pass@host:port` format in `proxy` config field |
 | Tables look broken | Telegram HTML has no table support | Expected — GoClaw renders tables as ASCII inside `<pre>` blocks |
+| Reasoning bubbles never appear | `reasoning_delivery` unset/`off`, or streaming off | Set `reasoning_delivery: "always_bubbles"` to show reasoning as bubble messages even when `dm_stream`/`group_stream` are off |
 
 **Required env var:** `GOCLAW_TELEGRAM_TOKEN`
 
@@ -111,6 +112,26 @@ Authentication is done via QR scan in the GoClaw UI (Channels > WhatsApp > Re-au
 
 ---
 
+## Bitrix24
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Self-hosted domain rejected | SSRF-safe validation | The portal FQDN must resolve to a public IP. Loopback/private/metadata IP ranges and `localhost` / `.local` / `.localhost` names are blocked; any port must be in the range 1–65535. Cloud `*.bitrix24.*` domains skip this check. |
+
+---
+
+## Human-like Delivery & Passive Memory
+
+These features are **disabled by default**. If you expect them but see nothing, check the config.
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Quick-ack / progress replies not appearing | `gateway.chat_behavior` disabled (default) | Enable `chat_behavior` (and its `quick_ack` / `intermediate_replies` sub-blocks); verify the sidecar `provider`/`model` resolve. See [Human-like Delivery](/channels-overview#human-like-delivery). |
+| Behavior differs per channel | Override resolution | Order is **Channel > Agent > Workspace** — a channel-level `chat_behavior` wins over the agent and workspace base. |
+| Passive channel memory not extracting | `passive_memory.enabled` off, not a group, or `min_messages` not met | Enable `passive_memory`; note it is group-only in v1. See [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction). |
+
+---
+
 ## Channel Health States
 
 GoClaw v3 tracks each channel's runtime state. The dashboard and `channels.status` RPC reflect these states:
@@ -132,4 +153,4 @@ When a channel enters `failed`, the dashboard shows a remediation hint (e.g., "R
 - [Database issues](/troubleshoot-database)
 - [Common Issues](/troubleshoot-common)
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

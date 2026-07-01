@@ -49,6 +49,7 @@ Tất cả config key nằm trong `channels.discord`:
 | `require_mention` | bool | true | Yêu cầu mention @bot trong server (channel) |
 | `history_limit` | int | 50 | Tin nhắn chờ tối đa mỗi channel (0=tắt) |
 | `block_reply` | bool | -- | Ghi đè block_reply của gateway (nil=kế thừa) |
+| `chat_behavior` | object | -- | Ghi đè [human-like delivery](/channels-overview#human-like-delivery) của gateway cho channel này (nil = kế thừa) |
 
 ## Tính năng
 
@@ -87,6 +88,20 @@ Trong khi agent xử lý, typing indicator được hiển thị (keepalive 9 gi
 ### Hỗ trợ Thread
 
 Bot tự động phát hiện và phản hồi trong Discord thread. Phản hồi ở lại trong cùng thread.
+
+### Backfill lịch sử Thread
+
+Khi bot được mention **bên trong một Discord thread**, GoClaw kéo về context thread gần đây trước khi trả lời — để một mention giữa thread không bị trả lời một cách mù mờ.
+
+- Lấy tối đa **25** tin nhắn thread trước đó (trước trigger) qua Discord REST API và thêm văn bản của chúng vào đầu làm context.
+- Tải xuống tối đa **15** file đính kèm trước đó vào pipeline media đến, giới hạn **5 MB mỗi file**.
+- Toàn bộ quá trình backfill bị giới hạn bởi timeout **30 giây**.
+
+Tính năng này **chỉ áp dụng trong thread**. Nếu bot thiếu permission `READ_MESSAGE_HISTORY` hoặc lệnh REST thất bại, GoClaw thoái lui mượt mà về chỉ dùng tin nhắn hiện tại.
+
+### Gửi nhiều file
+
+Discord gửi nhiều file (kèm văn bản tuỳ chọn) trong **một tin nhắn duy nhất**, tối đa 10 file đính kèm — nên một lệnh `send_file` theo lô sẽ hiện thành một tin nhắn gọn gàng thay vì một loạt tin. Xem [Gửi nhiều file đính kèm](/channels-overview#multi-attachment-delivery-batching) ở trang tổng quan.
 
 ### Media từ tin nhắn được reply
 
@@ -137,6 +152,7 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 | Chỉnh sửa placeholder thất bại | Đảm bảo bot có permission `Manage Messages`. Discord có thể thu hồi permission này trong quá trình setup. |
 | Tin nhắn bị tách sai | Phản hồi dài được tách tại xuống dòng. Kiểm soát độ dài tin nhắn qua `max_tokens` của model. |
 | Bot tự mention mình | Kiểm tra permissions Discord. Bot không nên có `@everyone` hoặc `@here` trong phản hồi. |
+| Thiếu context thread | Backfill lịch sử thread cần `READ_MESSAGE_HISTORY`. Cấp permission này; chỉ hoạt động bên trong thread. |
 
 ## Tiếp theo
 
@@ -145,4 +161,4 @@ Ghi đè theo từng guild/channel chưa được hỗ trợ trong implementatio
 - [Larksuite](/channel-feishu) — Tích hợp Larksuite với streaming card
 - [Browser Pairing](/channel-browser-pairing) — Luồng pairing
 
-<!-- goclaw-source: 392f0fda | cập nhật: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

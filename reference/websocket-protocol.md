@@ -197,6 +197,46 @@ A wrong protocol version or invalid token returns `ok: false` immediately.
 | `sessions.delete` | `{key}` | Delete a session |
 | `sessions.reset` | `{key}` | Clear session history |
 | `sessions.compact` | `{key, keepLast?}` | Truncate history to last N messages (default 4); no-op if history < 6 |
+| `run.timeline.get` | `{runId?, sessionKey?, limit?, offset?}` | Fetch display-safe archived run/session timeline items |
+
+#### `run.timeline.get`
+
+Fetch display-safe timeline entries captured during agent runs. Pass `runId` for a single run, or `sessionKey` for the session archive panel — **at least one is required**. `limit` defaults to `200` and is capped at `500`; `offset` paginates. Viewer role can read this method; non-admin callers only receive entries whose `user_id` matches their connected user.
+
+**Request:**
+
+```json
+{
+  "type": "req",
+  "id": "tl-1",
+  "method": "run.timeline.get",
+  "params": { "runId": "run-123", "sessionKey": "agent:demo:direct:user-1", "limit": 100, "offset": 0 }
+}
+```
+
+**Response payload:**
+
+```json
+{
+  "runId": "run-123",
+  "sessionKey": "agent:demo:direct:user-1",
+  "items": [{
+    "id": "019e...",
+    "run_id": "run-123",
+    "session_key": "agent:demo:direct:user-1",
+    "seq": 1,
+    "item_type": "assistant.message",
+    "status": "completed",
+    "title": "assistant",
+    "preview": "I will check that now.",
+    "created_at": "2026-05-29T10:00:00Z"
+  }],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+Timeline `item_type` values include `activity`, `assistant.message`, `tool.call`, `tool.result`, and `run.status`. Tool entries store bounded previews only; raw reasoning/thinking is not persisted.
 
 ### Config
 
@@ -622,4 +662,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

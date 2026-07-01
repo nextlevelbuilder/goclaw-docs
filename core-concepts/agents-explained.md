@@ -169,6 +169,8 @@ GoClaw builds the system prompt in two modes:
 - **PromptFull** — used for main agent runs. Includes all 19+ sections: skills, MCP tools, memory recall, user identity, messaging, silent-reply rules, and full context files.
 - **PromptMinimal** — used for subagents (spawned via `spawn` tool) and cron jobs. Stripped-down context with only the essential sections (tooling, safety, workspace, bootstrap files). Reduces startup time and token usage for lightweight operations.
 
+For **group chat** sessions, the system prompt additionally injects group-chat context — participant and group information — so the agent knows it is one of several speakers and can address participants appropriately.
+
 ## NO_REPLY Suppression
 
 Agents can signal `NO_REPLY` in their final response to suppress sending a visible reply to the user. GoClaw detects this string during response finalization and skips message delivery entirely — a "silent completion." This is used internally by the memory flush agent when it has nothing to store, and can be used in custom agent instructions for similar silent-operation scenarios.
@@ -232,4 +234,4 @@ Staggered subagent results are queued and merged into a single LLM run announcem
 - [Tools Overview](/tools-overview) — What tools agents can use
 - [Memory System](../core-concepts/memory-system.md) — Long-term memory and search
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

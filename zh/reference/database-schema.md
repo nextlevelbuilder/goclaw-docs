@@ -15,7 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector 用于 embedding
 
 自定义 `uuid_generate_v7()` 函数提供时序有序的 UUID。所有主键默认使用此函数。
 
-Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**73**。
+Schema 版本由 `golang-migrate` 跟踪。运行 `goclaw migrate up` 或 `goclaw upgrade` 以应用所有迁移。当前 schema 版本：**80**。
 
 ### v3 Store 统一
 
@@ -316,7 +316,7 @@ BM25 + 向量混合记忆系统。
 
 **索引：** owner、visibility（部分 active）、slug、HNSW embedding、GIN tags、`is_system`（部分 true）、`enabled`（部分 false）
 
-**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。`skill_agent_grants` 还增加了 `can_manage BOOLEAN NOT NULL DEFAULT FALSE`（迁移 066）——授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。
+**`skill_agent_grants`** / **`skill_user_grants`** — skill 访问控制，模式与 MCP 授权相同。`skill_agent_grants` 还增加了 `can_manage BOOLEAN NOT NULL DEFAULT FALSE`（迁移 066）——授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。自迁移 078 起，`skill_user_grants` 的唯一键改为 `(skill_id, user_id, tenant_id)`（按租户限定），因此同一 user 可以在不同租户中被授予同一 skill。
 
 ---
 
@@ -1043,6 +1043,19 @@ Agent 配置的通用权限表（心跳、cron、文件写入者等）。替代 
 | 65 | `agent_model_fallback` — 为 `agents` 添加 `model_fallback JSONB NOT NULL DEFAULT '{}'` 列；有序数组，当主模型失败时按序尝试 fallback 模型。|
 | 66 | `skill_agent_manage_grants` — 为 `skill_agent_grants` 添加 `can_manage BOOLEAN NOT NULL DEFAULT FALSE` 列；授予 agent 在租户范围内管理（发布、更新、删除）skill 的权限。|
 | 67 | `skill_agent_grants_scope_cleanup` — 仅操作数据的迁移；删除 `skill_agent_grants` 中 `tenant_id` 与 agent 或 skill 租户不匹配的行，强制 skill grants 的租户范围隔离。无 schema 变更。|
+| 68 | `bitrix_portals` — Bitrix24 portal 注册表，含加密的 OAuth 凭据，在安装流程前预置。|
+| 69 | `browser_cookies` — 为 browser automation 提供按 agent 的加密浏览器 cookie 存储。|
+| 70 | `usage_pricing_catalog` / `usage_pricing_overrides` — provider/model 定价目录与按租户覆盖。|
+| 71 | `usage_cap_policies` / `usage_cap_counters` / `usage_cap_reservations` / `usage_cap_events` — usage-cap policy 引擎，含计数器、预留和决策审计日志。|
+| 72 | agent budget ↔ usage-cap 桥接 — 将按 agent 的预算接入 usage-cap policy 引擎。|
+| 73 | `secure_cli_credential_type` — 为 secure-CLI 凭据表添加 `credential_type` / `host_scope` 列。|
+| 74 | `run_timeline_items` — 用于回放 run 的归档、按 run 排序时间线；FK 指向 traces/spans。|
+| 75 | Channel context capabilities — `mcp_context_grants` / `mcp_context_credentials` / `secure_cli_context_grants` / `secure_cli_context_credentials`；按 channel-instance 限定范围的 MCP 与 secure-CLI 授权及加密凭据。|
+| 76 | Channel memory extraction — `channel_memory_extraction_runs` / `channel_memory_extraction_items`；从 channel 历史被动、按计划提取持久记忆（仅摘要，不含原始内容），并带审核队列。|
+| 77 | `secure_cli_agent_credentials` — 按 agent 的带类型 CLI 凭据，独立于授权策略；复合 FK `(binary_id, tenant_id)` 和 `(agent_id, tenant_id)`。|
+| 78 | `skill_user_grants_tenant_unique` — 将 `skill_user_grants` 的唯一键替换为 `(skill_id, user_id, tenant_id)`（按租户限定）。|
+| 79 | Skill self-evolution — `skill_evolution_settings` / `skill_usage_metrics` / `skill_improvement_suggestions` / `skill_versions`；按 skill 的使用追踪及建议/已应用的改进（为每个现有 skill 回填一行 `skill_versions`）。|
+| 80 | Usage event analytics — `usage_events` / `usage_event_rollups`；原始逐事件分析与预聚合的小时级 rollup，用于 usage dashboard。|
 
 ---
 
@@ -1694,10 +1707,240 @@ workstation exec 事件（`exec` 和 `deny`）的滚动审计日志。Append-onl
 
 ---
 
+### `run_timeline_items`
+
+按 run 排序的 item 时间线（消息、工具调用等），用于回放归档的 run。（迁移 074）
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | 所属租户 |
+| `run_id` | TEXT | NOT NULL | run 标识符 |
+| `session_key` | VARCHAR(500) | NOT NULL | 此 run 所属的 session |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | 产生该 run 的 agent |
+| `user_id` | VARCHAR(255) | | user 范围 |
+| `channel` | VARCHAR(50) | | channel |
+| `chat_id` | VARCHAR(255) | | chat ID |
+| `seq` | INT | NOT NULL | run 内排序 |
+| `item_type` | VARCHAR(40) | NOT NULL | item 类型（message、tool call 等） |
+| `status` | VARCHAR(40) | | item 状态 |
+| `title` | TEXT | | item 标题 |
+| `preview` | TEXT | | 简短预览 |
+| `content` | TEXT | NOT NULL DEFAULT '' | item 完整内容 |
+| `tool_name` | VARCHAR(255) | | 工具名称（如适用） |
+| `tool_call_id` | VARCHAR(255) | | tool call ID |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | 关联 trace |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | 关联 span |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, run_id, seq)`
+**索引：** `(tenant_id, run_id, seq)`；`(tenant_id, session_key, created_at DESC)`；`(tenant_id, trace_id) WHERE trace_id IS NOT NULL`
+
+---
+
+### Channel context capabilities
+
+按 channel-instance 限定范围的 MCP 与 secure-CLI 授权及加密凭据。四张表共用一个 scope 模型：`scope_type VARCHAR(32)` + `scope_key VARCHAR(255) DEFAULT ''`，让一个授权可作用于整个 channel-instance，或收窄到某个具体 scope（例如某个 chat 或 user）。（迁移 075）
+
+**`mcp_context_grants`** — 为某个 channel-instance scope 启用一个 MCP server。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `scope_type` | VARCHAR(32) | NOT NULL | scope 类型 |
+| `scope_key` | VARCHAR(255) | NOT NULL DEFAULT '' | scope 值 |
+| `server_id` | UUID FK → mcp_servers | NOT NULL ON DELETE CASCADE | 被授权的 MCP server |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT true | |
+| `tool_allow` / `tool_deny` / `config_overrides` | JSONB | | 按 scope 的工具过滤与覆盖 |
+| `granted_by` | VARCHAR(255) | NOT NULL | 授权的执行者 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, channel_instance_id, scope_type, scope_key, server_id)` · **索引：** scope、`server_id`
+
+**`mcp_context_credentials`** — 限定范围的 MCP server 的加密凭据。与上表相同的 scope key，外加 `api_key TEXT`、`headers BYTEA`、`env BYTEA`、`created_by VARCHAR(255) NOT NULL`、时间戳。相同的唯一键和索引。
+
+**`secure_cli_context_grants`** — 为某个 channel-instance scope 启用一个 secure-CLI binary。相同的 scope key，外加 `binary_id UUID FK → secure_cli_binaries ON DELETE CASCADE`、`deny_args`/`deny_verbose JSONB`、`timeout_seconds INTEGER`、`tips TEXT`、`encrypted_env BYTEA`、`enabled BOOLEAN NOT NULL DEFAULT true`、`granted_by VARCHAR(255) NOT NULL`、时间戳。**唯一：** `(tenant_id, channel_instance_id, scope_type, scope_key, binary_id)` · **索引：** scope、`binary_id`。
+
+**`secure_cli_context_credentials`** — 限定范围的 secure-CLI binary 的加密凭据。相同的 scope key，外加 `binary_id`、`encrypted_env BYTEA NOT NULL`、`metadata JSONB NOT NULL DEFAULT '{}'`、`credential_type TEXT`、`host_scope TEXT`、`created_by VARCHAR(255) NOT NULL`、时间戳。与 grants 表相同的唯一键和索引。
+
+---
+
+### Channel memory extraction
+
+从 channel 历史被动、按计划地提取持久记忆。不存储任何原始消息内容——仅存储待审核的摘要。（迁移 076）
+
+**`channel_memory_extraction_runs`** — 对 channel 历史的一个切片进行一次提取。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `channel_name` | VARCHAR(255) | NOT NULL | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `history_key` | VARCHAR(255) | NOT NULL | 历史 bucket key |
+| `trigger` | VARCHAR(32) | NOT NULL DEFAULT 'scheduled' | 触发该 run 的来源 |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending' | run 状态 |
+| `source_start_id` / `source_end_id` | VARCHAR(255) | NOT NULL DEFAULT '' | 源消息范围 |
+| `source_start_at` / `source_end_at` | TIMESTAMPTZ | | 源时间范围 |
+| `message_count` / `redaction_count` / `item_count` | INTEGER | NOT NULL DEFAULT 0 | 计数器 |
+| `redaction_types` | JSONB | NOT NULL DEFAULT `[]` | 已应用的脱敏类别 |
+| `error_message` | TEXT | NOT NULL DEFAULT '' | |
+| `started_at` / `completed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, channel_instance_id, history_key, source_start_id, source_end_id)` · **索引：** channel、status
+
+**`channel_memory_extraction_items`** — 候选记忆 item 的审核队列。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `run_id` | UUID FK → channel_memory_extraction_runs | NOT NULL ON DELETE CASCADE | 父 run |
+| `channel_instance_id` | UUID FK → channel_instances | NOT NULL ON DELETE CASCADE | |
+| `agent_id` | UUID FK → agents | NOT NULL ON DELETE CASCADE | |
+| `user_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `item_hash` | VARCHAR(128) | NOT NULL | 去重 hash |
+| `item_type` | VARCHAR(64) | NOT NULL | |
+| `summary` | TEXT | NOT NULL | 提取的摘要（不含原始内容） |
+| `topics` / `entities` | JSONB | NOT NULL DEFAULT `[]` | |
+| `confidence` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `source_id` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending_review' | 审核状态 |
+| `approved_by` / `rejected_by` | VARCHAR(255) | NOT NULL DEFAULT '' | 审核执行者 |
+| `approved_at` / `rejected_at` / `deleted_at` / `written_at` | TIMESTAMPTZ | | 审核/生命周期时间戳 |
+| `episodic_id` | VARCHAR(64) | NOT NULL DEFAULT '' | 已写入的 episodic 记忆 ID |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(tenant_id, run_id, item_hash)` · **索引：** channel+status、run
+
+---
+
+### `secure_cli_agent_credentials`
+
+secure-CLI binary 的按 agent 带类型凭据，与 `secure_cli_agent_grants` 策略分开存储。运行时解析顺序为 user → context → agent → binary 默认值。（迁移 077）
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT gen_random_uuid() | |
+| `binary_id` | UUID | NOT NULL | CLI binary（与 `tenant_id` 构成复合 FK） |
+| `agent_id` | UUID | NOT NULL | agent（与 `tenant_id` 构成复合 FK） |
+| `encrypted_env` | BYTEA | NOT NULL | AES-256-GCM 加密的 env |
+| `metadata` | JSONB | NOT NULL DEFAULT `{}` | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | 所属租户 |
+| `credential_type` | TEXT | NULL | 可选的凭据类型 |
+| `host_scope` | TEXT | NULL | 可选的 host scope |
+| `created_by` | VARCHAR(255) | NOT NULL DEFAULT '' | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**唯一：** `(binary_id, agent_id, tenant_id)`
+**复合 FK：** `(binary_id, tenant_id)` → `secure_cli_binaries(id, tenant_id)` CASCADE；`(agent_id, tenant_id)` → `agents(id, tenant_id)` CASCADE（由新唯一索引 `idx_secure_cli_binaries_id_tenant` 和 `idx_agents_id_tenant` 支持）
+**索引：** tenant、binary、agent
+
+---
+
+### Skill self-evolution
+
+追踪每个现有 skill 随时间的表现，并记录建议的、已应用的改进。区别于 agent 级的 evolution 指标。（迁移 079）
+
+**`skill_evolution_settings`** — 按租户/按 skill 的开关与模式。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | PK 部分 |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | PK 部分 |
+| `enabled` | BOOLEAN | NOT NULL DEFAULT false | |
+| `mode` | VARCHAR(32) | NOT NULL DEFAULT 'suggest_only', CHECK in (`suggest_only`, `auto_analyze`) | |
+| `last_analyzed_at` | TIMESTAMPTZ | | |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**主键：** `(tenant_id, skill_id)` · **索引：** `skill_id`
+
+**`skill_usage_metrics`** — 每次记录的 skill 调用一行。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `skill_version` | INT | NOT NULL DEFAULT 1 | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `user_id` | VARCHAR(255) | | |
+| `session_key` / `trace_id` / `invocation_id` | TEXT | | 关联 |
+| `invocation_source` | VARCHAR(32) | NOT NULL DEFAULT 'runtime' | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'started', CHECK in (`started`, `succeeded`, `failed`, `abandoned`) | |
+| `failure_reason` | TEXT | | |
+| `tool_calls_count` | INT | NOT NULL DEFAULT 0 | |
+| `duration_ms` | BIGINT | NOT NULL DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** `(skill_id, created_at DESC)`；`(tenant_id, created_at DESC)`；`(skill_id, status, created_at DESC)`；`invocation_id` 上的 partial
+
+**`skill_improvement_suggestions`** — 带证据的建议补丁。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK DEFAULT uuid_generate_v7() | |
+| `tenant_id` | UUID FK → tenants | NOT NULL ON DELETE CASCADE | |
+| `skill_id` | UUID FK → skills | NOT NULL ON DELETE CASCADE | |
+| `skill_slug` | VARCHAR(255) | NOT NULL | |
+| `suggestion_type` | VARCHAR(64) | NOT NULL | |
+| `status` | VARCHAR(32) | NOT NULL DEFAULT 'pending', CHECK in (`pending`, `approved`, `rejected`, `applied`) | |
+| `reason` | TEXT | NOT NULL DEFAULT '' | |
+| `evidence` / `draft_patch` | JSONB | NOT NULL DEFAULT `{}` | 支持证据 + 建议补丁 |
+| `target_file` | TEXT | NOT NULL DEFAULT '' | |
+| `created_by_actor_type` / `created_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_by_actor_type` / `reviewed_by_actor_id` | VARCHAR | NOT NULL DEFAULT '' | |
+| `reviewed_at` | TIMESTAMPTZ | | |
+| `applied_version` | INT | | 若已应用则产生的版本 |
+| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** `(skill_id, status, created_at DESC)`；`(tenant_id, created_at DESC)`
+
+**`skill_versions`** — 已应用变更的不可变版本记录。`id UUID PK`、`tenant_id`/`skill_id` FK CASCADE、`version INT NOT NULL`、`content_hash VARCHAR(64)`、`changed_files JSONB`、created-by 执行者列、`created_from_suggestion_id UUID FK → skill_improvement_suggestions ON DELETE SET NULL`、`created_at`。**唯一：** `(skill_id, version)` · **索引：** `(tenant_id, skill_id, version DESC)`。迁移为每个现有未删除的 skill 回填一行。
+
+---
+
+### Usage event analytics
+
+原始的逐事件分析，加上预聚合的小时级 rollup，支撑 usage 分析 dashboard。区别于 `usage_snapshots`（迁移 016）以及 `usage_cap_*` / `usage_pricing_*` 系列。（迁移 080）
+
+**`usage_events`** — 每个计费/可度量事件一行。
+
+| 列 | 类型 | 约束 | 描述 |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK | |
+| `tenant_id` | UUID FK → tenants | NOT NULL | |
+| `event_time` / `bucket_hour` | TIMESTAMPTZ | NOT NULL | 事件时间和小时 bucket |
+| `event_type` / `resource_type` / `resource_name` | TEXT | NOT NULL | 事件维度 |
+| `resource_id` / `source` | TEXT | NOT NULL DEFAULT '' | |
+| `agent_id` | UUID FK → agents | ON DELETE SET NULL | |
+| `team_id` | UUID | | |
+| `trace_id` | UUID FK → traces | ON DELETE SET NULL | |
+| `span_id` | UUID FK → spans | ON DELETE SET NULL | |
+| `run_id` / `session_key` / `channel` / `provider` / `model` / `status` | TEXT | NOT NULL DEFAULT '' | |
+| `input_tokens` / `output_tokens` / `total_tokens` | BIGINT | NOT NULL DEFAULT 0 | |
+| `cost_usd` | DOUBLE PRECISION | NOT NULL DEFAULT 0 | |
+| `duration_ms` / `call_count` / `error_count` | INTEGER | NOT NULL DEFAULT 0 / 1 / 0 | |
+| `metadata` | JSONB | | |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**索引：** tenant+time；tenant+resource+time；tenant+type+time；tenant+agent+time；partial tenant+channel+time `WHERE channel != ''`；**unique partial** `(trace_id, span_id, event_type, source) WHERE trace_id IS NOT NULL AND span_id IS NOT NULL`（幂等摄取）
+
+**`usage_event_rollups`** — 在相同维度（`bucket_hour`、`event_type`、`resource_type`、`resource_name`、`source`、`agent_id`、`channel`、`provider`、`model`、`status`）上预聚合的小时级 rollup，count/token/cost 求和。在完整维度元组上使用 `COALESCE(agent_id, '00000000-0000-0000-0000-000000000000')` 设置 **唯一** 约束。**索引：** `(tenant_id, bucket_hour DESC)`；`(tenant_id, resource_type, resource_name, bucket_hour DESC)`。
+
+---
+
 ## 下一步
 
 - [环境变量](/env-vars) — `GOCLAW_POSTGRES_DSN` 和 `GOCLAW_ENCRYPTION_KEY`
 - [配置参考](/config-reference) — 数据库配置与 `config.json` 的对应关系
 - [词汇表](/glossary) — Session、Compaction、Lane 等核心术语
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-29 -->

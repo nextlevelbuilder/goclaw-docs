@@ -54,6 +54,12 @@ Trong GoClaw dashboard, vào **Settings → Providers → Anthropic** và nhập
 
 Để ghi đè model mặc định cho một agent cụ thể, đặt `model` trong config của agent đó.
 
+## Tham số Sampling (Claude 4.6+)
+
+Các model Claude mới hơn từ chối tham số sampling vô điều kiện. Với **Claude Opus/Sonnet 4.6+ và Opus 4.7+** (bất kỳ `claude-opus-4-*` hoặc `claude-sonnet-4-*` có minor version từ 6 trở lên), GoClaw loại bỏ `temperature` — và theo cùng quy tắc là `top_p`/`top_k` — khỏi **mọi** request, dù extended thinking có được bật hay không. Các model này trả về `HTTP 400` nếu có tham số sampling.
+
+Điều này tách biệt với việc loại bỏ temperature theo đường thinking mô tả bên dưới (chỉ xóa `temperature` khi thinking đang hoạt động, cho mọi model Claude). Bạn không cần làm gì: GoClaw tự động bỏ các tham số này. Chỉ cần tránh hard-code giá trị sampling trong raw request đối với các model này.
+
 ## Extended Thinking
 
 Anthropic provider triển khai `SupportsThinking() bool` và trả về `true`. Khi `thinking_level` được đặt trong request, GoClaw tự động kích hoạt tính năng extended thinking của Anthropic.
@@ -105,6 +111,7 @@ Anthropic dùng định dạng tool schema khác OpenAI. GoClaw tự động chu
 |---|---|---|
 | `HTTP 401` | API key không hợp lệ | Kiểm tra key bắt đầu bằng `sk-ant-` |
 | `HTTP 400` khi dùng thinking | Đặt temperature song song với thinking | GoClaw tự xóa temperature; đừng hard-code nó trong raw request |
+| `HTTP 400` đề cập temperature trên model 4.6+ | Claude Opus/Sonnet 4.6+ / Opus 4.7+ từ chối tham số sampling | GoClaw tự loại bỏ `temperature`/`top_p`/`top_k`; đừng hard-code tham số sampling |
 | `HTTP 529` | Anthropic bị quá tải | Retry logic xử lý tự động; chờ và thử lại |
 | Thinking blocks không xuất hiện | Model không hỗ trợ thinking | Dùng claude-sonnet-4-5 hoặc claude-opus-4-5 |
 | Chi phí token cao | Cache không hit | Đảm bảo system prompt ổn định giữa các request |
@@ -114,4 +121,4 @@ Anthropic dùng định dạng tool schema khác OpenAI. GoClaw tự động chu
 - [OpenAI](/provider-openai) — GPT-4o và các model reasoning o-series
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

@@ -250,7 +250,7 @@ curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId
 
 ### 凭证类型
 
-每行 user credential 携带一个 `credential_type`（migration `000073`）：
+每行 typed credential 携带一个 `credential_type`：
 
 | `credential_type` | 含义 |
 |-------------------|------|
@@ -260,14 +260,81 @@ curl -X POST http://localhost:8080/v1/cli-credentials/{id}/agent-grants/{grantId
 
 `NULL`/`env` 行永不被迁移——现有旧版凭证保持原样工作。类型化适配器按凭证逐个 opt-in。
 
-### User credential 与 binary/system credential
+### Agent 凭证（默认 git 路径）
 
-类型化适配器作用于 **user credential**，而非 binary 级别的 env 默认值：
+Agent 凭证是 git 认证的**默认**路径。它们避免了 channel 用户 ID 的歧义：被选中的 agent 拥有该凭证，任何被允许使用该 agent 的人都可以让它带着已存凭证运行 git。
 
-- **Binary/system credential**——binary 定义 + 其默认 env var（以及 agent-grant 覆盖），如上所述。在该 binary 的各 grant 之间共享。
-- **User credential**——存储在 `secure_cli_user_credentials` 中的 per-user 类型化 secret，scope 到单个 hostname。
+Agent 凭证存于 `secure_cli_agent_credentials` 表（migration `000077`），该表将类型化 secret 材料与 `secure_cli_agent_grants` 策略行**分开**存储。每个 `(agent, binary)` 对应一个凭证。
 
-在 dashboard 的 **Settings → CLI Credentials → User Credentials** 管理 user credential。点击 **Add**，选择 user，选择凭证类型（`Personal Access Token` 或 `SSH Private Key`），输入 **Host Scope**，并粘贴 secret。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑该行会显示 `••••••••` 占位符；secret 字段留空将保留已存值，输入新值则替换它。
+**添加 agent 凭证（UI）：**
+
+1. 打开 **Packages → CLI Credentials**。
+2. 选择 `git` 行并打开 **Agent Access**。
+3. 在 **Credential** 选项卡中选择 agent。
+4. 选择 **Credential Type**：`Personal Access Token` 或 `SSH Private Key`。
+5. 输入 **Host Scope**（PAT/SSH 必填）：凭证认证到的 hostname（例如 `github.com`、`gitlab.example.com`、`gitea.internal:8443`）。
+6. 粘贴 token（PAT）或未加密的 PEM 主体（SSH）。
+7. 保存。
+
+**Agent Access** 对话框有两个选项卡：
+
+- **Credential**——选择 agent、凭证类型、host scope 和 secret（如上）。
+- **Access policy**——更改该 agent 的 deny args、timeout、tips 或 env 覆盖（`secure_cli_agent_grants` 行）。
+
+策略与 secret 存储在内部保持分离，但你在这一个对话框中将它们作为单一访问决策来管理。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑该行会显示 `••••••••` 占位符。
+
+### 凭证生效优先级
+
+当 git 运行时，GoClaw 按以下顺序解析要注入哪个类型化凭证——**第一个**匹配项胜出：
+
+1. **用户覆盖**——一个 per-user 类型化凭证（下方的 Advanced user overrides）。
+2. **channel/context 凭证**——scope 到该次运行所源自的 channel 或 group context 的凭证。
+3. **Agent 凭证**——agent 自己的 `secure_cli_agent_credentials` 行。这是默认信任边界。
+4. **Binary 级 env 默认值**——binary 定义上的旧版透传 env。
+
+授予 agent git 访问权限实际上就是授予使用其已存 git 凭证，因此除非存在更高层（用户覆盖或 channel/context 凭证），agent 凭证就是默认边界。
+
+### Advanced user overrides
+
+Per-user 凭证仍可用于个人覆盖与向后兼容。仅当一个稳定的租户用户 ID 是预期的凭证边界时才使用它们——它们在优先级顺序中位于 agent 凭证**之上**。
+
+在 dashboard 的 **Packages → CLI Credentials → Advanced User Overrides → Add** 管理它们：选择 user，选择凭证类型（`Personal Access Token` 或 `SSH Private Key`），输入 **Host Scope**，并粘贴 secret。存储的 secret 经 AES-256-GCM 加密且永不可读回——编辑时 secret 字段留空将保留已存值，输入新值则替换它。
+
+这些行存于 `secure_cli_user_credentials` 表。
+
+### Agent 凭证 REST API
+
+agent-credentials 端点管理单个 `(binary, agent)` 对的类型化 secret。它们需要 `admin` 角色。
+
+#### 列出某 binary 的 agent 凭证
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials
+```
+
+返回为该 binary 存有凭证的 agent，仅含元数据（凭证类型、host scope、是否有 key）——绝不返回 secret。
+
+#### 获取某个 agent 的凭证
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+#### 设置（创建或替换）某个 agent 的凭证
+
+```
+PUT /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+发送 `credential_type`、`host_scope` 和 secret（`env` 用 `env_vars`，或类型化 PAT/SSH key 主体）。secret 在存储时加密且绝不返回。
+
+#### 删除某个 agent 的凭证
+
+```
+DELETE /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+删除已存 secret。agent 的 `secure_cli_agent_grants` 策略行（deny args、timeout 等）不受影响——单独删除 grant 以撤销访问权限。
 
 ### git 适配器
 
@@ -284,10 +351,12 @@ clone   fetch   pull   push   submodule
 ```
 GIT_CONFIG_COUNT=1
 GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
-GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+GIT_CONFIG_VALUE_0=Authorization: Basic base64("x-access-token:<token>")
 ```
 
-由于 token 位于 env value 中（而非命令行 flag），它绝不会出现在 `ps`、`/proc/<pid>/cmdline` 或 shell 历史中。注入的 env var 仅作用于被 spawn 的 `git` 进程——GoClaw 自身的环境和其他 exec 调用永远看不到它们。
+header 值是 HTTP Basic 认证：固定用户名 `x-access-token` 与你的 token 用冒号连接，再做 base64 编码。由于 token 位于 env value 中（而非命令行 flag），它绝不会出现在 `ps`、`/proc/<pid>/cmdline` 或 shell 历史中。注入的 env var 仅作用于被 spawn 的 `git` 进程——GoClaw 自身的环境和其他 exec 调用永远看不到它们。
+
+原始 token、base64 payload **以及**完整的 `Authorization: Basic …` header 都已注册到 output scrubber，因此这三者都无法通过 stdout、stderr、错误消息或 audit log 泄回 agent。
 
 **SSH 流程。** PEM 密钥被写入系统临时目录中一个 `0600` 模式的 tmpfile（前缀 `goclaw-gitkey-*`），并将 `GIT_SSH_COMMAND` 设为：
 
@@ -295,7 +364,7 @@ GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
 ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
 ```
 
-`StrictHostKeyChecking=accept-new` 在**首次连接（TOFU）**时接受未知 host key。预先填充 `~/.ssh/known_hosts` 以关闭该窗口（见 [安全加固](/deploy-security)）。tmpfile 在 exec 后通过 deferred cleanup 删除。**带 passphrase 的 SSH 密钥在保存时被拒绝**——请重新导出无 passphrase 的密钥，或使用专用 deploy key。
+`BatchMode=yes` 意味着 SSH 绝不提示，并在 agent 上下文中快速失败。`StrictHostKeyChecking=accept-new` 在**首次连接（TOFU）**时接受未知 host key。预先填充 `~/.ssh/known_hosts` 以关闭该窗口（见 [安全加固](/deploy-security)）。tmpfile 在 exec 后通过 deferred cleanup 删除。**SSH 私钥在保存时会两次校验**——先用 Go 的 SSH 解析器，再在可用时用 OpenSSH（`ssh-keygen -y -f <tmpfile>`）——以捕获那些能保存成功但日后会因 OpenSSH 诊断而失败的密钥。**带 passphrase 的 SSH 密钥在保存时被拒绝**——请重新导出无 passphrase 的密钥，或使用专用 deploy key。
 
 ### Host scope
 
@@ -305,7 +374,7 @@ ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking
 |---------------------|:---:|:---:|:---:|
 | `github.com` | ✓ | ✗ | ✗ |
 
-如果你在 scheme 的默认端口（443 HTTPS、22 SSH）上运行自托管服务器，省略 port；若在非默认端口上，则包含 port（例如 `gitea.internal:8443`）。当没有存储凭证匹配解析出的 remote host 时，适配器回退到无凭证路径，若该操作需要认证，remote 将拒绝它。
+如果你在 scheme 的默认端口（443 HTTPS、22 SSH）上运行自托管服务器，省略 port；若在非默认端口上，则包含 port（例如 `gitea.internal:8443`）。当没有选择任何类型化 PAT/SSH 凭证，或所选凭证无法匹配解析出的 remote host 时，**适配器管理的 remote git 命令将 fail closed 并附带一个 GoClaw 诊断**。在 agent 运行时中，`git` **不**允许回退到交互式用户名/密码提示。
 
 ### Env 可见性：敏感与非敏感
 
@@ -320,10 +389,11 @@ ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking
 
 ### 从旧版 env 凭证迁移
 
-没有强制迁移。`credential_type IS NULL` 或 `= 'env'` 的行仍像以前一样发出其 env var。要升级某个 git 凭证，打开 user-credential 对话框，选择 **Personal Access Token** 或 **SSH Private Key**，输入 host scope，粘贴 secret 并保存——旧行将被原子替换。
+没有强制迁移。`credential_type IS NULL` 或 `= 'env'` 的行仍像以前一样发出其 env var。要升级某个 git 凭证，创建一个匹配的 **Agent Credential**（或者，若稳定的用户 ID 是预期边界，则创建一个 Advanced user override），输入 host scope，粘贴 secret 并保存。现有用户覆盖的优先级仍高于 agent 凭证，因此你可以逐步迁移，并在不再需要时移除用户覆盖。
 
 ### v1 限制
 
+- **每个 `(agent, binary)` 行一个凭证**，外加每个 `(user, binary)` 覆盖的旧版一个凭证。
 - **无通配符 host**——每个精确 `host[:port]` 对应一个凭证；不支持 `*.github.com`。
 - **无带 passphrase 的 SSH 密钥**——在验证时被拒绝。
 - **无 sandbox 传播**——适配器会修改已 fork 子进程的环境，与基于 bind-mount 的 Docker sandbox 路径不兼容。v1 中 credentialed exec 仅在 host 上运行。
@@ -385,12 +455,14 @@ gws calendar events list --params '{"calendarId": "primary", "maxResults": 10}'
 | Agent 无法运行 binary | 检查 binary 的 `is_global`——若为 `false`，该 agent 需要显式 grant |
 | Grant 覆盖未生效 | 确认 grant `enabled = true` 且覆盖字段非 null |
 | grant 端点返回 `403` | 需要 admin 角色——检查 API key 的 scopes |
+| `git clone`/`push` 因无凭证失败 | 没有类型化凭证匹配 remote host——git fail closed（不提示）。添加一个带精确 `host_scope` 的 Agent Credential。 |
 
 ## 下一步
 
+- [权限矩阵](/permission-matrix) — 完整的权限层级、group/channel 范围以及 channel-context 凭证
 - [数据库 Schema → secure_cli_agent_grants](/database-schema)
 - [Exec 审批](/exec-approval)
 - [API Keys 与 RBAC](/api-keys-rbac)
 - [安全加固](/deploy-security)
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-30 -->

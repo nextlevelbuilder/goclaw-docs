@@ -11,7 +11,7 @@ Một lần upgrade GoClaw có hai phần:
 1. **SQL migrations** — thay đổi schema áp dụng bởi `golang-migrate` (idempotent, có phiên bản)
 2. **Data hooks** — Go-based data transformation tùy chọn chạy sau schema migrations (ví dụ backfill cột mới)
 
-Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **73**.
+Lệnh `./goclaw upgrade` xử lý cả hai theo đúng thứ tự. An toàn khi chạy nhiều lần — hoàn toàn idempotent. Phiên bản schema hiện tại yêu cầu là **80**.
 
 ```mermaid
 graph LR
@@ -223,6 +223,18 @@ Các migration `000058`–`000073` được áp dụng tự động ở lần kh
 - `000072_agent_budget_usage_cap_bridge` — thêm cột `source` vào `usage_cap_policies` và **backfill** một policy window `month` cho mỗi agent có `budget_monthly_cents` non-NULL (1 cent = 10.000 micros, `source = 'agent_budget_monthly_cents'`). Budget hàng tháng theo agent hiện có giờ được enforce qua engine usage-cap. Idempotent (`ON CONFLICT DO NOTHING`); không cần thao tác.
 - `000073_secure_cli_credential_type` — thêm `credential_type` + `host_scope` (nullable) vào `secure_cli_user_credentials` và `adapter_name` vào `secure_cli_binaries` cho framework credential-adapter có kiểu. Tất cả cột NULL mặc định để giữ hành vi passthrough legacy — không cần thao tác.
 
+#### Schema 73 → 80
+
+Các migration `000074`–`000080` được áp dụng tự động ở lần khởi động kế tiếp (`./goclaw upgrade` hoặc `GOCLAW_AUTO_UPGRADE=true`) — không cần thao tác thủ công. Tất cả đều là bảng mới; dữ liệu hiện có không bị động đến. Điểm nổi bật:
+
+- `000074_run_timeline_items` — thêm `run_timeline_items` cho một timeline lưu trữ, có thứ tự theo từng run (tin nhắn/lời gọi tool) dùng để phát lại các run; liên kết tới traces và spans.
+- `000075_channel_context_capabilities` — thêm `mcp_context_grants`, `mcp_context_credentials`, `secure_cli_context_grants` và `secure_cli_context_credentials` cho các grant MCP và secure-CLI có phạm vi theo từng channel-instance kèm credential được mã hóa.
+- `000076_channel_memory_extraction` — thêm `channel_memory_extraction_runs` và `channel_memory_extraction_items` cho việc trích xuất thụ động, theo lịch trình bộ nhớ bền vững từ lịch sử channel (chỉ tóm tắt, không lưu nội dung gốc) kèm hàng đợi duyệt.
+- `000077_secure_cli_agent_credentials` — thêm `secure_cli_agent_credentials` cho credential CLI có kiểu theo từng agent, tách biệt khỏi chính sách grant; dùng các FK tổ hợp `(binary_id, tenant_id)` và `(agent_id, tenant_id)`.
+- `000078_skill_user_grants_tenant_unique` — thay khóa unique của `skill_user_grants` bằng `(skill_id, user_id, tenant_id)` có phạm vi theo tenant. Không cần thao tác.
+- `000079_skill_self_evolution` — thêm `skill_evolution_settings`, `skill_usage_metrics`, `skill_improvement_suggestions` và `skill_versions` cho việc theo dõi sử dụng theo từng skill và các cải tiến được đề xuất/áp dụng. **Backfill** một dòng `skill_versions` cho mỗi skill chưa bị xóa hiện có. Idempotent (`ON CONFLICT DO NOTHING`).
+- `000080_usage_event_analytics` — thêm `usage_events` (phân tích thô theo từng sự kiện) và `usage_event_rollups` (rollup tổng hợp sẵn theo giờ) hỗ trợ dashboard phân tích mức sử dụng.
+
 **Upgrade do gateway kích hoạt (luồng host release-upgrade):** Khi một upgrade được kích hoạt qua dashboard/API trên host systemd, `goclaw-upgrade-release` giờ tự re-launch chính nó dưới dạng một unit `systemd-run` tạm thời, nên việc dừng `goclaw` trong lúc deploy không còn giết job upgrade. Các record status `running` cũ cũng được thay thế sau 30 phút, và vòng lặp chờ deploy chịu được lỗi `502` thoáng qua trong lúc restart. Không cần thay đổi config.
 
 #### v3.11.3
@@ -386,4 +398,4 @@ Trước mỗi lần upgrade, kiểm tra release notes về:
 - [Database Setup](/deploy-database) — cài đặt PostgreSQL và pgvector
 - [Observability](/deploy-observability) — theo dõi gateway sau khi upgrade
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-29 -->

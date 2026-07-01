@@ -37,7 +37,7 @@ Setup（运行一次）
 迭代循环（每轮最多 20 次）
 ├─ ThinkStage   — 构建系统提示词、过滤工具、调用 LLM
 ├─ PruneStage   — 裁剪上下文（需要时触发记忆刷新）
-├─ ToolStage    — 执行工具调用（尽可能并行）
+├─ ToolStage    — 执行工具调用（只读批次有界并行；其余串行）
 ├─ ObserveStage — 处理工具结果，追加到消息缓冲区
 └─ CheckpointStage — 跟踪迭代次数，检查退出条件
 
@@ -52,7 +52,7 @@ Finalize（运行一次，即使被取消也会执行）
 | **ContextStage** | Setup | 注入 agent/用户/工作空间上下文；解析每用户文件 |
 | **ThinkStage** | 迭代 | 构建系统提示词（15+ 个部分），调用 LLM，发送流式 chunk |
 | **PruneStage** | 迭代 | 上下文 ≥ 30% 时软裁剪，≥ 50% 时硬裁剪；触发记忆刷新 |
-| **ToolStage** | 迭代 | 执行工具调用——多个调用使用并行 goroutine |
+| **ToolStage** | 迭代 | 执行工具调用。只有已注册的**只读**工具才进行有界并行；变更类（mutating）、async、MCP 桥接（`mcp_*`）、`exec`/`bash`、`wait`、未知/未注册工具，以及超预算批次均**串行**执行。包含任一不合格调用的混合批次将整体串行执行。`PreToolUse` hook 在任何并行 I/O 之前运行，结果按原始 assistant 顺序处理 |
 | **ObserveStage** | 迭代 | 处理工具结果；处理 `NO_REPLY` 静默完成 |
 | **CheckpointStage** | 迭代 | 递增计数器；达到最大迭代次数或上下文取消时退出 |
 | **FinalizeStage** | Finalize | 运行 7 步输出净化；原子刷新消息；更新 session 元数据 |
@@ -128,4 +128,4 @@ GoClaw v3 新增五个系统——每个系统都有专属页面：
 - [工具概览](/tools-overview) — 完整工具目录
 - [Sessions 和历史](./sessions-and-history.md) — 对话如何持久化
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-17 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

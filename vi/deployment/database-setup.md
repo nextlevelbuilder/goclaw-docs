@@ -148,9 +148,9 @@ docker compose \
 
 > **Data hooks:** GoClaw theo dõi các Go transform sau migration trong bảng `data_migrations` riêng. Chạy `./goclaw upgrade --status` để xem cả phiên bản SQL migration và các data hook đang chờ.
 
-> Các migration `000045`–`000073` tiếp tục mở rộng schema: config model fallback, catalog REST endpoint, OAuth state của portal Bitrix24 (`bitrix_portals`), sync cookie browser phía server (`browser_cookies`), các bảng pricing và enforcement của usage-cap (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), bridge agent-budget, và credential secure-CLI có kiểu — xem [Database Schema → Migration History](/database-schema).
+> Các migration `000045`–`000080` tiếp tục mở rộng schema: config model fallback, catalog REST endpoint, OAuth state của portal Bitrix24 (`bitrix_portals`), sync cookie browser phía server (`browser_cookies`), các bảng pricing và enforcement của usage-cap (`usage_pricing_catalog`, `usage_pricing_overrides`, `usage_cap_policies`, `usage_cap_counters`, `usage_cap_reservations`, `usage_cap_events`), bridge agent-budget, credential secure-CLI có kiểu, timeline run lưu trữ (`run_timeline_items`), các capability context theo từng channel (grant và credential MCP/secure-CLI có phạm vi), trích xuất bộ nhớ channel thụ động, credential secure-CLI theo từng agent, skill self-evolution (`skill_usage_metrics`, `skill_improvement_suggestions`, `skill_versions`), và phân tích usage event (`usage_events`, `usage_event_rollups`) — xem [Database Schema → Migration History](/database-schema).
 
-Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **73**.
+Chạy `./goclaw migrate status` sau khi deploy để xác nhận schema hiện tại là phiên bản **80**.
 
 ---
 
@@ -160,7 +160,7 @@ GoClaw v3 hỗ trợ hai backend database:
 
 | Tính năng | PostgreSQL | SQLite (desktop) |
 |-----------|-----------|-----------------|
-| Schema đầy đủ (73 migration) | Có | Có |
+| Schema đầy đủ (80 migration) | Có | Có |
 | Tìm kiếm vector similarity (HNSW) | Có — pgvector | Không |
 | Tìm kiếm vector episodic summaries | Có | Chỉ FTS |
 | Knowledge Vault tự động liên kết | Có — ngưỡng 0.7 | Không (chỉ tóm tắt) |
@@ -299,4 +299,4 @@ VACUUM ANALYZE traces, spans;
 - [Security Hardening](/deploy-security) — mã hóa AES-256-GCM cho secrets trong database
 - [Observability](/deploy-observability) — query traces và spans để theo dõi chi phí LLM
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-29 -->

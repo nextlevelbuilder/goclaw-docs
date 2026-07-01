@@ -250,7 +250,7 @@ Các phần trên mô tả **mô hình paste env cũ** — bạn paste các bi�
 
 ### Các loại credential
 
-Mỗi dòng user credential mang một `credential_type` (migration `000073`):
+Mỗi dòng typed credential mang một `credential_type`:
 
 | `credential_type` | Ý nghĩa |
 |-------------------|---------|
@@ -260,14 +260,81 @@ Mỗi dòng user credential mang một `credential_type` (migration `000073`):
 
 Các dòng `NULL`/`env` không bao giờ bị migrate — credential cũ vẫn hoạt động nguyên vẹn. Typed adapter là tùy chọn opt-in theo từng credential.
 
-### User credential và binary/system credential
+### Agent credential (đường git mặc định)
 
-Typed adapter thao tác trên **user credential**, không phải env default cấp binary:
+Agent credential là đường **mặc định** cho auth git. Chúng tránh sự mơ hồ về ID user của channel: agent được chọn sở hữu credential, và bất kỳ ai được phép dùng agent đó đều có thể khiến nó chạy git với credential đã lưu.
 
-- **Binary/system credential** — định nghĩa binary + env var default của nó (và override từ agent grant) đã mô tả ở trên. Dùng chung cho mọi grant của binary.
-- **User credential** — secret typed theo từng user lưu trong `secure_cli_user_credentials`, scope tới một hostname duy nhất.
+Agent credential nằm trong bảng `secure_cli_agent_credentials` (migration `000077`), lưu tài liệu secret dạng typed **tách biệt** khỏi row policy `secure_cli_agent_grants`. Có một credential cho mỗi `(agent, binary)`.
 
-Quản lý user credential trong dashboard tại **Settings → CLI Credentials → User Credentials**. Nhấn **Add**, chọn user, chọn loại credential (`Personal Access Token` hoặc `SSH Private Key`), nhập **Host Scope**, và paste secret. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — sửa dòng đó sẽ hiển thị placeholder `••••••••`; để trống ô secret sẽ giữ giá trị đã lưu, gõ giá trị mới sẽ thay thế nó.
+**Thêm agent credential (UI):**
+
+1. Mở **Packages → CLI Credentials**.
+2. Chọn dòng `git` và mở **Agent Access**.
+3. Ở tab **Credential**, chọn agent.
+4. Chọn **Credential Type**: `Personal Access Token` hoặc `SSH Private Key`.
+5. Nhập **Host Scope** (bắt buộc cho PAT/SSH): hostname mà credential xác thực tới (vd `github.com`, `gitlab.example.com`, `gitea.internal:8443`).
+6. Paste token (PAT) hoặc body PEM chưa mã hóa (SSH).
+7. Lưu.
+
+Dialog **Agent Access** có hai tab:
+
+- **Credential** — chọn agent, loại credential, host scope, và secret (ở trên).
+- **Access policy** — đổi deny args, timeout, tips, hoặc env override cho agent đó (row `secure_cli_agent_grants`).
+
+Policy và lưu trữ secret tách biệt nội bộ, nhưng bạn quản lý chúng như một quyết định truy cập duy nhất trong dialog này. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — sửa dòng đó sẽ hiển thị placeholder `••••••••`.
+
+### Thứ tự ưu tiên credential hiệu lực
+
+Khi git chạy, GoClaw resolve typed credential nào để inject theo thứ tự này — match **đầu tiên** thắng:
+
+1. **User override** — một typed credential theo từng user (Advanced user overrides, bên dưới).
+2. **Credential channel/context** — một credential scope tới context channel hoặc group nơi lượt chạy phát sinh.
+3. **Agent credential** — row `secure_cli_agent_credentials` của chính agent. Đây là ranh giới tin cậy mặc định.
+4. **Env mặc định cấp binary** — env passthrough cũ trên định nghĩa binary.
+
+Cấp cho agent quyền truy cập git thực chất là cấp việc dùng credential git đã lưu của nó, nên agent credential là ranh giới mặc định trừ khi có một lớp cao hơn (user override hoặc credential channel/context).
+
+### Advanced user overrides
+
+User credential vẫn có sẵn cho override cá nhân và tương thích ngược. Chỉ dùng khi một tenant user ID ổn định là ranh giới credential mong muốn — chúng đứng **trên** agent credential trong thứ tự ưu tiên.
+
+Quản lý chúng trong dashboard tại **Packages → CLI Credentials → Advanced User Overrides → Add**: chọn user, chọn loại credential (`Personal Access Token` hoặc `SSH Private Key`), nhập **Host Scope**, và paste secret. Secret lưu trữ được mã hóa AES-256-GCM và không bao giờ đọc lại được — để trống ô secret khi sửa sẽ giữ giá trị đã lưu, gõ giá trị mới sẽ thay thế nó.
+
+Các dòng này nằm trong bảng `secure_cli_user_credentials`.
+
+### REST API agent credential
+
+Các endpoint agent-credentials quản lý secret typed cho một cặp `(binary, agent)`. Chúng yêu cầu role `admin`.
+
+#### Liệt kê agent credential của binary
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials
+```
+
+Trả về các agent có credential lưu trữ cho binary này, chỉ với metadata (loại credential, host scope, có key hay không) — không bao giờ trả secret.
+
+#### Lấy credential của một agent
+
+```
+GET /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+#### Set (tạo hoặc thay thế) credential của một agent
+
+```
+PUT /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Gửi `credential_type`, `host_scope`, và secret (`env_vars` cho `env`, hoặc body PAT/SSH key dạng typed). Secret được mã hóa khi lưu và không bao giờ được trả về.
+
+#### Xóa credential của một agent
+
+```
+DELETE /v1/cli-credentials/{id}/agent-credentials/{agentId}
+```
+
+Xóa secret đã lưu. Row policy `secure_cli_agent_grants` của agent (deny args, timeout, …) không bị ảnh hưởng — xóa grant riêng để thu hồi quyền truy cập.
 
 ### Adapter git
 
@@ -284,10 +351,12 @@ Bất kỳ subcommand nào khác (`status`, `log`, `diff`, `commit`, `branch`, �
 ```
 GIT_CONFIG_COUNT=1
 GIT_CONFIG_KEY_0=http.https://<host>/.extraheader
-GIT_CONFIG_VALUE_0=Authorization: Bearer <token>
+GIT_CONFIG_VALUE_0=Authorization: Basic base64("x-access-token:<token>")
 ```
 
-Vì token nằm trong một env value (không phải flag dòng lệnh), nó không bao giờ xuất hiện trong `ps`, `/proc/<pid>/cmdline`, hay lịch sử shell. Các env var được inject chỉ giới hạn trong tiến trình `git` được spawn — môi trường của chính GoClaw và các lệnh exec khác không bao giờ thấy chúng.
+Giá trị header là HTTP Basic auth: username cố định `x-access-token` và token của bạn nối bằng dấu hai chấm, mã hóa base64. Vì token nằm trong một env value (không phải flag dòng lệnh), nó không bao giờ xuất hiện trong `ps`, `/proc/<pid>/cmdline`, hay lịch sử shell. Các env var được inject chỉ giới hạn trong tiến trình `git` được spawn — môi trường của chính GoClaw và các lệnh exec khác không bao giờ thấy chúng.
+
+Token thô, payload base64, **và** toàn bộ header `Authorization: Basic …` đều được đăng ký với output scrubber, nên không cái nào trong ba có thể lọt ngược về agent qua stdout, stderr, thông báo lỗi, hay audit log.
 
 **Luồng SSH.** Key PEM được ghi vào một tmpfile mode `0600` trong thư mục temp hệ thống (prefix `goclaw-gitkey-*`), và `GIT_SSH_COMMAND` được đặt thành:
 
@@ -295,7 +364,7 @@ Vì token nằm trong một env value (không phải flag dòng lệnh), nó kh�
 ssh -i <tmpfile> -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new
 ```
 
-`StrictHostKeyChecking=accept-new` chấp nhận host key chưa biết ở **lần kết nối đầu (TOFU)**. Pre-seed `~/.ssh/known_hosts` để đóng cửa sổ này (xem [Security Hardening](/deploy-security)). Tmpfile bị xóa sau khi exec qua deferred cleanup. **SSH key có passphrase bị từ chối lúc lưu** — hãy export lại key không passphrase, hoặc dùng deploy key riêng.
+`BatchMode=yes` nghĩa là SSH không bao giờ hỏi và fail nhanh trong ngữ cảnh agent. `StrictHostKeyChecking=accept-new` chấp nhận host key chưa biết ở **lần kết nối đầu (TOFU)**. Pre-seed `~/.ssh/known_hosts` để đóng cửa sổ này (xem [Security Hardening](/deploy-security)). Tmpfile bị xóa sau khi exec qua deferred cleanup. **SSH private key được xác thực hai lần lúc lưu** — đầu tiên bằng parser SSH của Go, sau đó bằng OpenSSH (`ssh-keygen -y -f <tmpfile>`) khi có sẵn — để bắt các key lẽ ra sẽ lưu được nhưng sau đó lỗi với chẩn đoán OpenSSH. **SSH key có passphrase bị từ chối lúc lưu** — hãy export lại key không passphrase, hoặc dùng deploy key riêng.
 
 ### Host scope
 
@@ -305,7 +374,7 @@ Cả `pat` và `ssh_key` đều yêu cầu **`host_scope`** — chính xác `hos
 |---------------------|:---:|:---:|:---:|
 | `github.com` | ✓ | ✗ | ✗ |
 
-Nếu bạn chạy server self-hosted trên port mặc định của scheme (443 HTTPS, 22 SSH), bỏ port; nếu trên port không mặc định, thêm port vào (vd `gitea.internal:8443`). Khi không có credential lưu trữ nào khớp host của remote đã resolve, adapter rơi xuống đường không credential và remote sẽ từ chối thao tác nếu nó yêu cầu auth.
+Nếu bạn chạy server self-hosted trên port mặc định của scheme (443 HTTPS, 22 SSH), bỏ port; nếu trên port không mặc định, thêm port vào (vd `gitea.internal:8443`). Khi không có typed credential PAT/SSH nào được chọn, hoặc credential được chọn không thể khớp host của remote đã resolve, **các lệnh git remote do adapter quản lý sẽ fail closed kèm một chẩn đoán GoClaw**. `git` **không** được phép rơi xuống prompt username/password tương tác trong runtime của agent.
 
 ### Khả năng hiển thị env: nhạy cảm và không nhạy cảm
 
@@ -320,10 +389,11 @@ Các entry env lưu trữ giờ mang một `kind`. Khi dashboard hoặc admin AP
 
 ### Migrate từ credential env cũ
 
-Không có migration bắt buộc. Một dòng có `credential_type IS NULL` hoặc `= 'env'` vẫn phát ra env var của nó đúng như trước. Để nâng cấp một git credential, mở dialog user-credential, chọn **Personal Access Token** hoặc **SSH Private Key**, nhập host scope, paste secret, và lưu — dòng cũ được thay thế atomically.
+Không có migration bắt buộc. Một dòng có `credential_type IS NULL` hoặc `= 'env'` vẫn phát ra env var của nó đúng như trước. Để nâng cấp một git credential, tạo một **Agent Credential** khớp (hoặc, nếu một user ID ổn định là ranh giới mong muốn, một Advanced user override), nhập host scope, paste secret, và lưu. User override hiện có vẫn cao ưu tiên hơn agent credential, nên bạn có thể migrate dần và bỏ user override khi không còn cần.
 
 ### Giới hạn v1
 
+- **Một credential cho mỗi row `(agent, binary)`**, cộng một credential cũ cho mỗi override `(user, binary)`.
 - **Không có wildcard host** — một credential cho mỗi `host[:port]` chính xác; `*.github.com` không được hỗ trợ.
 - **Không có SSH key có passphrase** — bị từ chối lúc validation.
 - **Không propagate vào sandbox** — adapter mutate môi trường của tiến trình con đã fork, không tương thích với đường sandbox Docker bind-mount. Credentialed exec chỉ chạy trên host trong v1.
@@ -385,12 +455,14 @@ Cập nhật grant: `{"enabled": false}`. Binary vẫn dùng được với các
 | Agent không chạy được binary | Kiểm tra `is_global` của binary — nếu `false`, agent cần có grant tường minh |
 | Override của grant không được áp dụng | Kiểm tra grant `enabled = true` và các trường override khác null |
 | `403` ở endpoint grant | Cần role admin — kiểm tra scope của API key |
+| `git clone`/`push` lỗi không có credential | Không có typed credential nào khớp host remote — git fail closed (không prompt). Thêm một Agent Credential với `host_scope` chính xác. |
 
 ## Tiếp theo
 
+- [Ma trận phân quyền](/permission-matrix) — các lớp phân quyền đầy đủ, phạm vi group/channel, và credential theo context channel
 - [Database Schema → secure_cli_agent_grants](/database-schema)
 - [Exec Approval](/exec-approval)
 - [API Keys & RBAC](/api-keys-rbac)
 - [Security Hardening](/deploy-security)
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

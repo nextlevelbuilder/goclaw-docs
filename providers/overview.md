@@ -67,6 +67,8 @@ Providers that support extended thinking also implement `SupportsThinking() bool
 | perplexity | `https://api.perplexity.ai` | `sonar-pro` |
 | ollama | `http://localhost:11434/v1` | `llama3.3` |
 | byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` |
+| bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` |
+| kimi_coding | `https://api.kimi.com/coding/v1` | `kimi-k2-turbo-preview` |
 
 ## Adding a Provider
 
@@ -225,6 +227,8 @@ When GoClaw bridges MCP (Model Context Protocol) tools to a provider, tool schem
 - [DeepSeek](/provider-deepseek) — DeepSeek with reasoning_content support
 - [Groq](/provider-groq) — ultra-fast inference
 - [DashScope](/provider-dashscope) — Alibaba Qwen models with thinking support
+- [Bailian](/provider-bailian) — Alibaba Cloud Bailian Coding endpoint (separate from DashScope)
+- [Kimi Coding](/provider-kimi) — Moonshot Kimi with fixed User-Agent and server-side thinking
 - [ACP](/provider-acp) — Claude Code, Codex CLI, Gemini CLI subagent orchestration
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

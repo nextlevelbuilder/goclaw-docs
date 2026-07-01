@@ -45,6 +45,7 @@ Zalo 官方账号（OA）集成。仅支持 DM，基于配对的访问控制，�
 | `webhook_secret` | string | -- | 可选 webhook 签名密钥 |
 | `media_max_mb` | int | 5 | 最大图片文件大小（MB） |
 | `block_reply` | bool | -- | 覆盖 gateway block_reply（nil=继承） |
+| `chat_behavior` | object | -- | 为此 channel 覆盖 gateway 的[拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 
 ## 功能特性
 
@@ -117,4 +118,4 @@ Bot 可以接收和发送图片（JPG、PNG）。默认最大 5 MB。
 - [Telegram](/channel-telegram) — Telegram bot 设置
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

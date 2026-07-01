@@ -171,6 +171,8 @@ GoClaw 以两种模式构建系统提示词：
 - **PromptFull** — 用于主 agent 运行。包含全部 19+ 部分：skill、MCP 工具、记忆召回、用户身份、消息传递、静默回复规则和完整上下文文件。
 - **PromptMinimal** — 用于子 agent（通过 `spawn` 工具生成）和 cron 任务。精简上下文，只包含必要部分（工具、安全、工作空间、bootstrap 文件）。减少轻量操作的启动时间和 token 用量。
 
+对于**群聊**会话，system prompt 还会注入群聊上下文——参与者和群组信息——以便 agent 知道自己是多个发言者之一，并能恰当地称呼参与者。
+
 ## NO_REPLY 抑制
 
 Agent 可以在最终响应中发出 `NO_REPLY` 信号，以抑制向用户发送可见回复。GoClaw 在响应最终化期间检测此字符串，并完全跳过消息投递——即"静默完成"。记忆刷新 agent 在没有内容需要存储时内部使用此功能，自定义 agent 指令也可用于类似的静默操作场景。
@@ -234,4 +236,4 @@ Agent 可以在最终响应中发出 `NO_REPLY` 信号，以抑制向用户发�
 - [工具概览](/tools-overview) — Agent 可以使用哪些工具
 - [记忆系统](./memory-system.md) — 长期记忆和搜索
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

@@ -54,6 +54,10 @@ Nếu một tool call cũ trong lịch sử hội thoại thiếu `thought_signa
 
 Gemini từ chối assistant message có `content` rỗng khi có tool calls. GoClaw bỏ qua field `content` trong trường hợp đó thay vì gửi string rỗng.
 
+### Nhập media bằng URL
+
+Ảnh và video được cung cấp bằng URL được xử lý mà bạn không cần tải xuống trước. URL ảnh được truyền thẳng vào request vision. Với video, GoClaw stream URL vào Gemini File API (upload → poll → `file_data`) qua HTTP client được ghim an toàn chống SSRF. Xem [Tạo Media](/media-generation) để biết tham chiếu đầy đủ về nhập/xuất multimodal.
+
 ## Thinking / Reasoning
 
 Gemini 2.5 hỗ trợ extended thinking. Đặt `thinking_level` trong options của agent:
@@ -84,4 +88,4 @@ GoClaw ánh xạ sang `reasoning_effort` trong request. Thinking tokens được
 - [OpenRouter](/provider-openrouter) — truy cập Gemini và 100+ model khác qua một key
 - [Tổng quan](/providers-overview) — kiến trúc provider và retry logic
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

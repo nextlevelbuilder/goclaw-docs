@@ -56,6 +56,8 @@ goclaw bitrix-portal create \
 
 `--name`（例如 `acme`）是频道配置引用的 portal key。`--domain` 是裸主机名 — 不带 scheme，不带结尾斜杠。
 
+> **支持自托管 portal。** 除了 Bitrix24 云域名（`*.bitrix24.{com,eu,vn,...}` 和 `*.bitrix.info`），`--domain` 还接受**自托管 Bitrix24 FQDN**，例如 `bx.mycompany.com`（允许可选的 `:port`）。自托管域名会经过一道 SSRF 安全校验：解析主机名并检查**每一个**返回的 IP，拒绝 loopback/私有/metadata IP 范围，屏蔽 `localhost` / `.local` / `.localhost` 名称，且任何端口必须在 1–65535 范围内。云域名跳过此检查（它们由 Bitrix 运营且受信任）。
+
 > 运行此命令前请设置 `GOCLAW_ENCRYPTION_KEY`。凭据和 token 以 AES-256-GCM 加密存储；如果缺少该 key，它们将以明文存储（并附带警告）。
 
 你也可以从 dashboard 创建 portal，它会直接返回安装 URL。
@@ -114,6 +116,7 @@ https://<你的公网-url>/bitrix24/install?state=<tenant-uuid>:acme
 | `reaction_level` | string | `"minimal"` | `off`、`minimal`、`full` |
 | `history_limit` | int | -- | 作为上下文保留的待处理群组消息数 |
 | `block_reply` | bool | -- | 覆盖 gateway 的 `block_reply`（nil = 继承） |
+| `chat_behavior` | object | -- | 覆盖此 channel 的 gateway [拟人化投递](/channels-overview#human-like-delivery)（nil = 继承） |
 | `public_url` | string | -- | 按实例覆盖公网 URL（legacy；建议使用自动捕获的 portal URL） |
 | `mcp_server_name` | string | -- | 用于按用户提供凭据的 MCP server 名称（参见 [MCP 集成](#mcp-集成)） |
 | `mcp_base_url` | string | -- | MCP server 的 base URL；必须与 `mcp_server_name` 一同设置 |
@@ -209,6 +212,7 @@ Bitrix24 频道可以惰性地提供**按用户的 MCP 凭据**，使每个用�
 | Open Channel bot 对客户静默 | `bot_type: "O"` 需要 `dm_policy: "open"`，且管理员必须在 Bitrix24 UI 中将 bot 接入 Open Channel 队列。 |
 | 重新部署后事件 handler URL 过期 | 设置 `BITRIX24_FORCE_REREGISTER=1` 并重启，以把新 URL 推入 Bitrix24。 |
 | 想查看原始事件 | 进程启动时设置 `BITRIX24_LOG_RAW_EVENT=1`（凭据会被脱敏）。生产环境请关闭 — 它会记录消息文本。 |
+| 自托管域名被拒绝 | FQDN 必须解析到公网 IP。SSRF 校验会屏蔽 loopback/私有/metadata IP 范围以及 `localhost` / `.local` / `.localhost` 名称；端口必须在 1–65535 范围内。 |
 
 ## 下一步
 
@@ -217,4 +221,4 @@ Bitrix24 频道可以惰性地提供**按用户的 MCP 凭据**，使每个用�
 - [Slack](/channel-slack) — Slack Socket Mode 集成
 - [Browser Pairing](/channel-browser-pairing) — 配对流程
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

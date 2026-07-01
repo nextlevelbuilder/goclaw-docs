@@ -179,6 +179,10 @@ DELETE /v1/tools/custom/{id}
 }
 ```
 
+## 执行顺序
+
+当 agent 在一个回合内发出多个工具调用时，只有已注册的**只读**内置工具才进行有界并行。自定义工具（基于 shell）未注册为只读，因此始终**串行**执行——任何将自定义工具与其他调用混合的批次都会整体串行执行。这使基于 shell 的副作用有序且可预测；这不是你需要配置的设置。
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |
@@ -254,4 +258,4 @@ GoClaw 在整个 agent run 生命周期中维护一个 `DeliveredMedia` 跟踪�
 - [Exec 审批](/exec-approval) — 在命令执行前要求人工审批
 - [Sandbox](/sandbox) — 在 Docker 中运行命令以获得额外隔离
 
-<!-- goclaw-source: d85bf171 | 更新: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->

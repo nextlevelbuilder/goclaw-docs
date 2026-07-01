@@ -227,6 +227,76 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 **Idempotency dựa trên hash:** Endpoint upload dùng hash SHA-256 của nội dung `SKILL.md` để deduplication. Nếu cùng nội dung `SKILL.md` được upload lại (dù đóng gói trong ZIP khác), không có version mới nào được tạo — version hiện có được giữ nguyên. Chỉ khi nội dung `SKILL.md` thực sự thay đổi mới tạo version mới.
 
+> **File đi kèm inline qua `skill_manage`:** Agent có bật skill evolution cũng có thể tạo các file văn bản đi kèm nhỏ inline (không cần ZIP) bằng cách truyền object `files` cho tool `skill_manage` — khóa theo đường dẫn tương đối, ví dụ `references/guide.md`. Mỗi file văn bản inline bị giới hạn **2 MB**, và bộ xác thực đường dẫn từ chối đường dẫn tuyệt đối, đường dẫn ổ đĩa Windows (`C:\...`), null byte, traversal `..`, ghi đè `SKILL.md`, dotfile/dotdir, và system artifact (ví dụ `.git`). Xem [Agent Evolution](agent-evolution.md) để biết chi tiết.
+
+## Export & Tải Xuống Có Chọn Lọc
+
+Bạn có thể export skill thành archive ZIP — toàn bộ skill hoặc một tập con tự chọn — từ Dashboard hoặc API.
+
+**Xem trước trước khi build** — `GET /v1/skills/export/preview` trả về số lượng *sẽ* được export mà không build archive, để UI hiển thị "N skill, M sẽ được bao gồm" trước khi bạn xác nhận:
+
+```bash
+curl "http://localhost:8080/v1/skills/export/preview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Export skill đã chọn** — truyền các skill ID cụ thể để chỉ export những skill đó, cùng cờ tùy chọn `include_system` để bao gồm skill bundled/system:
+
+```bash
+# Export hai skill cụ thể, loại trừ system skill
+curl "http://localhost:8080/v1/skills/export?ids=SKILL_ID_1,SKILL_ID_2&include_system=false" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+Với export lớn, server có thể build archive bất đồng bộ và stream Server-Sent Events trong quá trình. Khi hoàn tất, server trả về `download_url` trỏ tới endpoint token dùng một lần:
+
+```
+event: complete
+data: {"download_url":"/v1/export/download/TOKEN"}
+```
+
+```bash
+# Tải archive đã build bằng token trả về
+curl "http://localhost:8080/v1/export/download/TOKEN" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+**Dashboard:** trang **Skills** có thanh công cụ chọn hàng loạt — tích các skill bạn muốn, rồi **Export selected** để chỉ tải những skill đó.
+
+## Access Mode & Effective Access
+
+Ngoài các mức visibility, mỗi skill còn có **access mode** kiểm soát mức độ tiếp cận rộng rãi. Admin đọc và thiết lập qua các endpoint access:
+
+| Method | Path | Mô tả |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/access` | Hiển thị access mode và grants của skill |
+| `PATCH` | `/v1/skills/{id}/access` | Thiết lập access mode (`private`, `internal`, hoặc `public`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Giải thích access hiệu lực cho một skill, theo agent và user |
+| `GET` | `/v1/skills/access/effective` | Giải thích access hiệu lực trên tất cả skill cho một agent và user |
+
+```bash
+# Đặt access mode của skill thành internal
+curl -X PATCH "http://localhost:8080/v1/skills/{id}/access" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_mode": "internal"}'
+
+# Giải thích vì sao một agent/user tiếp cận được hoặc không tiếp cận được skill
+curl "http://localhost:8080/v1/skills/{id}/access/effective?agent_id=AGENT_UUID&user_id=user@example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Endpoint Dependency Theo Từng Skill
+
+Ngoài rescan toàn gateway, bạn có thể kiểm tra và quản lý dependency cho từng skill riêng lẻ:
+
+| Method | Path | Mô tả |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/dependencies` | Trạng thái dependency hiện tại của skill |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Quét lại dependency đã khai báo và phát hiện |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Kiểm tra từng dependency có resolve được lúc runtime không |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Cài dependency thiếu (master tenant) |
+
 ## Môi trường Runtime
 
 Các skill dùng Python hoặc Node.js chạy trong Docker container với các package được cài sẵn.
@@ -270,7 +340,7 @@ Agent **không thể**: ghi vào system path, thực thi binary từ `/tmp`, ch�
 
 ## Skills Tích hợp Sẵn (Bundled Skills)
 
-GoClaw đóng gói sáu core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
+GoClaw đóng gói bảy core skill bên trong Docker image tại `/app/bundled-skills/`. Chúng có ưu tiên thấp nhất — skill do user upload sẽ ghi đè bằng slug.
 
 | Skill | Mục đích |
 |---|---|
@@ -280,6 +350,7 @@ GoClaw đóng gói sáu core skill bên trong Docker image tại `/app/bundled-s
 | `pptx` | Đọc, tạo, chỉnh sửa presentation |
 | `skill-creator` | Tạo skill mới |
 | `workspace-organizing` | Giữ workspace của agent gọn gàng và dễ tìm — áp dụng quy ước thư mục theo mục đích và chạy khám phá memory/Vault/knowledge-graph trước khi ghi file để tránh trùng lặp |
+| `goclaw` | Vận hành, kiểm tra, quản trị và debug một GoClaw gateway qua `goclaw` CLI/runtime — khám phá CLI, chẩn đoán health/config gateway, agents, skills, MCP/tools, runtime packages, credentials, traces, sessions, channels, providers và cron/jobs. Luôn kiểm tra output `goclaw --help` trực tiếp trước vì lệnh khả dụng phụ thuộc phiên bản. |
 
 Bundled skill được seed vào PostgreSQL mỗi lần gateway khởi động (theo dõi hash, không re-import nếu không thay đổi). Chúng được đánh dấu `is_system = true` và `visibility = 'public'`.
 
@@ -545,4 +616,4 @@ Xem [Agent Evolution](agent-evolution.md) để biết chi tiết về tool `ski
 - [Custom Tools](../advanced/custom-tools.md) — thêm tool shell-backed cho agent
 - [Scheduling & Cron](../advanced/scheduling-cron.md) — chạy agent theo lịch
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

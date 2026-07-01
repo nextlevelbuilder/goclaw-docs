@@ -39,6 +39,9 @@ Instances whose `name` equals a bare channel type (`telegram`, `discord`, `feish
 | `zalo_oa` | Zalo Official Account |
 | `zalo_personal` | Zalo personal account |
 | `feishu` | Feishu / Lark bot |
+| `bitrix24` | Bitrix24 portal (Open Channel / chat bot) |
+| `pancake` | Pancake multi-platform proxy (Facebook, Zalo OA, Instagram, TikTok, WhatsApp, Line) |
+| `facebook` | Facebook Fanpage (Messenger + comments) |
 
 ---
 
@@ -76,6 +79,48 @@ All API responses return an instance object with credentials masked:
 | `config` | object | Channel-specific config (optional) |
 | `enabled` | bool | `false` disables the instance without deleting it |
 | `is_default` | bool | `true` for seeded instances — cannot be deleted |
+
+---
+
+## Instance `config` reference
+
+The `config` object holds channel-specific settings. Beyond the per-channel keys documented on each channel page, two cross-channel concerns are worth calling out here.
+
+### Delivery overrides (`chat_behavior`, `block_reply`)
+
+Channel instances can override the workspace-level [human-like delivery](/channels-overview#human-like-delivery) behavior:
+
+| Key | Type | Notes |
+|---|---|---|
+| `chat_behavior` | object | Override `gateway.chat_behavior` for this instance (omit = inherit). Set only the fields you want to change. |
+| `block_reply` | bool | **Legacy.** Read as the inherited default for `intermediate_replies.enabled` when the newer field is unset. |
+
+Resolution order is **Channel > Agent > Workspace**:
+
+1. **Workspace** — `gateway.chat_behavior` (the base).
+2. **Agent** — `agents.other_config.delivery_behavior` overrides the workspace base.
+3. **Channel** — the instance's `config.chat_behavior` has the final say.
+
+Each level only overrides the fields it sets, so you can tune one knob per channel and inherit the rest. Only channels that implement the `ChatBehaviorChannel` interface honor these overrides (Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, Zalo Personal).
+
+### Passive channel memory (`passive_memory`)
+
+An instance can opt into [passive channel memory extraction](/memory-system#passive-channel-memory-extraction) by adding a `passive_memory` block to its `config`:
+
+```json
+{
+  "config": {
+    "passive_memory": {
+      "enabled": true,
+      "review_mode": true,
+      "interval_minutes": 360,
+      "min_messages": 5
+    }
+  }
+}
+```
+
+Disabled by default, group-only in v1, and review-gated. See [Memory System › Passive Channel Memory Extraction](/memory-system#passive-channel-memory-extraction) for the full field table and behavior.
 
 ---
 
@@ -269,7 +314,7 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 | Issue | Cause | Fix |
 |---|---|---|
 | `403` on delete | Instance is a default/seeded instance | Default instances cannot be deleted; disable them with `enabled: false` instead |
-| `400 invalid channel_type` | Typo or unsupported type | Use one of: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu` |
+| `400 invalid channel_type` | Typo or unsupported type | Use one of: `telegram`, `discord`, `slack`, `whatsapp`, `zalo_oa`, `zalo_personal`, `feishu`, `bitrix24`, `pancake`, `facebook` |
 | Messages not routing to agent | Instance is disabled or `agent_id` is wrong | Verify `enabled: true` and the correct `agent_id` |
 | Credentials not persisted | `GOCLAW_ENCRYPTION_KEY` not set | Set the encryption key env var; credentials require it |
 | Cache stale after update | In-memory cache not yet refreshed | GoClaw broadcasts a cache-invalidate event on every write; cache refreshes within seconds |
@@ -282,4 +327,4 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 - [Multi-Channel Setup](/recipe-multi-channel)
 - [Multi-Tenancy](/multi-tenancy)
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

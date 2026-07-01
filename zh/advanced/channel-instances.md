@@ -41,6 +41,9 @@ graph LR
 | `zalo_oa` | Zalo 官方账号 |
 | `zalo_personal` | Zalo 个人账号 |
 | `feishu` | 飞书 / Lark bot |
+| `bitrix24` | Bitrix24 门户（Open Channel / 聊天机器人） |
+| `pancake` | Pancake 多平台代理（Facebook、Zalo OA、Instagram、TikTok、WhatsApp、Line） |
+| `facebook` | Facebook Fanpage（Messenger + 评论） |
 
 ---
 
@@ -78,6 +81,48 @@ graph LR
 | `config` | object | Channel 专属配置（可选） |
 | `enabled` | bool | `false` 表示禁用实例而不删除 |
 | `is_default` | bool | 种子实例为 `true` — 不能删除 |
+
+---
+
+## 实例 `config` 参考
+
+`config` 对象保存 channel 专属设置。除了每个 channel 页面记录的逐 channel 配置项之外，这里值得指出两个跨 channel 的关注点。
+
+### 投递覆盖（`chat_behavior`、`block_reply`）
+
+Channel 实例可以覆盖工作区级别的[拟人化投递](/channels-overview#human-like-delivery)行为：
+
+| 配置项 | 类型 | 说明 |
+|---|---|---|
+| `chat_behavior` | object | 为此实例覆盖 `gateway.chat_behavior`（省略 = 继承）。只设置你想更改的字段。 |
+| `block_reply` | bool | **遗留字段。** 当较新字段未设置时，读取为 `intermediate_replies.enabled` 的继承默认值。 |
+
+解析顺序为 **Channel > Agent > Workspace**：
+
+1. **Workspace** — `gateway.chat_behavior`（基准）。
+2. **Agent** — `agents.other_config.delivery_behavior` 覆盖工作区基准。
+3. **Channel** — 实例的 `config.chat_behavior` 拥有最终决定权。
+
+每一层仅覆盖它所设置的字段，因此你可以为每个 channel 调整某一项而继承其余。只有实现了 `ChatBehaviorChannel` 接口的 channel 才会遵循这些覆盖（Bitrix24、Discord、Feishu/Lark、Pancake、Slack、Telegram、WhatsApp、Zalo OA、Zalo Personal）。
+
+### 被动 channel 记忆（`passive_memory`）
+
+实例可以通过在其 `config` 中添加 `passive_memory` 块来开启[被动 channel 记忆提取](/memory-system#passive-channel-memory-extraction)：
+
+```json
+{
+  "config": {
+    "passive_memory": {
+      "enabled": true,
+      "review_mode": true,
+      "interval_minutes": 360,
+      "min_messages": 5
+    }
+  }
+}
+```
+
+默认禁用，v1 仅限群组，且需经审核。完整字段表和行为参见[记忆系统 › 被动 channel 记忆提取](/memory-system#passive-channel-memory-extraction)。
 
 ---
 
@@ -271,7 +316,7 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 | 问题 | 原因 | 解决方法 |
 |---|---|---|
 | 删除时 `403` | 实例是默认/种子实例 | 默认实例不能删除；改用 `enabled: false` 禁用 |
-| `400 invalid channel_type` | 拼写错误或不支持的类型 | 使用：`telegram`、`discord`、`slack`、`whatsapp`、`zalo_oa`、`zalo_personal`、`feishu` 之一 |
+| `400 invalid channel_type` | 拼写错误或不支持的类型 | 使用：`telegram`、`discord`、`slack`、`whatsapp`、`zalo_oa`、`zalo_personal`、`feishu`、`bitrix24`、`pancake`、`facebook` 之一 |
 | 消息未路由到 agent | 实例已禁用或 `agent_id` 错误 | 验证 `enabled: true` 和正确的 `agent_id` |
 | 凭据未持久化 | 未设置 `GOCLAW_ENCRYPTION_KEY` | 设置加密密钥环境变量；凭据需要它 |
 | 更新后缓存陈旧 | 内存缓存尚未刷新 | GoClaw 在每次写入时广播缓存失效事件；缓存在数秒内刷新 |
@@ -284,4 +329,4 @@ DELETE /v1/channels/instances/{id}/writers/{userId}?group_id=<group_id>
 - [多 Channel 设置](/recipe-multi-channel)
 - [多租户](/multi-tenancy)
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->

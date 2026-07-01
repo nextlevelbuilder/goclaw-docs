@@ -52,6 +52,10 @@ If a previous tool call in conversation history lacks a `thought_signature` (e.g
 
 Gemini rejects assistant messages with empty `content` when tool calls are present. GoClaw omits the `content` field in that case rather than sending an empty string.
 
+### Media input by URL
+
+Image and video inputs supplied by URL are handled without you downloading them first. Image URLs are passed through directly to the vision request. For video, GoClaw streams the URL into the Gemini File API (upload → poll → `file_data`) over an SSRF-safe pinned HTTP client. See [Media Generation](/media-generation) for the full multimodal input/output reference.
+
 ## Thinking / Reasoning
 
 Gemini 2.5 models support extended thinking. Set `thinking_level` in your agent options:
@@ -82,4 +86,4 @@ GoClaw maps this to `reasoning_effort` on the request. Thinking tokens are track
 - [OpenRouter](/provider-openrouter) — access Gemini and 100+ other models through one key
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

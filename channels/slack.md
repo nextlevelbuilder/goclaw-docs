@@ -104,6 +104,7 @@ All config keys are in `channels.slack`:
 | `native_stream` | bool | false | Use Slack ChatStreamer API if available |
 | `reaction_level` | string | `"off"` | `off`, `minimal`, `full` |
 | `block_reply` | bool | -- | Override gateway block_reply (nil=inherit) |
+| `chat_behavior` | object | -- | Override gateway [human-like delivery](/channels-overview#human-like-delivery) for this channel (nil = inherit) |
 | `debounce_delay` | int | 300 | Milliseconds before dispatching rapid messages (0=disabled) |
 | `thread_ttl` | int | 24 | Hours before thread participation expires (0=disabled) |
 | `media_max_bytes` | int | 20MB | Max file download size in bytes |
@@ -196,7 +197,7 @@ Reactions are debounced at 700ms to prevent API spam.
 
 **Receiving files:** Files attached to messages are downloaded with SSRF protection (hostname allowlist: `*.slack.com`, `*.slack-edge.com`, `*.slack-files.com`). Auth tokens are stripped on redirect. Files exceeding `media_max_bytes` (default 20MB) are skipped.
 
-**Sending files:** Agent-generated files are uploaded via Slack's file upload API. Failed uploads show an inline error message.
+**Sending files:** Agent-generated files are uploaded via Slack's file upload API. Failed uploads show an inline error message. When the agent sends a batch (`send_file` with `attachments[]`), Slack uses an **ordered single-send** fallback — files are delivered one after another in order. See [Multi-Attachment Delivery](/channels-overview#multi-attachment-delivery-batching).
 
 **Document extraction:** Document files (PDFs, text files) have their content extracted and appended to the message for the agent to process.
 
@@ -238,4 +239,4 @@ The `allow_from` list supports both user IDs and Slack channel IDs for group-lev
 - [Discord](/channel-discord) — Discord bot setup
 - [Browser Pairing](/channel-browser-pairing) — Pairing flow
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

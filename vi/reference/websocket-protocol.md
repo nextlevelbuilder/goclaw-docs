@@ -196,6 +196,46 @@ Protocol version sai hoặc token không hợp lệ trả về `ok: false` ngay 
 | `sessions.delete` | `{key}` | Xóa session |
 | `sessions.reset` | `{key}` | Xóa lịch sử session |
 | `sessions.compact` | `{key, keepLast?}` | Cắt history còn N message cuối (mặc định 4); bỏ qua nếu history < 6 |
+| `run.timeline.get` | `{runId?, sessionKey?, limit?, offset?}` | Lấy các mục timeline của run/session đã lưu trữ (display-safe) |
+
+#### `run.timeline.get`
+
+Lấy các mục timeline an toàn để hiển thị (display-safe) được ghi lại trong quá trình agent chạy. Truyền `runId` cho một run đơn lẻ, hoặc `sessionKey` cho panel archive của session — **cần ít nhất một trong hai**. `limit` mặc định `200` và giới hạn tối đa `500`; `offset` để phân trang. Vai trò viewer có thể đọc method này; caller không phải admin chỉ nhận các mục có `user_id` khớp với user đang kết nối.
+
+**Request:**
+
+```json
+{
+  "type": "req",
+  "id": "tl-1",
+  "method": "run.timeline.get",
+  "params": { "runId": "run-123", "sessionKey": "agent:demo:direct:user-1", "limit": 100, "offset": 0 }
+}
+```
+
+**Response payload:**
+
+```json
+{
+  "runId": "run-123",
+  "sessionKey": "agent:demo:direct:user-1",
+  "items": [{
+    "id": "019e...",
+    "run_id": "run-123",
+    "session_key": "agent:demo:direct:user-1",
+    "seq": 1,
+    "item_type": "assistant.message",
+    "status": "completed",
+    "title": "assistant",
+    "preview": "I will check that now.",
+    "created_at": "2026-05-29T10:00:00Z"
+  }],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+Các giá trị `item_type` của timeline gồm `activity`, `assistant.message`, `tool.call`, `tool.result`, và `run.status`. Các mục tool chỉ lưu preview giới hạn; raw reasoning/thinking không được lưu trữ.
 
 ### Config
 
@@ -603,4 +643,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->

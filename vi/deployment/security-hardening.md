@@ -122,7 +122,7 @@ Bảo vệ khỏi command execution nguy hiểm, truy cập file trái phép, v�
 
 ### Global shell deny-groups — runtime toggle
 
-`config.tools.shellDenyGroups` là một `map[string]bool` cho phép bật hoặc tắt deny-group toàn cục mà không cần khởi động lại gateway. Thay đổi có hiệu lực ngay lập tức qua live-reload `bus.TopicConfigChanged`.
+`config.tools.shellDenyGroups` là một `map[string]bool` cho phép bật hoặc tắt deny-group toàn cục mà không cần khởi động lại gateway. Thay đổi có hiệu lực ngay lập tức qua live-reload `bus.TopicConfigChanged`. Quá trình reload clone snapshot config trước khi áp dụng, nên việc *tắt* group được giữ đúng qua reload, và nó cũng reload các policy shell-deny cấp provider (Claude CLI / ACP), không chỉ exec tool toàn cục.
 
 ```json
 {
@@ -144,6 +144,8 @@ Xem [`reference/config-reference.md`](../reference/config-reference.md) để bi
 `resolvePath()` áp dụng `filepath.Clean()` rồi `HasPrefix()` để đảm bảo tất cả file path nằm trong workspace của agent. Với `restrict_to_workspace: true` (mặc định trên agents), bất kỳ path nào ngoài workspace đều bị chặn.
 
 Bốn filesystem tool (`read_file`, `write_file`, `list_files`, `edit`) đều implement interface `PathDenyable`. Agent loop gọi `DenyPaths(".goclaw")` khi khởi động — agent không thể đọc thư mục internal của GoClaw. Tool `list_files` lọc bỏ hoàn toàn các path bị deny khỏi directory listing.
+
+**Ngoại lệ cho interpreter venv.** Interpreter Python do GoClaw quản lý được miễn trừ khỏi deny `.goclaw/` để agent có thể chạy trực tiếp. GoClaw resolve `<home>/.goclaw/venv/bin/python3` (lần theo symlink) một lần khi khởi động và miễn trừ thư mục interpreter đã *resolve*; nếu không có venv thì im lặng bỏ qua. Đây là path duy nhất dưới `.goclaw/` mà exec có thể chạm tới.
 
 ### Bảo vệ path traversal khi serve file
 
@@ -432,7 +434,7 @@ Format lưu: `"aes-gcm:" + base64(12-byte nonce + ciphertext + GCM tag)`. Giá t
 
 > **Phải giống nhau trên tất cả replica.** Trong deployment cluster, mọi gateway instance phải dùng cùng `GOCLAW_ENCRYPTION_KEY`. Rotate key yêu cầu mã hóa lại toàn bộ secret đã lưu trước khi khởi động lại.
 
-Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_binaries`, `secure_cli_agent_grants`, và `secure_cli_user_credentials` đều lưu secret trong cột `encrypted_env`. Mỗi entry mang một `kind` hiển thị — entry `sensitive` bị che trong các response API/UI thông thường và chỉ trả về qua luồng `env:reveal` đã audit; entry `value` (vd tên region hoặc profile) được trả về cho admin để review vận hành.
+Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_binaries`, `secure_cli_agent_grants`, `secure_cli_user_credentials`, và `secure_cli_agent_credentials` đều lưu secret trong cột `encrypted_env`. Mỗi entry mang một `kind` hiển thị — entry `sensitive` bị che trong các response API/UI thông thường và chỉ trả về qua luồng `env:reveal` đã audit; entry `value` (vd tên region hoặc profile) được trả về cho admin để review vận hành.
 
 ---
 
@@ -447,6 +449,12 @@ Env var của credentialed-CLI cũng được mã hóa AES-256-GCM: `secure_cli_
 
 Gõ sai tên adapter sẽ rơi xuống passthrough (hành vi denylist-only cũ) — **không có bypass ngầm**.
 
+### Thứ tự ưu tiên credential
+
+Khi adapter quyết định inject credential nào, nó chọn match **đầu tiên** theo thứ tự: **user override → credential channel/context → agent credential → env mặc định cấp binary**. Agent credential (`secure_cli_agent_credentials`) là ranh giới tin cậy mặc định cho git; user override hoặc credential channel/context sẽ thắng khi có mặt. Trường audit `credential_source` ghi lại lớp nào đã được dùng.
+
+Với luồng PAT, adapter tổng hợp một entry config `http.<remote>.extraheader` với `Authorization: Basic base64("x-access-token:<token>")`. Token thô, payload base64, và toàn bộ header đều được đăng ký với scrubber. Khóa SSH riêng được xác thực **hai lần** khi lưu — đầu tiên bằng parser SSH của Go, sau đó bằng OpenSSH (`ssh-keygen -y -f`) khi có sẵn — nên các khóa lẽ ra sẽ lỗi sau này với chẩn đoán OpenSSH sẽ bị từ chối ngay từ đầu.
+
 ### Sự kiện audit: `security.system_env_injection`
 
 Mỗi lần adapter inject phát ra **đúng một** dòng `slog.Warn` có cấu trúc. Hostname dạng plaintext cố tình **không bao giờ được log** — giữ audit log an toàn PII bên trong các tenant bị quản lý.
@@ -460,6 +468,7 @@ Mỗi lần adapter inject phát ra **đúng một** dòng `slog.Warn` có cấu
 | `env_keys` | chỉ **tên** env var đã sort — không bao giờ là giá trị |
 | `argv_prefix_len` | số phần tử argv được prepend, không phải nội dung |
 | `host_scope_hash` | 8 ký tự hex đầu của `SHA-256(host_scope đã chuẩn hóa)`, hoặc `"none"` |
+| `credential_source` | lớp ưu tiên nào đã cung cấp credential: `user`, `context`, `agent`, hoặc rỗng khi không có row credential theo phạm vi nào được chọn |
 
 v1 **không có bảng audit chuyên dụng** — dòng này route qua `slog` ra stderr → systemd/journald hoặc Docker logs. Để grep hoạt động với một host cụ thể, tính trước hash của nó:
 
@@ -673,4 +682,4 @@ journalctl -u goclaw | grep 'security\.'
 - [Webhooks](../advanced/webhooks.md) — HTTP endpoint xác thực HMAC, xác minh signature, và bảo vệ replay
 - [Workstations](../advanced/workstations.md) — mục tiêu thực thi từ xa, mô hình phân quyền, và nhật ký kiểm tra
 
-<!-- goclaw-source: d85bf171 | cập nhật: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-30 -->

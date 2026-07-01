@@ -52,6 +52,12 @@ In the GoClaw dashboard go to **Settings → Providers → Anthropic** and enter
 
 To override the default model for a specific agent, set `model` in the agent's config.
 
+## Sampling Parameters (Claude 4.6+)
+
+Newer Claude models reject sampling parameters unconditionally. For **Claude Opus/Sonnet 4.6+ and Opus 4.7+** (any `claude-opus-4-*` or `claude-sonnet-4-*` with a minor version of 6 or higher), GoClaw omits `temperature` — and per the same rule `top_p`/`top_k` — from **every** request, whether or not extended thinking is enabled. These models return `HTTP 400` if a sampling parameter is included.
+
+This is separate from the thinking-path temperature strip described below (which removes `temperature` only while thinking is active, for all Claude models). You don't need to do anything: GoClaw drops the parameters automatically. Just avoid hard-coding sampling values in raw requests against these models.
+
 ## Extended Thinking
 
 The Anthropic provider implements `SupportsThinking() bool` and returns `true`. When `thinking_level` is set on a request, GoClaw activates Anthropic's extended thinking feature automatically.
@@ -103,6 +109,7 @@ Anthropic uses a different tool schema format than OpenAI. GoClaw translates aut
 |---|---|---|
 | `HTTP 401` | Invalid API key | Check key starts with `sk-ant-` |
 | `HTTP 400` with thinking | temperature set alongside thinking | GoClaw removes temperature automatically; don't hard-code it in raw requests |
+| `HTTP 400` mentioning temperature on a 4.6+ model | Claude Opus/Sonnet 4.6+ / Opus 4.7+ reject sampling params | GoClaw omits `temperature`/`top_p`/`top_k` automatically; don't hard-code sampling params |
 | `HTTP 529` | Anthropic overloaded | Retry logic handles this; wait and retry |
 | Thinking blocks not appearing | Model doesn't support thinking | Use claude-sonnet-4-5 or claude-opus-4-5 |
 | High token costs | Cache not hitting | Ensure system prompt is stable across requests |
@@ -112,4 +119,4 @@ Anthropic uses a different tool schema format than OpenAI. GoClaw translates aut
 - [OpenAI](/provider-openai) — GPT-4o and o-series reasoning models
 - [Overview](/providers-overview) — provider architecture and retry logic
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

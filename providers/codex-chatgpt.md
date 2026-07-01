@@ -193,6 +193,14 @@ See [REST API](/rest-api) for the response shape.
 
 ---
 
+## Safety-Error Fallback
+
+When the upstream Responses API refuses a request for safety reasons — responses containing phrases like *"limited access to this content for safety reasons"* or *"invalid prompt … safety"* — GoClaw classifies the error as **fallback-eligible** rather than a hard failure. Instead of surfacing the refusal as a fatal error, GoClaw triggers its model-fallback chain and retries the request on the next configured model. This keeps an agent responsive when a specific model declines a prompt that another model may accept.
+
+The fallback is recorded as a model-fallback observation so you can see in tracing which model was tried and why it was skipped.
+
+---
+
 ## Common Issues
 
 | Problem | Cause | Fix |
@@ -208,4 +216,4 @@ See [REST API](/rest-api) for the response shape.
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
 - [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
 
-<!-- goclaw-source: 392f0fda | updated: 2026-05-21 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->

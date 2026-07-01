@@ -9,7 +9,7 @@ A GoClaw upgrade has two parts:
 1. **SQL migrations** — schema changes applied by `golang-migrate` (idempotent, versioned)
 2. **Data hooks** — optional Go-based data transformations that run after schema migrations (e.g. backfilling a new column)
 
-The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **73**.
+The `./goclaw upgrade` command handles both in the correct order. It is safe to run multiple times — it is fully idempotent. The current required schema version is **80**.
 
 ```mermaid
 graph LR
@@ -221,6 +221,18 @@ Migrations `000058`–`000073` are applied automatically on next startup (`./goc
 - `000072_agent_budget_usage_cap_bridge` — adds a `source` column to `usage_cap_policies` and **backfills** one `month`-window policy per agent that has a non-NULL `budget_monthly_cents` (1 cent = 10,000 micros, `source = 'agent_budget_monthly_cents'`). Existing per-agent monthly budgets are now enforced through the usage-cap engine. Idempotent (`ON CONFLICT DO NOTHING`); no action required.
 - `000073_secure_cli_credential_type` — adds nullable `credential_type` + `host_scope` to `secure_cli_user_credentials` and `adapter_name` to `secure_cli_binaries` for the typed credential-adapter framework. All columns NULL-by-default to preserve legacy passthrough behavior — no action required.
 
+#### Schema 73 → 80
+
+Migrations `000074`–`000080` are applied automatically on next startup (`./goclaw upgrade` or `GOCLAW_AUTO_UPGRADE=true`) — no manual steps required. All new tables; existing data is untouched. Highlights:
+
+- `000074_run_timeline_items` — adds `run_timeline_items` for an archived, ordered per-run timeline (messages/tool calls) used to replay runs; links to traces and spans.
+- `000075_channel_context_capabilities` — adds `mcp_context_grants`, `mcp_context_credentials`, `secure_cli_context_grants`, and `secure_cli_context_credentials` for per-channel-instance scoped MCP and secure-CLI grants with encrypted credentials.
+- `000076_channel_memory_extraction` — adds `channel_memory_extraction_runs` and `channel_memory_extraction_items` for passive, scheduled extraction of durable memory from channel history (summaries only, no raw bodies) with a review queue.
+- `000077_secure_cli_agent_credentials` — adds `secure_cli_agent_credentials` for per-agent typed CLI credentials, separate from the grants policy; uses composite FKs `(binary_id, tenant_id)` and `(agent_id, tenant_id)`.
+- `000078_skill_user_grants_tenant_unique` — replaces the `skill_user_grants` unique key with tenant-scoped `(skill_id, user_id, tenant_id)`. No action required.
+- `000079_skill_self_evolution` — adds `skill_evolution_settings`, `skill_usage_metrics`, `skill_improvement_suggestions`, and `skill_versions` for per-skill usage tracking and suggested/applied improvements. **Backfills** one `skill_versions` row per existing non-deleted skill. Idempotent (`ON CONFLICT DO NOTHING`).
+- `000080_usage_event_analytics` — adds `usage_events` (raw per-event analytics) and `usage_event_rollups` (pre-aggregated hourly rollups) backing the usage analytics dashboard.
+
 **Gateway-triggered upgrades (host release-upgrade flow):** When a dashboard/API-triggered upgrade is run on a systemd host, `goclaw-upgrade-release` now re-launches itself as a transient `systemd-run` unit so stopping `goclaw` during deploy no longer kills the upgrade job. Stale `running` status records are also superseded after 30 minutes, and the deploy wait loop tolerates transient `502`s during restart. No configuration change required.
 
 #### v3.11.3
@@ -385,4 +397,4 @@ Before each upgrade, check the release notes for:
 - [Database Setup](/deploy-database) — PostgreSQL and pgvector setup
 - [Observability](/deploy-observability) — monitor your gateway post-upgrade
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->

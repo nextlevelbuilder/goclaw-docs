@@ -104,7 +104,7 @@ goclaw cron delete <jobId>
 | `schedule.tz` | string | IANA timezone — applies to **all** schedule kinds (`at`, `every`, `cron`), not just cron expressions. Omit to use the gateway default timezone |
 | `message` | string | Text the agent receives as its input |
 | `stateless` | bool | Run without session history — saves tokens for simple scheduled tasks. Default `false` |
-| `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.) |
+| `deliver` | bool | `true` = deliver result to a channel; `false` = agent processes silently. Auto-defaults to `true` when the job is created from a real channel (Telegram, etc.). Delivery is still suppressed if the output contains the `NO_REPLY` token — see [NO_REPLY suppression](#no_reply-suppression) |
 | `channel` | string | Target channel: `telegram`, `discord`, etc. Auto-filled from context when `deliver` is `true` |
 | `to` | string | Chat ID or recipient identifier. Auto-filled from context when `deliver` is `true` |
 | `deleteAfterRun` | bool | Auto-set to `true` for `at` jobs; can be set manually on any job |
@@ -197,6 +197,28 @@ GoClaw exposes cron management via WebSocket RPC methods. The available methods 
 The scheduler checks jobs every 1 second. Due jobs are dispatched in parallel goroutines. Run logs are persisted to the `cron_run_logs` PostgreSQL table and accessible via the `cron.runs` method.
 
 Failed jobs record `lastStatus: "error"` and `lastError` with the message. The job stays enabled and will retry on its next scheduled tick (unless it was a one-time `at` job).
+
+## NO_REPLY suppression
+
+Even when a job is configured to deliver (`deliver: true` with a `channel` and `to`), GoClaw will **not** send the result to the channel if the agent's output contains the `NO_REPLY` token.
+
+- The match is **whole-word** and **case-insensitive** (`NO_REPLY`, `no_reply`, etc.), so the token must stand on its own — it won't match when embedded inside a longer word.
+- When suppressed, the run still completes and is logged; only the channel delivery is skipped (an info-level log records that delivery was suppressed).
+
+This lets a scheduled agent decide at runtime that there is nothing worth sending — for example, a health check that only replies when something is wrong:
+
+```json
+{
+  "name": "api-health-check",
+  "schedule": { "kind": "every", "everyMs": 300000 },
+  "message": "Check https://api.example.com/health. If it returns 200, reply with exactly NO_REPLY. Otherwise describe what is wrong.",
+  "deliver": true,
+  "channel": "telegram",
+  "to": "123456789"
+}
+```
+
+The `NO_REPLY` token follows the same convention used across GoClaw — see [How GoClaw Works](../core-concepts/how-goclaw-works.md) and [Sessions & History](../core-concepts/sessions-and-history.md).
 
 ## Retry — Exponential Backoff
 

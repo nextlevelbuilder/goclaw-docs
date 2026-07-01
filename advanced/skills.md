@@ -225,6 +225,76 @@ data: {"skills_imported":2,"skills_skipped":0,"grants_applied":3}
 
 **Hash-based idempotency:** The upload endpoint uses a SHA-256 hash of the `SKILL.md` content for deduplication. If the same `SKILL.md` content is uploaded again (even packaged in a different ZIP), no new version is created — the existing version is kept unchanged. Only changes to the actual `SKILL.md` content trigger a new version.
 
+> **Inline companion files via `skill_manage`:** Agents with skill evolution enabled can also create small text companion files inline (no ZIP) by passing a `files` object to the `skill_manage` tool — keyed by relative path, e.g. `references/guide.md`. Each inline text file is capped at **2 MB**, and the path validator rejects absolute paths, Windows drive paths (`C:\...`), null bytes, `..` traversal, `SKILL.md` overwrites, dotfiles/dotdirs, and system artifacts (e.g. `.git`). See [Agent Evolution](agent-evolution.md) for details.
+
+## Selective Export & Download
+
+You can export skills as a ZIP archive — either all skills or a hand-picked subset — from the Dashboard or the API.
+
+**Preview before building** — `GET /v1/skills/export/preview` returns the counts that *would* be exported without building the archive, so the UI can show "N skills, M will be included" before you commit:
+
+```bash
+curl "http://localhost:8080/v1/skills/export/preview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Export selected skills** — pass specific skill IDs to export only those, plus an optional `include_system` flag to include bundled/system skills:
+
+```bash
+# Export two specific skills, excluding system skills
+curl "http://localhost:8080/v1/skills/export?ids=SKILL_ID_1,SKILL_ID_2&include_system=false" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+For large exports, the server can build the archive asynchronously and stream Server-Sent Events as it works. On completion it returns a `download_url` pointing at a one-time token endpoint:
+
+```
+event: complete
+data: {"download_url":"/v1/export/download/TOKEN"}
+```
+
+```bash
+# Fetch the built archive with the returned token
+curl "http://localhost:8080/v1/export/download/TOKEN" \
+  -H "Authorization: Bearer $TOKEN" -o skills-export.zip
+```
+
+**Dashboard:** the **Skills** page has a bulk-select toolbar — check the skills you want, then **Export selected** to download just those.
+
+## Access Mode & Effective Access
+
+Beyond visibility levels, each skill has an **access mode** that controls how broadly it is reachable. Admins read and set it via the access endpoints:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/access` | Show the skill's access mode and grants |
+| `PATCH` | `/v1/skills/{id}/access` | Set access mode (`private`, `internal`, or `public`) |
+| `GET` | `/v1/skills/{id}/access/effective` | Explain effective access for one skill, given an agent and user |
+| `GET` | `/v1/skills/access/effective` | Explain effective access across all skills for an agent and user |
+
+```bash
+# Set a skill's access mode to internal
+curl -X PATCH "http://localhost:8080/v1/skills/{id}/access" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_mode": "internal"}'
+
+# Explain why an agent/user can or cannot reach a skill
+curl "http://localhost:8080/v1/skills/{id}/access/effective?agent_id=AGENT_UUID&user_id=user@example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Per-Skill Dependency Endpoints
+
+In addition to the gateway-wide rescan, you can inspect and manage dependencies for a single skill:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/skills/{id}/dependencies` | Current dependency status for the skill |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Re-scan declared and detected dependencies |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Check whether each dependency resolves at runtime |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Install missing dependencies (master tenant) |
+
 ## Runtime Environment
 
 Skills that use Python or Node.js run inside a Docker container with pre-installed packages.
@@ -268,7 +338,7 @@ Agents **cannot**: write to system paths, execute binaries from `/tmp`, run bloc
 
 ## Bundled Skills
 
-GoClaw ships six core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
+GoClaw ships seven core skills bundled inside the Docker image at `/app/bundled-skills/`. They are lowest priority — user-uploaded skills override them by slug.
 
 | Skill | Purpose |
 |---|---|
@@ -278,6 +348,7 @@ GoClaw ships six core skills bundled inside the Docker image at `/app/bundled-sk
 | `pptx` | Read, create, edit presentations |
 | `skill-creator` | Create new skills |
 | `workspace-organizing` | Keep agent workspaces tidy and discoverable — enforces a purpose-based folder convention and runs memory/Vault/knowledge-graph discovery before writing files to avoid duplicates |
+| `goclaw` | Operate, inspect, administer, and debug a GoClaw gateway through the `goclaw` CLI/runtime — CLI discovery, gateway health/config diagnostics, agents, skills, MCP/tools, runtime packages, credentials, traces, sessions, channels, providers, and cron/jobs. Always inspects the live `goclaw --help` output first because command availability is version-dependent. |
 
 Bundled skills are seeded into PostgreSQL on every gateway startup (hash-tracked, no re-import if unchanged). They are tagged `is_system = true` and `visibility = 'public'`.
 
@@ -543,4 +614,4 @@ See [Agent Evolution](agent-evolution.md) for full details on the `skill_manage`
 - [Custom Tools](/custom-tools) — add shell-backed tools to your agents
 - [Scheduling & Cron](/scheduling-cron) — run agents on a schedule
 
-<!-- goclaw-source: d85bf171 | updated: 2026-06-07 -->
+<!-- goclaw-source: fabe86b3 | updated: 2026-06-30 -->
