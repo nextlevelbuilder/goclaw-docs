@@ -129,19 +129,24 @@ Cũng xóa các binding tham chiếu đến agent đã xóa.
 
 ### `agent chat`
 
-Gửi tin nhắn one-shot đến agent qua gateway đang chạy.
+Chat tương tác với agent hoặc gửi tin nhắn one-shot qua gateway đang chạy.
 
 ```bash
-goclaw agent chat "What files are in the workspace?"
-goclaw agent chat --agent researcher "Summarize today's news"
-goclaw agent chat --session my-session "Continue where we left off"
+goclaw agent chat
+goclaw agent chat --name researcher -m "Summarize today's news"
+goclaw agent chat --session my-session
+goclaw agent chat --user alice
+goclaw agent chat -u alice -m "What files are in the workspace?"
 ```
 
 | Flag | Mặc định | Mô tả |
 |------|----------|-------|
-| `--agent <id>` | `default` | Target agent ID |
-| `--session <key>` | auto | Session key để resume |
-| `--json` | false | Output response dạng JSON |
+| `-n`, `--name <name>` | `default` | Tên agent đích |
+| `-m`, `--message <text>` | — | Gửi một tin nhắn; bỏ qua để vào chế độ tương tác |
+| `-s`, `--session <key>` | auto | Session key để resume |
+| `-u`, `--user <id>` | — | Đặt user context cho kết nối chat này |
+
+Khi truyền `--user` hoặc `-u`, CLI gửi giá trị đó dưới dạng `connect.user_id` trong WebSocket connect params để xác lập user context cho phiên chat. Đây không phải API authentication token; cơ chế xác thực gateway vẫn tách biệt.
 
 ---
 
@@ -972,4 +977,4 @@ goclaw bitrix-portal set-public-url \
 - [REST API](/rest-api) — danh sách HTTP API endpoint
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 
-<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | cập nhật: 2026-08-09 -->

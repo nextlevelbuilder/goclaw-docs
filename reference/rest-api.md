@@ -71,6 +71,8 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 
 Set `"stream": true` for SSE chunks terminated by `data: [DONE]`.
 
+`X-GoClaw-User-Id` also controls Chat Completions session identity. Requests resolved to the same user ID and agent reuse a stable session, preserving conversation context across calls. If no user identity is resolved (for example, no header and no API-key owner binding), GoClaw creates a random, run-scoped session key, so the call is stateless. Managed deployments may require a user identity instead of allowing this fallback.
+
 ---
 
 ## OpenResponses Protocol
@@ -231,6 +233,24 @@ Re-trigger LLM-based summoning for predefined agents.
 ### `POST /v1/agents/{id}/cancel-summon`
 
 Force-abort a stuck summoning process. Transitions a `summoning` agent to `summon_failed` so it can be reconfigured or re-triggered. Returns `409` if the agent is not currently in `summoning` state.
+
+### `POST /v1/agents/sync-workspace`
+
+Update every agent in the current tenant to use a new workspace root. Requires **admin role**.
+
+```json
+{ "workspace": "~/goclaw-workspaces" }
+```
+
+`workspace` is required and must not contain `..`. GoClaw expands `~`, then sets each agent workspace to `{expanded workspace}/{agent_key}`. Agents already using that path are skipped; individual update failures are also skipped and not counted.
+
+**Response** (`200 OK`):
+
+```json
+{ "ok": true, "updated": 4 }
+```
+
+Invalid JSON, an empty `workspace`, or a path containing `..` returns `400`.
 
 ### Agent Shares
 
@@ -792,9 +812,11 @@ Admin-scoped endpoints for cross-agent vault operations.
 
 | Method | Path | Description |
 |--------|------|-------------|
+| `GET` | `/v1/vault/documents/{docID}` | Get one cross-agent vault document by ID |
 | `POST` | `/v1/vault/documents` | Create a global vault document |
 | `PUT` | `/v1/vault/documents/{docID}` | Update a global vault document |
 | `DELETE` | `/v1/vault/documents/{docID}` | Delete a global vault document |
+| `GET` | `/v1/vault/documents/{docID}/links` | Get outgoing links, backlinks, and target document names |
 | `POST` | `/v1/vault/links` | Create a global document link |
 | `DELETE` | `/v1/vault/links/{linkID}` | Delete a global document link |
 | `POST` | `/v1/vault/links/batch` | Batch get document links |
@@ -829,7 +851,39 @@ Admin-scoped endpoints for cross-agent vault operations.
 { "documents": [...], "total": 42 }
 ```
 
-Document objects include a `chat_id` field (nullable string, added in v3.11.0): the specific chat scope — `null` means no chat scope.
+Document objects include a `chat_id` field (nullable string, added in v3.11.0): the specific chat scope — `null` means no chat scope. `GET /v1/vault/documents/{docID}` returns one of these tenant-scoped document objects; team documents also require team membership for non-owner callers.
+
+**Links response** (`GET /v1/vault/documents/{docID}/links`):
+
+```json
+{
+  "outlinks": [
+    {
+      "id": "link-uuid",
+      "from_doc_id": "source-doc-uuid",
+      "to_doc_id": "target-doc-uuid",
+      "link_type": "reference",
+      "context": "See the deployment guide",
+      "metadata": {"source": "manual"},
+      "created_at": "2026-08-09T10:00:00Z"
+    }
+  ],
+  "backlinks": [
+    {
+      "from_doc_id": "other-doc-uuid",
+      "context": "Referenced by the runbook",
+      "title": "Operations runbook",
+      "path": "docs/runbook.md",
+      "team_id": "team-uuid"
+    }
+  ],
+  "doc_names": {
+    "target-doc-uuid": "Deployment guide"
+  }
+}
+```
+
+`outlinks` contain full link records. `backlinks` contain source document metadata (`from_doc_id`, `context`, `title`, `path`, and optional `team_id`). `doc_names` maps each outlink target ID to its title, falling back to the path basename. Empty results are returned as empty arrays; non-owner backlinks are filtered to the target document's team boundary.
 
 **Search body:** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -1221,13 +1275,39 @@ Export and import MCP server configurations and agent grants as a tar.gz archive
 
 ### MCP User Credentials
 
-Per-user credential storage for MCP servers that require individual authentication.
+Per-user credential storage for MCP servers that require individual authentication. An authenticated user context is required. Optional `?user_id=` defaults to the caller; targeting another user requires system admin or tenant admin/owner permission, and tenant admins/owners may target only users in the same tenant.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | Set user credentials for a server |
-| `GET` | `/v1/mcp/servers/{id}/user-credentials` | Get user credentials |
-| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | Delete user credentials |
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | Set or replace the user's credentials |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | Get credential-presence metadata only |
+| `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | Delete the user's credentials |
+
+**PUT body** (maximum 64 KiB):
+
+```json
+{
+  "api_key": "secret",
+  "headers": {"Authorization": "Bearer secret"},
+  "env": {"MCP_TOKEN": "secret"}
+}
+```
+
+`GET` never returns credential values. Its complete response contract is:
+
+```json
+{
+  "user_id": "user123",
+  "has_credentials": true,
+  "has_api_key": true,
+  "has_headers": true,
+  "has_env": true
+}
+```
+
+If no credential record exists, all four `has_*` fields are `false`. `PUT` returns `{ "status": "updated" }`; `DELETE` returns `{ "status": "deleted" }`.
+
+Both `PUT` and `DELETE` evict that user's pooled MCP connection. The next MCP request reconnects with the newly stored credentials (or without the deleted credentials), so no gateway restart is required.
 
 **Query params for export:**
 
@@ -2283,4 +2363,4 @@ The following are **only available via WebSocket RPC**, not HTTP:
 - [Config Reference](/config-reference) — full `config.json` schema
 - [Database Schema](/database-schema) — table definitions and relationships
 
-<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->

@@ -59,6 +59,14 @@ GoClaw 在 HTTP 429、500、502、503、504 和网络错误时重试。默认配
 - **退避：** 指数，带 ±10% 抖动
 - **Retry-After 头：** 存在时遵守（如 Anthropic/OpenAI 的 429）
 
+### Codex / ChatGPT Responses 流失败
+
+OAuth `openai-codex` provider 可能在已建立的 Responses API SSE 流中收到暂时性或类似速率限制的 `response.failed` 事件。GoClaw 会将明确的重试提示和速率限制措辞归类为可重试，但只有在尚未发出任何可见内容、思考/推理、图片或工具调用时，才会重放 Codex 请求。
+
+如果已经发出输出，GoClaw 会保留错误或部分结果，不再重试该流。这是有意的保护措施，可避免重放整个请求造成文本、工具调用或图片重复。
+
+不要将此保护与 **Codex OAuth 池回退**混淆；后者会选择另一个符合条件的账户。它也不同于上文的**通用 HTTP 重试**；后者在请求/传输层处理 HTTP 429/5xx 和网络故障。
+
 ## Schema 验证错误（Gemini）
 
 Gemini 拒绝其他 provider 接受的某些 JSON Schema 字段。GoClaw 在发送工具定义前自动移除不兼容的字段。
@@ -167,4 +175,4 @@ v3.11.3 之前，`agent_heartbeats` 到 `llm_providers` 的外键定义为 `REST
 - [常见问题](/troubleshoot-common)
 - [Channel 问题](/troubleshoot-channels)
 
-<!-- goclaw-source: 364d2d34 | 更新: 2026-04-29 -->
+<!-- goclaw-source: cc510d92 | 更新: 2026-08-09 -->

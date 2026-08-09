@@ -2,12 +2,12 @@
 
 > 自动生成的全部 REST 端点完整索引。请求/响应详情、示例和认证说明，请参见 [REST API 参考](rest-api.md)。
 
-**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
+**Total endpoints:** 365 — generated from goclaw `cc510d92` on `2026-08-09`.
 
 ## 如何使用本页
 
 - 这是一个扁平目录 — 每行对应一个端点。
-- 端点按处理器域分组（`goclaw/internal/http/` 中的源文件）。
+- 端点按处理器域分组；每个标题都会显示相对于 repository 的源文件路径。
 - 有关 OpenAI 兼容端点（`/v1/chat/completions`、`/v1/responses`）的完整请求/响应 schema，请参见 [REST API 参考](rest-api.md)。
 - 认证：所有 `/v1/*` 端点均需 `Authorization: Bearer <api-key>`，另有说明的除外。
 
@@ -141,6 +141,14 @@
 | `POST` | `/v1/contacts/unmerge` |
 | `GET` | `/v1/tenant-users` |
 | `GET` | `/v1/users/search` |
+
+### Core (`internal/gateway/server.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/chat/completions` |
+| `POST` | `/v1/responses` |
+| `POST` | `/v1/tools/invoke` |
 
 ### Edition (`internal/http/edition.go`)
 
@@ -607,6 +615,6 @@
 
 ---
 
-<!-- goclaw-source: fabe86b3 -->
-<!-- last-updated: 2026-06-29 -->
-<!-- total-endpoints: 362 -->
+<!-- goclaw-source: cc510d92 -->
+<!-- last-updated: 2026-08-09 -->
+<!-- total-endpoints: 365 -->

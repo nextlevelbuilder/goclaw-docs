@@ -73,6 +73,8 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 
 Đặt `"stream": true` để nhận SSE chunk kết thúc bằng `data: [DONE]`.
 
+`X-GoClaw-User-Id` cũng quyết định session identity của Chat Completions. Các request được resolve về cùng user ID và agent sẽ dùng lại một session ổn định, nhờ đó giữ context hội thoại giữa các lần gọi. Nếu không resolve được user identity (ví dụ không có header và API key cũng không bind owner), GoClaw tạo session key ngẫu nhiên theo từng run, nên call là stateless. Deployment managed có thể bắt buộc user identity thay vì cho phép fallback này.
+
 ---
 
 ## OpenResponses Protocol
@@ -233,6 +235,24 @@ Kích hoạt lại LLM-based summoning cho predefined agent.
 ### `POST /v1/agents/{id}/cancel-summon`
 
 Hủy bỏ cưỡng bức quá trình summoning bị kẹt. Chuyển agent đang ở trạng thái `summoning` sang `summon_failed` để có thể cấu hình lại hoặc kích hoạt lại. Trả về `409` nếu agent không ở trạng thái `summoning`.
+
+### `POST /v1/agents/sync-workspace`
+
+Cập nhật mọi agent trong tenant hiện tại để dùng workspace root mới. Yêu cầu **admin role**.
+
+```json
+{ "workspace": "~/goclaw-workspaces" }
+```
+
+`workspace` là bắt buộc và không được chứa `..`. GoClaw expand `~`, sau đó đặt workspace của mỗi agent thành `{workspace đã expand}/{agent_key}`. Agent đã dùng đúng path sẽ được bỏ qua; lỗi cập nhật riêng lẻ cũng được bỏ qua và không tính vào kết quả.
+
+**Response** (`200 OK`):
+
+```json
+{ "ok": true, "updated": 4 }
+```
+
+JSON không hợp lệ, `workspace` rỗng, hoặc path chứa `..` trả về `400`.
 
 ### Agent Shares
 
@@ -780,6 +800,8 @@ Lưu trữ tài liệu bền vững với embedding vector và liên kết đồ
 | Method | Path | Mô tả |
 |--------|------|-------|
 | `GET` | `/v1/vault/documents` | Liệt kê tài liệu toàn hệ thống |
+| `GET` | `/v1/vault/documents/{docID}` | Lấy một vault document cross-agent theo ID |
+| `GET` | `/v1/vault/documents/{docID}/links` | Lấy outlink, backlink và tên document đích |
 | `GET` | `/v1/vault/tree` | Cấu trúc cây phân cấp của vault document |
 | `GET` | `/v1/vault/graph` | Dữ liệu đồ thị vault để trực quan hóa (cross-tenant, giới hạn 2000 node) |
 | `POST` | `/v1/vault/enrichment/stop` | Dừng enrichment worker cho agent hiện tại |
@@ -790,7 +812,39 @@ Lưu trữ tài liệu bền vững với embedding vector và liên kết đồ
 
 **Response dạng danh sách:** `{ "documents": [...], "total": 42 }`
 
-Response document object có thêm field `chat_id` (nullable string, thêm trong v3.11.0): scope chat cụ thể — `null` nghĩa là không scope theo chat.
+Response document object có thêm field `chat_id` (nullable string, thêm trong v3.11.0): scope chat cụ thể — `null` nghĩa là không scope theo chat. `GET /v1/vault/documents/{docID}` trả về một document object được scope theo tenant; với team document, caller không phải owner còn phải là thành viên của team.
+
+**Response links** (`GET /v1/vault/documents/{docID}/links`):
+
+```json
+{
+  "outlinks": [
+    {
+      "id": "link-uuid",
+      "from_doc_id": "source-doc-uuid",
+      "to_doc_id": "target-doc-uuid",
+      "link_type": "reference",
+      "context": "Xem hướng dẫn triển khai",
+      "metadata": {"source": "manual"},
+      "created_at": "2026-08-09T10:00:00Z"
+    }
+  ],
+  "backlinks": [
+    {
+      "from_doc_id": "other-doc-uuid",
+      "context": "Được tham chiếu từ runbook",
+      "title": "Operations runbook",
+      "path": "docs/runbook.md",
+      "team_id": "team-uuid"
+    }
+  ],
+  "doc_names": {
+    "target-doc-uuid": "Deployment guide"
+  }
+}
+```
+
+`outlinks` chứa đầy đủ link record. `backlinks` chứa metadata của document nguồn (`from_doc_id`, `context`, `title`, `path`, và `team_id` tùy chọn). `doc_names` map ID document đích của từng outlink sang title, fallback về basename của path. Khi không có kết quả, API trả mảng rỗng; backlink của caller không phải owner được lọc theo team boundary của document đích.
 
 **Body tìm kiếm:** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -1172,13 +1226,39 @@ Xuất và nhập cấu hình MCP server và agent grant dưới dạng archive 
 
 ### MCP User Credentials
 
-Lưu trữ credential per-user cho MCP server yêu cầu xác thực riêng.
+Lưu trữ credential per-user cho MCP server yêu cầu xác thực riêng. Request phải có user context đã xác thực. Query `?user_id=` là tùy chọn và mặc định là caller; target user khác yêu cầu quyền system admin hoặc tenant admin/owner, trong đó tenant admin/owner chỉ được target user cùng tenant.
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | Đặt credential của user cho server |
-| `GET` | `/v1/mcp/servers/{id}/user-credentials` | Lấy credential của user |
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | Đặt hoặc thay thế credential của user |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | Chỉ lấy metadata về việc credential có tồn tại |
 | `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | Xóa credential của user |
+
+**Body PUT** (tối đa 64 KiB):
+
+```json
+{
+  "api_key": "secret",
+  "headers": {"Authorization": "Bearer secret"},
+  "env": {"MCP_TOKEN": "secret"}
+}
+```
+
+`GET` không bao giờ trả giá trị credential. Contract response đầy đủ:
+
+```json
+{
+  "user_id": "user123",
+  "has_credentials": true,
+  "has_api_key": true,
+  "has_headers": true,
+  "has_env": true
+}
+```
+
+Nếu không có credential record, cả bốn field `has_*` đều là `false`. `PUT` trả `{ "status": "updated" }`; `DELETE` trả `{ "status": "deleted" }`.
+
+Cả `PUT` và `DELETE` đều evict pooled MCP connection của user đó. MCP request tiếp theo sẽ reconnect bằng credential mới lưu (hoặc không dùng credential đã xóa), không cần restart gateway.
 
 **Query params cho export:**
 
@@ -2179,4 +2259,4 @@ Các endpoint sau **chỉ có trên WebSocket RPC**, không có HTTP:
 - [Config Reference](/config-reference) — schema đầy đủ `config.json`
 - [Database Schema](/database-schema) — định nghĩa bảng và quan hệ
 
-<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | cập nhật: 2026-08-09 -->

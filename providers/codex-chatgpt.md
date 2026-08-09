@@ -84,6 +84,17 @@ The Codex provider uses the Responses API format, not chat completions:
 
 This conversion is transparent — you interact with GoClaw the same way regardless of which provider is active.
 
+## Streaming Retry Safety
+
+The Responses API can report transient or rate-limit-style failures inside an otherwise valid SSE stream, for example a `response.failed` event whose message asks the caller to retry. GoClaw retries such a Codex stream only when the failed attempt has not emitted any visible content, thinking/reasoning, image, or tool call.
+
+Once any of that output has been emitted, GoClaw does not replay the Responses request. The current attempt returns its error or partial result instead, preventing duplicate text, tool calls, and images.
+
+This replay guard is specific to Codex Responses streaming. It is separate from:
+
+- **OAuth pool fallback**, which routes a request to another eligible ChatGPT account.
+- **General HTTP retry**, which handles transport-level HTTP 429/5xx and network errors as described in [Provider Issues](/troubleshoot-providers).
+
 ## Examples
 
 **Agent config after OAuth setup:**
@@ -216,4 +227,4 @@ The fallback is recorded as a model-fallback observation so you can see in traci
 - [Custom Provider](/provider-custom) — connect any OpenAI-compatible API including local models
 - [Claude CLI](/provider-claude-cli) — use your Claude subscription instead
 
-<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->

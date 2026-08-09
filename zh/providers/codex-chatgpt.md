@@ -86,6 +86,17 @@ Codex provider 使用 Responses API 格式，而非 chat completions：
 
 这些转换对调用方透明——无论哪个 provider 处于激活状态，与 GoClaw 的交互方式保持一致。
 
+## 流式重试安全机制
+
+Responses API 可能在连接仍然有效的 SSE 流内报告暂时性或类似速率限制的失败，例如消息要求调用方重试的 `response.failed` 事件。只有当失败的 attempt 尚未发出任何可见内容、思考/推理、图片或工具调用时，GoClaw 才会重试该 Codex 流。
+
+一旦上述任何输出已经发出，GoClaw 就不会重放 Responses 请求。当前 attempt 会返回错误或部分结果，从而避免重复文本、工具调用和图片。
+
+此重放保护仅针对 Codex Responses 流式处理，与以下机制相互独立：
+
+- **OAuth 池回退**：将请求路由到另一个符合条件的 ChatGPT 账户。
+- **通用 HTTP 重试**：处理传输层 HTTP 429/5xx 和网络错误，详见 [Provider 问题](/troubleshoot-providers)。
+
 ## 示例
 
 **OAuth 配置完成后的 agent 配置：**
@@ -218,4 +229,4 @@ GET /v1/agents/{id}/codex-pool-activity
 - [自定义 Provider](/provider-custom) — 连接任意 OpenAI 兼容 API，包括本地模型
 - [Claude CLI](/provider-claude-cli) — 使用 Claude 订阅替代
 
-<!-- goclaw-source: fabe86b3 | updated: 2026-06-29 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->

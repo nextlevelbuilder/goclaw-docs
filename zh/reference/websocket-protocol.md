@@ -250,6 +250,111 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `config.permissions.check` | `{agentId, scope, configType, userId}` | 不修改数据地评估有效决策（`allow` / `deny`）|
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | 授予权限 |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | 撤销权限 |
+| `chat_behavior.preview` | 在不发送消息的情况下预览已解析的 channel 投递行为（owner、master scope）|
+
+#### `chat_behavior.preview`
+
+此实时 WebSocket RPC 为控制台提供 channel chat behavior 预览。该方法不会发送消息，也不会修改配置。
+
+**访问要求：**连接必须是 gateway **owner**，并且处于 **master scope**；否则方法返回 `UNAUTHORIZED`。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `channel` | string | 未传 `config` 时用于查找 override 的 channel 名称 |
+| `content` | string | 用于预览消息拆分的示例 final 内容 |
+| `isStreaming` | boolean | 示例投递是否为流式 |
+| `hasToolCalls` | boolean | 示例 run 是否包含工具调用 |
+| `config` | object | 可选的 `ChatBehaviorConfig`，用于直接解析 |
+
+解析顺序：
+
+- 提供 `config` 时，GoClaw 直接基于内置 chat-behavior 默认值解析它；不会查找 channel，也不会应用 gateway 配置。
+- 未提供 `config` 且 channel manager 可用时，GoClaw 将指定 channel 的 override 应用到 `gateway.chat_behavior` 默认值之上。
+- channel manager 不可用时，GoClaw 仅回退到 `gateway.chat_behavior`。
+
+响应 payload 始终包含 `resolved`、`ack` 和 `split`。`resolved` 是最终生效的 behavior；`ack` 描述是否以及如何发送 quick acknowledgement；`split.parts` 包含拆分后的 final message 部分。
+
+> **序列化说明：**`resolved` 当前使用导出的 Go 字段名，例如 `Enabled`、`QuickAck` 和 `FinalSplit`。其中的 `Timeout` 是以纳秒序列化的 `time.Duration` 整数。`ack` 和 `split` 使用下例所示的 camelCase 字段名。
+
+**请求：**
+
+```json
+{
+  "type": "req",
+  "id": "behavior-preview-1",
+  "method": "chat_behavior.preview",
+  "params": {
+    "channel": "telegram",
+    "content": "First update is ready.\n\nSecond update is ready.",
+    "isStreaming": false,
+    "hasToolCalls": true,
+    "config": {
+      "enabled": true,
+      "quick_ack": {
+        "enabled": true,
+        "mode": "fixed_template",
+        "templates": ["Working."]
+      },
+      "final_split": {
+        "enabled": true,
+        "min_chars": 10,
+        "max_messages": 3,
+        "delay_ms": 500
+      }
+    }
+  }
+}
+```
+
+**成功响应：**
+
+```json
+{
+  "type": "res",
+  "id": "behavior-preview-1",
+  "ok": true,
+  "payload": {
+    "resolved": {
+      "Enabled": true,
+      "IntermediateReplies": {
+        "Enabled": false,
+        "Mode": "sidecar_generated",
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 60,
+        "MaxChars": 180
+      },
+      "QuickAck": {
+        "Enabled": true,
+        "Mode": "fixed_template",
+        "MinDelayMs": 1000,
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 40,
+        "MaxChars": 120,
+        "Templates": ["Working."]
+      },
+      "FinalSplit": {
+        "Enabled": true,
+        "MinChars": 10,
+        "MaxMessages": 3,
+        "DelayMs": 500
+      }
+    },
+    "ack": {
+      "shouldSend": true,
+      "content": "Working.",
+      "mode": "fixed_template",
+      "source": "template"
+    },
+    "split": {
+      "parts": ["First update is ready.", "Second update is ready."]
+    }
+  }
+}
+```
 
 ### Cron
 
@@ -643,4 +748,4 @@ ws.onmessage = (e) => {
 - [CLI 命令](/cli-commands) — 从终端进行配对和会话管理
 - [词汇表](/glossary) — Session、Lane、Compaction 等核心术语
 
-<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | 更新: 2026-08-09 -->

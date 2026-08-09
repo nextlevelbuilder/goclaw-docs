@@ -73,6 +73,8 @@ curl -X POST http://localhost:18790/v1/chat/completions \
 
 设置 `"stream": true` 可获取以 `data: [DONE]` 结尾的 SSE 数据块。
 
+`X-GoClaw-User-Id` 也决定 Chat Completions 的 session identity。解析到相同用户 ID 和 agent 的请求会复用一个稳定 session，从而在多次调用之间保留对话上下文。如果无法解析用户身份（例如未提供该请求头，且 API key 也未绑定 owner），GoClaw 会为每次 run 创建随机的 session key，因此该调用是无状态的。Managed 部署可以要求必须提供用户身份，而不允许使用此 fallback。
+
 ---
 
 ## OpenResponses 协议
@@ -233,6 +235,24 @@ curl -X POST http://localhost:18790/v1/agents \
 ### `POST /v1/agents/{id}/cancel-summon`
 
 强制中止卡住的 summoning 进程。将处于 `summoning` 状态的 agent 转换为 `summon_failed`，以便重新配置或重新触发。如果 agent 不在 `summoning` 状态，返回 `409`。
+
+### `POST /v1/agents/sync-workspace`
+
+将当前租户的所有 agent 更新为使用新的 workspace 根目录。需要 **admin 角色**。
+
+```json
+{ "workspace": "~/goclaw-workspaces" }
+```
+
+`workspace` 为必填项，且不能包含 `..`。GoClaw 会展开 `~`，然后将每个 agent 的 workspace 设置为 `{展开后的 workspace}/{agent_key}`。已使用正确路径的 agent 会被跳过；单个 agent 的更新失败也会被跳过，不计入结果。
+
+**响应**（`200 OK`）：
+
+```json
+{ "ok": true, "updated": 4 }
+```
+
+无效 JSON、空 `workspace` 或包含 `..` 的路径会返回 `400`。
 
 ### Agent 共享
 
@@ -748,6 +768,8 @@ POST /v1/tools/invoke
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | 列出全系统文档 |
+| `GET` | `/v1/vault/documents/{docID}` | 按 ID 获取单个跨 agent vault 文档 |
+| `GET` | `/v1/vault/documents/{docID}/links` | 获取出链、反链和目标文档名称 |
 | `GET` | `/v1/vault/tree` | 返回 vault 文档结构的层级树视图 |
 | `GET` | `/v1/vault/graph` | 返回 vault 文档图谱可视化数据（跨租户，节点上限 2000）|
 | `POST` | `/v1/vault/enrichment/stop` | 停止当前 agent 的 enrichment worker |
@@ -758,7 +780,39 @@ POST /v1/tools/invoke
 
 **列表响应格式：** `{ "documents": [...], "total": 42 }`
 
-响应的 document 对象新增 `chat_id` 字段（可为 null 的字符串，v3.11.0 新增）：表示该文档的 chat 范围——`null` 表示不按 chat 限定范围。
+响应的 document 对象新增 `chat_id` 字段（可为 null 的字符串，v3.11.0 新增）：表示该文档的 chat 范围——`null` 表示不按 chat 限定范围。`GET /v1/vault/documents/{docID}` 返回一个按租户限定范围的 document 对象；对于 team 文档，非 owner 调用方还必须是该 team 的成员。
+
+**Links 响应**（`GET /v1/vault/documents/{docID}/links`）：
+
+```json
+{
+  "outlinks": [
+    {
+      "id": "link-uuid",
+      "from_doc_id": "source-doc-uuid",
+      "to_doc_id": "target-doc-uuid",
+      "link_type": "reference",
+      "context": "参见部署指南",
+      "metadata": {"source": "manual"},
+      "created_at": "2026-08-09T10:00:00Z"
+    }
+  ],
+  "backlinks": [
+    {
+      "from_doc_id": "other-doc-uuid",
+      "context": "由运行手册引用",
+      "title": "Operations runbook",
+      "path": "docs/runbook.md",
+      "team_id": "team-uuid"
+    }
+  ],
+  "doc_names": {
+    "target-doc-uuid": "Deployment guide"
+  }
+}
+```
+
+`outlinks` 包含完整 link 记录。`backlinks` 包含源文档 metadata（`from_doc_id`、`context`、`title`、`path`，以及可选的 `team_id`）。`doc_names` 将每个出链目标 ID 映射到其 title；没有 title 时回退为路径 basename。无结果时返回空数组；对于非 owner 调用方，backlink 会按目标文档的 team 边界过滤。
 
 **搜索请求体：** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -1140,13 +1194,39 @@ curl -X POST http://localhost:18790/v1/mcp/servers \
 
 ### MCP 用户凭证
 
-为需要独立认证的 MCP server 提供按用户凭证存储。
+为需要独立认证的 MCP server 提供按用户凭证存储。请求必须包含已认证的用户上下文。可选的 `?user_id=` 默认指向调用方；若要操作其他用户，需要 system admin 或 tenant admin/owner 权限，且 tenant admin/owner 只能操作同一租户内的用户。
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | 为 server 设置用户凭证 |
-| `GET` | `/v1/mcp/servers/{id}/user-credentials` | 获取用户凭证 |
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | 设置或替换用户凭证 |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | 仅获取凭证存在性 metadata |
 | `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | 删除用户凭证 |
+
+**PUT 请求体**（最大 64 KiB）：
+
+```json
+{
+  "api_key": "secret",
+  "headers": {"Authorization": "Bearer secret"},
+  "env": {"MCP_TOKEN": "secret"}
+}
+```
+
+`GET` 绝不会返回凭证值。完整响应 contract 为：
+
+```json
+{
+  "user_id": "user123",
+  "has_credentials": true,
+  "has_api_key": true,
+  "has_headers": true,
+  "has_env": true
+}
+```
+
+如果不存在凭证记录，四个 `has_*` 字段均为 `false`。`PUT` 返回 `{ "status": "updated" }`；`DELETE` 返回 `{ "status": "deleted" }`。
+
+`PUT` 和 `DELETE` 都会淘汰该用户的 pooled MCP 连接。下一次 MCP 请求会使用新保存的凭证重新连接（删除后则不再使用旧凭证），无需重启 gateway。
 
 **导出查询参数：**
 
@@ -2147,4 +2227,4 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 - [配置参考](/config-reference) — 完整的 `config.json` schema
 - [数据库 Schema](/database-schema) — 表定义和关系
 
-<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | 更新: 2026-08-09 -->

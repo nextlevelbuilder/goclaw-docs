@@ -271,18 +271,38 @@ MCP 服务器在隔离的租户上下文中运行。Bridge 自动强制执行 te
 
 无需配置——所有 MCP 连接自动实现租户隔离。
 
-## 管理员用户凭据
+## 管理按用户凭据
 
-管理员可以代表任意用户设置 MCP 用户凭据，适用于需要按用户认证的 MCP 服务器（如预配置 OAuth token 或 API key）。
+使用当前有效的 `/v1/mcp/servers/{id}/user-credentials` 路由管理 MCP 服务器凭据。默认情况下，`GET`、`PUT` 和 `DELETE` 都对已认证的调用方本人执行操作。
 
 ```bash
-curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{userID} \
+# 设置调用方本人的凭据
+curl -X PUT "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
   -H "Authorization: Bearer $GOCLAW_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"credentials": {"api_key": "user-specific-key"}}'
+  -d '{"api_key":"user-specific-key"}'
+
+# 检查调用方本人的凭据状态
+curl "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN"
+
+# 删除调用方本人的凭据
+curl -X DELETE "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN"
 ```
 
-需要管理员角色。凭据使用 `GOCLAW_ENCRYPTION_KEY` 加密存储。
+仅在需要操作其他用户时使用 `?user_id=$TARGET_USER_ID`。系统管理员可以指定任意用户；tenant 管理员或 owner 仅可指定同一 tenant 内的其他用户。
+
+```bash
+curl -X PUT "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials?user_id=$TARGET_USER_ID" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"user-specific-key"}'
+```
+
+`GET` 仅返回 `user_id`、`has_credentials`、`has_api_key`、`has_headers` 和 `has_env` 等状态元数据，绝不返回 secret 值。凭据使用 `GOCLAW_ENCRYPTION_KEY` 加密存储。
+
+`PUT` 或 `DELETE` 成功后，GoClaw 只会逐出所选服务器上该用户对应的池化连接。下次使用时会用更新后的凭据延迟重连，因此无需重启网关。
 
 ## 常见问题
 
@@ -299,4 +319,4 @@ curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{us
 - [自定义工具](../advanced/custom-tools.md) — 无需 MCP 服务器即可构建基于 shell 的工具
 - [Skills](../advanced/skills.md) — 将可复用知识注入 agent 系统提示词
 
-<!-- goclaw-source: 050aafc9 | 更新: 2026-04-09 -->
+<!-- goclaw-source: cc510d92 | 更新: 2026-08-09 -->

@@ -7684,6 +7684,17 @@ Codex provider 使用 Responses API 格式，而非 chat completions：
 
 这些转换对调用方透明——无论哪个 provider 处于激活状态，与 GoClaw 的交互方式保持一致。
 
+## 流式重试安全机制
+
+Responses API 可能在连接仍然有效的 SSE 流内报告暂时性或类似速率限制的失败，例如消息要求调用方重试的 `response.failed` 事件。只有当失败的 attempt 尚未发出任何可见内容、思考/推理、图片或工具调用时，GoClaw 才会重试该 Codex 流。
+
+一旦上述任何输出已经发出，GoClaw 就不会重放 Responses 请求。当前 attempt 会返回错误或部分结果，从而避免重复文本、工具调用和图片。
+
+此重放保护仅针对 Codex Responses 流式处理，与以下机制相互独立：
+
+- **OAuth 池回退**：将请求路由到另一个符合条件的 ChatGPT 账户。
+- **通用 HTTP 重试**：处理传输层 HTTP 429/5xx 和网络错误，详见 [Provider 问题](/troubleshoot-providers)。
+
 ## 示例
 
 **OAuth 配置完成后的 agent 配置：**
@@ -24886,19 +24897,24 @@ goclaw agent delete researcher --force
 
 ### `agent chat`
 
-通过运行中的网关向 agent 发送单次消息。
+通过运行中的网关与 agent 交互聊天，或发送单次消息。
 
 ```bash
-goclaw agent chat "What files are in the workspace?"
-goclaw agent chat --agent researcher "Summarize today's news"
-goclaw agent chat --session my-session "Continue where we left off"
+goclaw agent chat
+goclaw agent chat --name researcher -m "Summarize today's news"
+goclaw agent chat --session my-session
+goclaw agent chat --user alice
+goclaw agent chat -u alice -m "What files are in the workspace?"
 ```
 
 | 标志 | 默认值 | 说明 |
 |------|--------|------|
-| `--agent <id>` | `default` | 目标 agent ID |
-| `--session <key>` | 自动 | 要恢复的 session key |
-| `--json` | false | 以 JSON 格式输出响应 |
+| `-n`, `--name <name>` | `default` | 目标 agent 名称 |
+| `-m`, `--message <text>` | — | 发送一条消息；省略则进入交互模式 |
+| `-s`, `--session <key>` | 自动 | 要恢复的 session key |
+| `-u`, `--user <id>` | — | 设置此聊天连接的用户上下文 |
+
+提供 `--user` 或 `-u` 时，CLI 会在 WebSocket 连接参数中将该值作为 `connect.user_id` 发送，从而为聊天建立用户上下文。它不是 API 身份验证 token；网关身份验证仍是独立机制。
 
 ---
 
@@ -25966,6 +25982,111 @@ GoClaw 在 `/ws` 暴露 WebSocket 端点。客户端与 gateway 之间的所有�
 | `config.permissions.check` | `{agentId, scope, configType, userId}` | 不修改数据地评估有效决策（`allow` / `deny`）|
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | 授予权限 |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | 撤销权限 |
+| `chat_behavior.preview` | 在不发送消息的情况下预览已解析的 channel 投递行为（owner、master scope）|
+
+#### `chat_behavior.preview`
+
+此实时 WebSocket RPC 为控制台提供 channel chat behavior 预览。该方法不会发送消息，也不会修改配置。
+
+**访问要求：**连接必须是 gateway **owner**，并且处于 **master scope**；否则方法返回 `UNAUTHORIZED`。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `channel` | string | 未传 `config` 时用于查找 override 的 channel 名称 |
+| `content` | string | 用于预览消息拆分的示例 final 内容 |
+| `isStreaming` | boolean | 示例投递是否为流式 |
+| `hasToolCalls` | boolean | 示例 run 是否包含工具调用 |
+| `config` | object | 可选的 `ChatBehaviorConfig`，用于直接解析 |
+
+解析顺序：
+
+- 提供 `config` 时，GoClaw 直接基于内置 chat-behavior 默认值解析它；不会查找 channel，也不会应用 gateway 配置。
+- 未提供 `config` 且 channel manager 可用时，GoClaw 将指定 channel 的 override 应用到 `gateway.chat_behavior` 默认值之上。
+- channel manager 不可用时，GoClaw 仅回退到 `gateway.chat_behavior`。
+
+响应 payload 始终包含 `resolved`、`ack` 和 `split`。`resolved` 是最终生效的 behavior；`ack` 描述是否以及如何发送 quick acknowledgement；`split.parts` 包含拆分后的 final message 部分。
+
+> **序列化说明：**`resolved` 当前使用导出的 Go 字段名，例如 `Enabled`、`QuickAck` 和 `FinalSplit`。其中的 `Timeout` 是以纳秒序列化的 `time.Duration` 整数。`ack` 和 `split` 使用下例所示的 camelCase 字段名。
+
+**请求：**
+
+```json
+{
+  "type": "req",
+  "id": "behavior-preview-1",
+  "method": "chat_behavior.preview",
+  "params": {
+    "channel": "telegram",
+    "content": "First update is ready.\n\nSecond update is ready.",
+    "isStreaming": false,
+    "hasToolCalls": true,
+    "config": {
+      "enabled": true,
+      "quick_ack": {
+        "enabled": true,
+        "mode": "fixed_template",
+        "templates": ["Working."]
+      },
+      "final_split": {
+        "enabled": true,
+        "min_chars": 10,
+        "max_messages": 3,
+        "delay_ms": 500
+      }
+    }
+  }
+}
+```
+
+**成功响应：**
+
+```json
+{
+  "type": "res",
+  "id": "behavior-preview-1",
+  "ok": true,
+  "payload": {
+    "resolved": {
+      "Enabled": true,
+      "IntermediateReplies": {
+        "Enabled": false,
+        "Mode": "sidecar_generated",
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 60,
+        "MaxChars": 180
+      },
+      "QuickAck": {
+        "Enabled": true,
+        "Mode": "fixed_template",
+        "MinDelayMs": 1000,
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 40,
+        "MaxChars": 120,
+        "Templates": ["Working."]
+      },
+      "FinalSplit": {
+        "Enabled": true,
+        "MinChars": 10,
+        "MaxMessages": 3,
+        "DelayMs": 500
+      }
+    },
+    "ack": {
+      "shouldSend": true,
+      "content": "Working.",
+      "mode": "fixed_template",
+      "source": "template"
+    },
+    "split": {
+      "parts": ["First update is ready.", "Second update is ready."]
+    }
+  }
+}
+```
 
 ### Cron
 
@@ -26562,6 +26683,24 @@ curl -X POST http://localhost:18790/v1/agents \
 
 强制中止卡住的 summoning 进程。将处于 `summoning` 状态的 agent 转换为 `summon_failed`，以便重新配置或重新触发。如果 agent 不在 `summoning` 状态，返回 `409`。
 
+### `POST /v1/agents/sync-workspace`
+
+将当前租户的所有 agent 更新为使用新的 workspace 根目录。需要 **admin 角色**。
+
+```json
+{ "workspace": "~/goclaw-workspaces" }
+```
+
+`workspace` 为必填项，且不能包含 `..`。GoClaw 会展开 `~`，然后将每个 agent 的 workspace 设置为 `{展开后的 workspace}/{agent_key}`。已使用正确路径的 agent 会被跳过；单个 agent 的更新失败也会被跳过，不计入结果。
+
+**响应**（`200 OK`）：
+
+```json
+{ "ok": true, "updated": 4 }
+```
+
+无效 JSON、空 `workspace` 或包含 `..` 的路径会返回 `400`。
+
 ### Agent 共享
 
 | 方法 | 路径 | 说明 |
@@ -27076,6 +27215,8 @@ POST /v1/tools/invoke
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
 | `GET` | `/v1/vault/documents` | 列出全系统文档 |
+| `GET` | `/v1/vault/documents/{docID}` | 按 ID 获取单个跨 agent vault 文档 |
+| `GET` | `/v1/vault/documents/{docID}/links` | 获取出链、反链和目标文档名称 |
 | `GET` | `/v1/vault/tree` | 返回 vault 文档结构的层级树视图 |
 | `GET` | `/v1/vault/graph` | 返回 vault 文档图谱可视化数据（跨租户，节点上限 2000）|
 | `POST` | `/v1/vault/enrichment/stop` | 停止当前 agent 的 enrichment worker |
@@ -27086,7 +27227,39 @@ POST /v1/tools/invoke
 
 **列表响应格式：** `{ "documents": [...], "total": 42 }`
 
-响应的 document 对象新增 `chat_id` 字段（可为 null 的字符串，v3.11.0 新增）：表示该文档的 chat 范围——`null` 表示不按 chat 限定范围。
+响应的 document 对象新增 `chat_id` 字段（可为 null 的字符串，v3.11.0 新增）：表示该文档的 chat 范围——`null` 表示不按 chat 限定范围。`GET /v1/vault/documents/{docID}` 返回一个按租户限定范围的 document 对象；对于 team 文档，非 owner 调用方还必须是该 team 的成员。
+
+**Links 响应**（`GET /v1/vault/documents/{docID}/links`）：
+
+```json
+{
+  "outlinks": [
+    {
+      "id": "link-uuid",
+      "from_doc_id": "source-doc-uuid",
+      "to_doc_id": "target-doc-uuid",
+      "link_type": "reference",
+      "context": "参见部署指南",
+      "metadata": {"source": "manual"},
+      "created_at": "2026-08-09T10:00:00Z"
+    }
+  ],
+  "backlinks": [
+    {
+      "from_doc_id": "other-doc-uuid",
+      "context": "由运行手册引用",
+      "title": "Operations runbook",
+      "path": "docs/runbook.md",
+      "team_id": "team-uuid"
+    }
+  ],
+  "doc_names": {
+    "target-doc-uuid": "Deployment guide"
+  }
+}
+```
+
+`outlinks` 包含完整 link 记录。`backlinks` 包含源文档 metadata（`from_doc_id`、`context`、`title`、`path`，以及可选的 `team_id`）。`doc_names` 将每个出链目标 ID 映射到其 title；没有 title 时回退为路径 basename。无结果时返回空数组；对于非 owner 调用方，backlink 会按目标文档的 team 边界过滤。
 
 **搜索请求体：** `{ "query": "...", "scope": "team", "doc_types": ["guide"], "max_results": 10 }`
 
@@ -27468,13 +27641,39 @@ curl -X POST http://localhost:18790/v1/mcp/servers \
 
 ### MCP 用户凭证
 
-为需要独立认证的 MCP server 提供按用户凭证存储。
+为需要独立认证的 MCP server 提供按用户凭证存储。请求必须包含已认证的用户上下文。可选的 `?user_id=` 默认指向调用方；若要操作其他用户，需要 system admin 或 tenant admin/owner 权限，且 tenant admin/owner 只能操作同一租户内的用户。
 
 | 方法 | 路径 | 说明 |
 |--------|------|-------------|
-| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | 为 server 设置用户凭证 |
-| `GET` | `/v1/mcp/servers/{id}/user-credentials` | 获取用户凭证 |
+| `PUT` | `/v1/mcp/servers/{id}/user-credentials` | 设置或替换用户凭证 |
+| `GET` | `/v1/mcp/servers/{id}/user-credentials` | 仅获取凭证存在性 metadata |
 | `DELETE` | `/v1/mcp/servers/{id}/user-credentials` | 删除用户凭证 |
+
+**PUT 请求体**（最大 64 KiB）：
+
+```json
+{
+  "api_key": "secret",
+  "headers": {"Authorization": "Bearer secret"},
+  "env": {"MCP_TOKEN": "secret"}
+}
+```
+
+`GET` 绝不会返回凭证值。完整响应 contract 为：
+
+```json
+{
+  "user_id": "user123",
+  "has_credentials": true,
+  "has_api_key": true,
+  "has_headers": true,
+  "has_env": true
+}
+```
+
+如果不存在凭证记录，四个 `has_*` 字段均为 `false`。`PUT` 返回 `{ "status": "updated" }`；`DELETE` 返回 `{ "status": "deleted" }`。
+
+`PUT` 和 `DELETE` 都会淘汰该用户的 pooled MCP 连接。下一次 MCP 请求会使用新保存的凭证重新连接（删除后则不再使用旧凭证），无需重启 gateway。
 
 **导出查询参数：**
 
@@ -28483,12 +28682,12 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 
 > 自动生成的全部 REST 端点完整索引。请求/响应详情、示例和认证说明，请参见 [REST API 参考](rest-api.md)。
 
-**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
+**Total endpoints:** 365 — generated from goclaw `cc510d92` on `2026-08-09`.
 
 ## 如何使用本页
 
 - 这是一个扁平目录 — 每行对应一个端点。
-- 端点按处理器域分组（`goclaw/internal/http/` 中的源文件）。
+- 端点按处理器域分组；每个标题都会显示相对于 repository 的源文件路径。
 - 有关 OpenAI 兼容端点（`/v1/chat/completions`、`/v1/responses`）的完整请求/响应 schema，请参见 [REST API 参考](rest-api.md)。
 - 认证：所有 `/v1/*` 端点均需 `Authorization: Bearer <api-key>`，另有说明的除外。
 
@@ -28622,6 +28821,14 @@ Mode 通过 query string `?mode=sync|async` 选择（`llm` 默认 `sync`，`mess
 | `POST` | `/v1/contacts/unmerge` |
 | `GET` | `/v1/tenant-users` |
 | `GET` | `/v1/users/search` |
+
+### Core (`internal/gateway/server.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/chat/completions` |
+| `POST` | `/v1/responses` |
+| `POST` | `/v1/tools/invoke` |
 
 ### Edition (`internal/http/edition.go`)
 
@@ -33493,6 +33700,14 @@ GoClaw 在 HTTP 429、500、502、503、504 和网络错误时重试。默认配
 - **最大延迟：** 30s
 - **退避：** 指数，带 ±10% 抖动
 - **Retry-After 头：** 存在时遵守（如 Anthropic/OpenAI 的 429）
+
+### Codex / ChatGPT Responses 流失败
+
+OAuth `openai-codex` provider 可能在已建立的 Responses API SSE 流中收到暂时性或类似速率限制的 `response.failed` 事件。GoClaw 会将明确的重试提示和速率限制措辞归类为可重试，但只有在尚未发出任何可见内容、思考/推理、图片或工具调用时，才会重放 Codex 请求。
+
+如果已经发出输出，GoClaw 会保留错误或部分结果，不再重试该流。这是有意的保护措施，可避免重放整个请求造成文本、工具调用或图片重复。
+
+不要将此保护与 **Codex OAuth 池回退**混淆；后者会选择另一个符合条件的账户。它也不同于上文的**通用 HTTP 重试**；后者在请求/传输层处理 HTTP 429/5xx 和网络故障。
 
 ## Schema 验证错误（Gemini）
 

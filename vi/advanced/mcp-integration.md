@@ -271,18 +271,38 @@ Các MCP server chạy trong context tenant cách ly. Bridge tự động enforc
 
 Không cần cấu hình — cách ly tenant tự động cho mọi kết nối MCP.
 
-## Admin User Credentials
+## Quản lý Credential Per-User
 
-Admin có thể đặt MCP user credential thay mặt bất kỳ user nào. Hữu ích để cấu hình trước OAuth token hoặc API key cho các MCP server yêu cầu xác thực per-user.
+Dùng route hiện hành `/v1/mcp/servers/{id}/user-credentials` để quản lý credential cho MCP server. Theo mặc định, `GET`, `PUT`, và `DELETE` thao tác trên chính người gọi đã xác thực.
 
 ```bash
-curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{userID} \
+# Đặt credential của người gọi
+curl -X PUT "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
   -H "Authorization: Bearer $GOCLAW_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"credentials": {"api_key": "user-specific-key"}}'
+  -d '{"api_key":"user-specific-key"}'
+
+# Kiểm tra trạng thái credential của người gọi
+curl "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN"
+
+# Xóa credential của người gọi
+curl -X DELETE "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN"
 ```
 
-Yêu cầu quyền admin. Credential được mã hóa khi lưu trữ bằng `GOCLAW_ENCRYPTION_KEY`.
+Chỉ dùng `?user_id=$TARGET_USER_ID` khi cần thao tác cho user khác. System admin có thể target bất kỳ user nào; tenant admin hoặc owner chỉ có thể target user khác thuộc cùng tenant.
+
+```bash
+curl -X PUT "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials?user_id=$TARGET_USER_ID" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"user-specific-key"}'
+```
+
+`GET` chỉ trả metadata trạng thái như `user_id`, `has_credentials`, `has_api_key`, `has_headers`, và `has_env`; không bao giờ trả giá trị secret. Credential được mã hóa khi lưu trữ bằng `GOCLAW_ENCRYPTION_KEY`.
+
+Sau `PUT` hoặc `DELETE` thành công, GoClaw chỉ evict pooled connection của đúng user đó trên server đã chọn. Lần sử dụng tiếp theo sẽ kết nối lại lazily với credential mới, nên không cần restart gateway.
 
 ## Các vấn đề thường gặp
 
@@ -299,4 +319,4 @@ Yêu cầu quyền admin. Credential được mã hóa khi lưu trữ bằng `GO
 - [Custom Tools](../advanced/custom-tools.md) — tạo tool shell mà không cần MCP server
 - [Skills](../advanced/skills.md) — inject kiến thức tái sử dụng vào system prompt của agent
 
-<!-- goclaw-source: 050aafc9 | cập nhật: 2026-04-09 -->
+<!-- goclaw-source: cc510d92 | cập nhật: 2026-08-09 -->

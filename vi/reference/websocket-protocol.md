@@ -250,6 +250,111 @@ Các giá trị `item_type` của timeline gồm `activity`, `assistant.message`
 | `config.permissions.check` | `{agentId, scope, configType, userId}` | Đánh giá quyết định hiệu lực (`allow` / `deny`) mà không thay đổi dữ liệu |
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Cấp quyền |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Thu hồi quyền |
+| `chat_behavior.preview` | Preview delivery behavior đã resolve của channel mà không gửi message (owner, master scope) |
+
+#### `chat_behavior.preview`
+
+Live WebSocket RPC này phục vụ preview chat behavior của channel trên dashboard. Method không gửi message và không thay đổi config.
+
+**Quyền truy cập:** connection phải là **owner** của gateway và đang ở **master scope**. Nếu không, method trả về `UNAUTHORIZED`.
+
+| Param | Kiểu | Mô tả |
+|-------|------|-------|
+| `channel` | string | Tên channel dùng để lookup override khi không truyền `config` |
+| `content` | string | Nội dung final mẫu dùng để preview việc tách message |
+| `isStreaming` | boolean | Delivery mẫu có dùng streaming hay không |
+| `hasToolCalls` | boolean | Run mẫu có tool call hay không |
+| `config` | object | `ChatBehaviorConfig` tùy chọn để resolve trực tiếp |
+
+Thứ tự resolve:
+
+- Nếu có `config`, GoClaw resolve trực tiếp config đó trên các chat-behavior default tích hợp; không lookup channel và không áp dụng gateway config.
+- Nếu không có `config` và channel manager khả dụng, GoClaw áp dụng override của channel được chỉ định lên default `gateway.chat_behavior`.
+- Nếu không có channel manager, GoClaw chỉ fallback về `gateway.chat_behavior`.
+
+Response payload luôn có `resolved`, `ack`, và `split`. `resolved` là behavior hiệu lực, `ack` mô tả quick acknowledgement có được gửi hay không và theo cách nào, còn `split.parts` chứa các phần final message sau khi tách.
+
+> **Lưu ý serialization:** `resolved` hiện dùng tên field Go được export như `Enabled`, `QuickAck`, và `FinalSplit`. Giá trị `Timeout` là số nguyên `time.Duration` được serialize theo nanosecond. Các field `ack` và `split` dùng tên camelCase như bên dưới.
+
+**Request:**
+
+```json
+{
+  "type": "req",
+  "id": "behavior-preview-1",
+  "method": "chat_behavior.preview",
+  "params": {
+    "channel": "telegram",
+    "content": "First update is ready.\n\nSecond update is ready.",
+    "isStreaming": false,
+    "hasToolCalls": true,
+    "config": {
+      "enabled": true,
+      "quick_ack": {
+        "enabled": true,
+        "mode": "fixed_template",
+        "templates": ["Working."]
+      },
+      "final_split": {
+        "enabled": true,
+        "min_chars": 10,
+        "max_messages": 3,
+        "delay_ms": 500
+      }
+    }
+  }
+}
+```
+
+**Response thành công:**
+
+```json
+{
+  "type": "res",
+  "id": "behavior-preview-1",
+  "ok": true,
+  "payload": {
+    "resolved": {
+      "Enabled": true,
+      "IntermediateReplies": {
+        "Enabled": false,
+        "Mode": "sidecar_generated",
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 60,
+        "MaxChars": 180
+      },
+      "QuickAck": {
+        "Enabled": true,
+        "Mode": "fixed_template",
+        "MinDelayMs": 1000,
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 40,
+        "MaxChars": 120,
+        "Templates": ["Working."]
+      },
+      "FinalSplit": {
+        "Enabled": true,
+        "MinChars": 10,
+        "MaxMessages": 3,
+        "DelayMs": 500
+      }
+    },
+    "ack": {
+      "shouldSend": true,
+      "content": "Working.",
+      "mode": "fixed_template",
+      "source": "template"
+    },
+    "split": {
+      "parts": ["First update is ready.", "Second update is ready."]
+    }
+  }
+}
+```
 
 ### Cron
 
@@ -643,4 +748,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — quản lý pairing và session từ terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, và các thuật ngữ quan trọng khác
 
-<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | cập nhật: 2026-08-09 -->
