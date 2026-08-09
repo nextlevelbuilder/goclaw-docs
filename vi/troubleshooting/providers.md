@@ -59,6 +59,14 @@ GoClaw retry khi gặp HTTP 429, 500, 502, 503, 504, và network error. Cấu h�
 - **Backoff:** exponential với ±10% jitter
 - **Retry-After header:** được tôn trọng khi có (ví dụ trên 429 từ Anthropic/OpenAI)
 
+### Lỗi Codex / ChatGPT Responses stream
+
+Provider OAuth `openai-codex` có thể nhận event `response.failed` tạm thời hoặc kiểu rate limit bên trong một Responses API SSE stream đã được thiết lập. GoClaw phân loại message có hướng dẫn retry rõ ràng hoặc wording rate limit là retryable, nhưng chỉ replay Codex request nếu chưa emit content hiển thị, thinking/reasoning, image, hoặc tool call nào.
+
+Nếu output đã được emit, GoClaw giữ lại lỗi hoặc partial result và không retry stream đó. Đây là chủ ý để tránh replay toàn bộ request làm trùng text, tool call, hoặc image.
+
+Không nhầm guard này với **fallback của Codex OAuth pool**, nơi chọn tài khoản đủ điều kiện khác, hoặc **HTTP retry chung** ở trên, nơi xử lý HTTP 429/5xx và network failure tại request/transport layer.
+
 ## Schema Validation Errors (Gemini)
 
 Gemini từ chối các field JSON Schema mà provider khác chấp nhận. GoClaw tự động loại bỏ field không tương thích trước khi gửi tool definition.
@@ -167,4 +175,4 @@ Yêu cầu migration #057 đã được áp dụng (`./goclaw migrate up`). Ki�
 - [Các vấn đề thường gặp](/troubleshoot-common)
 - [Vấn đề channel](/troubleshoot-channels)
 
-<!-- goclaw-source: 364d2d34 | cập nhật: 2026-04-29 -->
+<!-- goclaw-source: cc510d92 | cập nhật: 2026-08-09 -->

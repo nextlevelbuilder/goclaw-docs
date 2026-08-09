@@ -2,12 +2,12 @@
 
 > Danh sách auto-gen đầy đủ tất cả REST endpoint. Để xem chi tiết request/response, ví dụ và xác thực, xem [REST API Reference](rest-api.md).
 
-**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
+**Total endpoints:** 365 — generated from goclaw `cc510d92` on `2026-08-09`.
 
 ## Cách sử dụng trang này
 
 - Đây là danh sách phẳng — mỗi hàng là một endpoint.
-- Endpoint được nhóm theo domain handler (file nguồn trong `goclaw/internal/http/`).
+- Endpoint được nhóm theo domain handler; mỗi heading hiển thị đường dẫn file nguồn tương đối trong repository.
 - Để xem schema request/response đầy đủ của các endpoint tương thích OpenAI (`/v1/chat/completions`, `/v1/responses`), xem [REST API Reference](rest-api.md).
 - Xác thực: tất cả endpoint `/v1/*` yêu cầu `Authorization: Bearer <api-key>` trừ khi có ghi chú khác.
 
@@ -141,6 +141,14 @@
 | `POST` | `/v1/contacts/unmerge` |
 | `GET` | `/v1/tenant-users` |
 | `GET` | `/v1/users/search` |
+
+### Core (`internal/gateway/server.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/chat/completions` |
+| `POST` | `/v1/responses` |
+| `POST` | `/v1/tools/invoke` |
 
 ### Edition (`internal/http/edition.go`)
 
@@ -607,6 +615,6 @@
 
 ---
 
-<!-- goclaw-source: fabe86b3 -->
-<!-- last-updated: 2026-06-29 -->
-<!-- total-endpoints: 362 -->
+<!-- goclaw-source: cc510d92 -->
+<!-- last-updated: 2026-08-09 -->
+<!-- total-endpoints: 365 -->

@@ -129,19 +129,24 @@ goclaw agent delete researcher --force
 
 ### `agent chat`
 
-通过运行中的网关向 agent 发送单次消息。
+通过运行中的网关与 agent 交互聊天，或发送单次消息。
 
 ```bash
-goclaw agent chat "What files are in the workspace?"
-goclaw agent chat --agent researcher "Summarize today's news"
-goclaw agent chat --session my-session "Continue where we left off"
+goclaw agent chat
+goclaw agent chat --name researcher -m "Summarize today's news"
+goclaw agent chat --session my-session
+goclaw agent chat --user alice
+goclaw agent chat -u alice -m "What files are in the workspace?"
 ```
 
 | 标志 | 默认值 | 说明 |
 |------|--------|------|
-| `--agent <id>` | `default` | 目标 agent ID |
-| `--session <key>` | 自动 | 要恢复的 session key |
-| `--json` | false | 以 JSON 格式输出响应 |
+| `-n`, `--name <name>` | `default` | 目标 agent 名称 |
+| `-m`, `--message <text>` | — | 发送一条消息；省略则进入交互模式 |
+| `-s`, `--session <key>` | 自动 | 要恢复的 session key |
+| `-u`, `--user <id>` | — | 设置此聊天连接的用户上下文 |
+
+提供 `--user` 或 `-u` 时，CLI 会在 WebSocket 连接参数中将该值作为 `connect.user_id` 发送，从而为聊天建立用户上下文。它不是 API 身份验证 token；网关身份验证仍是独立机制。
 
 ---
 
@@ -972,4 +977,4 @@ goclaw bitrix-portal set-public-url \
 - [REST API](/rest-api) — HTTP API 端点列表
 - [配置参考](/config-reference) — 完整 `config.json` schema
 
-<!-- goclaw-source: fabe86b3 | 更新: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | 更新: 2026-08-09 -->

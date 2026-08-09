@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * build-api-catalog.js — Generates REST API endpoint catalog from goclaw source code.
- * Greps internal/http/*.go + internal/gateway/server.go for mux.Handle/HandleFunc patterns.
+ * Scans internal/http/*.go + internal/gateway/server.go for mux.Handle/HandleFunc patterns.
  * Outputs trilingual markdown catalog pages: EN, VI, ZH.
  *
  * Run: node scripts/build-api-catalog.js
@@ -28,12 +28,29 @@ function getCommitSha() {
   }
 }
 
-/** Parse "METHOD /path" from mux.Handle/HandleFunc call strings */
-function parseEndpoint(line) {
-  // Match: "GET /v1/some/path" or 'GET /v1/some/path' inside Handle/HandleFunc calls
-  const match = line.match(/"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) ([^"]+)"/);
-  if (!match) return null;
-  return { method: match[1], path: match[2] };
+const PATH_ONLY_ENDPOINTS = new Map([
+  ['internal/gateway/server.go', new Map([
+    ['/v1/chat/completions', 'POST'],
+    ['/v1/responses', 'POST'],
+    ['/v1/tools/invoke', 'POST'],
+  ])],
+]);
+
+/** Parse an endpoint from a mux.Handle/HandleFunc call string. */
+function parseEndpoint(line, sourcePath) {
+  const methodPathMatch = line.match(/"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) ([^"]+)"/);
+  if (methodPathMatch) {
+    return { method: methodPathMatch[1], path: methodPathMatch[2] };
+  }
+
+  // Go 1.22 patterns normally include the method. These three legacy gateway
+  // registrations are path-only, so map each one explicitly instead of
+  // assuming a method for every path-only handler.
+  const pathOnlyMatch = line.match(/mux\.Handle\("([^"]+)"/);
+  if (!pathOnlyMatch) return null;
+  const method = PATH_ONLY_ENDPOINTS.get(sourcePath)?.get(pathOnlyMatch[1]);
+  if (!method) return null;
+  return { method, path: pathOnlyMatch[1] };
 }
 
 /** Friendly group name from source file basename */
@@ -127,14 +144,17 @@ function scanEndpoints() {
     ...fs.readdirSync(path.join(GOCLAW_SRC, 'internal', 'http'))
       .filter(f => f.endsWith('.go') && !f.endsWith('_test.go'))
       .map(f => path.join(GOCLAW_SRC, 'internal', 'http', f)),
-  ];
+  ].map(filePath => ({
+    filePath,
+    sourcePath: path.relative(GOCLAW_SRC, filePath).split(path.sep).join('/'),
+  }));
 
   // group name -> Set of "METHOD PATH" to deduplicate
   const groupEndpoints = new Map();
-  // group name -> source file basename (for section header)
+  // group name -> repository-relative source path (for section header)
   const groupSource = new Map();
 
-  for (const filePath of sourceFiles) {
+  for (const { filePath, sourcePath } of sourceFiles) {
     if (!fs.existsSync(filePath)) continue;
     const basename = path.basename(filePath, '.go');
     const group = fileToGroup(basename);
@@ -142,13 +162,13 @@ function scanEndpoints() {
 
     for (const line of lines) {
       if (!line.includes('mux.Handle(') && !line.includes('mux.HandleFunc(')) continue;
-      const ep = parseEndpoint(line);
+      const ep = parseEndpoint(line, sourcePath);
       if (!ep) continue;
 
       const key = `${ep.method} ${ep.path}`;
       if (!groupEndpoints.has(group)) {
         groupEndpoints.set(group, new Map());
-        groupSource.set(group, basename);
+        groupSource.set(group, sourcePath);
       }
       // Store endpoint keyed by "METHOD PATH" to deduplicate across files in same group
       groupEndpoints.get(group).set(key, ep);
@@ -188,7 +208,7 @@ function buildEndpointTable(endpoints) {
 
 function buildGroupSections(groups) {
   return groups.map(({ group, source, endpoints }) => {
-    const header = `### ${group} (\`internal/http/${source}.go\`)`;
+    const header = `### ${group} (\`${source}\`)`;
     return [header, '', buildEndpointTable(endpoints)].join('\n');
   }).join('\n\n');
 }
@@ -204,7 +224,7 @@ const LOCALES = {
     howToUse: `## How to use this page
 
 - This is a flat catalog — one row per endpoint.
-- Endpoints are grouped by handler domain (the source file in \`goclaw/internal/http/\`).
+- Endpoints are grouped by handler domain, with the repository-relative source file shown in each heading.
 - For full request/response schemas of OpenAI-compatible endpoints (\`/v1/chat/completions\`, \`/v1/responses\`), see [REST API Reference](rest-api.md).
 - Authentication: all \`/v1/*\` endpoints require \`Authorization: Bearer <api-key>\` unless noted.`,
     sectionTitle: '## Endpoints by Domain',
@@ -215,7 +235,7 @@ const LOCALES = {
     howToUse: `## Cách sử dụng trang này
 
 - Đây là danh sách phẳng — mỗi hàng là một endpoint.
-- Endpoint được nhóm theo domain handler (file nguồn trong \`goclaw/internal/http/\`).
+- Endpoint được nhóm theo domain handler; mỗi heading hiển thị đường dẫn file nguồn tương đối trong repository.
 - Để xem schema request/response đầy đủ của các endpoint tương thích OpenAI (\`/v1/chat/completions\`, \`/v1/responses\`), xem [REST API Reference](rest-api.md).
 - Xác thực: tất cả endpoint \`/v1/*\` yêu cầu \`Authorization: Bearer <api-key>\` trừ khi có ghi chú khác.`,
     sectionTitle: '## Endpoint theo Domain',
@@ -226,7 +246,7 @@ const LOCALES = {
     howToUse: `## 如何使用本页
 
 - 这是一个扁平目录 — 每行对应一个端点。
-- 端点按处理器域分组（\`goclaw/internal/http/\` 中的源文件）。
+- 端点按处理器域分组；每个标题都会显示相对于 repository 的源文件路径。
 - 有关 OpenAI 兼容端点（\`/v1/chat/completions\`、\`/v1/responses\`）的完整请求/响应 schema，请参见 [REST API 参考](rest-api.md)。
 - 认证：所有 \`/v1/*\` 端点均需 \`Authorization: Bearer <api-key>\`，另有说明的除外。`,
     sectionTitle: '## 按领域分组的端点',

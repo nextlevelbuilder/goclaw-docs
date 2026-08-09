@@ -86,6 +86,17 @@ Codex provider dùng định dạng Responses API, không phải chat completion
 
 Sự chuyển đổi này hoàn toàn trong suốt — bạn tương tác với GoClaw theo cách giống nhau bất kể provider nào đang hoạt động.
 
+## An toàn khi Retry Streaming
+
+Responses API có thể báo lỗi tạm thời hoặc lỗi kiểu rate limit bên trong một SSE stream vẫn kết nối hợp lệ, ví dụ event `response.failed` có message yêu cầu caller retry. GoClaw chỉ retry Codex stream đó khi attempt thất bại chưa emit bất kỳ content hiển thị, thinking/reasoning, image, hoặc tool call nào.
+
+Sau khi bất kỳ output nào ở trên đã được emit, GoClaw không replay Responses request. Attempt hiện tại trả về lỗi hoặc partial result thay vì chạy lại, tránh tạo text, tool call, và image trùng lặp.
+
+Replay guard này chỉ dành cho Codex Responses streaming. Nó tách biệt với:
+
+- **Fallback của OAuth pool**, nơi request được route sang tài khoản ChatGPT đủ điều kiện khác.
+- **HTTP retry chung**, nơi xử lý HTTP 429/5xx ở transport layer và network error như mô tả trong [Vấn đề Provider](/troubleshoot-providers).
+
 ## Ví dụ
 
 **Agent config sau khi thiết lập OAuth:**
@@ -218,4 +229,4 @@ Fallback được ghi lại dưới dạng một model-fallback observation đ�
 - [Custom Provider](/provider-custom) — kết nối bất kỳ API nào tương thích OpenAI kể cả model local
 - [Claude CLI](/provider-claude-cli) — dùng subscription Claude thay thế
 
-<!-- goclaw-source: fabe86b3 | cập nhật: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | cập nhật: 2026-08-09 -->

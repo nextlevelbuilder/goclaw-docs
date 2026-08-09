@@ -269,18 +269,38 @@ MCP servers run in isolated tenant contexts. The bridge enforces tenant_id propa
 
 No configuration required — tenant isolation is automatic for all MCP connections.
 
-## Admin User Credentials
+## Per-User Credential Management
 
-Admins can set MCP user credentials on behalf of any user. This is useful for pre-configuring OAuth tokens or API keys for MCP servers that require per-user authentication.
+Use the live `/v1/mcp/servers/{id}/user-credentials` route to manage credentials for an MCP server. By default, `GET`, `PUT`, and `DELETE` operate on the authenticated caller.
 
 ```bash
-curl -X PUT http://localhost:8080/v1/mcp/servers/{serverID}/user-credentials/{userID} \
+# Set the caller's credentials
+curl -X PUT "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
   -H "Authorization: Bearer $GOCLAW_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"credentials": {"api_key": "user-specific-key"}}'
+  -d '{"api_key":"user-specific-key"}'
+
+# Check the caller's credential status
+curl "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN"
+
+# Delete the caller's credentials
+curl -X DELETE "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN"
 ```
 
-Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPTION_KEY`.
+Use `?user_id=$TARGET_USER_ID` only to target another user. A system admin may target any user; a tenant admin or owner may target another user only when that user belongs to the same tenant.
+
+```bash
+curl -X PUT "http://localhost:8080/v1/mcp/servers/$SERVER_ID/user-credentials?user_id=$TARGET_USER_ID" \
+  -H "Authorization: Bearer $GOCLAW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"user-specific-key"}'
+```
+
+`GET` returns status metadata such as `user_id`, `has_credentials`, `has_api_key`, `has_headers`, and `has_env`; it never returns secret values. Credentials are encrypted at rest using `GOCLAW_ENCRYPTION_KEY`.
+
+After a successful `PUT` or `DELETE`, GoClaw evicts only that user's pooled connection for the selected server. The next use reconnects lazily with the updated credentials, so the gateway does not need to be restarted.
 
 ## Common Issues
 
@@ -297,4 +317,4 @@ Requires admin role. The credentials are encrypted at rest using `GOCLAW_ENCRYPT
 - [Custom Tools](../advanced/custom-tools.md) — build shell-backed tools without an MCP server
 - [Skills](../advanced/skills.md) — inject reusable knowledge into agent system prompts
 
-<!-- goclaw-source: 050aafc9 | updated: 2026-04-09 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->

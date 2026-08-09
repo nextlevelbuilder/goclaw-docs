@@ -2,12 +2,12 @@
 
 > Auto-generated complete index of all REST endpoints. For request/response details, examples, and authentication, see [REST API Reference](rest-api.md).
 
-**Total endpoints:** 362 — generated from goclaw `fabe86b3` on `2026-06-29`.
+**Total endpoints:** 365 — generated from goclaw `cc510d92` on `2026-08-09`.
 
 ## How to use this page
 
 - This is a flat catalog — one row per endpoint.
-- Endpoints are grouped by handler domain (the source file in `goclaw/internal/http/`).
+- Endpoints are grouped by handler domain, with the repository-relative source file shown in each heading.
 - For full request/response schemas of OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses`), see [REST API Reference](rest-api.md).
 - Authentication: all `/v1/*` endpoints require `Authorization: Bearer <api-key>` unless noted.
 
@@ -141,6 +141,14 @@
 | `POST` | `/v1/contacts/unmerge` |
 | `GET` | `/v1/tenant-users` |
 | `GET` | `/v1/users/search` |
+
+### Core (`internal/gateway/server.go`)
+
+| Method | Path |
+|---|---|
+| `POST` | `/v1/chat/completions` |
+| `POST` | `/v1/responses` |
+| `POST` | `/v1/tools/invoke` |
 
 ### Edition (`internal/http/edition.go`)
 
@@ -607,6 +615,6 @@
 
 ---
 
-<!-- goclaw-source: fabe86b3 -->
-<!-- last-updated: 2026-06-29 -->
-<!-- total-endpoints: 362 -->
+<!-- goclaw-source: cc510d92 -->
+<!-- last-updated: 2026-08-09 -->
+<!-- total-endpoints: 365 -->

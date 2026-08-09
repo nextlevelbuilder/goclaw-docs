@@ -251,6 +251,111 @@ Timeline `item_type` values include `activity`, `assistant.message`, `tool.call`
 | `config.permissions.check` | `{agentId, scope, configType, userId}` | Evaluate the effective decision (`allow` / `deny`) without mutating |
 | `config.permissions.grant` | `{agentId, scope, configType, userId, permission, grantedBy?, metadata?}` | Grant a permission |
 | `config.permissions.revoke` | `{agentId, scope, configType, userId}` | Revoke a permission |
+| `chat_behavior.preview` | Preview resolved channel delivery behavior without sending a message (owner, master scope) |
+
+#### `chat_behavior.preview`
+
+This live WebSocket RPC powers the dashboard preview for channel chat behavior. It does not send a message or mutate configuration.
+
+**Access:** the connection must be the gateway **owner** and must be in **master scope**. Otherwise the method returns `UNAUTHORIZED`.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `channel` | string | Channel name used for override lookup when `config` is omitted |
+| `content` | string | Sample final content used to preview message splitting |
+| `isStreaming` | boolean | Whether the sample delivery is streaming |
+| `hasToolCalls` | boolean | Whether the sample run contains tool calls |
+| `config` | object | Optional `ChatBehaviorConfig` to resolve directly |
+
+Resolution order:
+
+- If `config` is supplied, GoClaw resolves it directly against built-in chat-behavior defaults; channel lookup and gateway configuration are not applied.
+- If `config` is omitted and a channel manager is available, GoClaw applies the named channel's override on top of `gateway.chat_behavior` defaults.
+- If no channel manager is available, GoClaw falls back to `gateway.chat_behavior` only.
+
+The response payload always contains `resolved`, `ack`, and `split`. `resolved` is the effective behavior, `ack` describes whether and how a quick acknowledgement would be sent, and `split.parts` contains the resulting final-message parts.
+
+> **Serialization note:** `resolved` currently uses exported Go field names such as `Enabled`, `QuickAck`, and `FinalSplit`. Its `Timeout` values are `time.Duration` integers serialized in nanoseconds. The `ack` and `split` fields use the camelCase names shown below.
+
+**Request:**
+
+```json
+{
+  "type": "req",
+  "id": "behavior-preview-1",
+  "method": "chat_behavior.preview",
+  "params": {
+    "channel": "telegram",
+    "content": "First update is ready.\n\nSecond update is ready.",
+    "isStreaming": false,
+    "hasToolCalls": true,
+    "config": {
+      "enabled": true,
+      "quick_ack": {
+        "enabled": true,
+        "mode": "fixed_template",
+        "templates": ["Working."]
+      },
+      "final_split": {
+        "enabled": true,
+        "min_chars": 10,
+        "max_messages": 3,
+        "delay_ms": 500
+      }
+    }
+  }
+}
+```
+
+**Success response:**
+
+```json
+{
+  "type": "res",
+  "id": "behavior-preview-1",
+  "ok": true,
+  "payload": {
+    "resolved": {
+      "Enabled": true,
+      "IntermediateReplies": {
+        "Enabled": false,
+        "Mode": "sidecar_generated",
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 60,
+        "MaxChars": 180
+      },
+      "QuickAck": {
+        "Enabled": true,
+        "Mode": "fixed_template",
+        "MinDelayMs": 1000,
+        "Provider": "",
+        "Model": "",
+        "Timeout": 2500000000,
+        "MaxTokens": 40,
+        "MaxChars": 120,
+        "Templates": ["Working."]
+      },
+      "FinalSplit": {
+        "Enabled": true,
+        "MinChars": 10,
+        "MaxMessages": 3,
+        "DelayMs": 500
+      }
+    },
+    "ack": {
+      "shouldSend": true,
+      "content": "Working.",
+      "mode": "fixed_template",
+      "source": "template"
+    },
+    "split": {
+      "parts": ["First update is ready.", "Second update is ready."]
+    }
+  }
+}
+```
 
 ### Cron
 
@@ -662,4 +767,4 @@ ws.onmessage = (e) => {
 - [CLI Commands](/cli-commands) — pairing and session management from the terminal
 - [Glossary](/glossary) — Session, Lane, Compaction, and other key terms
 
-<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->

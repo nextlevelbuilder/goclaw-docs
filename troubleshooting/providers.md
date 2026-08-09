@@ -57,6 +57,14 @@ GoClaw retries on HTTP 429, 500, 502, 503, 504, and network errors. Default conf
 - **Backoff:** exponential with ±10% jitter
 - **Retry-After header:** honored when present (e.g., on 429 from Anthropic/OpenAI)
 
+### Codex / ChatGPT Responses stream failures
+
+The OAuth `openai-codex` provider can receive a transient or rate-limit-style `response.failed` event inside an established Responses API SSE stream. GoClaw classifies explicit retry guidance and rate-limit wording as retryable, but replays the Codex request only if no visible content, thinking/reasoning, image, or tool call has been emitted.
+
+If output has already been emitted, GoClaw preserves the error or partial result and does not retry that stream. This is intentional: replaying the whole request could duplicate text, tool calls, or images.
+
+Do not confuse this guard with **Codex OAuth pool fallback**, which selects another eligible account, or with the **general HTTP retry** above, which handles HTTP 429/5xx and network failures at the request/transport layer.
+
 ## Schema Validation Errors (Gemini)
 
 Gemini rejects JSON Schema fields that other providers accept. GoClaw automatically strips incompatible fields before sending tool definitions.
@@ -165,4 +173,4 @@ Requires migration #057 to be applied (`./goclaw migrate up`). Check logs for `h
 - [Common Issues](/troubleshoot-common)
 - [Channel issues](/troubleshoot-channels)
 
-<!-- goclaw-source: 364d2d34 | updated: 2026-04-29 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->

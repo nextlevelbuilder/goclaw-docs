@@ -127,19 +127,24 @@ Also removes bindings referencing the deleted agent.
 
 ### `agent chat`
 
-Send a one-shot message to an agent via the running gateway.
+Chat with an agent interactively or send a one-shot message through the running gateway.
 
 ```bash
-goclaw agent chat "What files are in the workspace?"
-goclaw agent chat --agent researcher "Summarize today's news"
-goclaw agent chat --session my-session "Continue where we left off"
+goclaw agent chat
+goclaw agent chat --name researcher -m "Summarize today's news"
+goclaw agent chat --session my-session
+goclaw agent chat --user alice
+goclaw agent chat -u alice -m "What files are in the workspace?"
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--agent <id>` | `default` | Target agent ID |
-| `--session <key>` | auto | Session key to resume |
-| `--json` | false | Output response as JSON |
+| `-n`, `--name <name>` | `default` | Target agent name |
+| `-m`, `--message <text>` | — | Send one message; omit for interactive mode |
+| `-s`, `--session <key>` | auto | Session key to resume |
+| `-u`, `--user <id>` | — | Set the user context for this chat connection |
+
+When `--user` or `-u` is provided, the CLI includes that value as `connect.user_id` in the WebSocket connect params, establishing the user context for the chat. It is not an API authentication token; gateway authentication remains separate.
 
 ---
 
@@ -972,4 +977,4 @@ goclaw bitrix-portal set-public-url \
 - [REST API](/rest-api) — HTTP API endpoint listing
 - [Config Reference](/config-reference) — full `config.json` schema
 
-<!-- goclaw-source: fabe86b3 | updated: 2026-06-28 -->
+<!-- goclaw-source: cc510d92 | updated: 2026-08-09 -->
