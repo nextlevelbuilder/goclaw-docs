@@ -102,6 +102,7 @@
 - [Browser Automation](advanced/browser-automation.md)
 - [Extended Thinking](advanced/extended-thinking.md)
 - [Hooks & Quality Gates](advanced/hooks-quality-gates.md)
+- [JavaScript Hooks](advanced/hooks-javascript.md)
 - [Authentication & OAuth](advanced/authentication.md)
 - [API Keys & RBAC](advanced/api-keys-rbac.md)
 - [Agent Permission Matrix](advanced/permission-matrix.md)

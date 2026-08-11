@@ -188,6 +188,7 @@ const DOC_MAP = {
   'browser-automation': docEntry('advanced', 'browser-automation', 'Browser Automation', 'Browser Automation', '浏览器自动化'),
   'extended-thinking': docEntry('advanced', 'extended-thinking', 'Extended Thinking', 'Extended Thinking', '扩展思考'),
   'hooks-quality-gates': docEntry('advanced', 'hooks-quality-gates', 'Hooks & Quality Gates', 'Hooks & Quality Gates', 'Hooks 与质量门控'),
+  'hooks-javascript': docEntry('advanced', 'hooks-javascript', 'JavaScript Hooks', 'JavaScript Hooks', 'JavaScript Hooks'),
   'authentication': docEntry('advanced', 'authentication', 'Authentication & OAuth', 'Authentication', '认证与 OAuth'),
   'api-keys-rbac': docEntry('advanced', 'api-keys-rbac', 'API Keys & RBAC', 'API Keys & RBAC', 'API Keys 与 RBAC'),
   'permission-matrix': docEntry('advanced', 'permission-matrix', 'Permission Matrix', 'Ma trận phân quyền Agent', 'Agent 权限矩阵'),
